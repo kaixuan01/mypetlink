@@ -5,6 +5,7 @@ import {
   useRef,
   type MouseEventHandler,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
@@ -34,6 +35,14 @@ export type FormDialogProps = {
   cancelAction?: FormDialogAction;
   footerLayout?: "inline" | "stacked";
   maxWidthClassName?: string;
+  /**
+   * Focused when the dialog opens, instead of the close button.
+   *
+   * For a dialog whose whole purpose is one control — a search box — landing on
+   * Close means the first keystroke goes nowhere and a phone keyboard never
+   * appears.
+   */
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 export function FormDialog({
@@ -51,6 +60,7 @@ export function FormDialog({
   cancelAction,
   footerLayout = "inline",
   maxWidthClassName = "sm:max-w-4xl",
+  initialFocusRef,
 }: FormDialogProps) {
   const generatedId = useId();
   const titleId = `form-dialog-${generatedId}-title`;
@@ -64,7 +74,7 @@ export function FormDialog({
   useModalDialogFocus({
     dialogRef,
     enabled: open,
-    initialFocusRef: dismissible ? closeRef : titleRef,
+    initialFocusRef: initialFocusRef ?? (dismissible ? closeRef : titleRef),
     onEscape: () => {
       if (dismissible) onRequestClose();
     },

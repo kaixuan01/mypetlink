@@ -250,6 +250,55 @@ public sealed class SocialDiscoveryTests
     }
 
     [Fact]
+    public async Task TheSpeciesFilterNarrowsLatestMoments()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(Alice, Mochi, "Mochi on the sofa", 10);
+        await harness.AddMomentAsync(Bob, Buddy, "Buddy at the park", 20);
+
+        var cats = await harness.Discovery.GetLatestMomentsAsync(null, "Cat", null, null);
+
+        Assert.Equal(
+            new[] { "Mochi on the sofa" },
+            cats.Items.Select(item => item.Title).ToArray());
+    }
+
+    [Fact]
+    public async Task TheSpeciesFilterDoesNotLeakANonDiscoverableSecondaryPet()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+
+        // One household, two cats, and only one of them is discoverable. The
+        // Moment reaches Explore through Mochi.
+        await harness.SetPetDiscoverableAsync(Coco, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var cats = await harness.Discovery.GetLatestMomentsAsync(null, "Cat", null, null);
+
+        // Filtering by species must not become a second way in. The Moment
+        // qualifies on its discoverable cat, and the other cat stays unnamed —
+        // otherwise a filter would reveal a pet its owner kept out of discovery.
+        var moment = Assert.Single(cats.Items);
+        Assert.Equal("Beach day", moment.Title);
+        Assert.Equal(new[] { "Mochi" }, moment.Subjects.Select(s => s.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task TheSpeciesFilterDoesNotAdmitAMomentThroughANonDiscoverablePet()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+
+        // A rabbit nobody may discover, and a Moment that is only about her.
+        await harness.AddMomentAsync(Carol, Shy, "Shy in the sun", 10);
+
+        var rabbits = await harness.Discovery.GetLatestMomentsAsync(
+            null, "Rabbit", null, null);
+
+        Assert.Empty(rabbits.Items);
+    }
+
+    [Fact]
     public async Task LatestMoments_ShowsAMultiPetMomentOnce()
     {
         using var harness = await SocialSurfaceHarness.CreateAsync();

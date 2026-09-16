@@ -92,13 +92,20 @@ export async function getSocialSpecies(): Promise<SocialSpeciesOption[]> {
 
 export async function searchSocial(
   query: string,
-  type?: "pets" | "owners"
+  type?: "pets" | "owners",
+  /**
+   * Aborts a search the caller has moved on from. Typing is faster than the
+   * network, so without this a slow answer to an earlier query can arrive after
+   * a newer one and replace it.
+   */
+  signal?: AbortSignal
 ): Promise<SocialSearchResults> {
   const parts = [`q=${encodeURIComponent(query)}`];
   if (type) parts.push(`type=${type}`);
 
   const response = await apiRequest<SocialSearchResults>(
-    `/api/v1/social/search?${parts.join("&")}`
+    `/api/v1/social/search?${parts.join("&")}`,
+    { signal }
   );
 
   return {

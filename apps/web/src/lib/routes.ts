@@ -190,6 +190,19 @@ export function ownerSocialProfilePath(handle: string) {
   return `/u/${handle.trim().replace(/^@+/, "").toLowerCase()}`;
 }
 
+/**
+ * A pet's Public Share Profile, from the already-composed public slug the
+ * social APIs return.
+ *
+ * `publicProfilePath` above builds the slug from a pet's own slug and code;
+ * this one takes the finished value social listings already carry, so a search
+ * result and an Explore card cannot drift into two different spellings of the
+ * same address.
+ */
+export function petPublicProfilePath(publicSlug: string) {
+  return `/p/${publicSlug.trim().toLowerCase()}`;
+}
+
 export function ownerFollowersPath(handle: string) {
   return `${ownerSocialProfilePath(handle)}/followers`;
 }

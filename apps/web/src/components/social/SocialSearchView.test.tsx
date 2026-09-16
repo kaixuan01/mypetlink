@@ -81,20 +81,8 @@ function results(
   return { query, pets, owners };
 }
 
-function signIn() {
-  window.localStorage.setItem(
-    "mypetlink_api_auth_session",
-    JSON.stringify({
-      accessToken: "access",
-      refreshToken: "refresh",
-      expiresAt: Date.now() + 60_000,
-      user: { id: "viewer", email: "viewer@example.com" },
-    })
-  );
-}
-
 function type(value: string) {
-  fireEvent.change(screen.getByLabelText("Search pets and pet parents"), {
+  fireEvent.change(screen.getByLabelText("Search pets or pet parents"), {
     target: { value },
   });
 }
@@ -130,7 +118,7 @@ describe("SocialSearchView", () => {
     render(<SocialSearchView />);
 
     type("m");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
 
     expect(mocks.searchSocial).not.toHaveBeenCalled();
     expect(screen.getByTestId("search-hint")).toBeTruthy();
@@ -142,17 +130,41 @@ describe("SocialSearchView", () => {
     type("mo");
     type("moc");
     type("moch");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
 
     await waitFor(() => expect(mocks.searchSocial).toHaveBeenCalledTimes(1));
-    expect(mocks.searchSocial).toHaveBeenCalledWith("moch");
+    expect(mocks.searchSocial.mock.calls[0][0]).toBe("moch");
+  });
+
+  it("abandons a search the typist has already moved past", async () => {
+    // Typing outruns the network. Without cancellation a slow answer to "mo"
+    // can arrive after the answer to "mochi" and overwrite it, which looks like
+    // the results going backwards under your hands.
+    const signals: AbortSignal[] = [];
+    mocks.searchSocial.mockImplementation(
+      (_query: string, _type: unknown, signal: AbortSignal) => {
+        signals.push(signal);
+        return new Promise(() => {});
+      }
+    );
+
+    render(<SocialSearchView />);
+
+    type("mo");
+    await vi.advanceTimersByTimeAsync(600);
+    type("mochi");
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(signals).toHaveLength(2);
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
   });
 
   it("shows matching pets first", async () => {
     render(<SocialSearchView />);
 
     type("moch");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
 
     const pets = await screen.findByTestId("search-pets");
     expect(within(pets).getByText("Mochi")).toBeTruthy();
@@ -162,7 +174,7 @@ describe("SocialSearchView", () => {
     render(<SocialSearchView />);
 
     type("moch");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
     await screen.findByTestId("search-pets");
 
     fireEvent.click(screen.getByRole("button", { name: /^Pet Parents/ }));
@@ -175,36 +187,48 @@ describe("SocialSearchView", () => {
     mocks.query = "q=moch";
 
     render(<SocialSearchView />);
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
 
-    await waitFor(() => expect(mocks.searchSocial).toHaveBeenCalledWith("moch"));
+    await waitFor(() =>
+      expect(mocks.searchSocial.mock.calls[0]?.[0]).toBe("moch")
+    );
   });
 
-  it("follows a household from a result without leaving the page", async () => {
-    signIn();
-    mocks.followOwner.mockResolvedValue({
-      isSelf: false,
-      isFollowing: true,
-      isFollowedBy: false,
-      hasBlocked: false,
-      canFollow: true,
-      allowsFollowers: true,
-      followerCount: 1,
-      followingCount: 0,
-    });
-
+  it("sends a result to the profile rather than acting on it in place", async () => {
     render(<SocialSearchView />);
 
     type("moch");
-    await vi.advanceTimersByTimeAsync(500);
-    await screen.findByTestId("search-pets");
+    await vi.advanceTimersByTimeAsync(600);
+
+    const petRow = await screen.findByTestId("search-pet-row");
+    expect(petRow.getAttribute("href")).toBe("/p/mochi-pubmochi");
 
     fireEvent.click(screen.getByRole("button", { name: /^Pet Parents/ }));
-    fireEvent.click(await screen.findByTestId("follow-button"));
+    const ownerRow = await screen.findByTestId("search-owner-row");
+    expect(ownerRow.getAttribute("href")).toBe("/u/mochiandcoco");
 
-    await waitFor(() =>
-      expect(mocks.followOwner).toHaveBeenCalledWith("mochiandcoco")
-    );
+    // Follow is a decision, and a result row is not enough of a household to
+    // make it on. It lives on the profile the row opens.
+    expect(screen.queryByTestId("follow-button")).toBeNull();
+    expect(screen.queryByTestId("follow-button-signin")).toBeNull();
+  });
+
+  it("shows only the social identity a household chose", async () => {
+    render(<SocialSearchView />);
+
+    type("moch");
+    await vi.advanceTimersByTimeAsync(600);
+    await screen.findByTestId("search-pets");
+
+    // A result names the pet, its type, and the handle that shares it. The
+    // account name, the finder-facing owner name, an email, a phone number and
+    // every code are all absent — they are not searchable and not shown.
+    const row = screen.getByTestId("search-pet-row");
+    expect(row.textContent).toContain("Mochi");
+    expect(row.textContent).toContain("@tanfamily");
+    expect(row.textContent).not.toMatch(/@.*\.(com|net|org)/);
+    expect(row.textContent).not.toMatch(/\+?\d{7,}/);
+    expect(row.textContent).not.toMatch(/MPL-|safetyCode|tagCode/i);
   });
 
   it("says plainly when nothing matches", async () => {
@@ -213,9 +237,11 @@ describe("SocialSearchView", () => {
     render(<SocialSearchView />);
 
     type("zzzz");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
 
-    expect(await screen.findByTestId("search-pets-empty")).toBeTruthy();
+    expect((await screen.findByTestId("search-pets-empty")).textContent).toBe(
+      "No pets found"
+    );
   });
 
   it("explains a failure without losing the box", async () => {
@@ -224,21 +250,54 @@ describe("SocialSearchView", () => {
     render(<SocialSearchView />);
 
     type("moch");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
 
     expect(await screen.findByTestId("search-error")).toBeTruthy();
-    expect(screen.getByLabelText("Search pets and pet parents")).toBeTruthy();
+    // The query survives: clearing it would make somebody retype what they
+    // already typed to recover from a failure that was not theirs.
+    expect(
+      (screen.getByLabelText("Search pets or pet parents") as HTMLInputElement)
+        .value
+    ).toBe("moch");
+  });
+
+  it("says something useful when the search rate limit is hit", async () => {
+    mocks.searchSocial.mockRejectedValue(
+      Object.assign(new Error("rate limited"), { status: 429 })
+    );
+
+    render(<SocialSearchView />);
+
+    type("moch");
+    await vi.advanceTimersByTimeAsync(600);
+
+    const error = await screen.findByTestId("search-error");
+
+    // Plain words about waiting, not a status code and not an exception.
+    expect(error.textContent).toMatch(/wait a moment/i);
+    expect(error.textContent).not.toMatch(/429|rate limit|error/i);
   });
 
   it("announces results politely rather than stealing focus", async () => {
     render(<SocialSearchView />);
 
     type("moch");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
     await screen.findByTestId("search-pets");
 
     const live = document.querySelector('[aria-live="polite"]');
     expect(live).toBeTruthy();
     expect(live!.contains(screen.getByTestId("search-pets"))).toBe(true);
+  });
+
+  it("does not pull focus on a page somebody navigated to", () => {
+    render(<SocialSearchView />);
+
+    // The overlay autofocuses, because opening it is the act of asking to
+    // search. Arriving at a URL is not, and grabbing focus here would throw a
+    // phone keyboard up over the page before it had been read.
+    expect(document.activeElement).not.toBe(
+      screen.getByLabelText("Search pets or pet parents")
+    );
   });
 });

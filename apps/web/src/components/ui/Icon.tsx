@@ -23,6 +23,7 @@ export type IconName =
   | "more"
   | "calendar"
   | "chevron"
+  | "check"
   | "close"
   | "menu";
 
@@ -195,6 +196,7 @@ const paths: Record<IconName, ReactNode> = {
     </>
   ),
   chevron: <path d="m6 9 6 6 6-6" />,
+  check: <path d="m5 13 4 4 10-10" />,
   close: (
     <>
       <path d="m6 6 12 12" />

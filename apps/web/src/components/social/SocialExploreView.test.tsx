@@ -174,20 +174,38 @@ describe("SocialExploreView", () => {
     expect(screen.queryByText(/for you/i)).toBeNull();
   });
 
-  it("offers the species the data actually has", async () => {
+  it("offers one selector rather than a chip for every species", async () => {
     render(<SocialExploreView />);
 
-    const filter = await screen.findByTestId("explore-species");
+    const trigger = await screen.findByTestId("species-filter-trigger");
 
-    expect(within(filter).getByText("All")).toBeTruthy();
-    expect(within(filter).getByText("Cats")).toBeTruthy();
-    expect(within(filter).getByText("Rabbits")).toBeTruthy();
+    // Closed, the filter is one control saying what is currently shown — not a
+    // row that grows a chip every time the product supports another animal.
+    expect(trigger.textContent).toContain("All pets");
+    expect(screen.queryByText("Cats")).toBeNull();
+    expect(screen.queryByText("Rabbits")).toBeNull();
+  });
+
+  it("lists the species the data actually has, from the catalogue", async () => {
+    render(<SocialExploreView />);
+
+    fireEvent.click(await screen.findByTestId("species-filter-trigger"));
+
+    const panel = await screen.findByTestId("species-filter-panel");
+
+    // The labels come from the species endpoint, which derives them from
+    // discoverable pets. Nothing here is a hardcoded Dogs-and-Cats pair.
+    expect(within(panel).getByText("All pets")).toBeTruthy();
+    expect(within(panel).getByText("Cats")).toBeTruthy();
+    expect(within(panel).getByText("Dogs")).toBeTruthy();
+    expect(within(panel).getByText("Rabbits")).toBeTruthy();
   });
 
   it("narrows both sections when a species is chosen", async () => {
     render(<SocialExploreView />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Dogs" }));
+    fireEvent.click(await screen.findByTestId("species-filter-trigger"));
+    fireEvent.click(await screen.findByRole("option", { name: /Dogs/ }));
 
     await waitFor(() =>
       expect(mocks.getSuggestedPets).toHaveBeenLastCalledWith("Dog")
@@ -195,6 +213,72 @@ describe("SocialExploreView", () => {
     await waitFor(() =>
       expect(mocks.getExploreMoments).toHaveBeenLastCalledWith("Dog", undefined)
     );
+
+    // A single-select filter needs no Apply: choosing is the whole decision,
+    // so the panel closes and the trigger says what was chosen.
+    expect(screen.queryByTestId("species-filter-panel")).toBeNull();
+    expect(screen.getByTestId("species-filter-trigger").textContent).toContain(
+      "Dogs"
+    );
+  });
+
+  it("goes back to everything when All pets is chosen again", async () => {
+    render(<SocialExploreView />);
+
+    fireEvent.click(await screen.findByTestId("species-filter-trigger"));
+    fireEvent.click(await screen.findByRole("option", { name: /Dogs/ }));
+    await waitFor(() =>
+      expect(mocks.getSuggestedPets).toHaveBeenLastCalledWith("Dog")
+    );
+
+    fireEvent.click(screen.getByTestId("species-filter-trigger"));
+    fireEvent.click(await screen.findByRole("option", { name: /All pets/ }));
+
+    // "all" is what the service treats as no filter, and it must reach both
+    // sections — a cleared filter that only clears one is worse than no filter.
+    await waitFor(() =>
+      expect(mocks.getSuggestedPets).toHaveBeenLastCalledWith("all")
+    );
+    await waitFor(() =>
+      expect(mocks.getExploreMoments).toHaveBeenLastCalledWith("all", undefined)
+    );
+  });
+
+  it("opens search over Explore instead of sending somebody to a page", async () => {
+    render(<SocialExploreView />);
+
+    const trigger = await screen.findByTestId("explore-search-trigger");
+    fireEvent.click(trigger);
+
+    // The same search component the /search route renders, in a dialog.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("social-search-dialog")).toBeTruthy();
+    expect(
+      within(dialog).getByLabelText("Search pets or pet parents")
+    ).toBeTruthy();
+
+    // Explore is still underneath — searching did not navigate away from it.
+    expect(screen.getByTestId("explore-pets")).toBeTruthy();
+  });
+
+  it("closes search on Escape and gives focus back to the trigger", async () => {
+    render(<SocialExploreView />);
+
+    const trigger = await screen.findByTestId("explore-search-trigger");
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = await screen.findByRole("dialog");
+
+    // Focus moves into the dialog, which is the half of the contract jsdom can
+    // speak to. Where it lands when the dialog closes is the browser's business
+    // — jsdom has an `inert` attribute but no inertness — so focus return is
+    // verified against a real browser rather than asserted here.
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("follows a household from a pet card and updates only that card", async () => {
@@ -282,6 +366,13 @@ describe("SocialExploreView", () => {
     render(<SocialExploreView />);
 
     expect(await screen.findByTestId("explore-pets")).toBeTruthy();
-    expect(screen.queryByTestId("explore-species")).toBeNull();
+
+    // The selector still stands, offering the one choice that always applies.
+    const trigger = screen.getByTestId("species-filter-trigger");
+    expect(trigger.textContent).toContain("All pets");
+
+    fireEvent.click(trigger);
+    const panel = await screen.findByTestId("species-filter-panel");
+    expect(within(panel).getAllByRole("option")).toHaveLength(1);
   });
 });

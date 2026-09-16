@@ -1,14 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialMomentStream } from "@/components/social/SocialMomentStream";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
+import { SocialSearchDialog } from "@/components/social/SocialSearchDialog";
+import {
+  allSpeciesValue,
+  SpeciesFilterSelect,
+} from "@/components/social/SpeciesFilterSelect";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { Icon } from "@/components/ui/Icon";
 import { trackEvent } from "@/lib/analytics";
-import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -32,7 +36,11 @@ import {
  */
 export function SocialExploreView() {
   const signedIn = useSignedIn();
-  const [species, setSpecies] = useState("all");
+  const [species, setSpecies] = useState(allSpeciesValue);
+  // Overlay state, not a route. Explore keeps its scroll position and its
+  // loaded Moments underneath, and closing search is not a navigation for the
+  // back button to have an opinion about.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [options, setOptions] = useState<SocialSpeciesOption[]>([]);
   const [pets, setPets] = useState<SocialPetCardModel[]>([]);
   const [petsLoaded, setPetsLoaded] = useState(false);
@@ -112,35 +120,35 @@ export function SocialExploreView() {
         <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">
           Explore pets
         </h1>
-        <Link
-          className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
-          href={socialRoutes.search}
+        {/*
+          A button, not a link to /search: from Explore this opens search over
+          the page somebody is already reading. The route still exists for a
+          deep link, and renders the same component.
+        */}
+        <button
+          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+          data-testid="explore-search-trigger"
+          onClick={() => setSearchOpen(true)}
+          type="button"
         >
+          <Icon aria-hidden="true" className="h-4 w-4" name="search" />
           Search
-        </Link>
+        </button>
       </header>
 
-      {options.length > 0 ? (
-        <nav
-          aria-label="Filter by pet type"
-          className="mt-4 flex flex-wrap gap-2"
-          data-testid="explore-species"
-        >
-          <SpeciesChip
-            active={species === "all"}
-            label="All"
-            onSelect={() => setSpecies("all")}
-          />
-          {options.map((option) => (
-            <SpeciesChip
-              active={species === option.species}
-              key={option.species}
-              label={option.label}
-              onSelect={() => setSpecies(option.species)}
-            />
-          ))}
-        </nav>
-      ) : null}
+      {/*
+        One control instead of a chip per species. The row was built from
+        whichever species actually have discoverable pets, so it grew with the
+        product — twenty-one are supported — and wrapped onto several lines on a
+        phone before anybody reached a pet.
+      */}
+      <div className="mt-4">
+        <SpeciesFilterSelect
+          onChange={setSpecies}
+          options={options}
+          value={species}
+        />
+      </div>
 
       <section aria-labelledby="suggested-pets" className="mt-6">
         <h2 className="text-lg font-black text-pet-ink" id="suggested-pets">
@@ -263,32 +271,12 @@ export function SocialExploreView() {
         )}
       </section>
 
+      <SocialSearchDialog
+        onClose={() => setSearchOpen(false)}
+        open={searchOpen}
+      />
+
       <CommunityBrandFooter signedIn={signedIn} />
     </div>
-  );
-}
-
-function SpeciesChip({
-  active,
-  label,
-  onSelect,
-}: {
-  active: boolean;
-  label: string;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      aria-pressed={active}
-      className={`inline-flex min-h-10 items-center rounded-full border px-4 py-2 text-sm font-bold transition ${
-        active
-          ? "border-pet-ink bg-pet-ink text-white"
-          : "border-pet-border bg-white text-pet-ink hover:bg-pet-cream"
-      }`}
-      onClick={onSelect}
-      type="button"
-    >
-      {label}
-    </button>
   );
 }
