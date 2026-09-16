@@ -32,12 +32,17 @@ function follow(handle: string, isRead = false) {
     },
     petName: null,
     petPublicSlug: null,
+    momentId: null,
     momentTitle: null,
     momentSubjectNames: [],
   };
 }
 
-function like(handle: string, pets: string[]) {
+function like(
+  handle: string,
+  pets: string[],
+  momentId: string | null = "8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c"
+) {
   return {
     id: `like-${handle}`,
     type: "MomentLiked" as const,
@@ -51,6 +56,7 @@ function like(handle: string, pets: string[]) {
     },
     petName: "Mochi",
     petPublicSlug: "mochi-pubmochi",
+    momentId,
     momentTitle: "Beach day",
     momentSubjectNames: pets,
   };
@@ -173,10 +179,28 @@ describe("SocialNotificationsView", () => {
     expect(rows[0].getAttribute("href")).toBe("/u/limfamily");
     expect(rows[0].getAttribute("aria-label")).toContain("View The limfamily Family's profile");
 
-    // No standalone Moment route exists yet, so a like leads to the pet's own
-    // public page, where the Moment is listed.
-    expect(rows[1].getAttribute("href")).toBe("/p/mochi-pubmochi");
-    expect(rows[1].getAttribute("aria-label")).toContain("View Mochi's profile");
+    // A like opens the exact Moment it is about, which is what the sentence
+    // beside it describes. It used to have to settle for the pet's profile,
+    // because a Moment had nowhere of its own to be.
+    expect(rows[1].getAttribute("href")).toBe(
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c"
+    );
+    expect(rows[1].getAttribute("aria-label")).toContain("View this Moment");
+  });
+
+  it("falls back to the pet's profile for a like recorded before Moments had a page", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(
+      page([like("raofamily", ["Mochi"], null)])
+    );
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+
+    // Older rows may hold no Moment id. They still lead somewhere true rather
+    // than nowhere.
+    expect(row.getAttribute("href")).toBe("/p/mochi-pubmochi");
+    expect(row.getAttribute("aria-label")).toContain("View Mochi's profile");
   });
 
   it("gives a timestamp machines can read", async () => {

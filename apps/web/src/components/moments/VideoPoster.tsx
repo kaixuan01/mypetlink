@@ -70,9 +70,15 @@ export function VideoPoster({
         src={videoUrl}
         tabIndex={-1}
       />
+      {/*
+        A mark, not a control. Nothing here is clickable — the surfaces that use
+        a poster put the real action on the card around it — so announcing "Play
+        video" would offer a button that does not exist. The shape still reads
+        as video to anyone who can see it, and the label below says so plainly.
+      */}
       <span
+        aria-label="Video"
         className="pointer-events-none absolute inset-0 grid place-items-center bg-black/5"
-        aria-label="Play video"
         role="img"
       >
         <span className={`grid place-items-center rounded-full bg-black/60 text-white shadow-xl backdrop-blur-sm ${compact ? "h-9 w-9" : "h-14 w-14"}`}>

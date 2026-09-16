@@ -20,6 +20,12 @@ export type SocialNotification = {
   actor: PublicOwnerAttribution;
   petName: string | null;
   petPublicSlug: string | null;
+  /**
+   * The Moment a like was about. Present whenever the activity row recorded
+   * one — it is a pointer, not permission: the Moment's own page re-asks the
+   * whole visibility question and refuses if the answer has changed.
+   */
+  momentId: string | null;
   momentTitle: string | null;
   momentSubjectNames: string[];
 };
@@ -41,6 +47,7 @@ export async function getSocialNotifications(
   return {
     items: (response.data?.items ?? []).map((item) => ({
       ...item,
+      momentId: item.momentId ?? null,
       momentSubjectNames: item.momentSubjectNames ?? [],
     })),
     nextCursor: response.data?.nextCursor ?? null,

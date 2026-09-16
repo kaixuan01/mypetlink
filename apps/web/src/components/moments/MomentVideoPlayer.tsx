@@ -6,6 +6,16 @@ import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 type MomentVideoPlayerProps = {
   alt: string;
+  /**
+   * Start playing, silently, once most of the video is on screen — and stop
+   * when it leaves. Off by default: a grid of tiles that all began playing at
+   * once would be a different product, and a player that starts by itself where
+   * nobody expects it is worse than one that waits.
+   *
+   * Even when on, it never makes a sound, it never overrides somebody who has
+   * pressed pause, and only one video in the page plays at a time.
+   */
+  autoplayWhenVisible?: boolean;
   className?: string;
   compact?: boolean;
   durationSeconds?: number;
@@ -13,6 +23,14 @@ type MomentVideoPlayerProps = {
   posterUrl?: string;
   url?: string;
 };
+
+/**
+ * How much of a video has to be on screen before it starts, and how little
+ * before it stops. The gap between the two is deliberate: one threshold would
+ * make a video flicker on and off around a single scroll position.
+ */
+const autoplayVisibleRatio = 0.6;
+const autoplayHiddenRatio = 0.15;
 
 type ActivePlayback = {
   id: symbol;
@@ -30,6 +48,7 @@ export function pauseActiveMomentVideo() {
 
 export function MomentVideoPlayer({
   alt,
+  autoplayWhenVisible = false,
   className = "",
   compact = false,
   durationSeconds,
@@ -44,11 +63,19 @@ export function MomentVideoPlayer({
   const [pauseFeedbackVisible, setPauseFeedbackVisible] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const instanceIdRef = useRef(Symbol("moment-video"));
+  // Set the moment somebody presses pause themselves. Autoplay reads it and
+  // stays out of the way for the rest of the page's life: a video that restarts
+  // every time it scrolls back is arguing with the person watching it.
+  const pausedByViewerRef = useRef(false);
   const pauseFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Read by the visibility observer. Held in refs so changing either one does
+  // not tear down and rebuild the observer mid-scroll.
+  const autoplayRef = useRef(autoplayWhenVisible);
+  const playVideoRef = useRef<() => Promise<void>>(async () => {});
   const videoUrl = resolveMediaUrl(url);
   const resolvedPoster = resolveMediaUrl(posterUrl);
   const duration = formatMediaDuration(durationSeconds ?? measuredDuration);
@@ -119,8 +146,10 @@ export function MomentVideoPlayer({
 
   function togglePlayback() {
     if (paused || ended) {
+      pausedByViewerRef.current = false;
       void playVideo();
     } else {
+      pausedByViewerRef.current = true;
       pauseVideo();
     }
   }
@@ -131,13 +160,40 @@ export function MomentVideoPlayer({
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (!entry?.isIntersecting) pauseVideo();
+        if (!entry) return;
+
+        const ratio = entry.isIntersecting ? entry.intersectionRatio : 0;
+
+        if (ratio < autoplayHiddenRatio) {
+          // Scrolled away. Whatever was playing here stops, autoplay or not.
+          pauseVideo();
+          return;
+        }
+
+        if (
+          autoplayRef.current &&
+          ratio >= autoplayVisibleRatio &&
+          !pausedByViewerRef.current &&
+          videoRef.current?.paused
+        ) {
+          void playVideoRef.current();
+        }
       },
-      { threshold: 0.15 }
+      { threshold: [0, autoplayHiddenRatio, autoplayVisibleRatio, 1] }
     );
     observer.observe(root);
     return () => observer.disconnect();
   }, [pauseVideo]);
+
+  useEffect(() => {
+    autoplayRef.current = autoplayWhenVisible;
+  }, [autoplayWhenVisible]);
+
+  // Written after render, never during it. The observer is deliberately not
+  // rebuilt when this changes, so it holds the latest one through a ref.
+  useEffect(() => {
+    playVideoRef.current = playVideo;
+  });
 
   useEffect(
     () => () => {

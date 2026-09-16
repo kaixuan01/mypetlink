@@ -10,10 +10,28 @@ import { MomentVideoPlayer } from "@/components/moments/MomentVideoPlayer";
 import { sortedMedia } from "@/lib/momentMedia";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
-import type { PetMoment } from "@/types";
+import type { MomentMedia } from "@/types";
 
+/**
+ * Takes the media and the words around it, rather than a whole Moment.
+ *
+ * A Moment reaches this component from two directions now — an owner's own
+ * record of it, and the public social card the community sees — and those are
+ * different shapes for good reasons. Asking for the four things a carousel
+ * actually uses lets both pass through one implementation, instead of one of
+ * them growing a second carousel that swipes slightly differently.
+ */
 type MomentMediaCarouselProps = {
-  moment: PetMoment;
+  media: MomentMedia[];
+  title: string;
+  /**
+   * Let a video start silently once it is mostly on screen, the way a social
+   * feed does. Off by default, because the owner-facing surfaces this component
+   * was built for are lists of records, not a feed.
+   */
+  autoplayVideoWhenVisible?: boolean;
+  caption?: string;
+  date?: string;
   presentation?: "moment" | "timeline";
   theme?: PetProfileTheme;
 };
@@ -24,12 +42,16 @@ type PointerOrigin = {
 };
 
 export function MomentMediaCarousel({
-  moment,
+  media: items,
+  title,
+  autoplayVideoWhenVisible = false,
+  caption,
+  date,
   presentation = "moment",
   theme,
 }: MomentMediaCarouselProps) {
   const timelinePresentation = presentation === "timeline";
-  const media = useMemo(() => sortedMedia(moment.media ?? []), [moment.media]);
+  const media = useMemo(() => sortedMedia(items ?? []), [items]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -98,7 +120,7 @@ export function MomentMediaCarousel({
   return (
     <>
       <div
-        aria-label={`${moment.title} media carousel`}
+        aria-label={`${title} media carousel`}
         className={`relative mx-auto w-full overflow-hidden bg-[#081329] ${
           timelinePresentation
             ? "aspect-[4/3] max-h-[28rem] sm:aspect-[16/10]"
@@ -160,7 +182,8 @@ export function MomentMediaCarousel({
         {activeUrl && activeItem.type === "video" ? (
           <div className="absolute inset-0">
             <MomentVideoPlayer
-              alt={activeItem.altText ?? `${moment.title} video`}
+              alt={activeItem.altText ?? `${title} video`}
+              autoplayWhenVisible={autoplayVideoWhenVisible}
               compact={timelinePresentation}
               durationSeconds={activeItem.durationSeconds}
               posterUrl={activeItem.posterUrl}
@@ -169,7 +192,7 @@ export function MomentMediaCarousel({
           </div>
         ) : activeUrl ? (
           <button
-            aria-label={`Open ${moment.title} photo ${safeIndex + 1} of ${media.length}`}
+            aria-label={`Open ${title} photo ${safeIndex + 1} of ${media.length}`}
             className="group/media absolute inset-0 h-full w-full cursor-zoom-in"
             onClick={(event) => {
               event.stopPropagation();
@@ -179,7 +202,7 @@ export function MomentMediaCarousel({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              alt={activeItem.altText ?? `${moment.title} photo`}
+              alt={activeItem.altText ?? `${title} photo`}
               className="h-full w-full object-contain transition duration-300 group-hover/media:scale-[1.015] motion-reduce:transition-none motion-reduce:group-hover/media:scale-100"
               src={activeUrl}
             />
@@ -286,13 +309,13 @@ export function MomentMediaCarousel({
 
       <MomentMediaViewer
         activeIndex={viewerIndex}
-        caption={moment.caption}
-        date={moment.date}
+        caption={caption}
+        date={date}
         items={media}
         onActiveIndexChange={setViewerIndex}
         onClose={() => setViewerOpen(false)}
         open={viewerOpen}
-        title={moment.title}
+        title={title}
       />
     </>
   );

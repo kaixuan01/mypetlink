@@ -41,7 +41,13 @@ export function PetMomentCard({
 
   return (
     <article className="brand-card flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] p-0" style={themedStyle}>
-      <MomentMediaCarousel moment={moment} theme={theme} />
+      <MomentMediaCarousel
+        caption={moment.caption}
+        date={moment.date}
+        media={moment.media}
+        theme={theme}
+        title={moment.title}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
         <div

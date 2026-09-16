@@ -141,6 +141,61 @@ internal sealed class SocialSurfaceHarness : IDisposable
         return moment.Id;
     }
 
+    /// <summary>
+    /// Attaches one media item to a Moment, the way an upload followed by a save
+    /// leaves it in the database.
+    ///
+    /// <paramref name="thumbnailObjectKey"/> exists so a test can seed the state
+    /// that must never be served to a video: an image derivative sitting beside
+    /// a video row. Nothing writes that combination today, which is exactly why
+    /// a projection that merely happened to fall through to the original was
+    /// worth pinning down.
+    /// </summary>
+    public async Task<Guid> AddMomentMediaAsync(
+        Guid momentId,
+        Guid petId,
+        MediaFileType mediaType,
+        string objectKey,
+        int sortOrder = 0,
+        string? thumbnailObjectKey = null,
+        string? altText = null,
+        string contentType = "image/jpeg")
+    {
+        var media = new MediaFile
+        {
+            Id = Guid.NewGuid(),
+            PetId = petId,
+            OriginalFileName = objectKey.Split('/')[^1],
+            StorageFileName = objectKey.Split('/')[^1],
+            ContentType = contentType,
+            FileSize = 1024,
+            ObjectKey = objectKey,
+            ThumbnailObjectKey = thumbnailObjectKey,
+            DerivativeStatus = thumbnailObjectKey is null
+                ? MediaDerivativeStatus.NotApplicable
+                : MediaDerivativeStatus.Ready,
+            MediaType = mediaType,
+            Category = mediaType == MediaFileType.Video
+                ? MediaUploadCategory.MomentVideo
+                : MediaUploadCategory.MomentImage,
+            IsPublic = true,
+            UploadStatus = MediaUploadStatus.Ready
+        };
+
+        Db.MediaFiles.Add(media);
+        Db.MediaFileLinks.Add(new MediaFileLink
+        {
+            MediaFileId = media.Id,
+            OwnerType = MediaOwnerType.PetMemory,
+            OwnerId = momentId,
+            SortOrder = sortOrder,
+            AltText = altText
+        });
+
+        await Db.SaveChangesAsync();
+        return media.Id;
+    }
+
     public async Task FollowAsync(Guid followerId, string handle)
     {
         await Graph.FollowAsync(followerId, handle);

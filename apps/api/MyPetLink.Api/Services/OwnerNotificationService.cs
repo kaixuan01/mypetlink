@@ -233,6 +233,7 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                         MediaDerivatives.ResolveThumbnailUrl(row.ActorAvatar, _r2Options.PublicBaseUrl)),
                     row.PetName,
                     row.PetSlug,
+                    row.MomentId,
                     row.MomentTitle,
                     row.MomentId.HasValue && subjectNames.TryGetValue(row.MomentId.Value, out var names)
                         ? names

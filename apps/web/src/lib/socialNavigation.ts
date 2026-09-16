@@ -95,7 +95,8 @@ export function isSocialPath(pathname: string) {
     pathname === socialRoutes.notifications ||
     pathname === ownerRoutes.socialProfile ||
     pathname.startsWith(`${ownerRoutes.socialProfile}/`) ||
-    pathname.startsWith("/u/")
+    pathname.startsWith("/u/") ||
+    pathname.startsWith("/moments/")
   );
 }
 

@@ -48,7 +48,11 @@ const communityExact: string[] = [
   ownerRoutes.socialProfile,
 ];
 
-const communityPrefixes: string[] = ["/u/"];
+// A household's public profile, and one Moment on its own page. Both render
+// outside the signed-in shell — a shared link has to work without an account —
+// but they are Community content, and anything that asks which half of the
+// product they belong to should hear the same answer.
+const communityPrefixes: string[] = ["/u/", "/moments/"];
 
 function normalise(pathname: string) {
   if (!pathname) {

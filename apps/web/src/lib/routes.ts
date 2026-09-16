@@ -164,7 +164,21 @@ export const socialRoutes = {
   search: "/search",
   notifications: "/notifications",
   searchFor: (query: string) => `/search?q=${encodeURIComponent(query)}`,
+  moment: (momentId: string) => momentPath(momentId),
 } as const;
+
+/**
+ * One Moment, on its own page.
+ *
+ * The canonical destination for tapping a card, for a like notification, and
+ * for sharing a single Moment. The id is the one already printed on every card
+ * a visitor can see and acted on by every Like button, so putting it in the
+ * address exposes nothing the listing did not — and the route re-asks the whole
+ * social visibility question rather than trusting the URL.
+ */
+export function momentPath(momentId: string) {
+  return `/moments/${encodeURIComponent(momentId.trim())}`;
+}
 
 /**
  * An owner's public social profile.

@@ -34,6 +34,18 @@ export function staticOwnerHandleParams() {
   return [{ handle: "mypetlink-profile" }];
 }
 
+/**
+ * Build-time ids for the exported /moments/{momentId} shell.
+ *
+ * Real Moments are served by the Pages Function, which rewrites this shell's
+ * head for whichever Moment was requested. The nil UUID is used deliberately:
+ * it is shaped like a Moment id, so the export produces a page, and the API
+ * refuses it outright, so this placeholder can never resolve to real content.
+ */
+export function staticMomentIdParams() {
+  return [{ momentId: "00000000-0000-0000-0000-000000000000" }];
+}
+
 export function staticTagCodeParams() {
   return mockTags.flatMap((tag) =>
     getStaticTagCodeParamVariants(tag.tagCode).map((tagCode) => ({ tagCode }))

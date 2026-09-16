@@ -84,6 +84,15 @@ public interface IPublicSocialProfileService : ISkeletonService
         int? pageSize,
         Guid? viewerId = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One Moment on its own page. Unavailable for every reason a listing would
+    /// have left it out, and unavailable in the same way.
+    /// </summary>
+    Task<PublicMomentListItemResponse> GetMomentAsync(
+        Guid momentId,
+        Guid? viewerId = null,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

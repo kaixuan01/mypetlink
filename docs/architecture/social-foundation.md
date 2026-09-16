@@ -603,6 +603,69 @@ none is planned for Phase 1.
   partial fix on one surface; the real answer is a second, larger derivative,
   which is a schema and backfill change deliberately not made before launch.
 
+## 12c. Moment media: one renderer, one route
+
+A Moment card used to draw whatever was in `media[0]` with an `<img>`, whatever
+that item actually was. A Moment whose cover was a video therefore arrived as a
+broken picture with the file name painted across it. Two things fixed it, and
+both are worth keeping.
+
+**The kind comes from the server and nothing guesses it.** Every media item in a
+social response carries `type` (`"image"` or `"video"`), taken from
+`MediaFiles.MediaType`, and `MediaDerivatives.ResolveListUrl` resolves the URL
+from that same fact: an image gets its derivative, a video gets its own file. A
+video must never be handed a `_thumb.jpg` — a still frame in a `<video>` element
+is a player that cannot play. No client reads the file extension; the extension
+of a URL is a naming convention, not evidence.
+
+**One renderer, reused.** `MomentMedia` (grid tiles) and `MomentMediaCarousel`
+(full-width cards and the Moment page) are the only two places Community draws
+media, and both route videos to the existing `MomentVideoPlayer` / `VideoPoster`
+rather than to a second implementation. A surface that grew its own MIME check
+would be free to get this wrong again; `socialMomentMedia.test.ts` asserts that
+none of them has.
+
+### Resolutions
+
+| Surface | Image | Video |
+| --- | --- | --- |
+| Grid tile, feed card | derivative (`_thumb.jpg`) | the video file, `preload="metadata"` |
+| Moment page (`/moments/{id}`) | original | the video file, `preload="metadata"` |
+
+`SocialMediaResolution.Full` is reached only by loading a single Moment, so the
+larger file never multiplies across a listing.
+
+### Video posters are the element's own first frame
+
+`MediaService.ExpectsDerivative` excludes `MediaUploadCategory.MomentVideo`, so a
+video row never has a `ThumbnailObjectKey` and there is no generated poster.
+Both players instead load metadata and seek to the first frame, which costs a
+range request rather than a transcoding pipeline. **Server-side poster
+generation is deliberate future work**, not an oversight: it would let a grid
+tile render a video without opening a media connection at all. Until then,
+`preload="metadata"` is the launch-safe answer, and a video that will not load
+says so in words rather than showing a broken frame.
+
+### Autoplay
+
+Off by default. `MomentVideoPlayer` accepts `autoplayWhenVisible`, which the feed
+card and the Moment page pass and a grid tile never does. When on it is muted,
+`playsInline`, starts at 60% visibility, stops below 15%, yields to any other
+video that starts, and never overrules somebody who has pressed pause. The
+`autoplay` attribute is never written to the element — visibility decides, so the
+browser is never given a standing instruction.
+
+### Alt text is never a file name
+
+Uploads used to seed a media link's alt text from the chosen file, which is how
+`KyCatVideo1.mp4` reached a public page: a browser paints alt text the moment the
+image behind it fails. `MediaService` no longer seeds it, and
+`resolveMomentMediaAlt` drops any stored value shaped like a file name or an
+object key in favour of the Moment's title. Legacy rows are covered by the
+second rule; no data migration was needed.
+
+---
+
 ## 13. What Phase 1A–1D did NOT build
 
 Deliberately absent, to be added in later phases:

@@ -294,6 +294,39 @@ public sealed class MediaServiceTests
     }
 
     [Fact]
+    public async Task InitializeUploadAsync_DoesNotSeedAltTextFromTheFileName()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+
+        var request = new InitializeMediaUploadRequest(
+            null,
+            MomentId,
+            null,
+            null,
+            MediaUploadCategory.MomentVideo,
+            "KyCatVideo1.mp4",
+            "video/mp4",
+            1024,
+            null,
+            null,
+            12);
+
+        var response = await harness.Service.InitializeUploadAsync(UserId, request);
+        var link = await harness.Db.MediaFileLinks
+            .SingleAsync(item => item.MediaFileId == response.MediaId);
+
+        // Alt text describes a picture to somebody who cannot see it, and a
+        // browser paints it on screen the instant the media behind it fails.
+        // A file name does neither job and leaks what the owner called the file.
+        Assert.Null(link.AltText);
+
+        // The name itself is still kept where it belongs, for the owner's own
+        // reference — it is simply not presented as a description.
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == response.MediaId);
+        Assert.Equal("KyCatVideo1.mp4", media.OriginalFileName);
+    }
+
+    [Fact]
     public void BuildPublicUrl_EncodesObjectKeySegments()
     {
         var url = MediaUrlBuilder.BuildPublicUrl(

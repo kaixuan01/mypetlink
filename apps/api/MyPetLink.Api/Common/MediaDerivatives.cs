@@ -58,6 +58,25 @@ public static class MediaDerivatives
     }
 
     /// <summary>
+    /// The URL a list, grid or card should load for one media item.
+    ///
+    /// An image gets its derivative when one exists. A video always gets its
+    /// own file, because a video has no image derivative and never should: a
+    /// thumbnail key on a video row would be a still frame, and handing a still
+    /// frame to a &lt;video&gt; element produces a player that cannot play.
+    /// Today that key is always absent, so <see cref="ResolveThumbnailUrl"/>
+    /// happens to fall through to the original anyway — this makes the rule
+    /// explicit rather than incidental, so a later poster-frame pipeline
+    /// cannot silently break every video on the feed.
+    /// </summary>
+    public static string? ResolveListUrl(MediaFile? mediaFile, string? publicBaseUrl)
+    {
+        return mediaFile?.MediaType == MediaFileType.Video
+            ? ResolveOriginalUrl(mediaFile, publicBaseUrl)
+            : ResolveThumbnailUrl(mediaFile, publicBaseUrl);
+    }
+
+    /// <summary>
     /// The original's public URL, under the same availability rules the rest of
     /// the public projections use.
     /// </summary>

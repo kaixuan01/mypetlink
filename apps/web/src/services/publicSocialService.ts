@@ -145,6 +145,31 @@ export async function getPublicPetMoments(
 }
 
 /**
+ * One Moment, for its own page.
+ *
+ * The same shape a card is built from, so the page that opens after a tap is
+ * describing the Moment the same way the card did. Its media arrives at full
+ * resolution rather than grid size, which is the one difference — one Moment
+ * filling a screen earns the larger file; a page of tiles does not.
+ */
+export async function getPublicMoment(
+  momentId: string
+): Promise<PublicMomentListItem> {
+  requireApi();
+
+  const response = await apiRequest<PublicMomentListItem>(
+    `/api/v1/public/moments/${encodeURIComponent(momentId)}`,
+    { auth: false }
+  );
+
+  if (!response.data) {
+    throw new PublicProfileUnavailableError("not-found");
+  }
+
+  return normalizeMoment(response.data);
+}
+
+/**
  * Fills in anything an older or partial response left out.
  *
  * Shared by every listing — profile, pet, feed, Explore — so one contract gap
@@ -152,18 +177,22 @@ export async function getPublicPetMoments(
  */
 export function normalizeMomentPage(page?: PublicMomentPage): PublicMomentPage {
   return {
-    items: (page?.items ?? []).map((item) => ({
-      ...item,
-      author: item.author ?? null,
-      subjects: (item.subjects ?? []).map((subject) => ({
-        ...subject,
-        isPrimarySubject: subject.isPrimarySubject ?? false,
-        lostModeEnabled: subject.lostModeEnabled ?? false,
-      })),
-      media: item.media ?? [],
-      likeCount: item.likeCount ?? 0,
-      viewerHasLiked: item.viewerHasLiked ?? false,
-    })),
+    items: (page?.items ?? []).map(normalizeMoment),
     nextCursor: page?.nextCursor ?? null,
+  };
+}
+
+function normalizeMoment(item: PublicMomentListItem): PublicMomentListItem {
+  return {
+    ...item,
+    author: item.author ?? null,
+    subjects: (item.subjects ?? []).map((subject) => ({
+      ...subject,
+      isPrimarySubject: subject.isPrimarySubject ?? false,
+      lostModeEnabled: subject.lostModeEnabled ?? false,
+    })),
+    media: item.media ?? [],
+    likeCount: item.likeCount ?? 0,
+    viewerHasLiked: item.viewerHasLiked ?? false,
   };
 }

@@ -6,6 +6,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
+import { MomentDetailView } from "@/components/social/MomentDetailView";
 import { OwnerConnectionsView } from "@/components/social/OwnerConnectionsView";
 import { OwnerSocialProfileView } from "@/components/social/OwnerSocialProfileView";
 import { PetDetailHeader } from "@/components/portal/PetDetailHeader";
@@ -111,6 +112,7 @@ type RuntimeRoute =
   | { kind: "owner"; petId: string; section: OwnerSection }
   | { kind: "social-profile"; handle: string }
   | { kind: "social-connections"; handle: string; relation: "followers" | "following" }
+  | { kind: "moment"; momentId: string }
   | { kind: "none" };
 
 type RuntimeState =
@@ -121,6 +123,7 @@ type RuntimeState =
       handle: string;
       relation: "followers" | "following";
     }
+  | { status: "moment"; momentId: string }
   | { status: "owner-feature-unavailable" }
   | { status: "unavailable"; message: string; title: string }
   | { status: "not-found"; title: string; owner?: boolean }
@@ -211,6 +214,13 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (state.status === "moment") {
+      // The edge has already written the real title into the HTML; the view
+      // itself needs no second one.
+      setPageTitle("Moment");
+      return;
+    }
+
     if (state.status === "social-profile" || state.status === "social-connections") {
       // The view sets the real title once it knows whose profile this is; the
       // edge has already rewritten it for anything that reads the HTML.
@@ -252,6 +262,15 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
           handle: route.handle,
           relation: route.relation,
         });
+        return;
+      }
+
+      // Same reasoning as the profile routes: a real Moment id can never be in
+      // the build-time params list, so in production every one of them arrives
+      // through the 404 asset. Recognising the shape is all this has to do —
+      // whether the Moment may be shown is the API's answer, asked by the view.
+      if (route.kind === "moment") {
+        setState({ status: "moment", momentId: route.momentId });
         return;
       }
 
@@ -512,6 +531,10 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         <SmartTagsComingSoon />
       </AppLayout>
     );
+  }
+
+  if (state.status === "moment") {
+    return <MomentDetailView momentId={state.momentId} />;
   }
 
   if (state.status === "social-profile") {
@@ -823,6 +846,10 @@ function parseRuntimeRoute(pathname: string, search = ""): RuntimeRoute {
       handle: parts[1].toLowerCase(),
       relation: parts[2],
     };
+  }
+
+  if (parts[0] === "moments" && parts.length === 2 && parts[1]) {
+    return { kind: "moment", momentId: parts[1].toLowerCase() };
   }
 
   if (parts[0] === "orders" && parts.length === 2) {

@@ -91,7 +91,14 @@ public sealed class MediaService : SkeletonService, IMediaService
                 OwnerType = target.OwnerType.Value,
                 OwnerId = target.OwnerId.Value,
                 SortOrder = await GetNextSortOrderAsync(target.OwnerType.Value, target.OwnerId.Value, cancellationToken),
-                AltText = fileName,
+                // Deliberately left empty. A file name is not a description of
+                // a picture: it helps nobody who cannot see the image, and a
+                // browser paints alt text on screen the moment the image behind
+                // it fails to load, so seeding it here put strings like
+                // "KyCatVideo1.mp4" one failed request away from the public
+                // feed. Alt text is written by a person or it is absent, and
+                // readers fall back to something that describes the subject.
+                AltText = null,
                 CreatedAt = now
             });
         }

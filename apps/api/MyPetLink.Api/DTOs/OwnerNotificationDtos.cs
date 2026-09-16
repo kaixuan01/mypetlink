@@ -26,11 +26,22 @@ public sealed record OwnerNotificationResponse(
     string? PetName,
 
     /// <summary>
-    /// Where the notification leads. A pet's public profile for a like, because
-    /// there is no standalone Moment route yet; null for a follow, which leads
-    /// to the actor's profile instead.
+    /// The pet's public profile, kept as the fallback destination for a like
+    /// when the Moment itself can no longer be opened.
     /// </summary>
     string? PetPublicSlug,
+
+    /// <summary>
+    /// The Moment a like was about, which now has a page of its own.
+    ///
+    /// Present whenever the row recorded one; it is not a promise that the
+    /// Moment is still available. The Moment route applies the full social
+    /// visibility check on its own, so a Moment that has since been made
+    /// private, archived, or hidden by a block is unavailable there exactly as
+    /// it would be anywhere else — a notification is a pointer, never an
+    /// entitlement.
+    /// </summary>
+    Guid? MomentId,
 
     string? MomentTitle,
 

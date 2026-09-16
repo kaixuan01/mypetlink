@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { VideoPoster } from "@/components/moments/VideoPoster";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
+import {
+  getMomentCover,
+  isVideoMedia,
+  resolveMomentMediaAlt,
+  summariseMomentMedia,
+} from "@/lib/socialMomentMedia";
 import { ownerSocialProfilePath } from "@/lib/routes";
 import type {
   PublicMomentListItem,
@@ -150,10 +158,19 @@ export function MomentByline({
 }
 
 /**
- * The Moment's cover image, or its title when it has no media.
+ * A Moment's cover — whatever kind of thing that cover turns out to be.
  *
- * Lists and grids always load the derivative the API resolved; there is no path
- * here that asks for a full-size original.
+ * This draws a Moment's cover wherever the surface is a preview: a grid tile,
+ * or the placeholder a Moment with no media gets. It used to reach for `<img>`
+ * unconditionally, which was correct right up until somebody shared a video: the
+ * browser was handed an `.mp4`, failed to decode it as a picture, and painted
+ * the alt text, so Explore showed the file name where the pet should have been.
+ * The kind is not guessed from the URL — the API states it, and this reads what
+ * the API said.
+ *
+ * Lists and grids always load the derivative the API resolved for an image;
+ * there is no path here that asks for a full-size original. A video has no image
+ * derivative and is loaded as a video, metadata first.
  */
 export function MomentMedia({
   moment,
@@ -169,19 +186,25 @@ export function MomentMedia({
    */
   placeholder?: "title" | "quiet";
 }) {
-  const cover = moment.media[0];
+  const cover = getMomentCover(moment);
+  const summary = summariseMomentMedia(moment.media);
   const shape = aspect === "auto" ? "aspect-[4/3]" : "aspect-[4/5]";
+  const alt = resolveMomentMediaAlt(cover, moment.title);
 
   return (
     <div className={`relative ${shape} w-full max-w-full bg-pet-apricot`}>
       {cover?.url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          alt={cover.altText || moment.title}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          src={cover.url}
-        />
+        isVideoMedia(cover) ? (
+          // A preview, never a player. It shows the video's own first frame and
+          // a small mark, loads metadata only, and plays nothing — the whole
+          // tile is a link to the Moment, and that is where a video belongs to
+          // be watched. Native controls at 180px wide would cover the picture
+          // they exist to control. Playing a Moment's video is the carousel's
+          // job, on the surfaces that have room for it.
+          <VideoPoster alt={alt} compact url={cover.url} />
+        ) : (
+          <MomentCoverImage alt={alt} url={cover.url} />
+        )
       ) : placeholder === "title" ? (
         <span className="grid h-full w-full place-items-center px-4 text-center text-sm font-black text-pet-ink">
           {moment.title}
@@ -192,20 +215,60 @@ export function MomentMedia({
         </span>
       )}
 
-      {moment.media.length > 1 ? (
-        // "+3 photos", not "1/4". Community shows the first image and does not
+      {summary ? (
+        // "+3 photos", not "1/4". Community shows the first item and does not
         // swipe, so a counter in carousel form promised a gesture that does not
         // exist — people swiped and nothing happened. This says the same true
-        // thing (there are more) without implying how to reach them.
+        // thing (there are more) without implying how to reach them, and it
+        // counts videos as videos.
         <span
-          aria-label={`${moment.media.length} photos in this Moment`}
-          className="absolute right-2 top-2 rounded-full bg-pet-ink/70 px-2 py-0.5 text-[11px] font-black text-white"
+          aria-label={summary.accessibleLabel}
+          className="absolute right-2 top-2 z-30 rounded-full bg-pet-ink/70 px-2 py-0.5 text-[11px] font-black text-white"
           data-testid="moment-extra-photos"
         >
-          +{moment.media.length - 1} photos
+          {summary.label}
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One Moment's cover photo, and what stands in for it when it will not load.
+ *
+ * A browser's own answer to a failed image is the alt text in a broken frame,
+ * which on a 180px tile is a box of grey with a sentence squeezed into it. Worse,
+ * alt text is often whatever the file was called, so a failure used to put an
+ * upload's file name on a public page. This shows the same quiet mark an empty
+ * Moment shows, and says what happened once, in words.
+ */
+function MomentCoverImage({ alt, url }: { alt: string; url: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <span
+        className="grid h-full w-full place-items-center gap-1 bg-pet-apricot px-3 text-center"
+        data-testid="moment-image-unavailable"
+      >
+        <Icon aria-hidden="true" className="h-7 w-7 text-pet-ink/40" name="paw" />
+        <span className="text-[11px] font-bold text-pet-ink/60">
+          Photo unavailable
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt={alt}
+      className="h-full w-full object-cover"
+      key={url}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      src={url}
+    />
   );
 }
 

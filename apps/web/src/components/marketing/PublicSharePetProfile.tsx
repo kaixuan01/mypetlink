@@ -990,9 +990,12 @@ function TimelineTab({
           >
             {event.moment?.media.length ? (
               <MomentMediaCarousel
-                moment={event.moment}
+                caption={event.moment.caption}
+                date={event.moment.date}
+                media={event.moment.media}
                 presentation="timeline"
                 theme={theme}
+                title={event.moment.title}
               />
             ) : null}
             <div className="flex items-start gap-3 p-4">

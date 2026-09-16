@@ -79,6 +79,24 @@ public sealed class PublicSocialProfilesController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    /// <summary>
+    /// One Moment, for its own page, a like notification, or a shared link.
+    /// </summary>
+    [HttpGet("moments/{momentId:guid}")]
+    public async Task<IActionResult> GetMoment(
+        Guid momentId,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+
+        var response = await _socialProfiles.GetMomentAsync(
+            momentId,
+            _currentUserService.Current.UserId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpGet("pets/{publicSlug}/moments")]
     public async Task<IActionResult> GetPetMoments(
         string publicSlug,

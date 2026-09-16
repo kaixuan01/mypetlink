@@ -11,7 +11,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import type { MomentMedia, PetMoment } from "@/types";
-import { MomentMediaCarousel } from "./MomentMediaCarousel";
+import { MomentMediaCarousel as Carousel } from "./MomentMediaCarousel";
 
 const photoOne: MomentMedia = {
   id: "photo-one",
@@ -60,6 +60,31 @@ function makeMoment(media: MomentMedia[], id = "moment-one"): PetMoment {
     showInLifeTimeline: true,
     timelineNote: "First beach trip.",
   };
+}
+
+/**
+ * The carousel takes media and the words around it rather than a whole Moment,
+ * so that the public Community card and the owner's own record can both reach
+ * one implementation. These tests were written against the Moment shape and
+ * still describe the same behaviour, so they hand it through here — which is
+ * exactly what the production call sites do.
+ */
+function MomentMediaCarousel({
+  moment,
+  ...rest
+}: { moment: PetMoment } & Omit<
+  React.ComponentProps<typeof Carousel>,
+  "caption" | "date" | "media" | "title"
+>) {
+  return (
+    <Carousel
+      caption={moment.caption}
+      date={moment.date}
+      media={moment.media}
+      title={moment.title}
+      {...rest}
+    />
+  );
 }
 
 describe("MomentMediaCarousel", () => {

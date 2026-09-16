@@ -87,6 +87,10 @@ const requiredRoutes = [
   "explore.html",
   "search.html",
   "notifications.html",
+  // The shell the Pages Function rewrites for every real Moment. A real Moment
+  // id can never be in the build-time params list, so this placeholder page
+  // existing is the only build-time evidence the route was exported at all.
+  "moments/00000000-0000-0000-0000-000000000000.html",
   "dashboard.html",
   "404.html",
   "_routes.json",
@@ -182,7 +186,18 @@ async function main() {
   }
 
   const routes = JSON.parse(await load("_routes.json", 0));
-  const requiredIncludes = ["/p/*", "/q/*", "/t/*", "/n/*", "/u/*", "/social/pets/*"];
+  const requiredIncludes = [
+    "/p/*",
+    "/q/*",
+    "/t/*",
+    "/n/*",
+    "/u/*",
+    // Without this, functions/moments/[momentId].ts is never invoked and every
+    // real Moment link serves the 404 asset instead. That is precisely how the
+    // whole /u/ handler shipped unreachable once.
+    "/moments/*",
+    "/social/pets/*",
+  ];
   const missingIncludes = requiredIncludes.filter((p) => !routes.include?.includes(p));
 
   if (missingIncludes.length > 0) {

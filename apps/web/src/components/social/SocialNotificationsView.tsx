@@ -8,7 +8,7 @@ import { formatMomentAge } from "@/components/social/SocialMomentParts";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
-import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
+import { momentPath, ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
 import { setUnreadActivityCount } from "@/lib/useUnreadActivity";
 import {
   getSocialNotifications,
@@ -206,10 +206,16 @@ function ActivityRow({
   item: SocialNotification;
   now?: number;
 }) {
+  // A like now opens the exact Moment, which is what the sentence above it
+  // describes. The pet's profile remains the fallback for a row recorded before
+  // Moments had a page of their own; neither destination is a promise that the
+  // content is still there, because both re-check on arrival.
   const destination =
-    item.type === "MomentLiked" && item.petPublicSlug
-      ? `/p/${item.petPublicSlug}`
-      : ownerSocialProfilePath(item.actor.handle);
+    item.type === "MomentLiked" && item.momentId
+      ? momentPath(item.momentId)
+      : item.type === "MomentLiked" && item.petPublicSlug
+        ? `/p/${item.petPublicSlug}`
+        : ownerSocialProfilePath(item.actor.handle);
 
   const subjects = formatMomentSubjects(item.momentSubjectNames);
   const sentence =
@@ -221,9 +227,11 @@ function ActivityRow({
 
   // The link's accessible name says where it goes, not just what happened.
   const destinationLabel =
-    item.type === "MomentLiked" && item.petName
-      ? `View ${item.petName}'s profile`
-      : `View ${item.actor.displayName}'s profile`;
+    item.type === "MomentLiked" && item.momentId
+      ? "View this Moment"
+      : item.type === "MomentLiked" && item.petName
+        ? `View ${item.petName}'s profile`
+        : `View ${item.actor.displayName}'s profile`;
 
   return (
     <li>

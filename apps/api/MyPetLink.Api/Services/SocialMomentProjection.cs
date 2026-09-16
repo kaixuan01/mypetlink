@@ -30,6 +30,25 @@ public enum MomentSubjectAudience
 }
 
 /// <summary>
+/// How large the media on a card needs to be.
+/// </summary>
+public enum SocialMediaResolution
+{
+    /// <summary>
+    /// A feed card or a grid tile: the generated derivative, which is a
+    /// fraction of the original's weight and is all a 180px tile can show.
+    /// </summary>
+    Preview = 0,
+
+    /// <summary>
+    /// One Moment on its own page, where the picture is the point and a soft
+    /// upscale of a thumbnail is visible. Only ever reached by loading a single
+    /// Moment, so it never multiplies across a listing.
+    /// </summary>
+    Full = 1
+}
+
+/// <summary>
 /// The one way a Moment becomes a social card.
 ///
 /// An owner's profile, a pet's profile, the home feed and Explore all select
@@ -75,7 +94,8 @@ public sealed class SocialMomentProjection
         Guid? viewerId,
         CancellationToken cancellationToken = default,
         int? defaultPageSize = null,
-        MomentSubjectAudience audience = MomentSubjectAudience.Direct)
+        MomentSubjectAudience audience = MomentSubjectAudience.Direct,
+        SocialMediaResolution resolution = SocialMediaResolution.Preview)
     {
         var take = SocialCursor.ClampPageSize(pageSize, defaultPageSize);
         var position = SocialCursor.TryDecode(cursor);
@@ -111,7 +131,7 @@ public sealed class SocialMomentProjection
         var momentIds = page.Select(row => row.Id).ToArray();
 
         var subjects = await LoadSubjectsAsync(momentIds, audience, cancellationToken);
-        var media = await LoadMediaAsync(momentIds, cancellationToken);
+        var media = await LoadMediaAsync(momentIds, resolution, cancellationToken);
         var authors = await LoadAuthorsAsync(
             page.Select(row => row.AuthorUserId).Distinct().ToArray(),
             cancellationToken);
@@ -162,6 +182,35 @@ public sealed class SocialMomentProjection
     /// <c>PetId</c>. It is derived, never stored: <c>MomentPets</c> has no
     /// primary flag precisely so the two can never disagree.
     /// </summary>
+    /// <summary>
+    /// One Moment, described exactly as a card describes it.
+    ///
+    /// The caller still hands in a query it has already narrowed to what this
+    /// viewer may see, so a Moment's own page cannot show something its
+    /// author's profile would not. Routed through the same paging code rather
+    /// than a second projection: a detail page that built its own description
+    /// of a Moment is free to disagree with the card that led to it.
+    /// </summary>
+    public async Task<PublicMomentListItemResponse?> SingleAsync(
+        IQueryable<PetMemory> query,
+        Guid? viewerId,
+        CancellationToken cancellationToken = default,
+        MomentSubjectAudience audience = MomentSubjectAudience.Direct,
+        SocialMediaResolution resolution = SocialMediaResolution.Preview)
+    {
+        var page = await PageAsync(
+            query,
+            cursor: null,
+            pageSize: 1,
+            viewerId,
+            cancellationToken,
+            defaultPageSize: 1,
+            audience,
+            resolution);
+
+        return page.Items.FirstOrDefault();
+    }
+
     private async Task<Dictionary<Guid, PublicMomentSubjectResponse[]>> LoadSubjectsAsync(
         IReadOnlyCollection<Guid> momentIds,
         MomentSubjectAudience audience,
@@ -313,6 +362,7 @@ public sealed class SocialMomentProjection
 
     private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadMediaAsync(
         IReadOnlyCollection<Guid> momentIds,
+        SocialMediaResolution resolution,
         CancellationToken cancellationToken)
     {
         if (momentIds.Count == 0)
@@ -349,13 +399,17 @@ public sealed class SocialMomentProjection
                     .Select(link => new MemoryMediaResponse(
                         link.MediaFileId,
                         link.MediaFile.MediaType == MediaFileType.Video ? "video" : "image",
-                        // Grids, cards and the feed load the derivative, not the
-                        // original. Media with no derivative falls back to the
-                        // original inside the resolver, which is the only way a
-                        // full-size file reaches a list.
-                        MediaDerivatives.ResolveThumbnailUrl(
-                            link.MediaFile,
-                            _r2Options.PublicBaseUrl),
+                        // Images resolve to their derivative; videos resolve to
+                        // the video file itself. The type beside it says which
+                        // one the client is being handed, so a card never has to
+                        // guess from the file extension.
+                        resolution == SocialMediaResolution.Full
+                            ? MediaDerivatives.ResolveOriginalUrl(
+                                link.MediaFile,
+                                _r2Options.PublicBaseUrl)
+                            : MediaDerivatives.ResolveListUrl(
+                                link.MediaFile,
+                                _r2Options.PublicBaseUrl),
                         link.Caption,
                         link.AltText,
                         link.SortOrder))

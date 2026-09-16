@@ -265,6 +265,53 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
         return await PageMomentsAsync(query, cursor, pageSize, viewerId, cancellationToken);
     }
 
+    /// <summary>
+    /// One Moment, on its own page.
+    ///
+    /// The canonical destination for tapping a card, for a like notification,
+    /// and for sharing a single Moment. It answers with exactly the Moments the
+    /// listings above would already have shown this viewer — the same
+    /// <see cref="SocialVisibility"/> predicate, plus the block filter the feed
+    /// and Explore apply — so a Moment id is never a way around a switch its
+    /// owner has turned off.
+    ///
+    /// Narrow on purpose: a primary-key lookup, then the shared card projection,
+    /// which batches subjects, media, author and likes. It never reads the
+    /// author's other Moments, the pet's other Moments, or any follower data.
+    /// </summary>
+    public async Task<PublicMomentListItemResponse> GetMomentAsync(
+        Guid momentId,
+        Guid? viewerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (momentId == Guid.Empty)
+        {
+            throw MomentNotFound();
+        }
+
+        var query = SociallyVisibleMoments().Where(moment => moment.Id == momentId);
+
+        if (viewerId.HasValue)
+        {
+            var blocked = SocialBlocks.BlockedAccountIds(_dbContext, viewerId.Value);
+            query = query.Where(moment => !blocked.Contains(moment.AuthorUserId));
+        }
+
+        // Full resolution: this is one Moment filling a screen, not a tile. It
+        // costs one larger image because only one Moment is being loaded.
+        var moment = await _momentCards.SingleAsync(
+            query,
+            viewerId,
+            cancellationToken,
+            MomentSubjectAudience.Direct,
+            SocialMediaResolution.Full);
+
+        // Every reason a Moment is unavailable gives the same answer. Telling
+        // the difference between "never existed", "was taken down" and "its
+        // household blocked you" would make a Moment id a probe.
+        return moment ?? throw MomentNotFound();
+    }
+
     // Both predicates live in SocialVisibility so the like endpoints ask exactly
     // the same question these listings do. Kept as local wrappers only to leave
     // the call sites in this file reading as they did.
@@ -299,5 +346,13 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
             StatusCodes.Status404NotFound,
             "social_profile_not_found",
             "This profile is not available.");
+    }
+
+    private static ApiException MomentNotFound()
+    {
+        return new ApiException(
+            StatusCodes.Status404NotFound,
+            "social_moment_not_found",
+            "This Moment is not available.");
     }
 }
