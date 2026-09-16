@@ -147,17 +147,21 @@ describe("social phone navigation", () => {
     );
   });
 
-  it("routes Share and Profile through their resolvers, not a guessed href", () => {
+  it("routes Share through its resolver and Profile through a real link", () => {
     const onCreate = vi.fn();
     const onProfile = vi.fn();
 
     render(<SocialBottomNav onCreate={onCreate} onProfile={onProfile} />);
 
+    // Share still has to ask whether this owner has a pet to share.
     fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
-    fireEvent.click(screen.getByRole("button", { name: "My profile" }));
-
     expect(onCreate).toHaveBeenCalled();
-    expect(onProfile).toHaveBeenCalled();
+
+    // Profile does not: it is a destination, which also makes it reachable by
+    // keyboard and able to mark itself as the current page.
+    const profile = screen.getByRole("link", { name: "My profile" });
+    expect(profile.getAttribute("href")).toBe("/community/profile");
+    expect(onProfile).not.toHaveBeenCalled();
   });
 });
 
@@ -192,7 +196,7 @@ describe("social actions", () => {
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/moments"));
   });
 
-  it("opens the owner's own social profile when they have a handle", async () => {
+  it("opens the owner's own profile inside Community, not the public page", async () => {
     mocks.getOwnerSocialProfile.mockResolvedValue({
       data: { handle: "TanFamily" },
     });
@@ -201,18 +205,27 @@ describe("social actions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "My profile" }));
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/u/tanfamily"));
+    // /u/{handle} is the page a VISITOR sees, and it renders in a bare shell
+    // with no sidebar and no bottom bar. Sending the owner there made opening
+    // your own profile feel like leaving the product to look at yourself.
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith("/community/profile")
+    );
+    expect(mocks.push).not.toHaveBeenCalledWith(expect.stringContaining("/u/"));
   });
 
-  it("sends an owner with no handle to set one up, never to an invalid /u/", async () => {
+  it("does not need to resolve a handle before it can navigate", async () => {
     render(<SocialActionsProbe />);
 
     fireEvent.click(screen.getByRole("button", { name: "My profile" }));
 
+    // The destination handles the not-set-up and switched-off cases itself, so
+    // there is nothing to look up first — and an owner without a handle is no
+    // longer dumped into Owner Settings in the other half of the app.
     await waitFor(() =>
-      expect(mocks.push).toHaveBeenCalledWith("/settings#social-profile")
+      expect(mocks.push).toHaveBeenCalledWith("/community/profile")
     );
-    expect(mocks.push).not.toHaveBeenCalledWith(expect.stringContaining("/u/"));
+    expect(mocks.push).not.toHaveBeenCalledWith("/settings#social-profile");
   });
 });
 

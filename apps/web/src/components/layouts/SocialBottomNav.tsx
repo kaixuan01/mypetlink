@@ -14,8 +14,12 @@ import { useUnreadActivity } from "@/lib/useUnreadActivity";
 type SocialBottomNavProps = {
   /** Where "Share a Moment" goes, decided by whether the owner has pets. */
   onCreate: () => void;
-  /** The owner's own social profile, or the setup screen if they have none. */
-  onProfile: () => void;
+  /**
+   * Retained so callers need not change, but no longer used: the owner's own
+   * profile is a route now, so Profile is a plain link rather than something
+   * that has to be resolved on press.
+   */
+  onProfile?: () => void;
 };
 
 /**
@@ -27,7 +31,7 @@ type SocialBottomNavProps = {
  * `MobileBottomNavShell`, so the two modes look like one product rather than
  * two apps that happen to be installed together.
  */
-export function SocialBottomNav({ onCreate, onProfile }: SocialBottomNavProps) {
+export function SocialBottomNav({ onCreate }: SocialBottomNavProps) {
   const pathname = usePathname();
   const activeId = getActiveSocialNavItemId(pathname);
   const unread = useUnreadActivity(true);
@@ -46,12 +50,10 @@ export function SocialBottomNav({ onCreate, onProfile }: SocialBottomNavProps) {
     icon: item.icon,
     active: activeId === item.id,
     href: item.href,
-    onSelect:
-      item.id === "create"
-        ? onCreate
-        : item.id === "profile"
-          ? onProfile
-          : undefined,
+    // Only Create still resolves on press — it depends on whether the owner has
+    // a pet to share. Profile is a plain destination now that the owner's own
+    // profile has its own route.
+    onSelect: item.id === "create" ? onCreate : undefined,
     badge: item.id === "activity" ? unread : undefined,
   }));
 

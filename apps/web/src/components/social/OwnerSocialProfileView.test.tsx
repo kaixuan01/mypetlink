@@ -156,6 +156,93 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
   };
 }
 
+/**
+ * Own profile versus visitor profile.
+ *
+ * Same data, same component, different audience. Editing your own profile is a
+ * primary action rather than something buried in an overflow menu, and a
+ * visitor is never offered a control that belongs to somebody else.
+ */
+describe("own profile versus visitor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.smartTagsEnabled = true;
+    mocks.getPublicOwnerProfile.mockResolvedValue(profile);
+    mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));
+    mocks.getOwnerRelationship.mockResolvedValue(relationship);
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("gives the owner Edit profile and Share as primary actions", async () => {
+    signIn();
+    render(<OwnerSocialProfileView audience="own" handle="tanfamily" />);
+
+    const edit = await screen.findByTestId("edit-community-profile");
+    expect(edit.getAttribute("href")).toBe("/community/profile/edit");
+
+    // Editing yourself is not an overflow action.
+    expect(
+      screen.queryByRole("button", { name: /more options|more actions/i })
+    ).toBeNull();
+  });
+
+  it("shares the public handle URL, not a signed-in-only one", async () => {
+    signIn();
+    render(<OwnerSocialProfileView audience="own" handle="tanfamily" />);
+
+    await screen.findByTestId("edit-community-profile");
+
+    // Whatever the share control renders, the address it offers is the page a
+    // visitor can actually open.
+    const shared = document.body.innerHTML;
+    expect(shared).toContain("/u/tanfamily");
+    expect(shared).not.toContain("/community/profile\"");
+  });
+
+  it("never offers Edit profile to a visitor", async () => {
+    signIn();
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await screen.findByText("The Tan Family");
+
+    expect(screen.queryByTestId("edit-community-profile")).toBeNull();
+  });
+
+  it("offers the owner a way to share a first Moment when the grid is empty", async () => {
+    mocks.getPublicOwnerMoments.mockResolvedValue({ items: [], nextCursor: null });
+    signIn();
+
+    render(<OwnerSocialProfileView audience="own" handle="tanfamily" />);
+
+    const empty = await screen.findByTestId("moments-empty");
+    expect(empty.textContent).toContain("Share your first pet Moment");
+    expect(within(empty).getByRole("link", { name: /share a moment/i })).toBeTruthy();
+  });
+
+  it("gives a visitor no owner call to action on an empty grid", async () => {
+    mocks.getPublicOwnerMoments.mockResolvedValue({ items: [], nextCursor: null });
+    signIn();
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    const empty = await screen.findByTestId("moments-empty");
+    expect(empty.textContent).toContain("hasn't shared a Moment yet");
+    expect(within(empty).queryByRole("link", { name: /share a moment/i })).toBeNull();
+  });
+
+  it("calls the section Pets, which works for one pet or several", async () => {
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    const heading = await screen.findByRole("heading", { name: "Pets" });
+    expect(heading).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /our pets/i })).toBeNull();
+  });
+});
+
 describe("OwnerSocialProfileView", () => {
   beforeEach(() => {
     vi.clearAllMocks();

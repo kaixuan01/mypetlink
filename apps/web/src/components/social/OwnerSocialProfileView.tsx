@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
+import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { FollowButton } from "@/components/social/FollowButton";
 import { OwnerProfileMenu } from "@/components/social/OwnerProfileMenu";
@@ -15,6 +16,8 @@ import {
   ownerFollowersPath,
   ownerFollowingPath,
   ownerRoutes,
+  ownerSocialProfilePath,
+  socialRoutes,
 } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
@@ -32,6 +35,12 @@ import {
 
 type OwnerSocialProfileViewProps = {
   handle: string;
+  /**
+   * Who is reading. "public" is a visitor at /u/{handle}; "own" is the owner
+   * looking at themselves from inside Community. One implementation, two sets
+   * of actions and two empty states — never two profile pages.
+   */
+  audience?: "public" | "own";
 };
 
 type LoadState = "loading" | "ready" | "unavailable" | "error";
@@ -47,7 +56,14 @@ type LoadState = "loading" | "ready" | "unavailable" | "error";
  * prerendered and the Pages Function has already rewritten the head for link
  * previews; this component fills in the live content.
  */
-export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) {
+export function OwnerSocialProfileView({
+  handle,
+  audience = "public",
+}: OwnerSocialProfileViewProps) {
+  // The owner's own view is reached through /community/profile, which already
+  // knows whose profile it is. Everything below renders the same data; only the
+  // actions and the empty states differ.
+  const isOwnProfile = audience === "own";
   const [state, setState] = useState<LoadState>("loading");
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
   const [relationship, setRelationship] =
@@ -134,7 +150,7 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
     return (
       <div
         aria-busy="true"
-        className="mx-auto w-full max-w-3xl px-4 py-10"
+        className="mx-auto w-full max-w-4xl px-4 py-10"
         data-testid="owner-profile-loading"
       >
         <span className="sr-only">Loading profile</span>
@@ -167,8 +183,13 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
-      <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+    // max-w-4xl (896px) rather than 3xl (768). At 1280–1600 the narrower
+    // column left the profile marooned in the middle of the content area once
+    // the sidebar carried only one mode. No right rail: space is not a reason
+    // to put something in it.
+    <div className="mx-auto w-full max-w-4xl px-4 pb-16 pt-6">
+      <header className="brand-card rounded-[1.75rem] p-5 sm:p-6">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-start">
         <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream sm:h-24 sm:w-24">
           {profile.avatarThumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -189,76 +210,98 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
           <p className="mt-0.5 text-sm font-bold text-pet-muted">
             @{profile.handle}
           </p>
-          {profile.generalArea ? (
-            <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-pet-muted">
-              <Icon name="pin" className="h-4 w-4" aria-hidden="true" />
-              {profile.generalArea}
+
+          {/*
+            Bio and area sit with the name rather than below the counts. The
+            identity should be settled before Pets and Moments begin, and
+            splitting it across the page was what made the old header read as a
+            row of loose parts.
+          */}
+          {profile.bio ? (
+            <p className="mt-3 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
+              {profile.bio}
             </p>
           ) : null}
+
+          {profile.generalArea ? (
+            <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-pet-muted">
+              <Icon name="pin" className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 truncate">{profile.generalArea}</span>
+            </p>
+          ) : null}
+
+          <nav
+            aria-label="Followers and following"
+            className="mt-3 flex flex-wrap gap-x-5 gap-y-1"
+            data-testid="owner-profile-counts"
+          >
+            <Link
+              className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+              href={ownerFollowersPath(profile.handle)}
+            >
+              <span className="font-black tabular-nums text-pet-ink">
+                {relationship.followerCount}
+              </span>{" "}
+              {relationship.followerCount === 1 ? "follower" : "followers"}
+            </Link>
+            <Link
+              className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+              href={ownerFollowingPath(profile.handle)}
+            >
+              <span className="font-black tabular-nums text-pet-ink">
+                {relationship.followingCount}
+              </span>{" "}
+              following
+            </Link>
+          </nav>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {relationship.isSelf ? (
-            // Your own profile is where you would look to change it. Owner
-            // Settings still links here, but nobody should have to leave
-            // Community and go through pet management to edit how they appear
-            // in Community.
-            <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-              data-testid="edit-community-profile"
-              href={ownerRoutes.socialProfileEdit}
-            >
-              <Icon aria-hidden="true" className="h-4 w-4" name="settings" />
-              Edit profile
-            </Link>
-          ) : null}
-          <FollowButton
-            displayName={profile.displayName}
-            handle={profile.handle}
-            onChange={setRelationship}
-            relationship={relationship}
-            signedIn={signedIn}
-          />
-          <OwnerProfileMenu
-            displayName={profile.displayName}
-            handle={profile.handle}
-            onChange={setRelationship}
-            relationship={relationship}
-            signedIn={signedIn}
-          />
+        </div>
+
+        {/*
+          Editing your own profile is a primary action, not something to find in
+          an overflow menu. A visitor gets Follow in the same place; the menu
+          keeps only what is genuinely secondary, like blocking.
+        */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {isOwnProfile ? (
+            <>
+              <Link
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-pet-ink px-5 text-sm font-bold text-white transition hover:opacity-90"
+                data-testid="edit-community-profile"
+                href={ownerRoutes.socialProfileEdit}
+              >
+                <Icon aria-hidden="true" className="h-4 w-4" name="settings" />
+                Edit profile
+              </Link>
+              <ShareProfileLink
+                analyticsSurface="owner_portal"
+                compact
+                label="Share profile"
+                path={ownerSocialProfilePath(profile.handle)}
+              />
+            </>
+          ) : (
+            <>
+              <FollowButton
+                displayName={profile.displayName}
+                handle={profile.handle}
+                onChange={setRelationship}
+                relationship={relationship}
+                signedIn={signedIn}
+              />
+              <OwnerProfileMenu
+                displayName={profile.displayName}
+                handle={profile.handle}
+                onChange={setRelationship}
+                relationship={relationship}
+                signedIn={signedIn}
+              />
+            </>
+          )}
         </div>
       </header>
 
-      <nav
-        aria-label="Followers and following"
-        className="mt-4 flex flex-wrap gap-x-5 gap-y-1"
-        data-testid="owner-profile-counts"
-      >
-        <Link
-          className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
-          href={ownerFollowersPath(profile.handle)}
-        >
-          <span className="font-black tabular-nums text-pet-ink">
-            {relationship.followerCount}
-          </span>{" "}
-          {relationship.followerCount === 1 ? "follower" : "followers"}
-        </Link>
-        <Link
-          className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
-          href={ownerFollowingPath(profile.handle)}
-        >
-          <span className="font-black tabular-nums text-pet-ink">
-            {relationship.followingCount}
-          </span>{" "}
-          following
-        </Link>
-      </nav>
-
-      {profile.bio ? (
-        <p className="mt-4 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
-          {profile.bio}
-        </p>
-      ) : null}
 
       {profile.pets.length > 0 ? (
         <section className="mt-8" aria-labelledby="owner-pets-heading">
@@ -266,7 +309,7 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
             className="text-lg font-black text-pet-ink"
             id="owner-pets-heading"
           >
-            Our pets
+            Pets
           </h2>
           <ul
             aria-labelledby="owner-pets-heading"
@@ -330,7 +373,16 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
         </h2>
 
         <PublicMomentGrid
-          emptyMessage={`${profile.displayName} hasn't shared a Moment yet.`}
+          emptyAction={
+            isOwnProfile ? (
+              <CTAButton href={socialRoutes.feed}>Share a Moment</CTAButton>
+            ) : undefined
+          }
+          emptyMessage={
+            isOwnProfile
+              ? "No Moments yet. Share your first pet Moment with the community."
+              : `${profile.displayName} hasn't shared a Moment yet.`
+          }
           hasMore={hasMore}
           loadingMore={loadingMore}
           moments={moments}

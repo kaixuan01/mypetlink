@@ -1,35 +1,26 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { SocialProfileSettingsSection } from "@/components/portal/SocialProfileSettingsSection";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { CommunityMyProfileView } from "@/components/social/CommunityMyProfileView";
 import { socialEnabled } from "@/lib/features";
 
 export const metadata: Metadata = {
-  title: "Edit your Community profile",
-  // One person's own settings screen.
+  title: "My profile",
+  // One person's own profile, inside the app.
   robots: { index: false, follow: false },
 };
 
 /**
- * Editing the Community identity, from inside Community.
+ * The owner's own Community profile.
  *
- * This used to live only at the bottom of Owner Settings, which meant changing
- * how you appear in the community required leaving it, opening a pet-management
- * screen and scrolling past contact details and plan usage to find yourself.
- * The form is the same one — moved, not forked — so there is still exactly one
- * implementation of handle, display name, photo, the social switches and each
- * pet's participation.
+ * Inside the Community shell, so opening your own profile does not feel like
+ * leaving the product. The public page a visitor sees stays at /u/{handle} and
+ * keeps its own bare shell — same content, different audience.
  */
 export default function CommunityProfilePage() {
   return (
     <AppLayout>
-      <PageHeader
-        eyebrow="Community"
-        title="Your Community profile"
-        description="The name, photo and handle other pet parents see, and which of your pets appear alongside them."
-      />
       {socialEnabled ? (
-        <SocialProfileSettingsSection />
+        <CommunityMyProfileView />
       ) : (
         <p className="mt-5 text-sm font-semibold text-pet-muted">
           The MyPetLink community isn&rsquo;t open yet. Your pet profiles and

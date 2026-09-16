@@ -64,15 +64,18 @@ export const ownerRoutes = {
     `/orders/view?order=${encodeURIComponent(orderNumber)}`,
   settings: "/settings",
   /**
-   * Editing the Community identity — handle, display name, bio, photo, and the
-   * social switches including each pet's participation.
+   * The Community identity, viewed and edited from inside Community.
    *
-   * A Community route, not an Owner Settings one. Somebody browsing the
-   * community should not have to go through My Pets to change how they appear
-   * in it; Owner Settings keeps a link here rather than a second copy of the
-   * form.
+   * Three routes, three audiences, one implementation. `/community/profile` is
+   * the owner's own profile in the Community shell; `/community/profile/edit`
+   * is where they change it; `/u/{handle}` is the public page a visitor sees.
+   * An owner opening "My profile" used to be sent to the public route, which
+   * dropped every piece of Community chrome and made it feel like leaving the
+   * product to look at yourself.
    */
-  socialProfileEdit: "/community/profile",
+  /** The signed-in owner's own Community profile, inside the Community shell. */
+  socialProfile: "/community/profile",
+  socialProfileEdit: "/community/profile/edit",
   // Deep link straight to the Contact details section of Owner Settings.
   // page (used by Home quick actions and contact reminders).
   settingsOwnerContact: "/settings#owner-contact",

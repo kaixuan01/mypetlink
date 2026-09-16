@@ -3,7 +3,7 @@ import {
   ownerProductFeatures,
   type OwnerProductFeatures,
 } from "@/lib/features";
-import { socialRoutes } from "@/lib/routes";
+import { ownerRoutes, socialRoutes } from "@/lib/routes";
 
 /**
  * MyPetLink has two jobs, and they are genuinely different.
@@ -66,8 +66,12 @@ const allSocialNavItems: SocialNavItem[] = [
     icon: "heart",
   },
   {
+    // A real destination now that the owner's own profile has its own route.
+    // It used to be an action: resolve the handle, then push /u/{handle} —
+    // which meant it could not be a link, could not carry aria-current, and
+    // sent the owner to the public page in a bare shell.
     id: "profile",
-    href: null,
+    href: ownerRoutes.socialProfile,
     label: "My profile",
     mobileLabel: "Profile",
     icon: "users",
@@ -89,6 +93,8 @@ export function isSocialPath(pathname: string) {
     pathname === socialRoutes.explore ||
     pathname === socialRoutes.search ||
     pathname === socialRoutes.notifications ||
+    pathname === ownerRoutes.socialProfile ||
+    pathname.startsWith(`${ownerRoutes.socialProfile}/`) ||
     pathname.startsWith("/u/")
   );
 }
@@ -101,7 +107,13 @@ export function getActiveSocialNavItemId(
     return "explore";
   }
   if (pathname === socialRoutes.notifications) return "activity";
-  if (pathname.startsWith("/u/")) return "profile";
+  if (
+    pathname === ownerRoutes.socialProfile ||
+    pathname.startsWith(`${ownerRoutes.socialProfile}/`) ||
+    pathname.startsWith("/u/")
+  ) {
+    return "profile";
+  }
 
   return null;
 }

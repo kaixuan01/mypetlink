@@ -362,9 +362,11 @@ describe("SocialProfileSettings", () => {
 
     await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
 
-    expect(
-      screen.getByText(/separate from the contact details shown to someone who finds your pet/i)
-    ).toBeTruthy();
+    // The guarantee survived the copy being made compact: it still says the two
+    // identities are separate, and still names what is never shown.
+    const note = screen.getByTestId("social-privacy-note");
+    expect(note.textContent).toMatch(/separate from finder contact details/i);
+    expect(note.textContent).toMatch(/phone number and email are never shown/i);
   });
 
   it("rejects a malformed handle without calling the API", async () => {

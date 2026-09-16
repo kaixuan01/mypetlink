@@ -43,7 +43,9 @@ const communityExact: string[] = [
   socialRoutes.explore,
   socialRoutes.search,
   socialRoutes.notifications,
-  ownerRoutes.socialProfileEdit,
+  // Both the owner's own profile and its editor. The prefix rule below means
+  // /community/profile also covers /community/profile/edit.
+  ownerRoutes.socialProfile,
 ];
 
 const communityPrefixes: string[] = ["/u/"];

@@ -22,7 +22,7 @@ export function CommunityProfileSettingsLink() {
         className="inline-flex min-h-12 items-center gap-2 rounded-full border border-pet-border bg-white px-5 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
         href={ownerRoutes.socialProfileEdit}
       >
-        Manage Social Profile
+        Manage Community Profile
         <Icon aria-hidden="true" className="h-4 w-4" name="chevron" />
       </Link>
     </FormSection>

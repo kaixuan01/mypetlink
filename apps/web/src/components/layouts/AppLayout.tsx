@@ -183,11 +183,7 @@ export function AppLayout({
                     key={item.id}
                     label={item.label}
                     onSelect={
-                      item.id === "create"
-                        ? socialActions.openCreate
-                        : item.id === "profile"
-                          ? socialActions.openOwnProfile
-                          : undefined
+                      item.id === "create" ? socialActions.openCreate : undefined
                     }
                     href={item.href}
                     unread={item.id === "activity" ? unreadActivity : 0}

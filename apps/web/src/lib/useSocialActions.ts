@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { ownerRoutes, socialRoutes } from "@/lib/routes";
-import { getOwnerSocialProfile } from "@/services/ownerSocialService";
 import { getPets } from "@/services/petService";
 
 /**
@@ -59,23 +58,21 @@ export function useSocialActions() {
    * sending them to one would be an invalid route. They go to the settings
    * section where they choose a handle instead.
    */
-  const openOwnProfile = useCallback(async () => {
-    setResolving("profile");
-
-    try {
-      const response = await getOwnerSocialProfile();
-      const handle = response.data?.handle?.trim();
-
-      router.push(
-        handle
-          ? `/u/${handle.toLowerCase()}`
-          : `${ownerRoutes.settings}#social-profile`
-      );
-    } catch {
-      router.push(`${ownerRoutes.settings}#social-profile`);
-    } finally {
-      setResolving(null);
-    }
+  /**
+   * The owner's own profile, inside Community.
+   *
+   * This used to fetch the profile, work out the handle and push the owner to
+   * the PUBLIC /u/{handle} page — which has no sidebar, no bottom bar and no
+   * Community chrome, so opening your own profile felt like leaving the product
+   * to look at yourself from outside. Worse, an owner who had not set Social up
+   * was sent to Owner Settings, in the other half of the app entirely.
+   *
+   * It is now a plain navigation. The destination knows how to render itself,
+   * including the not-set-up and switched-off cases, so there is nothing to
+   * resolve first and nothing to wait for.
+   */
+  const openOwnProfile = useCallback(() => {
+    router.push(ownerRoutes.socialProfile);
   }, [router]);
 
   /** For a signed-out visitor pressing a control that needs an account. */

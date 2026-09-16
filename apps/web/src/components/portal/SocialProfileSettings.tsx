@@ -353,7 +353,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
     return (
       <FormSection
         id="social-profile"
-        title="Your social profile"
+        title="Profile"
         description="Set up the name other pet owners see on MyPetLink."
       >
         <p className="text-sm font-semibold text-pet-muted">
@@ -364,22 +364,32 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
   }
 
   return (
+    <div className="grid gap-5">
     <FormSection
       id="social-profile"
-      title="Your social profile"
+      title="Profile"
       description="The name and picture other pet owners see when you share Moments."
     >
       <div className="grid gap-5">
-        <div className="rounded-2xl bg-[#e8f3ff] p-4">
-          <p className="flex items-start gap-2 text-sm font-semibold leading-6 text-pet-ink">
-            <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0 text-pet-teal" />
-            <span>
-              This is separate from the contact details shown to someone who
-              finds your pet. Your social profile never shows your phone number,
-              your email, or the name on your account.
-            </span>
-          </p>
-        </div>
+        {/*
+          The same guarantee, a quarter of the height. It matters, but it is
+          reassurance rather than an instruction, and at its old size it was the
+          first and largest thing on a screen about choosing a name.
+        */}
+        <p
+          className="flex items-start gap-2 text-xs font-semibold leading-5 text-pet-muted"
+          data-testid="social-privacy-note"
+        >
+          <Icon
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pet-teal"
+            name="shield"
+          />
+          <span>
+            Community profile details are separate from finder contact details.
+            Your phone number and email are never shown here.
+          </span>
+        </p>
 
         {loadError ? (
           <p className="rounded-2xl bg-pet-apricot p-4 text-sm font-bold text-pet-ink">
@@ -629,7 +639,15 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
           />
         </Field>
 
-        <div className="grid gap-2">
+      </div>
+    </FormSection>
+
+    <FormSection
+      id="social-visibility"
+      title="Privacy & visibility"
+      description="Who can find you, and whether new people can follow you."
+    >
+      <div className="grid gap-2">
           <SettingRow
             checked={profile.isSocialEnabled}
             control="switch"
@@ -671,9 +689,18 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             onChange={(checked) => void saveProfile({ allowFollowers: checked })}
           />
         </div>
+    </FormSection>
 
-        <PetSocialSettingsList ownerSocialEnabled={profile.isSocialEnabled} />
+    <FormSection
+      id="social-pets"
+      title="Pets"
+      description="Choose which of your pets appear alongside you in the community."
+    >
+      <PetSocialSettingsList ownerSocialEnabled={profile.isSocialEnabled} />
+    </FormSection>
 
+    <FormSection id="social-save" title="Save your details">
+      <div className="grid gap-5">
         <div className="flex flex-wrap items-center gap-3">
           <CTAButton
             disabled={saving || !loaded}
@@ -688,5 +715,6 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
         </div>
       </div>
     </FormSection>
+    </div>
   );
 }

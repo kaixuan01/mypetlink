@@ -36,7 +36,7 @@ describe("Community profile entry points", () => {
   it("links Owner Settings to the Community profile editor", () => {
     render(<CommunityProfileSettingsLink />);
 
-    const link = screen.getByRole("link", { name: /manage social profile/i });
+    const link = screen.getByRole("link", { name: /manage community profile/i });
 
     expect(link.getAttribute("href")).toBe(ownerRoutes.socialProfileEdit);
     expect(screen.getByText(/community & social/i)).toBeTruthy();
@@ -55,7 +55,7 @@ describe("Community profile entry points", () => {
   });
 
   it("puts the editor on a Community route that reuses the existing form", () => {
-    const editorPage = source("app/community/profile/page.tsx");
+    const editorPage = source("app/community/profile/edit/page.tsx");
 
     // Reused, not forked: the same section component Owner Settings used to
     // render is what the Community route renders now.

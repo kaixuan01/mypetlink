@@ -57,7 +57,7 @@ const socialEntryPoints = [
   {
     name: "Community profile editor",
     marker: "SocialProfileSettingsSection",
-    file: "community/profile.html",
+    file: "community/profile/edit.html",
   },
 ];
 
@@ -70,9 +70,11 @@ const controls = [
   { name: "Owner settings page", marker: "Owner settings", file: "settings.html" },
   { name: "Settings panel", marker: "SettingsPanel", file: "settings.html" },
   {
-    name: "Community profile page",
-    marker: "Community profile",
-    file: "community/profile.html",
+    // The page's own title, which is present whatever the flag says — the flag
+    // decides what the page renders inside the shell, not whether it exists.
+    name: "Community profile editor page",
+    marker: "Edit profile",
+    file: "community/profile/edit.html",
   },
 ];
 
@@ -80,6 +82,7 @@ const controls = [
 const requiredRoutes = [
   "settings.html",
   "community/profile.html",
+  "community/profile/edit.html",
   "feed.html",
   "explore.html",
   "search.html",
