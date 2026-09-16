@@ -45,10 +45,20 @@ const outRoot = path.join(appRoot, "out");
  * a boundary of its own — asserting it here would fail on a correct ON build.
  * That it sits inside that section is covered by the component tests, which is
  * the level that can actually see it.
+ *
+ * Nor is the Owner Settings link: it is a server component, so it is inlined
+ * into the page rather than referenced as a boundary. The two markers below are
+ * the ones that genuinely differ between the artifacts — checked in two
+ * different files, so a single page changing shape cannot silently fake either
+ * verdict.
  */
 const socialEntryPoints = [
-  { name: "Social settings section", marker: "SocialProfileSettingsSection", file: "settings.html" },
   { name: "Blocked accounts settings", marker: "BlockedAccountsSettings", file: "settings.html" },
+  {
+    name: "Community profile editor",
+    marker: "SocialProfileSettingsSection",
+    file: "community/profile.html",
+  },
 ];
 
 /**
@@ -59,11 +69,17 @@ const socialEntryPoints = [
 const controls = [
   { name: "Owner settings page", marker: "Owner settings", file: "settings.html" },
   { name: "Settings panel", marker: "SettingsPanel", file: "settings.html" },
+  {
+    name: "Community profile page",
+    marker: "Community profile",
+    file: "community/profile.html",
+  },
 ];
 
 /** Routes that must exist in both states — Social is additive, never a gate. */
 const requiredRoutes = [
   "settings.html",
+  "community/profile.html",
   "feed.html",
   "explore.html",
   "search.html",
