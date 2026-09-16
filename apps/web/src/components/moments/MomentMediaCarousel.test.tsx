@@ -112,6 +112,27 @@ describe("MomentMediaCarousel", () => {
     vi.unstubAllGlobals();
   });
 
+  it("leaves its photos to load lazily", () => {
+    // This carousel is what a stream of Moments is drawn from now, not just a
+    // single Moment's page, so a page of fifteen must not ask for fifteen
+    // images at once. The decorative blurred backdrop counts too: it is the
+    // same URL, but it is still an <img> the browser would fetch eagerly.
+    const { container } = render(
+      <MomentMediaCarousel moment={makeMoment([photoOne, photoTwo])} />
+    );
+
+    const images = [...container.querySelectorAll("img")];
+
+    expect(images.length).toBeGreaterThan(0);
+    for (const image of images) {
+      expect(image.getAttribute("loading")).toBe("lazy");
+    }
+
+    // Only the photo on screen is in the DOM, so swiping is what costs the
+    // second request — not arriving on the page.
+    expect(screen.queryByAltText("Second photo")).toBeNull();
+  });
+
   it("renders a photo-only moment with its counter", () => {
     render(<MomentMediaCarousel moment={makeMoment([photoOne])} />);
 

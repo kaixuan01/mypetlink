@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
-import { SocialMomentCard } from "@/components/social/SocialMomentCard";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
+import { SocialMomentStream } from "@/components/social/SocialMomentStream";
 import { trackEvent } from "@/lib/analytics";
 import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
@@ -104,29 +103,22 @@ export function SocialFeedView() {
       {state === "ready" && moments.length === 0 ? <FeedEmptyState /> : null}
 
       {moments.length > 0 ? (
-        <div className="mt-5 grid gap-4" data-testid="feed-list">
-          {moments.map((moment) => (
-            <SocialMomentCard
-              analyticsSource="feed"
-              key={moment.id}
-              moment={moment}
-              now={loadedAt}
-              onLikeChange={onLikeChange}
-              signedIn={signedIn}
-            />
-          ))}
+        <div data-testid="feed-list">
+          <SocialMomentStream
+            analyticsSource="feed"
+            endText="You&rsquo;re all caught up."
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            loadMoreFailed={loadMoreFailed}
+            moments={moments}
+            now={loadedAt}
+            onLikeChange={onLikeChange}
+            onLoadMore={loadMore}
+            signedIn={signedIn}
+          />
         </div>
       ) : null}
 
-      {state === "ready" && moments.length > 0 ? (
-        <MomentPagesFooter
-          endText="You&rsquo;re all caught up."
-          failed={loadMoreFailed}
-          hasMore={hasMore}
-          loading={loadingMore}
-          onLoadMore={loadMore}
-        />
-      ) : null}
 
       {sparse ? <MeetMorePets /> : null}
     </div>

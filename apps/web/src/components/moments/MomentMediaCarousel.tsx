@@ -174,6 +174,8 @@ export function MomentMediaCarousel({
             alt=""
             aria-hidden="true"
             className="absolute inset-0 h-full w-full scale-110 object-cover opacity-25 blur-2xl motion-reduce:scale-100"
+            decoding="async"
+            loading="lazy"
             src={activeUrl}
           />
         ) : null}
@@ -200,10 +202,18 @@ export function MomentMediaCarousel({
             }}
             type="button"
           >
+            {/*
+              Lazy, because this carousel is now what a stream of Moments is
+              made of. Explore used to draw tiles, whose images were lazy; the
+              full card reached the same page eagerly and turned a page of
+              fifteen Moments into fifteen immediate image requests.
+            */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt={activeItem.altText ?? `${title} photo`}
               className="h-full w-full object-contain transition duration-300 group-hover/media:scale-[1.015] motion-reduce:transition-none motion-reduce:group-hover/media:scale-100"
+              decoding="async"
+              loading="lazy"
               src={activeUrl}
             />
             <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/0 opacity-0 transition group-hover/media:bg-black/15 group-hover/media:opacity-100 group-focus-visible/media:bg-black/15 group-focus-visible/media:opacity-100 motion-reduce:transition-none">

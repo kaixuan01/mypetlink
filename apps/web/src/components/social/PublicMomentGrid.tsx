@@ -30,27 +30,7 @@ type PublicMomentGridProps = {
   onLikeChange: (momentId: string, state: MomentLikeChange) => void;
   /** True where the grid mixes households — Explore — and false on one's own profile. */
   showAuthor?: boolean;
-  /**
-   * What this list is for.
-   *
-   * A **gallery** is somebody's body of work seen at a glance — a profile's own
-   * Moments — and reads best dense. **Discovery** is Explore, where each card is
-   * a household you have never met: a title, the pets, a handle, a like count and
-   * a media badge, which at half a phone's width stop being content and start
-   * being a product tile. Discovery therefore gives a phone one card per row.
-   */
-  presentation?: "gallery" | "discovery";
   analyticsSource?: AnalyticsSocialSource;
-};
-
-const gridColumns: Record<"gallery" | "discovery", string> = {
-  gallery: "grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3",
-  // The second column arrives at 640px rather than 768px. Every phone this
-  // product sees is 430px or narrower, so one column still covers the case the
-  // change was made for — while a single column held all the way to 767px
-  // produced a 687px card with 859px of media in it, which is taller than the
-  // screen showing it. One card per row is right for a phone, not for a slab.
-  discovery: "grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3",
 };
 
 /**
@@ -62,8 +42,9 @@ const gridColumns: Record<"gallery" | "discovery", string> = {
  * crop decapitates dogs. The tile keeps the portrait shape and lets the image
  * cover it.
  *
- * **Column count follows the job, not the component.** See `presentation`: the
- * same tile is dense on a profile and one-per-row on a phone in Explore.
+ * **A gallery, not a feed.** This is one household's body of work seen at a
+ * glance, so it stays dense and its tiles stay compact. Home and Explore read
+ * one Moment at a time and use the full card instead.
  *
  * **A button, not infinite scroll.** It is keyboard reachable, it is announced,
  * and it does not trap someone trying to get to the footer. The cursor is opaque
@@ -80,7 +61,6 @@ export function PublicMomentGrid({
   signedIn,
   onLikeChange,
   showAuthor = false,
-  presentation = "gallery",
   analyticsSource = "direct",
 }: PublicMomentGridProps) {
   if (moments.length === 0) {
@@ -101,7 +81,7 @@ export function PublicMomentGrid({
 
   return (
     <>
-      <ul className={`mt-4 grid ${gridColumns[presentation]}`}>
+      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
         {moments.map((moment) => (
           <li key={moment.id}>
             <SocialMomentTile

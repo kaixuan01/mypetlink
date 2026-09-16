@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useDelayedFlag } from "@/lib/useDelayedFlag";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
-import { formatMomentAge } from "@/components/social/SocialMomentParts";
+import { formatRelativeAge } from "@/lib/momentPublishedTime";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
@@ -284,7 +284,7 @@ function ActivityRow({
               className="text-xs font-semibold text-pet-muted"
               dateTime={item.createdAt}
             >
-              {formatMomentAge(item.createdAt, now)}
+              {formatRelativeAge(item.createdAt, now)}
             </time>
           ) : null}
 

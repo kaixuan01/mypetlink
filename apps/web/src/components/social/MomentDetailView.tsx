@@ -18,6 +18,11 @@ import { SharedByIdentity } from "@/components/social/SharedByIdentity";
 import { MomentSubjects } from "@/components/social/SocialMomentParts";
 import { Icon } from "@/components/ui/Icon";
 import { socialRoutes } from "@/lib/routes";
+import {
+  formatMomentPublishedExact,
+  formatMomentPublishedLabel,
+  momentPublishedDateTime,
+} from "@/lib/momentPublishedTime";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -157,7 +162,7 @@ function MomentArticle({
     () => toViewerMedia(moment.media, moment.title),
     [moment.media, moment.title]
   );
-  const published = formatPublishedDate(moment.publishedAt);
+  const published = formatMomentPublishedExact(moment.publishedAt);
 
   return (
     <article
@@ -196,12 +201,16 @@ function MomentArticle({
             {moment.title}
           </h1>
           {published ? (
-            <p
-              className="mt-0.5 text-xs font-bold text-pet-muted"
+            // The Moment's own page has room for the exact time, so it says it
+            // rather than making a reader work back from "3h".
+            <time
+              className="mt-0.5 block text-xs font-bold text-pet-muted"
+              dateTime={momentPublishedDateTime(moment.publishedAt)}
               data-testid="moment-published"
+              title={formatMomentPublishedLabel(moment.publishedAt)}
             >
               {published}
-            </p>
+            </time>
           ) : null}
         </div>
 
@@ -296,20 +305,6 @@ function getServerHasHistory() {
   return false;
 }
 
-/** The day it was shared. Deliberately a date, not a time. */
-function formatPublishedDate(publishedAt: string | null) {
-  if (!publishedAt) return "";
-
-  const parsed = Date.parse(publishedAt);
-
-  if (!Number.isFinite(parsed)) return "";
-
-  return new Date(parsed).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
 
 function BackIcon({ className = "" }: { className?: string }) {
   return (

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
-import { PublicMomentGrid } from "@/components/social/PublicMomentGrid";
+import { SocialMomentStream } from "@/components/social/SocialMomentStream";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { trackEvent } from "@/lib/analytics";
@@ -82,6 +82,9 @@ export function SocialExploreView() {
     (cursor?: string) => getExploreMoments(species, cursor),
     [species]
   );
+  // Captured once, so every card on the page agrees about what "3h" means and
+  // none of them re-times itself on a re-render.
+  const [loadedAt] = useState(() => Date.now());
   const {
     state,
     moments,
@@ -191,7 +194,16 @@ export function SocialExploreView() {
         )}
       </section>
 
-      <section aria-labelledby="latest-moments" className="mt-10">
+      {/*
+        The Moment column is narrower than the page that holds it, and matches
+        the home feed exactly: a Moment is the same object here, so it is the
+        same size here. Suggested pets keeps the full width above, because three
+        pet cards side by side is a different job from reading one Moment.
+      */}
+      <section
+        aria-labelledby="latest-moments"
+        className="mx-auto mt-10 w-full max-w-xl"
+      >
         <h2 className="text-lg font-black text-pet-ink" id="latest-moments">
           Latest Moments
         </h2>
@@ -212,29 +224,42 @@ export function SocialExploreView() {
           </div>
         ) : state === "loading" ? (
           // Same shape the real cards arrive in, so the page does not reflow
-          // from a two-column placeholder into a one-column list.
-          <div
-            aria-busy="true"
-            className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-          >
-            <div className="h-72 animate-pulse rounded-[1.25rem] bg-white sm:h-56" />
-            <div className="hidden h-56 animate-pulse rounded-[1.25rem] bg-white sm:block" />
-            <div className="hidden h-56 animate-pulse rounded-[1.25rem] bg-white xl:block" />
+          // when the data lands.
+          <div aria-busy="true" className="mt-5 grid gap-4">
+            <div className="h-[28rem] animate-pulse rounded-[1.5rem] bg-white" />
+            <div className="h-[28rem] animate-pulse rounded-[1.5rem] bg-white" />
           </div>
         ) : (
-          <PublicMomentGrid
-            analyticsSource="explore"
-            emptyMessage="New Moments from MyPetLink families will appear here."
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            loadMoreFailed={loadMoreFailed}
-            moments={moments}
-            onLikeChange={onLikeChange}
-            onLoadMore={loadMore}
-            presentation="discovery"
-            showAuthor
-            signedIn={signedIn}
-          />
+          moments.length === 0 ? (
+            <div
+              className="mt-4 rounded-[1.75rem] border border-pet-border bg-white p-6 text-center"
+              data-testid="moments-empty"
+            >
+              <LinkoMascot
+                alt="Linko the MyPetLink mascot waving"
+                className="mx-auto"
+                pose="wave"
+                size={56}
+              />
+              <p className="mt-2 text-sm font-bold text-pet-ink">
+                New Moments from MyPetLink families will appear here.
+              </p>
+            </div>
+          ) : (
+            // The same card the home feed draws. Explore differs in which
+            // Moments it selects, not in what a Moment is.
+            <SocialMomentStream
+              analyticsSource="explore"
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              loadMoreFailed={loadMoreFailed}
+              moments={moments}
+              now={loadedAt}
+              onLikeChange={onLikeChange}
+              onLoadMore={loadMore}
+              signedIn={signedIn}
+            />
+          )
         )}
       </section>
 

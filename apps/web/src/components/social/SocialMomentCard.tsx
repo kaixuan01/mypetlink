@@ -85,7 +85,16 @@ export function SocialMomentCard({
           title={moment.title}
         />
       ) : (
-        <MomentMedia aspect="auto" moment={moment} />
+        // A Moment with no media still has to be openable. The title is drawn
+        // inside this frame rather than under it, so without a link here the
+        // card had nothing at all pointing at the Moment's own page — which is
+        // what a grid tile, whose title always carried one, never suffered.
+        <Link
+          className="block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pet-teal"
+          href={momentPath(moment.id)}
+        >
+          <MomentMedia aspect="auto" moment={moment} />
+        </Link>
       )}
 
       <div className="p-3">

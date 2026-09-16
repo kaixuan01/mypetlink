@@ -6,6 +6,11 @@ import { Icon } from "@/components/ui/Icon";
 import { VideoPoster } from "@/components/moments/VideoPoster";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
 import {
+  formatMomentPublishedAge,
+  formatMomentPublishedLabel,
+  momentPublishedDateTime,
+} from "@/lib/momentPublishedTime";
+import {
   getMomentCover,
   isVideoMedia,
   resolveMomentMediaAlt,
@@ -146,12 +151,20 @@ export function MomentByline({
       </Link>
 
       {publishedAt && now !== undefined ? (
-        <span
+        // A machine-readable instant, a human-readable age, and the exact time
+        // for anyone who wants it. "3h" alone tells a reader roughly nothing
+        // they can act on, and tells assistive technology less than that.
+        <time
           className="ml-auto shrink-0 text-xs font-semibold text-pet-muted"
+          dateTime={momentPublishedDateTime(publishedAt)}
           data-testid="moment-age"
+          title={formatMomentPublishedLabel(publishedAt)}
         >
-          {formatMomentAge(publishedAt, now)}
-        </span>
+          {formatMomentPublishedAge(publishedAt, now)}
+          <span className="sr-only">
+            {` ${formatMomentPublishedLabel(publishedAt)}`}
+          </span>
+        </time>
       ) : null}
     </div>
   );
@@ -272,30 +285,3 @@ function MomentCoverImage({ alt, url }: { alt: string; url: string }) {
   );
 }
 
-/**
- * Relative age, in the shortest form that is still honest.
- *
- * Deliberately coarse: "2h" and "3d" are all a reader needs, and a precise
- * timestamp on every card only invites comparing who posted when.
- */
-export function formatMomentAge(publishedAt: string, now: number): string {
-  const published = Date.parse(publishedAt);
-
-  if (!Number.isFinite(published)) {
-    return "";
-  }
-
-  const seconds = Math.max(0, Math.round((now - published) / 1000));
-
-  if (seconds < 60) return "now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
-  if (seconds < 604_800) return `${Math.floor(seconds / 86_400)}d`;
-  if (seconds < 2_592_000) return `${Math.floor(seconds / 604_800)}w`;
-
-  return new Date(published).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}

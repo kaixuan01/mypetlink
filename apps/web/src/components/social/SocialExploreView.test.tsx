@@ -213,6 +213,14 @@ describe("SocialExploreView", () => {
     render(<SocialExploreView />);
 
     const buttons = await screen.findAllByTestId("follow-button");
+
+    // The signed-in check settles in an effect, and the control is deliberately
+    // inert until it does — clicking before then is the test racing the page,
+    // not the page failing to follow.
+    await waitFor(() =>
+      expect((buttons[0] as HTMLButtonElement).disabled).toBe(false)
+    );
+
     fireEvent.click(buttons[0]);
 
     await waitFor(() => expect(mocks.followOwner).toHaveBeenCalledWith("tanfamily"));
@@ -223,13 +231,15 @@ describe("SocialExploreView", () => {
   it("shows the newest Moments with their household named", async () => {
     render(<SocialExploreView />);
 
-    const tile = (await screen.findAllByTestId("social-moment-tile"))[0];
+    const card = (await screen.findAllByTestId("social-moment-card"))[0];
 
-    // Explore mixes households, so each tile has to say whose it is — by
-    // handle, which is the one identifier that fits on a tile.
-    expect(within(tile).getByTestId("moment-byline").textContent).toContain(
+    // Explore mixes households, so every card has to say whose Moment it is.
+    expect(within(card).getByTestId("moment-byline").textContent).toContain(
       "@tanfamily"
     );
+
+    // And when it was published, which the tile it replaces never said at all.
+    expect(within(card).getByTestId("moment-age").tagName).toBe("TIME");
   });
 
   it("lets a signed-out visitor browse without offering actions that cannot work", async () => {
@@ -255,7 +265,7 @@ describe("SocialExploreView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
 
-    expect(await screen.findByTestId("social-moment-tile")).toBeTruthy();
+    expect(await screen.findByTestId("social-moment-card")).toBeTruthy();
   });
 
   it("says plainly when a filter has nothing behind it", async () => {
