@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { FollowButton } from "@/components/social/FollowButton";
 import { OwnerProfileMenu } from "@/components/social/OwnerProfileMenu";
@@ -340,11 +340,7 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
         />
       </section>
 
-      <footer className="mt-12 flex justify-center">
-        <Link className="opacity-70 transition hover:opacity-100" href="/">
-          <BrandLogo />
-        </Link>
-      </footer>
+      <CommunityBrandFooter signedIn={signedIn} />
     </div>
   );
 }

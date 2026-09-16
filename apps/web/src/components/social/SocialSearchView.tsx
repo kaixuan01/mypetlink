@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { FollowButton } from "@/components/social/FollowButton";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { Icon } from "@/components/ui/Icon";
@@ -280,11 +280,7 @@ export function SocialSearchView() {
         ) : null}
       </div>
 
-      <footer className="mt-12 flex justify-center">
-        <Link className="opacity-70 transition hover:opacity-100" href="/">
-          <BrandLogo />
-        </Link>
-      </footer>
+      <CommunityBrandFooter signedIn={signedIn} />
     </div>
   );
 }

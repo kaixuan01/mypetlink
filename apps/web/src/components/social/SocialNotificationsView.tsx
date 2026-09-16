@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useDelayedFlag } from "@/lib/useDelayedFlag";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { formatMomentAge } from "@/components/social/SocialMomentParts";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -54,6 +55,7 @@ async function consume(delivered: SocialNotification[]) {
 
 export function SocialNotificationsView() {
   const [state, setState] = useState<LoadState>("loading");
+  const showSkeleton = useDelayedFlag(state === "loading");
   const [items, setItems] = useState<SocialNotification[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -106,11 +108,25 @@ export function SocialNotificationsView() {
     <div className="mx-auto w-full max-w-xl">
       <h1 className="text-2xl font-black text-pet-ink">Activity</h1>
 
+      {/*
+        The skeleton waits ~180ms before appearing. Activity usually answers in
+        a few tens of milliseconds, and a placeholder that shows for two frames
+        and then gives way to "Nothing new yet" reads as a flash rather than as
+        loading. Nothing is delayed except the decision to draw it — the screen
+        holds neutral space meanwhile, and the announcement stays live for
+        anybody who is not watching for it.
+      */}
       {state === "loading" ? (
         <div aria-busy="true" className="mt-5 space-y-2" data-testid="activity-loading">
           <span className="sr-only">Loading your activity</span>
-          <div className="h-16 animate-pulse rounded-[1.25rem] bg-white" />
-          <div className="h-16 animate-pulse rounded-[1.25rem] bg-white" />
+          {showSkeleton ? (
+            <>
+              <div className="h-16 animate-pulse rounded-[1.25rem] bg-white" />
+              <div className="h-16 animate-pulse rounded-[1.25rem] bg-white" />
+            </>
+          ) : (
+            <div className="h-16" />
+          )}
         </div>
       ) : null}
 

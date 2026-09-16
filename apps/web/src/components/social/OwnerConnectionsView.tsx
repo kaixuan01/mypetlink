@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialAccountList } from "@/components/social/SocialAccountList";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -247,11 +247,7 @@ export function OwnerConnectionsView({
         signedIn={signedIn}
       />
 
-      <footer className="mt-12 flex justify-center">
-        <Link className="opacity-70 transition hover:opacity-100" href="/">
-          <BrandLogo />
-        </Link>
-      </footer>
+      <CommunityBrandFooter signedIn={signedIn} />
     </div>
   );
 }
