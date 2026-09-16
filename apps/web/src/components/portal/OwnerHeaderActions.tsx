@@ -173,13 +173,20 @@ export function OwnerPortalHeader() {
       }`}
     >
       <div className="flex min-w-0 items-center justify-between gap-2.5">
+        {/*
+          The brand never shrinks. It used to be the only flexible item in this
+          row, so once the Community switch and the Add button had taken their
+          width it was left rendering "My…" — a broken-looking wordmark being the
+          one thing on the header that must not look broken. It either fits whole
+          or it steps back to the mark alone, which is still the brand.
+        */}
         <Link
           aria-label="MyPetLink Owner Portal home"
-          className="flex min-w-0 items-center gap-2.5 lg:hidden"
+          className="flex shrink-0 items-center gap-2.5 lg:hidden"
           href={ownerRoutes.dashboard}
         >
           <BrandLogo markOnly className="h-10 w-10 shrink-0" />
-          <span className="hidden truncate text-sm font-black text-pet-ink min-[350px]:inline">
+          <span className="hidden whitespace-nowrap text-sm font-black text-pet-ink min-[360px]:inline">
             MyPetLink
           </span>
         </Link>
@@ -331,7 +338,7 @@ function OwnerHeaderActionView({
   const content = (
     <>
       <Icon aria-hidden="true" name="plus" className="h-4 w-4 shrink-0" />
-      <span>{action.label}</span>
+      <span className="hidden min-[420px]:inline">{action.label}</span>
     </>
   );
 
@@ -407,8 +414,10 @@ function OwnerHeaderActionView({
   );
 }
 
+// Matches the Add menu trigger: one weight for every header action, quieter
+// than the brand and the Community switch beside them.
 const headerActionClassName =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-coral bg-pet-coral px-3 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[360px]:px-4";
+  "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-coral bg-white px-2.5 py-2 text-sm font-extrabold text-pet-coral transition hover:bg-[#fff1ef] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[420px]:px-4";
 
 /**
  * The compact way between the product's two halves, on a phone.

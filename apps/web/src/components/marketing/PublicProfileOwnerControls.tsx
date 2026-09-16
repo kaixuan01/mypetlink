@@ -53,7 +53,7 @@ export function PublicProfileOwnerControls({
               triggerClassName={visitorShareTriggerClass}
               triggerLabel={
                 <>
-                  <Icon name="heart" className="h-4 w-4" />
+                  <Icon name="share" className="h-4 w-4" />
                   Share profile
                 </>
               }

@@ -248,21 +248,34 @@ export function DashboardClient({
     <div className="grid gap-6">
       {!hasOwnerContact ? <OwnerContactSetupCard /> : null}
 
-      <section className="brand-soft-card overflow-hidden rounded-[1.75rem] p-5 sm:p-6">
-        <p className="text-xs font-extrabold uppercase text-pet-teal">
+      {/*
+        Compact on a phone. This card is a greeting and a count, and at its old
+        size it filled most of the first screen before anybody reached their
+        pets. The eyebrow, the larger heading and the full sentence all belong to
+        the desktop version, where there is room for them.
+
+        The stats sit one row across at every width. Two columns left the third
+        stat sitting alone under the other two, which reads as a missing fourth.
+      */}
+      <section className="brand-soft-card overflow-hidden rounded-[1.75rem] p-4 sm:p-6">
+        <p className="hidden text-xs font-extrabold uppercase text-pet-teal sm:block">
           Owner portal
         </p>
-        <h1 className="mt-1.5 text-2xl font-black leading-tight text-pet-ink sm:text-3xl">
+        <h1 className="text-lg font-black leading-tight text-pet-ink sm:mt-1.5 sm:text-3xl">
           Welcome back
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
-          Manage your pet profiles, care records, and moments in one place.
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-pet-muted sm:mt-2">
+          <span className="sm:hidden">Manage your pets and care.</span>
+          <span className="hidden sm:inline">
+            Manage your pet profiles, care records, and moments in one place.
+          </span>
         </p>
         {lostModePets.length ? <LostModeAlert pets={lostModePets} /> : null}
         <div
-          className={`mt-4 grid grid-cols-2 gap-2.5 ${
-            stats.length >= 4 ? "sm:grid-cols-4" : "sm:grid-cols-3"
-          }`}
+          className="mt-3 grid gap-2 sm:mt-4 sm:gap-2.5"
+          style={{
+            gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))`,
+          }}
         >
           {stats.map((stat) => (
             <DashboardStat key={stat.label} {...stat} />
@@ -360,8 +373,13 @@ type DashboardStatData = {
 function DashboardStat({ label, value, href }: DashboardStatData) {
   const inner = (
     <>
-      <span className="text-2xl font-black text-pet-ink">{value}</span>
-      <span className="mt-0.5 block text-xs font-bold leading-4 text-pet-muted">
+      <span className="block text-xl font-black leading-none text-pet-ink sm:text-2xl">
+        {value}
+      </span>
+      {/* Three of these share a phone's width, so the label wraps rather than
+          truncating: "Public profiles" cut to "Public pr…" says less than two
+          short lines do. */}
+      <span className="mt-1 block text-[11px] font-bold leading-4 text-pet-muted sm:text-xs">
         {label}
       </span>
     </>
@@ -370,7 +388,7 @@ function DashboardStat({ label, value, href }: DashboardStatData) {
   if (href) {
     return (
       <Link
-        className="rounded-[1.25rem] border border-pet-border bg-white p-3 transition hover:border-pet-teal hover:bg-pet-cream"
+        className="min-w-0 rounded-[1.25rem] border border-pet-border bg-white p-2.5 transition hover:border-pet-teal hover:bg-pet-cream sm:p-3"
         href={href}
       >
         {inner}
@@ -379,7 +397,7 @@ function DashboardStat({ label, value, href }: DashboardStatData) {
   }
 
   return (
-    <div className="rounded-[1.25rem] border border-pet-border bg-white p-3">
+    <div className="min-w-0 rounded-[1.25rem] border border-pet-border bg-white p-2.5 sm:p-3">
       {inner}
     </div>
   );

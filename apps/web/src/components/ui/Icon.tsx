@@ -18,6 +18,8 @@ export type IconName =
   | "logout"
   | "search"
   | "copy"
+  | "share"
+  | "link"
   | "more"
   | "calendar"
   | "chevron"
@@ -158,6 +160,23 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <rect x="8" y="8" width="11" height="11" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+    </>
+  ),
+  // Sharing has its own mark. A heart means "like" everywhere else in the
+  // product, and using it for Share made the two read as the same gesture.
+  share: (
+    <>
+      <path d="M12 3.5v11" />
+      <path d="m8 7.5 4-4 4 4" />
+      <path d="M6 12H5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2h-1" />
+    </>
+  ),
+  // A chain link, for copying an address. The QR mark it replaced described a
+  // different thing entirely.
+  link: (
+    <>
+      <path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.4 1.4" />
+      <path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.4-1.4" />
     </>
   ),
   more: (

@@ -6,13 +6,21 @@
   --brand-control-indicator-inset: 1.25rem;
   --brand-control-indicator-size: 1rem;
   --brand-control-indicator-space: 3.5rem;
-  /* Height the fixed Owner Portal mobile bottom navigation occupies, including
-     its own bottom offset. Used to pad scrollable content so the last item is
-     never hidden behind the nav. Safe-area inset is added on top in the calc. */
-  --owner-bottom-nav-height: 5.25rem;
+  /* Height the fixed mobile bottom navigation occupies, including its own bottom
+     offset. Used to pad scrollable content so the last item is never hidden
+     behind the nav. Safe-area inset is added on top in the calc.
+
+     Measured, not estimated: a 56px item row (min-h-14) plus 16px of container
+     padding plus its two hairline borders is 74px, and the bar floats 12px above
+     the bottom edge, so it covers 86px. The old 5.25rem was two pixels short of
+     that and left the last card 14px clear of the bar — close enough to read as
+     the bar sitting on top of the content. */
+  --owner-bottom-nav-height: 5.5rem;
   --owner-keyboard-inset: 0px;
+  /* Nav + safe area + breathing space, so the last tappable thing on a page
+     always clears the bar rather than tucking under its shadow. */
   --owner-mobile-page-bottom-clearance: calc(
-    var(--owner-bottom-nav-height) + env(safe-area-inset-bottom) + 1rem
+    var(--owner-bottom-nav-height) + env(safe-area-inset-bottom) + 1.25rem
   );
   /* Clearance reserved by shared mobile form action bars. AppLayout already
      reserves the bottom-nav and safe-area space; forms add only this height. */

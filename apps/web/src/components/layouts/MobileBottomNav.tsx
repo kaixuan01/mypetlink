@@ -153,7 +153,9 @@ export function MobileBottomNav() {
             onClick={() => setMoreOpen(false)}
             type="button"
           />
-          <section className="fixed inset-x-3 bottom-[calc(6.35rem+env(safe-area-inset-bottom))] z-50 rounded-[2rem] border border-pet-border bg-white p-4 shadow-2xl shadow-[#0d1b3d]/20">
+          {/* Sits on top of the bar, derived from the bar's own height rather
+              than a number tuned against it once. */}
+          <section className="fixed inset-x-3 bottom-[calc(var(--owner-bottom-nav-height)+0.75rem+env(safe-area-inset-bottom))] z-50 rounded-[2rem] border border-pet-border bg-white p-4 shadow-2xl shadow-[#0d1b3d]/20">
             <div className="flex items-center justify-between gap-3 px-1">
               <div>
                 <h2 className="text-lg font-black text-pet-ink">More</h2>

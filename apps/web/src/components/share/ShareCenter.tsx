@@ -172,7 +172,7 @@ export function ShareCenter({
       >
         {triggerLabel ?? (
           <>
-            <Icon aria-hidden="true" className="h-4 w-4 shrink-0" name="copy" />
+            <Icon aria-hidden="true" className="h-4 w-4 shrink-0" name="share" />
             Share
           </>
         )}

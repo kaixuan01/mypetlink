@@ -115,13 +115,11 @@ export function FollowButton({
     return relationship.allowsFollowers ? (
       <Link
         aria-label={`Sign in to follow ${displayName}`}
-        className={`${baseClass} ${
-          attribution ? "max-w-full whitespace-normal text-center leading-tight [overflow-wrap:anywhere]" : "max-w-[12rem]"
-        } ${followClass} ${className}`}
+        className={`${baseClass} max-w-full ${followClass} ${className}`}
         data-testid="follow-button-signin"
         href={ownerLoginPath(ownerSocialProfilePath(handle))}
       >
-        {attribution ? `Follow @${handle}` : "Follow"}
+        <FollowLabel attribution={attribution} handle={handle} text="Follow" />
       </Link>
     ) : null;
   }
@@ -133,19 +131,7 @@ export function FollowButton({
   }
 
   const error = failure?.handle === handle ? failure.message : null;
-  // On a pet card the button carries the household's handle, and a card two to
-  // a row on a 320px phone is narrower than "Follow @omarhousehold". Truncating
-  // it would hide the one thing the control exists to make unambiguous, so it
-  // wraps to a second line instead.
-  const wrapClass = attribution
-    ? "max-w-full whitespace-normal leading-tight [overflow-wrap:anywhere]"
-    : "max-w-[12rem]";
   const following = relationship.isFollowing;
-  const label = following
-    ? "Following"
-    : attribution
-      ? `Follow @${handle}`
-      : "Follow";
 
   return (
     <span className={`inline-flex flex-col items-start gap-1 ${className}`}>
@@ -156,14 +142,18 @@ export function FollowButton({
             : `Follow ${displayName} (@${handle})`
         }
         aria-pressed={following}
-        className={`${baseClass} ${wrapClass} ${following ? followingClass : followClass} follow-button`}
+        className={`${baseClass} max-w-full ${following ? followingClass : followClass} follow-button`}
         data-following={following ? "true" : "false"}
         data-testid="follow-button"
         disabled={pending || signedIn === null}
         onClick={submit}
         type="button"
       >
-        <span className={attribution ? "text-center" : "truncate"}>{label}</span>
+        <FollowLabel
+          attribution={attribution && !following}
+          handle={handle}
+          text={following ? "Following" : "Follow"}
+        />
       </button>
 
       {error ? (
@@ -174,6 +164,34 @@ export function FollowButton({
         >
           {error}
         </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * "Follow", and the handle after it only where there is room for it.
+ *
+ * On a byline the household's handle is printed directly above the button, so
+ * repeating it inside the label buys nothing and costs a great deal: the button
+ * became wide enough to squeeze the identity beside it down to one character per
+ * line. The handle is still in the button's accessible name at every width, so
+ * nothing is lost for a reader who cannot see the byline.
+ */
+function FollowLabel({
+  attribution,
+  handle,
+  text,
+}: {
+  attribution: boolean;
+  handle: string;
+  text: string;
+}) {
+  return (
+    <span className="min-w-0 truncate">
+      {text}
+      {attribution ? (
+        <span className="hidden sm:inline"> @{handle}</span>
       ) : null}
     </span>
   );

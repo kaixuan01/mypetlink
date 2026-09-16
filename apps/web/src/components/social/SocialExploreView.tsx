@@ -206,10 +206,15 @@ export function SocialExploreView() {
             </div>
           </div>
         ) : state === "loading" ? (
-          <div aria-busy="true" className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <div className="h-56 animate-pulse rounded-[1.25rem] bg-white" />
-            <div className="h-56 animate-pulse rounded-[1.25rem] bg-white" />
+          // Same shape the real cards arrive in, so the page does not reflow
+          // from a two-column placeholder into a one-column list.
+          <div
+            aria-busy="true"
+            className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+          >
+            <div className="h-72 animate-pulse rounded-[1.25rem] bg-white sm:h-56" />
             <div className="hidden h-56 animate-pulse rounded-[1.25rem] bg-white sm:block" />
+            <div className="hidden h-56 animate-pulse rounded-[1.25rem] bg-white xl:block" />
           </div>
         ) : (
           <PublicMomentGrid
@@ -221,6 +226,7 @@ export function SocialExploreView() {
             moments={moments}
             onLikeChange={onLikeChange}
             onLoadMore={loadMore}
+            presentation="discovery"
             showAuthor
             signedIn={signedIn}
           />

@@ -80,7 +80,7 @@ export function MomentShareButton({
   return (
     <div className={`flex flex-col items-start gap-1 ${className}`}>
       <button className={buttonClass} onClick={share} type="button">
-        <Icon aria-hidden="true" className="h-4 w-4" name="qr" />
+        <Icon aria-hidden="true" className="h-4 w-4" name="share" />
         Share
       </button>
 

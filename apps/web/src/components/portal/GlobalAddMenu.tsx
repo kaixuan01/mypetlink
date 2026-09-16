@@ -44,6 +44,17 @@ type AnchorPosition = {
 const TRIGGER_LABEL = "Add a pet, care record, or moment";
 
 /**
+ * Add is a utility, not the page's identity.
+ *
+ * It used to be a solid coral pill wide enough to unbalance the header against
+ * the brand and the Community switch. It is now an outlined control that keeps
+ * the brand colour for its mark, stays a 44px target at every width, and gives
+ * up its printed word before anything else on the row has to give up anything.
+ */
+const addTriggerClassName =
+  "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-coral bg-white px-2.5 py-2 text-sm font-extrabold text-pet-coral transition hover:bg-[#fff1ef] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[420px]:px-4";
+
+/**
  * Dashboard-only multi-create action. The backdrop and panel are portalled as
  * one unit so neither can be trapped by the sticky header's backdrop-filter
  * containing block or the desktop sidebar's overflow clipping.
@@ -347,14 +358,20 @@ export function GlobalAddMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={TRIGGER_LABEL}
-        className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-coral bg-pet-coral px-3 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[360px]:px-4"
+        className={addTriggerClassName}
         data-owner-header-action
         onClick={toggleMenu}
         ref={triggerRef}
         type="button"
       >
-        <Icon aria-hidden="true" name="plus" className="h-4 w-4" />
-        Add
+        <Icon aria-hidden="true" name="plus" className="h-4 w-4 shrink-0" />
+        {/*
+          The word is dropped on the narrowest phones, where it was competing
+          with the brand for the same pixels. The control keeps its full spoken
+          name either way, and its target stays 44px square — smaller in weight,
+          not smaller to hit.
+        */}
+        <span className="hidden min-[420px]:inline">Add</span>
       </button>
 
       {overlay}

@@ -9,6 +9,8 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
@@ -148,6 +150,87 @@ describe("OwnerHeaderActions", () => {
     cleanup();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+  });
+
+  /**
+   * The mobile header row: brand, Community, and one action.
+   *
+   * It used to render "My…". The brand was the only flexible item in the row,
+   * so once the Community switch and a solid coral Add button had taken their
+   * width, the wordmark was the thing that gave way — leaving the one element on
+   * the page that must not look broken looking broken.
+   */
+  it("never truncates the brand to make room for anything else", async () => {
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    render(<HeaderHarness />);
+
+    await screen.findByRole("button", {
+      name: /add a pet, care record, or moment/i,
+    });
+
+    const brandLink = screen.getByRole("link", {
+      name: /mypetlink owner portal home/i,
+    });
+    const wordmark = [...brandLink.querySelectorAll("span")].find(
+      (span) => span.textContent === "MyPetLink"
+    );
+
+    // It fits whole or it steps back to the mark alone. It never shrinks into
+    // an ellipsis, which is what `truncate` on a flex child produces.
+    expect(brandLink.className).toContain("shrink-0");
+    expect(brandLink.className).not.toContain("min-w-0");
+    expect(wordmark?.className).toContain("whitespace-nowrap");
+    expect(wordmark?.className).not.toContain("truncate");
+  });
+
+  it("keeps the Community switch named rather than reduced to an icon", () => {
+    // The switch only renders when Social is on, and these tests run with the
+    // flag off, so this reads the component rather than the tree. What matters
+    // is that the row does not solve its width problem by taking the word
+    // "Community" away — an unlabelled icon is not an obvious mode switch.
+    const source = readFileSync(
+      join(__dirname, "OwnerHeaderActions.tsx"),
+      "utf8"
+    );
+    const control = source.slice(source.indexOf("function SocialModeSwitch"));
+
+    expect(control).toContain("shrink-0");
+    expect(control).toContain('inSocial ? "My pets" : "Community"');
+    expect(control).not.toContain("sr-only");
+  });
+
+  it("keeps Add reachable and fully named when its word is dropped", async () => {
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    render(<HeaderHarness />);
+
+    const add = await screen.findByRole("button", {
+      name: /add a pet, care record, or moment/i,
+    });
+    const word = [...add.querySelectorAll("span")].find(
+      (span) => span.textContent === "Add"
+    );
+
+    // Quieter, not smaller to hit: the target stays 44px square at every width,
+    // and the spoken name never depends on the printed one.
+    expect(add.className).toContain("min-h-11");
+    expect(add.className).toContain("min-w-11");
+    expect(word?.className).toContain("hidden");
+    expect(word?.className).toContain("min-[420px]:inline");
+  });
+
+  it("gives Add less visual weight than the brand beside it", async () => {
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    render(<HeaderHarness />);
+
+    const add = await screen.findByRole("button", {
+      name: /add a pet, care record, or moment/i,
+    });
+
+    // An outline, not a filled pill. Add is a utility action, not the page's
+    // identity, and a solid block of brand colour read as the latter.
+    expect(add.className).toContain("bg-white");
+    expect(add.className).not.toContain("bg-pet-coral");
+    expect(add.className).toContain("border-pet-coral");
   });
 
   it("renders one Home Add menu trigger after pet state is ready", async () => {

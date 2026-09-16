@@ -111,7 +111,7 @@ export function ShareProfileLink({
             onClick={copyLink}
             type="button"
           >
-            <Icon name="qr" className="h-4 w-4" />
+            <Icon name="link" className="h-4 w-4" />
             {copyLabel}
           </button>
         </div>
@@ -191,7 +191,7 @@ export function ShareProfileLink({
             onClick={copyLink}
             type="button"
           >
-            <Icon name="qr" className="h-4 w-4" />
+            <Icon name="link" className="h-4 w-4" />
             Copy Link
           </button>
           {shareAction}
