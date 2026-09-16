@@ -14,6 +14,13 @@ import {
 } from "@/components/portal/OwnerHeaderActions";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
+  getAppMode,
+  getModeSwitchHref,
+  getModeSwitchLabel,
+  getOtherMode,
+  type AppMode,
+} from "@/lib/appMode";
+import {
   isOwnerNavItemActive,
   ownerNavItems,
   type OwnerNavItem,
@@ -41,18 +48,20 @@ import { logoutOwner } from "@/services/authService";
 export function AppLayout({
   children,
   allowViewportStickyContent = false,
-  mobileNav = "manage",
+  mobileNav,
 }: {
   children: React.ReactNode;
   allowViewportStickyContent?: boolean;
   /**
-   * Which phone bar this page belongs under. One product, two jobs: cramming
-   * eleven destinations into five slots would serve neither, so a social page
-   * gets the social five and everything else keeps the management five.
+   * Which phone bar this page belongs under. Normally left unset: the mode is
+   * derived from the route so the sidebar and the bar always agree. Pass it
+   * only for a surface that belongs to one mode while living at the other's
+   * route.
    */
-  mobileNav?: "manage" | "social";
+  mobileNav?: AppMode;
 }) {
   const pathname = usePathname();
+  const mode = getAppMode(pathname);
   const socialActions = useSocialActions();
   const socialActiveId = getActiveSocialNavItemId(pathname);
   const unreadActivity = useUnreadActivity(socialNavItems.length > 0);
@@ -151,8 +160,16 @@ export function AppLayout({
             </div>
             )}
 
-            {socialNavItems.length > 0 ? (
-              <nav aria-label="Social" className="mt-6 grid gap-1.5">
+            {/*
+              One mode at a time.
+              Both lists used to sit in this sidebar together, which put eleven
+              destinations on screen and — because each half decided its own
+              active state — could show Community Home and Dashboard selected at
+              once. The mode comes from the route, so the sidebar always shows
+              the half you are actually in.
+            */}
+            {mode === "community" && socialNavItems.length > 0 ? (
+              <nav aria-label="Community" className="mt-6 grid gap-1.5 pb-4">
                 {collapsed ? null : (
                   <p className="px-3 pb-1 text-[11px] font-black uppercase tracking-wide text-pet-muted">
                     Community
@@ -177,26 +194,23 @@ export function AppLayout({
                   />
                 ))}
               </nav>
-            ) : null}
-
-            <nav
-              aria-label="My pets"
-              className={socialNavItems.length > 0 ? "mt-6 grid gap-1.5 pb-4" : "mt-6 grid gap-1.5 pb-4"}
-            >
-              {socialNavItems.length > 0 && !collapsed ? (
-                <p className="px-3 pb-1 text-[11px] font-black uppercase tracking-wide text-pet-muted">
-                  My pets
-                </p>
-              ) : null}
-              {ownerNavItems.map((item) => (
-                <SidebarNavItem
-                  active={isOwnerNavItemActive(item, pathname)}
-                  collapsed={collapsed}
-                  item={item}
-                  key={item.id}
-                />
-              ))}
-            </nav>
+            ) : (
+              <nav aria-label="My Pets" className="mt-6 grid gap-1.5 pb-4">
+                {socialNavItems.length > 0 && !collapsed ? (
+                  <p className="px-3 pb-1 text-[11px] font-black uppercase tracking-wide text-pet-muted">
+                    My Pets
+                  </p>
+                ) : null}
+                {ownerNavItems.map((item) => (
+                  <SidebarNavItem
+                    active={isOwnerNavItemActive(item, pathname)}
+                    collapsed={collapsed}
+                    item={item}
+                    key={item.id}
+                  />
+                ))}
+              </nav>
+            )}
           </div>
 
           <div
@@ -204,6 +218,9 @@ export function AppLayout({
               collapsed ? "grid justify-items-center gap-3" : "grid gap-3"
             }`}
           >
+            {socialNavItems.length > 0 ? (
+              <ModeSwitchLink collapsed={collapsed} mode={mode} />
+            ) : null}
             {collapsed ? (
               <SidebarTooltipWrap label="Log out">
                 <button
@@ -235,7 +252,13 @@ export function AppLayout({
           </main>
         </div>
 
-        {mobileNav === "social" && socialNavItems.length > 0 ? (
+        {/*
+          The phone bar follows the same route-derived mode as the sidebar, so
+          the two can never disagree about which half you are in. The prop stays
+          as an override for a surface that genuinely belongs to one mode while
+          living at the other's route.
+        */}
+        {(mobileNav ?? mode) === "community" && socialNavItems.length > 0 ? (
           <SocialBottomNav
             onCreate={socialActions.openCreate}
             onProfile={socialActions.openOwnProfile}
@@ -255,6 +278,54 @@ function getClientOwnerDisplayName() {
 
 function getServerOwnerDisplayName() {
   return getOwnerDisplayName(defaultOwnerSettings);
+}
+
+/**
+ * Moving between the two halves of the product.
+ *
+ * Deliberately worded as the destination — "Switch to Community" — rather than
+ * naming the mode you are in, because somebody reading a control wants to know
+ * what pressing it does. It goes to that mode's home rather than trying to
+ * restore wherever you last were: a remembered route can land you somewhere
+ * that no longer exists, and predictable beats clever for a control people use
+ * constantly.
+ */
+function ModeSwitchLink({
+  collapsed,
+  mode,
+}: {
+  collapsed: boolean;
+  mode: AppMode;
+}) {
+  const label = getModeSwitchLabel(mode);
+  const href = getModeSwitchHref(mode);
+  const icon: IconName = getOtherMode(mode) === "community" ? "users" : "pets";
+
+  if (collapsed) {
+    return (
+      <SidebarTooltipWrap label={label}>
+        <Link
+          aria-label={label}
+          className="grid h-11 w-11 place-items-center rounded-full border border-pet-border bg-white text-pet-muted transition hover:bg-pet-cream hover:text-pet-ink"
+          data-testid="mode-switch"
+          href={href}
+        >
+          <Icon aria-hidden="true" className="h-5 w-5" name={icon} />
+        </Link>
+      </SidebarTooltipWrap>
+    );
+  }
+
+  return (
+    <Link
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+      data-testid="mode-switch"
+      href={href}
+    >
+      <Icon aria-hidden="true" className="h-4 w-4" name={icon} />
+      {label}
+    </Link>
+  );
 }
 
 function SidebarToggle({

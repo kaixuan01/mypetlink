@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // social phone bar replaces the management one while you are on this side.
 export default function FeedPage() {
   return (
-    <AppLayout mobileNav="social">
+    <AppLayout>
       <SocialFeedView />
     </AppLayout>
   );

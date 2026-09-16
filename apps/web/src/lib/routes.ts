@@ -63,6 +63,16 @@ export const ownerRoutes = {
   orderDetail: (orderNumber: string) =>
     `/orders/view?order=${encodeURIComponent(orderNumber)}`,
   settings: "/settings",
+  /**
+   * Editing the Community identity — handle, display name, bio, photo, and the
+   * social switches including each pet's participation.
+   *
+   * A Community route, not an Owner Settings one. Somebody browsing the
+   * community should not have to go through My Pets to change how they appear
+   * in it; Owner Settings keeps a link here rather than a second copy of the
+   * form.
+   */
+  socialProfileEdit: "/community/profile",
   // Deep link straight to the Contact details section of Owner Settings.
   // page (used by Home quick actions and contact reminders).
   settingsOwnerContact: "/settings#owner-contact",

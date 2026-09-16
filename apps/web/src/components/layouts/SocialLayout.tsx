@@ -29,7 +29,7 @@ export function SocialLayout({ children }: { children: React.ReactNode }) {
   const signedIn = useSignedIn();
 
   if (signedIn === true) {
-    return <AppLayout mobileNav="social">{children}</AppLayout>;
+    return <AppLayout>{children}</AppLayout>;
   }
 
   return (

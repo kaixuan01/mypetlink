@@ -24,7 +24,8 @@ afterEach(() => {
 it("renders Home, Pets, Moments, and More at narrow mobile width", () => {
   render(<MobileBottomNav />);
 
-  const portal = screen.getByRole("navigation", { name: "Owner portal" });
+  // Named for the product vocabulary the owner sees, not an internal term.
+  const portal = screen.getByRole("navigation", { name: "My Pets" });
   Object.defineProperty(portal, "clientWidth", { configurable: true, value: 320 });
   fireEvent(window, new Event("resize"));
 

@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import {
+  MobileBottomNavShell,
+  type MobileNavAction,
+} from "@/components/layouts/MobileBottomNavShell";
+import { Icon } from "@/components/ui/Icon";
 import {
   getActiveOwnerNavItemId,
   ownerNavItems,
@@ -51,7 +55,6 @@ export function MobileBottomNav() {
   );
   const moreActive =
     !activeItemIsAvailable || hiddenItems.some((item) => item.id === activeId);
-  const gridTemplateColumns = `repeat(${primaryItems.length + 1}, minmax(0, 1fr))`;
 
   useEffect(() => {
     const nav = navRef.current;
@@ -104,33 +107,39 @@ export function MobileBottomNav() {
     router.replace("/");
   }
 
+  // Same bar as Community, different destinations. The container, the item
+  // shape and the safe-area handling come from the shared shell so the two
+  // modes cannot drift into looking like separate products again.
+  const navActions: MobileNavAction[] = [
+    ...primaryItems.map((item) => ({
+      id: item.id,
+      // No accessibleLabel override: the printed text is already the whole
+      // name here ("Home", "Pets"), unlike Community's abbreviated "Share".
+      label: item.mobileLabel,
+      icon: item.icon,
+      active: item.id === activeId,
+      href: item.href,
+      onSelect: () => setMoreOpen(false),
+    })),
+    {
+      id: "more",
+      label: "More",
+      icon: "more" as const,
+      active: moreActive || moreOpen,
+      href: null,
+      onSelect: () => setMoreOpen((open) => !open),
+      ariaExpanded: moreOpen,
+      ariaHasPopup: true,
+    },
+  ];
+
   return (
     <>
-      <nav
-        aria-label="Owner portal"
-        className="owner-mobile-bottom-nav fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 grid rounded-[1.75rem] border border-pet-border bg-white/95 p-2 shadow-xl shadow-[#0d1b3d]/10 backdrop-blur lg:hidden"
-        ref={navRef}
-        style={{ gridTemplateColumns }}
-      >
-        {primaryItems.map((item) => (
-          <BottomNavItem
-            active={item.id === activeId}
-            href={item.href}
-            icon={item.icon}
-            key={item.id}
-            label={item.mobileLabel}
-            onClick={() => setMoreOpen(false)}
-          />
-        ))}
-
-        <BottomNavItem
-          active={moreActive || moreOpen}
-          ariaExpanded={moreOpen}
-          icon="more"
-          label="More"
-          onClick={() => setMoreOpen((open) => !open)}
-        />
-      </nav>
+      <MobileBottomNavShell
+        ariaLabel="My Pets"
+        items={navActions}
+        navRef={navRef}
+      />
 
       {moreOpen ? (
         <div
@@ -187,56 +196,6 @@ export function MobileBottomNav() {
   );
 }
 
-function BottomNavItem({
-  active,
-  ariaExpanded,
-  href,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  ariaExpanded?: boolean;
-  href?: string;
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-}) {
-  const content = (
-    <>
-      <Icon name={icon} className="h-4 w-4 shrink-0" />
-      <span className="block max-w-full truncate text-[11px] font-bold leading-none">
-        {label}
-      </span>
-    </>
-  );
-
-  if (!href) {
-    return (
-      <button
-        aria-expanded={ariaExpanded}
-        aria-haspopup="dialog"
-        className={getBottomNavClassName(active)}
-        onClick={onClick}
-        type="button"
-      >
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <Link
-      aria-current={active ? "page" : undefined}
-      className={getBottomNavClassName(active)}
-      href={href}
-      onClick={onClick}
-    >
-      {content}
-    </Link>
-  );
-}
-
 function MoreMenuLink({
   active,
   item,
@@ -277,8 +236,3 @@ function getPrimaryCount(width: number) {
   return 4;
 }
 
-function getBottomNavClassName(active: boolean) {
-  return `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-full px-1.5 py-2 text-center transition ${
-    active ? "bg-[#e8f3ff] text-pet-teal" : "text-pet-muted hover:bg-pet-cream"
-  }`;
-}

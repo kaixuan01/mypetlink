@@ -93,9 +93,9 @@ describe("social phone navigation", () => {
   it("offers the five social jobs, not a merged eleven-item bar", () => {
     render(<SocialBottomNav onCreate={vi.fn()} onProfile={vi.fn()} />);
 
-    const nav = screen.getByTestId("social-bottom-nav");
+    const nav = screen.getByTestId("mobile-bottom-nav");
     const labels = within(nav)
-      .getAllByRole("listitem")
+      .getAllByTestId("mobile-nav-item")
       .map((item) => item.textContent);
 
     expect(labels).toEqual(["Home", "Explore", "Share", "Activity", "Profile"]);
@@ -126,7 +126,7 @@ describe("social phone navigation", () => {
 
     render(<SocialBottomNav onCreate={vi.fn()} onProfile={vi.fn()} />);
 
-    const badge = await screen.findByTestId("activity-badge");
+    const badge = await screen.findByTestId("mobile-nav-badge");
 
     expect(badge.textContent).toBe("9+");
     expect(
@@ -266,7 +266,7 @@ describe("the public social shell", () => {
 
     // Nothing from the owner portal is mentioned to somebody who cannot use it.
     await waitFor(() =>
-      expect(screen.queryByTestId("social-bottom-nav")).toBeNull()
+      expect(screen.queryByTestId("mobile-bottom-nav")).toBeNull()
     );
     expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Smart Tags" })).toBeNull();

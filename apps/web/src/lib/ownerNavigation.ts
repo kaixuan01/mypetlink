@@ -113,7 +113,18 @@ export function getOwnerNavItemById(id: OwnerNavItemId) {
   return ownerNavItems.find((item) => item.id === id);
 }
 
-export function getActiveOwnerNavItemId(pathname: string): OwnerNavItemId {
+/**
+ * Which management item a route highlights, or null when the route is not part
+ * of My Pets at all.
+ *
+ * Null matters. This used to fall through to "dashboard" for anything it did
+ * not recognise, which meant a Community route lit Dashboard up: on /feed the
+ * sidebar showed Community Home selected AND Dashboard selected, because each
+ * half answered the question on its own and neither knew about the other.
+ */
+export function getActiveOwnerNavItemId(
+  pathname: string
+): OwnerNavItemId | null {
   if (pathname === ownerRoutes.records || /^\/pets\/[^/]+\/records$/.test(pathname)) {
     return "records";
   }
@@ -148,7 +159,13 @@ export function getActiveOwnerNavItemId(pathname: string): OwnerNavItemId {
     return "pets";
   }
 
-  return "dashboard";
+  if (pathname === ownerRoutes.dashboard) {
+    return "dashboard";
+  }
+
+  // Not a management route. Say so rather than guessing, so a Community page
+  // cannot leave a second item looking selected.
+  return null;
 }
 
 export function isOwnerNavItemActive(item: OwnerNavItem, pathname: string) {
