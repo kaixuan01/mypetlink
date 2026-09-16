@@ -242,7 +242,7 @@ describe("switching between the two halves", () => {
 
     // Names the destination, not the mode you are in. No "portal", no
     // "management mode".
-    expect(link.textContent).toBe("My pets");
+    expect(link.textContent).toBe("My Pets");
     expect(link.getAttribute("href")).toBe("/dashboard");
   });
 

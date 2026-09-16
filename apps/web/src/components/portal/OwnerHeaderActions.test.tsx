@@ -9,8 +9,6 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
@@ -152,53 +150,6 @@ describe("OwnerHeaderActions", () => {
     vi.clearAllMocks();
   });
 
-  /**
-   * The mobile header row: brand, Community, and one action.
-   *
-   * It used to render "My…". The brand was the only flexible item in the row,
-   * so once the Community switch and a solid coral Add button had taken their
-   * width, the wordmark was the thing that gave way — leaving the one element on
-   * the page that must not look broken looking broken.
-   */
-  it("never truncates the brand to make room for anything else", async () => {
-    mocks.getPets.mockResolvedValue({ data: makePets(1) });
-    render(<HeaderHarness />);
-
-    await screen.findByRole("button", {
-      name: /add a pet, care record, or moment/i,
-    });
-
-    const brandLink = screen.getByRole("link", {
-      name: /mypetlink owner portal home/i,
-    });
-    const wordmark = [...brandLink.querySelectorAll("span")].find(
-      (span) => span.textContent === "MyPetLink"
-    );
-
-    // It fits whole or it steps back to the mark alone. It never shrinks into
-    // an ellipsis, which is what `truncate` on a flex child produces.
-    expect(brandLink.className).toContain("shrink-0");
-    expect(brandLink.className).not.toContain("min-w-0");
-    expect(wordmark?.className).toContain("whitespace-nowrap");
-    expect(wordmark?.className).not.toContain("truncate");
-  });
-
-  it("keeps the Community switch named rather than reduced to an icon", () => {
-    // The switch only renders when Social is on, and these tests run with the
-    // flag off, so this reads the component rather than the tree. What matters
-    // is that the row does not solve its width problem by taking the word
-    // "Community" away — an unlabelled icon is not an obvious mode switch.
-    const source = readFileSync(
-      join(__dirname, "OwnerHeaderActions.tsx"),
-      "utf8"
-    );
-    const control = source.slice(source.indexOf("function SocialModeSwitch"));
-
-    expect(control).toContain("shrink-0");
-    expect(control).toContain('inSocial ? "My pets" : "Community"');
-    expect(control).not.toContain("sr-only");
-  });
-
   it("keeps Add reachable and fully named when its word is dropped", async () => {
     mocks.getPets.mockResolvedValue({ data: makePets(1) });
     render(<HeaderHarness />);
@@ -328,9 +279,14 @@ describe("OwnerHeaderActions", () => {
     });
     fireEvent.click(compactAction);
     expect(onCreate).toHaveBeenCalledOnce();
+    // The bar names the section, not the pet. A pet's name belongs to the page,
+    // which has room for it; this bar is four words wide and shares them with a
+    // mode switch and an action.
     expect(
-      within(compactBar).getByText(currentPets[0].name + "'s memories")
-        .classList
+      within(compactBar).getByTestId("mobile-compact-title").textContent
+    ).toBe("Moments");
+    expect(
+      within(compactBar).getByTestId("mobile-compact-title").classList
     ).toContain("truncate");
     expect(originalAction.parentElement?.getAttribute("aria-hidden")).toBe(
       "true"

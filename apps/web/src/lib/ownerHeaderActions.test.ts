@@ -53,7 +53,6 @@ describe("getOwnerHeaderAction", () => {
     expect(resolve()).toMatchObject({
       type: "home-menu",
       label: "Add",
-      compactTitle: "Home",
     });
     expect(resolve({ currentPets: [] })).toBeNull();
     expect(resolve({ petsStatus: "loading" })).toBeNull();
@@ -64,7 +63,6 @@ describe("getOwnerHeaderAction", () => {
       type: "add-pet",
       label: "Add Pet",
       limitReached: false,
-      compactTitle: "My pets",
     });
     expect(resolve({ pathname: "/pets", currentPets: [] })).toBeNull();
     expect(
@@ -81,7 +79,6 @@ describe("getOwnerHeaderAction", () => {
     ).toMatchObject({
       type: "button",
       label: "Add Moment",
-      compactTitle: "Pet 1's memories",
     });
   });
 
@@ -148,7 +145,6 @@ describe("getOwnerHeaderAction", () => {
     });
     expect(first).toMatchObject({
       type: "button",
-      compactTitle: "Pet 1's memories",
     });
 
     const second = resolve({
@@ -161,7 +157,6 @@ describe("getOwnerHeaderAction", () => {
     });
     expect(second).toMatchObject({
       type: "button",
-      compactTitle: "Pet 2's memories",
     });
 
     const backToFirst = resolve({
@@ -171,7 +166,6 @@ describe("getOwnerHeaderAction", () => {
     });
     expect(backToFirst).toMatchObject({
       type: "button",
-      compactTitle: "Pet 1's memories",
     });
   });
 
@@ -189,7 +183,6 @@ describe("getOwnerHeaderAction", () => {
     expect(action).toMatchObject({
       type: "button",
       label: "Add Record",
-      compactTitle: "Care records",
     });
     if (action?.type === "button") {
       action.onClick();

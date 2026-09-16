@@ -18,28 +18,24 @@ export type OwnerHeaderAction =
       type: "home-menu";
       label: "Add";
       ariaLabel: string;
-      compactTitle: "Home";
     }
   | {
       type: "add-pet";
       label: "Add Pet";
       ariaLabel: string;
       limitReached: boolean;
-      compactTitle: "My pets";
     }
   | {
       type: "link";
       label: "Add Moment";
       ariaLabel: string;
       href: string;
-      compactTitle: string;
     }
   | {
       type: "button";
       label: "Add Moment" | "Add Record";
       ariaLabel: string;
       onClick: () => void;
-      compactTitle: string;
     };
 
 type OwnerHeaderActionContext = {
@@ -51,6 +47,11 @@ type OwnerHeaderActionContext = {
 
 /**
  * The single route policy for Owner Portal header actions.
+ *
+ * Which action a route offers, and nothing else. What the compact header calls
+ * the page is a separate question with a separate answer in `mobilePageTitle`,
+ * because every route has a name and only some have an action — bundling the
+ * two here is why pages without an action had no compact header at all.
  *
  * Page components only publish live section state (current pet, loading state,
  * and item count). They never decide which header label or action belongs to a
@@ -75,7 +76,6 @@ export function getOwnerHeaderAction({
           type: "home-menu",
           label: "Add",
           ariaLabel: "Add a pet, care record, or moment",
-          compactTitle: "Home",
         }
       : null;
   }
@@ -90,7 +90,6 @@ export function getOwnerHeaderAction({
       label: "Add Pet",
       ariaLabel: "Add Pet",
       limitReached: !getPetLimitStateFromPets(pets).canCreate,
-      compactTitle: "My pets",
     };
   }
 
@@ -134,7 +133,6 @@ export function getOwnerHeaderAction({
       label: "Add Moment",
       ariaLabel: "Add Moment for the current pet",
       onClick: pageContext.onCreate,
-      compactTitle: `${pet.name}'s memories`,
     };
   }
 
@@ -144,7 +142,6 @@ export function getOwnerHeaderAction({
       label: "Add Record",
       ariaLabel: "Add Care Record for the current pet",
       onClick: pageContext.onCreate,
-      compactTitle: "Care records",
     };
   }
 
