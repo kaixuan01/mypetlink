@@ -22,6 +22,9 @@ mocks.router = { replace: mocks.replace };
 
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
+  // The public social routes now render inside the shared shell, whose
+  // visitor header builds a sign-in link back to the page being viewed.
+  usePathname: () => window.location.pathname,
 }));
 
 vi.mock("@/components/layouts/AppLayout", () => ({

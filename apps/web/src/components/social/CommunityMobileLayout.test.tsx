@@ -86,23 +86,34 @@ describe("the page gutter", () => {
     }
   });
 
-  it("is supplied by every shell a Community view renders inside", () => {
-    // The signed-in shell, the visitor shell, and the two bare mains a public
-    // profile and its connection lists use.
+  it("is supplied by the two shells, and by nothing else", () => {
     expect(read("components/layouts/AppLayout.tsx")).toMatch(/<main[^>]*px-4/);
     expect(read("components/layouts/SocialLayout.tsx")).toMatch(/<main[^>]*px-4/);
-    expect(read("app/u/[handle]/page.tsx")).toMatch(/<main[^>]*px-4/);
-    expect(read("app/u/[handle]/followers/page.tsx")).toMatch(/<main[^>]*px-4/);
-    expect(read("app/u/[handle]/following/page.tsx")).toMatch(/<main[^>]*px-4/);
   });
 
-  it("is supplied by the runtime fallback, which serves those routes in production", () => {
+  it("reaches a public profile through a shell rather than a bare main", () => {
+    // These pages used to render their own `<main>` and their own gutter, which
+    // is also why they had no navigation. One shell now decides both.
+    for (const page of [
+      "app/u/[handle]/page.tsx",
+      "app/u/[handle]/followers/page.tsx",
+      "app/u/[handle]/following/page.tsx",
+    ]) {
+      const source = read(page);
+
+      expect(source).toContain("SocialLayout");
+      expect(source).not.toContain("<main");
+    }
+  });
+
+  it("does the same in the runtime fallback, which serves those routes in production", () => {
     const fallback = read("components/runtime/RuntimeRouteFallback.tsx");
     const community = fallback.slice(fallback.indexOf('status === "social-profile"'));
 
     // A real handle never appears in the build-time params list, so in
     // production every one of them arrives through this branch.
-    expect(community).toMatch(/<main className="min-h-screen bg-pet-cream px-4/);
+    expect(community).toContain("<SocialLayout>");
+    expect(community).not.toMatch(/<main className="min-h-screen bg-pet-cream px-4/);
   });
 
   it("does not reserve bottom space a shell has already reserved", () => {

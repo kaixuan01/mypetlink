@@ -48,11 +48,11 @@ const communityExact: string[] = [
   ownerRoutes.socialProfile,
 ];
 
-// A household's public profile, and one Moment on its own page. Both render
-// outside the signed-in shell — a shared link has to work without an account —
-// but they are Community content, and anything that asks which half of the
-// product they belong to should hear the same answer.
-const communityPrefixes: string[] = ["/u/", "/moments/"];
+// A household's public profile, one Moment on its own page, and a pet's public
+// page. All three are reached from Community and all three must work without an
+// account, so the shell around them depends on the viewer rather than the route.
+// Which half of the product they belong to does not: they are Community.
+const communityPrefixes: string[] = ["/u/", "/moments/", "/p/"];
 
 function normalise(pathname: string) {
   if (!pathname) {

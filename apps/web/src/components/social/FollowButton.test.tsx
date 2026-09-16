@@ -37,7 +37,7 @@ const base: OwnerRelationship = {
 
 function renderButton(
   relationship: Partial<OwnerRelationship> = {},
-  options: { signedIn?: boolean | null; surface?: "profile" | "attribution" } = {}
+  options: { signedIn?: boolean | null } = {}
 ) {
   const onChange = vi.fn();
   const view = render(
@@ -47,7 +47,6 @@ function renderButton(
       onChange={onChange}
       relationship={{ ...base, ...relationship }}
       signedIn={"signedIn" in options ? options.signedIn! : true}
-      surface={options.surface}
     />
   );
 
@@ -184,10 +183,19 @@ describe("FollowButton", () => {
     expect(screen.queryByTestId("follow-button-signin")).toBeNull();
   });
 
-  it("names the household on a pet's page, so nobody thinks they followed the pet", () => {
-    renderButton({}, { surface: "attribution" });
+  it("names the household it acts on without printing the handle twice", () => {
+    renderButton({});
 
-    expect(screen.getByTestId("follow-button").textContent).toBe("Follow @tanfamily");
+    const button = screen.getByTestId("follow-button");
+
+    // The label used to carry the handle on a pet's page, which made the button
+    // 264px wide and crushed the identity printed right beside it. What stops
+    // anyone thinking they followed the pet is the accessible name and the
+    // byline above the button, not a second copy of the handle inside it.
+    expect(button.textContent?.trim()).toBe("Follow");
+    expect(button.getAttribute("aria-label")).toBe(
+      "Follow The Tan Family (@tanfamily)"
+    );
   });
 
   it("stays inert until the signed-in check has run", () => {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { OwnerConnectionsView } from "@/components/social/OwnerConnectionsView";
 import { staticOwnerHandleParams } from "@/data/staticRouteParams";
 
@@ -28,8 +29,8 @@ export default async function OwnerFollowersPage({
   const { handle } = await params;
 
   return (
-    <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
+    <SocialLayout>
       <OwnerConnectionsView handle={handle.toLowerCase()} relation="followers" />
-    </main>
+    </SocialLayout>
   );
 }

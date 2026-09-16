@@ -95,7 +95,6 @@ describe("only one navigation item is ever active", () => {
     socialRoutes.explore,
     socialRoutes.search,
     socialRoutes.notifications,
-    "/u/tanfamily",
   ];
 
   it.each(communityRoutes)(
@@ -106,6 +105,20 @@ describe("only one navigation item is ever active", () => {
       // while Community Home was also lit.
       expect(getActiveOwnerNavItemId(path)).toBeNull();
       expect(getActiveSocialNavItemId(path)).not.toBeNull();
+    }
+  );
+
+  it.each(["/u/tanfamily", "/u/tanfamily/followers", "/p/mochi-pubmochi", "/moments/abc"])(
+    "marks nothing at all on the public detail route %s",
+    (path) => {
+      // These are Community routes — the shell and the mode switch say so — but
+      // none of them is a navigation destination. `/u/{handle}` is usually
+      // somebody else's profile, so lighting "My profile" would be a claim about
+      // whose page this is, and lighting Explore would be a guess about how the
+      // reader got here.
+      expect(getAppMode(path)).toBe("community");
+      expect(getActiveSocialNavItemId(path)).toBeNull();
+      expect(getActiveOwnerNavItemId(path)).toBeNull();
     }
   );
 

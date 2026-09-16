@@ -20,11 +20,6 @@ type FollowButtonProps = {
   onChange: (relationship: OwnerRelationship) => void;
   /** Null until the signed-in check has run in the browser. */
   signedIn: boolean | null;
-  /**
-   * "attribution" is the byline on a pet page, where the button has to say out
-   * loud that it follows the household and not the pet.
-   */
-  surface?: "profile" | "attribution";
   /** Which screen this control is on. Categorical; never which household. */
   analyticsSource?: AnalyticsSocialSource;
   className?: string;
@@ -48,7 +43,6 @@ export function FollowButton({
   relationship,
   onChange,
   signedIn,
-  surface = "profile",
   analyticsSource = "direct",
   className = "",
 }: FollowButtonProps) {
@@ -106,8 +100,6 @@ export function FollowButton({
     return null;
   }
 
-  const attribution = surface === "attribution";
-
   // Signed out, and this household accepts followers: offer the way in rather
   // than a control that cannot work. The return path is the profile, so the
   // visitor lands somewhere they recognise after signing in.
@@ -119,7 +111,7 @@ export function FollowButton({
         data-testid="follow-button-signin"
         href={ownerLoginPath(ownerSocialProfilePath(handle))}
       >
-        <FollowLabel attribution={attribution} handle={handle} text="Follow" />
+        <span className="min-w-0 truncate">Follow</span>
       </Link>
     ) : null;
   }
@@ -149,11 +141,9 @@ export function FollowButton({
         onClick={submit}
         type="button"
       >
-        <FollowLabel
-          attribution={attribution && !following}
-          handle={handle}
-          text={following ? "Following" : "Follow"}
-        />
+        <span className="min-w-0 truncate">
+          {following ? "Following" : "Follow"}
+        </span>
       </button>
 
       {error ? (
@@ -164,34 +154,6 @@ export function FollowButton({
         >
           {error}
         </span>
-      ) : null}
-    </span>
-  );
-}
-
-/**
- * "Follow", and the handle after it only where there is room for it.
- *
- * On a byline the household's handle is printed directly above the button, so
- * repeating it inside the label buys nothing and costs a great deal: the button
- * became wide enough to squeeze the identity beside it down to one character per
- * line. The handle is still in the button's accessible name at every width, so
- * nothing is lost for a reader who cannot see the byline.
- */
-function FollowLabel({
-  attribution,
-  handle,
-  text,
-}: {
-  attribution: boolean;
-  handle: string;
-  text: string;
-}) {
-  return (
-    <span className="min-w-0 truncate">
-      {text}
-      {attribution ? (
-        <span className="hidden sm:inline"> @{handle}</span>
       ) : null}
     </span>
   );

@@ -12,7 +12,6 @@ import {
 type OwnerFollowActionProps = {
   handle: string;
   displayName: string;
-  surface?: "profile" | "attribution";
 };
 
 /**
@@ -27,7 +26,6 @@ type OwnerFollowActionProps = {
 export function OwnerFollowAction({
   handle,
   displayName,
-  surface = "attribution",
 }: OwnerFollowActionProps) {
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -58,7 +56,6 @@ export function OwnerFollowAction({
       onChange={setRelationship}
       relationship={relationship}
       signedIn={signedIn}
-      surface={surface}
     />
   );
 }

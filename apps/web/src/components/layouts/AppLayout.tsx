@@ -48,10 +48,18 @@ import { logoutOwner } from "@/services/authService";
 export function AppLayout({
   children,
   allowViewportStickyContent = false,
+  bleed = false,
   mobileNav,
 }: {
   children: React.ReactNode;
   allowViewportStickyContent?: boolean;
+  /**
+   * The page owns its own canvas: no container, no page padding. Used by a
+   * public profile that themes its whole background, which a padded column
+   * would cut off at the gutter. The shell still supplies its navigation, and
+   * still reserves room for the floating bar underneath.
+   */
+  bleed?: boolean;
   /**
    * Which phone bar this page belongs under. Normally left unset: the mode is
    * derived from the route so the sidebar and the bar always agree. Pass it
@@ -243,7 +251,13 @@ export function AppLayout({
 
         <div className="min-w-0 flex-1">
           <OwnerPortalHeader />
-          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[var(--owner-mobile-page-bottom-clearance)] pt-5 sm:px-6 lg:px-8 lg:py-8">
+          <main
+            className={
+              bleed
+                ? "min-w-0 pb-[var(--owner-mobile-page-bottom-clearance)] lg:pb-8"
+                : "mx-auto min-w-0 w-full max-w-7xl px-4 pb-[var(--owner-mobile-page-bottom-clearance)] pt-5 sm:px-6 lg:px-8 lg:py-8"
+            }
+          >
             {children}
           </main>
         </div>

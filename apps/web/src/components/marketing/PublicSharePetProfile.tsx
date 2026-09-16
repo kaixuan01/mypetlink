@@ -383,24 +383,14 @@ export function PublicSharePetProfile({
       data-profile-theme={theme.id}
       style={{ background: theme.gradients.page, color: theme.colors.text }}
     >
-      <header
-        className="border-b border-pet-border bg-white/92 backdrop-blur"
-        style={{ borderColor: theme.colors.border }}
-      >
-        <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-3">
-          <Link href="/" className="flex items-center">
-            <BrandLogo className="h-9 w-auto max-w-[160px]" priority />
-          </Link>
-          <span
-            className="text-xs font-bold uppercase text-pet-muted"
-            style={{ color: theme.colors.mutedText }}
-          >
-            Pet profile
-          </span>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-xl px-4 pb-16 pt-6 sm:pt-8">
+      {/*
+        One container for the hero, the share actions, the tabs and their
+        content, so the page reads as one column rather than several widths
+        stacked. Wider from `sm` up: 576px is a phone measurement, and on a
+        desktop it left a pet page looking marooned. Below that the viewport is
+        narrower than either value, so nothing about mobile changes.
+      */}
+      <div className="mx-auto max-w-xl px-4 pb-16 pt-6 sm:max-w-2xl sm:pt-8">
         {/* Identity hero: a friendly, shareable introduction to the pet. */}
         <section
           className="brand-card overflow-hidden rounded-[2rem]"
@@ -452,8 +442,15 @@ export function PublicSharePetProfile({
               </div>
             ) : null}
 
+            {/*
+              The attribution card is capped to the bio's width on a phone, where
+              it stacks and a narrow column reads well. Released from `sm` up,
+              where it becomes a row: the cap was a mobile measurement left on a
+              desktop layout, and it is what squeezed the household's identity
+              into one character per line while the browser had 1440px spare.
+            */}
             {profile.sharedBy ? (
-              <div className="mx-auto mt-4 max-w-sm text-left">
+              <div className="mx-auto mt-4 max-w-sm text-left sm:max-w-none">
                 <PetSocialAttribution
                   action={
                     // The byline itself is part of the public page and stays;

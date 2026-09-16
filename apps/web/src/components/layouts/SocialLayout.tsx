@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ownerLoginPath } from "@/lib/authRedirect";
+import { socialRoutes } from "@/lib/routes";
 import { useSignedIn } from "@/lib/useSignedIn";
 
 /**
@@ -25,19 +26,35 @@ import { useSignedIn } from "@/lib/useSignedIn";
  * makes an app feel unfinished. The PAGE itself renders immediately in every
  * case — the content is public, so there is nothing to wait for.
  */
-export function SocialLayout({ children }: { children: React.ReactNode }) {
+export function SocialLayout({
+  children,
+  bleed = false,
+}: {
+  children: React.ReactNode;
+  /**
+   * The page paints its own canvas edge to edge, so the shell supplies chrome
+   * and no container. A pet's public profile themes its whole background; boxed
+   * inside a padded column that gradient stops at the padding and the page reads
+   * as a card sitting on someone else's background.
+   */
+  bleed?: boolean;
+}) {
   const signedIn = useSignedIn();
 
   if (signedIn === true) {
-    return <AppLayout>{children}</AppLayout>;
+    return <AppLayout bleed={bleed}>{children}</AppLayout>;
   }
 
   return (
-    <div className="min-h-screen bg-pet-cream">
+    <div className={bleed ? "min-h-screen" : "min-h-screen bg-pet-cream"}>
       {signedIn === false ? <PublicSocialHeader /> : <NeutralSocialHeader />}
-      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-2 sm:px-6">
-        {children}
-      </main>
+      {bleed ? (
+        children
+      ) : (
+        <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-2 sm:px-6">
+          {children}
+        </main>
+      )}
     </div>
   );
 }
@@ -83,10 +100,29 @@ function PublicSocialHeader() {
           <BrandLogo />
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/*
+            Somewhere to go. A shared profile that offers only "sign in" is a
+            microsite: the visitor either joins or leaves. Explore and Search are
+            public, so they cost nothing to offer and they are the two places a
+            visitor who liked what they saw would actually want next.
+          */}
+          <Link
+            className="hidden min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream min-[380px]:inline-flex"
+            href={socialRoutes.explore}
+          >
+            Explore
+          </Link>
+          <Link
+            aria-label="Search MyPetLink"
+            className="hidden min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream sm:inline-flex"
+            href={socialRoutes.search}
+          >
+            Search
+          </Link>
           <Link
             className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            href={ownerLoginPath(pathname || "/explore")}
+            href={ownerLoginPath(pathname || socialRoutes.explore)}
           >
             Sign in
           </Link>

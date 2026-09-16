@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FollowButton } from "@/components/social/FollowButton";
 import { PetSocialAttribution } from "@/components/social/PetSocialAttribution";
@@ -56,7 +56,6 @@ function renderCard(handle = sharedBy.handle) {
           onChange={vi.fn()}
           relationship={relationship()}
           signedIn
-          surface="attribution"
         />
       }
       sharedBy={{ ...sharedBy, handle }}
@@ -141,12 +140,12 @@ describe("the Follow control", () => {
     renderCard();
 
     const button = screen.getByTestId("follow-button");
-    const handlePart = within(button).getByText(/@mypetlink/);
 
-    // The handle is present for wider layouts and for assistive technology, and
-    // hidden on the width where repeating it broke the card.
-    expect(handlePart.className).toContain("hidden");
-    expect(handlePart.className).toContain("sm:inline");
+    // At no width does the label repeat the handle. It did on wide screens, and
+    // a 264px button beside a capped card is what crushed the identity to one
+    // character per line on a 1440px desktop.
+    expect(button.textContent?.trim()).toBe("Follow");
+    expect(button.textContent).not.toContain("@");
   });
 
   it("names the household it acts on, at every width", () => {
@@ -165,7 +164,6 @@ describe("the Follow control", () => {
         onChange={vi.fn()}
         relationship={relationship({ isFollowing: true })}
         signedIn
-        surface="attribution"
       />
     );
 
@@ -183,14 +181,13 @@ describe("the Follow control", () => {
         onChange={vi.fn()}
         relationship={relationship()}
         signedIn={false}
-        surface="attribution"
       />
     );
 
     const link = screen.getByTestId("follow-button-signin");
 
-    expect(link.textContent).toContain("Follow");
-    expect(within(link).getByText(/@mypetlink/).className).toContain("hidden");
+    expect(link.textContent?.trim()).toBe("Follow");
+    expect(link.textContent).not.toContain("@");
   });
 });
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { staticPublicPetParams } from "@/data/staticRouteParams";
 import { parsePublicProfileParam } from "@/lib/routes";
@@ -59,13 +60,13 @@ export default async function PublicPetPage({ params }: PublicPetPageProps) {
   });
 
   return (
-    <main className="min-h-screen bg-pet-cream">
+    <SocialLayout bleed>
       <PublicSharePetProfile
         initialMoments={moments.data}
         initialProfile={profile.data}
         initialRecords={records.data}
         initialLostMode={profile.data.lostModeEnabled}
       />
-    </main>
+    </SocialLayout>
   );
 }

@@ -110,11 +110,14 @@ export function getActiveSocialNavItemId(
   if (pathname === socialRoutes.notifications) return "activity";
   if (
     pathname === ownerRoutes.socialProfile ||
-    pathname.startsWith(`${ownerRoutes.socialProfile}/`) ||
-    pathname.startsWith("/u/")
+    pathname.startsWith(`${ownerRoutes.socialProfile}/`)
   ) {
     return "profile";
   }
 
+  // A public detail route marks nothing. `/u/{handle}` is usually somebody
+  // else's profile, so lighting up "My profile" would be a claim about whose
+  // page this is — the same class of untruth as the Dashboard item that used to
+  // stay lit on every route that did not match anything else.
   return null;
 }

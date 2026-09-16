@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
 import { MomentDetailView } from "@/components/social/MomentDetailView";
@@ -539,30 +540,30 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   if (state.status === "social-profile") {
     return (
-      <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
+      <SocialLayout>
         <OwnerSocialProfileView handle={state.handle} />
-      </main>
+      </SocialLayout>
     );
   }
 
   if (state.status === "social-connections") {
     return (
-      <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
+      <SocialLayout>
         <OwnerConnectionsView handle={state.handle} relation={state.relation} />
-      </main>
+      </SocialLayout>
     );
   }
 
   if (state.status === "public") {
     return (
-      <main className="min-h-screen bg-pet-cream">
+      <SocialLayout bleed>
         <PublicSharePetProfile
           initialMoments={state.moments}
           initialProfile={state.profile}
           initialRecords={state.records}
           initialLostMode={state.profile.lostModeEnabled}
         />
-      </main>
+      </SocialLayout>
     );
   }
 
