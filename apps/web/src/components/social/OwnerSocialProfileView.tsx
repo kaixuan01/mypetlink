@@ -267,6 +267,7 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
                       <img
                         alt=""
                         className="h-full w-full object-cover"
+                        loading="lazy"
                         src={pet.photoThumbnailUrl}
                       />
                     ) : (

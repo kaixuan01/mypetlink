@@ -1,6 +1,7 @@
 "use client";
 
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
+import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
 import {
   SocialMomentTile,
   type MomentLikeChange,
@@ -13,6 +14,8 @@ type PublicMomentGridProps = {
   moments: PublicMomentListItem[];
   hasMore: boolean;
   loadingMore: boolean;
+  /** The last further page failed, so nothing loads again until asked. */
+  loadMoreFailed?: boolean;
   onLoadMore: () => void;
   emptyMessage: string;
   /** Null until the signed-in check has run; the heart stays inert until then. */
@@ -41,6 +44,7 @@ export function PublicMomentGrid({
   moments,
   hasMore,
   loadingMore,
+  loadMoreFailed,
   onLoadMore,
   emptyMessage,
   signedIn,
@@ -73,18 +77,12 @@ export function PublicMomentGrid({
         ))}
       </ul>
 
-      {hasMore ? (
-        <div className="mt-6 flex justify-center">
-          <CTAButton
-            disabled={loadingMore}
-            onClick={onLoadMore}
-            type="button"
-            variant="secondary"
-          >
-            {loadingMore ? "Loading…" : "Show more Moments"}
-          </CTAButton>
-        </div>
-      ) : null}
+      <MomentPagesFooter
+        failed={loadMoreFailed ?? false}
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+      />
     </>
   );
 }

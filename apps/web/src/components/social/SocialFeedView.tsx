@@ -6,6 +6,7 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialMomentCard } from "@/components/social/SocialMomentCard";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
 import { trackEvent } from "@/lib/analytics";
 import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
@@ -52,6 +53,7 @@ export function SocialFeedView() {
     moments,
     hasMore,
     loadingMore,
+    loadMoreFailed,
     loadedAt,
     loadMore,
     onLikeChange,
@@ -116,26 +118,14 @@ export function SocialFeedView() {
         </div>
       ) : null}
 
-      {hasMore ? (
-        <div className="mt-6 flex justify-center">
-          <CTAButton
-            disabled={loadingMore}
-            onClick={loadMore}
-            type="button"
-            variant="secondary"
-          >
-            {loadingMore ? "Loading…" : "Show more Moments"}
-          </CTAButton>
-        </div>
-      ) : null}
-
-      {state === "ready" && moments.length > 0 && !hasMore ? (
-        <p
-          className="mt-6 text-center text-sm font-semibold text-pet-muted"
-          data-testid="feed-end"
-        >
-          You&rsquo;re all caught up.
-        </p>
+      {state === "ready" && moments.length > 0 ? (
+        <MomentPagesFooter
+          endText="You&rsquo;re all caught up."
+          failed={loadMoreFailed}
+          hasMore={hasMore}
+          loading={loadingMore}
+          onLoadMore={loadMore}
+        />
       ) : null}
 
       {sparse ? <MeetMorePets /> : null}

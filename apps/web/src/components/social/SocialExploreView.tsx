@@ -87,6 +87,7 @@ export function SocialExploreView() {
     moments,
     hasMore,
     loadingMore,
+    loadMoreFailed,
     loadMore,
     onLikeChange,
     reload,
@@ -216,6 +217,7 @@ export function SocialExploreView() {
             emptyMessage="New Moments from MyPetLink families will appear here."
             hasMore={hasMore}
             loadingMore={loadingMore}
+            loadMoreFailed={loadMoreFailed}
             moments={moments}
             onLikeChange={onLikeChange}
             onLoadMore={loadMore}

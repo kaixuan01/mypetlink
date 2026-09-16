@@ -67,6 +67,7 @@ export function SocialAccountList({
                   <img
                     alt=""
                     className="h-full w-full object-cover"
+                    loading="lazy"
                     src={account.avatarThumbnailUrl}
                   />
                 ) : (

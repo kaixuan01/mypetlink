@@ -193,11 +193,16 @@ export function MomentMedia({
       )}
 
       {moment.media.length > 1 ? (
+        // "+3 photos", not "1/4". Community shows the first image and does not
+        // swipe, so a counter in carousel form promised a gesture that does not
+        // exist — people swiped and nothing happened. This says the same true
+        // thing (there are more) without implying how to reach them.
         <span
-          aria-label={`${moment.media.length} photos`}
+          aria-label={`${moment.media.length} photos in this Moment`}
           className="absolute right-2 top-2 rounded-full bg-pet-ink/70 px-2 py-0.5 text-[11px] font-black text-white"
+          data-testid="moment-extra-photos"
         >
-          1/{moment.media.length}
+          +{moment.media.length - 1} photos
         </span>
       ) : null}
     </div>

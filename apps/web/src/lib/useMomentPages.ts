@@ -34,6 +34,7 @@ export function useMomentPages(load: MomentPageLoader) {
   const [moments, setMoments] = useState<PublicMomentListItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [loadedAt, setLoadedAt] = useState<number | undefined>(undefined);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -63,20 +64,34 @@ export function useMomentPages(load: MomentPageLoader) {
   }, [load, reloadToken]);
 
   const loadMore = useCallback(async () => {
+    // Single flight. A scroll sentinel can fire several times before a request
+    // settles, and each extra call would spend the same cursor again.
     if (!nextCursor || loadingMore) {
       return;
     }
 
     setLoadingMore(true);
+    setLoadMoreFailed(false);
 
     try {
       const page = await load(nextCursor);
-      setMoments((current) => [...current, ...page.items]);
+
+      setMoments((current) => {
+        // A Moment published between two requests shifts the window, so a
+        // cursor page can legitimately overlap the one before it. Appending
+        // blindly would render the same card twice and give React duplicate
+        // keys; the first copy wins because it is the one already on screen.
+        const seen = new Set(current.map((moment) => moment.id));
+        return [...current, ...page.items.filter((moment) => !seen.has(moment.id))];
+      });
+
       setNextCursor(page.nextCursor);
     } catch {
       // Keep the cursor so the same page can be retried, and keep every item
-      // already rendered.
+      // already rendered. The flag stops an automatic loader retrying straight
+      // into the same failure — the reader asks again instead.
       setNextCursor(nextCursor);
+      setLoadMoreFailed(true);
     } finally {
       setLoadingMore(false);
     }
@@ -106,6 +121,8 @@ export function useMomentPages(load: MomentPageLoader) {
     moments,
     hasMore: Boolean(nextCursor),
     loadingMore,
+    /** The last further page failed. Cleared by the next attempt. */
+    loadMoreFailed,
     loadedAt,
     loadMore,
     onLikeChange,

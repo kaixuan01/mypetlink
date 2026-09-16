@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { SocialMomentCard } from "@/components/social/SocialMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import { getPublicPetMoments } from "@/services/publicSocialService";
@@ -40,6 +41,7 @@ export function PetProfileMomentsTab({
     moments,
     hasMore,
     loadingMore,
+    loadMoreFailed,
     loadedAt,
     loadMore,
     onLikeChange,
@@ -92,18 +94,12 @@ export function PetProfileMomentsTab({
         />
       ))}
 
-      {hasMore ? (
-        <div className="flex justify-center">
-          <CTAButton
-            disabled={loadingMore}
-            onClick={loadMore}
-            type="button"
-            variant="secondary"
-          >
-            {loadingMore ? "Loading…" : "Show more Moments"}
-          </CTAButton>
-        </div>
-      ) : null}
+      <MomentPagesFooter
+        failed={loadMoreFailed}
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={loadMore}
+      />
     </div>
   );
 }
