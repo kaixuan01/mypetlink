@@ -150,7 +150,7 @@ export function OwnerSocialProfileView({
     return (
       <div
         aria-busy="true"
-        className="mx-auto w-full max-w-4xl px-4 py-10"
+        className="mx-auto w-full max-w-4xl py-10"
         data-testid="owner-profile-loading"
       >
         <span className="sr-only">Loading profile</span>
@@ -163,7 +163,7 @@ export function OwnerSocialProfileView({
 
   if (state !== "ready" || !profile) {
     return (
-      <div className="mx-auto w-full max-w-lg px-4 py-16 text-center">
+      <div className="mx-auto w-full max-w-lg py-16 text-center">
         <LinkoMascot alt="Linko the MyPetLink mascot waving" className="mx-auto" pose="wave" size={96} />
         <h1 className="mt-4 text-2xl font-black text-pet-ink">
           {state === "unavailable"
@@ -187,7 +187,7 @@ export function OwnerSocialProfileView({
     // column left the profile marooned in the middle of the content area once
     // the sidebar carried only one mode. No right rail: space is not a reason
     // to put something in it.
-    <div className="mx-auto w-full max-w-4xl px-4 pb-16 pt-6">
+    <div className="mx-auto w-full max-w-4xl pt-6">
       <header className="brand-card rounded-[1.75rem] p-5 sm:p-6">
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-start">
         <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream sm:h-24 sm:w-24">

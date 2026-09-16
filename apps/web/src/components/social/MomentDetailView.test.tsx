@@ -117,7 +117,9 @@ describe("Moment detail", () => {
 
     expect(screen.getByTestId("moment-title").textContent).toBe("Beach day");
     expect(screen.getByTestId("moment-subjects").textContent).toContain("Mochi");
-    expect(screen.getByTestId("moment-byline").textContent).toContain("@tanfamily");
+    expect(screen.getByTestId("shared-by-identity").textContent).toContain(
+      "@tanfamily"
+    );
     expect(screen.getByTestId("moment-published").textContent).toContain("2026");
     expect(screen.getByText("A bright afternoon by the water.")).toBeTruthy();
   });
@@ -230,6 +232,107 @@ describe("Moment detail", () => {
     // Nothing here pushes, replaces or rewrites history, which is what keeps
     // ordinary back behaviour ordinary.
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Pet above household.
+   *
+   * A card byline puts a display name and a handle on one line because a card
+   * has a dozen of them and no room. A Moment's own page has one, and that line
+   * was truncating both strings at once — neither readable, and neither
+   * obviously the subject or the author.
+   */
+  it("shows the pet as the subject and the household as the author", async () => {
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    await screen.findByTestId("moment-detail");
+
+    const subjects = screen.getByTestId("moment-subjects");
+    const author = screen.getByTestId("shared-by-identity");
+
+    expect(subjects.textContent).toContain("Mochi");
+    expect(author.textContent).toContain("Shared by");
+    expect(author.textContent).toContain("The Tan Family");
+    expect(author.textContent).toContain("@tanfamily");
+
+    // The pet leads; the household follows it.
+    expect(
+      subjects.compareDocumentPosition(author) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("stacks the household's two names rather than sharing one line", async () => {
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    await screen.findByTestId("moment-detail");
+
+    const author = screen.getByTestId("shared-by-identity");
+    const lines = [...author.querySelectorAll("span.block")];
+
+    // Label, display name, handle — each on its own line, each free to use the
+    // full width of the column before it truncates.
+    expect(lines).toHaveLength(3);
+    expect(lines[0].className).toContain("whitespace-nowrap");
+    expect(lines[1].className).toContain("truncate");
+    expect(lines[2].className).toContain("truncate");
+    expect(author.querySelector("span.min-w-0")?.className).toContain("flex-1");
+  });
+
+  it("survives a long display name and a long handle together", async () => {
+    mocks.getPublicMoment.mockResolvedValue(
+      moment({
+        author: {
+          handle: "gbbsoftwaresolutions",
+          displayName: "GBB Software Solutions Sdn Bhd",
+          avatarUrl: null,
+          avatarThumbnailUrl: null,
+        },
+      })
+    );
+
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    await screen.findByTestId("moment-detail");
+
+    const author = screen.getByTestId("shared-by-identity");
+
+    // Both are present in full in the document; whether either needs to
+    // truncate is a width question, and the column is the only thing that
+    // shrinks — never the avatar, and never into a column of characters.
+    expect(author.textContent).toContain("GBB Software Solutions Sdn Bhd");
+    expect(author.textContent).toContain("@gbbsoftwaresolutions");
+    expect(author.querySelector("span.h-11")?.className).toContain("shrink-0");
+    expect(author.className).toContain("min-w-0");
+  });
+
+  it("keeps the Community bar, because hiding it would surface nothing", async () => {
+    const source = (await import("node:fs")).readFileSync(
+      (await import("node:path")).join(__dirname, "MomentDetailView.tsx"),
+      "utf8"
+    );
+
+    // Measured rather than assumed: the action row sits below the fold on a
+    // 812px screen with or without the bar, because a fixed bar releases
+    // padding and not layout space. Removing it would cost the Community
+    // navigation and buy nothing, so this page uses the same shell every other
+    // public Community page uses.
+    expect(source).toContain("SocialLayout");
+    expect(source).not.toContain("hideBottomNav");
+    expect(source).not.toContain("mobileNav={null}");
+  });
+
+  it("always offers a Back action of its own", async () => {
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    await screen.findByTestId("moment-detail");
+
+    // Either a real Back, or — when the page was opened cold from a shared
+    // link and there is no history — a real destination. Never nothing, and
+    // never only the browser's own gesture.
+    const back = screen.queryByRole("button", { name: "Back" });
+    const wayIn = screen.queryByRole("link", { name: /explore mypetlink/i });
+
+    expect(back ?? wayIn).toBeTruthy();
   });
 
   it("says plainly when a Moment cannot be opened", async () => {

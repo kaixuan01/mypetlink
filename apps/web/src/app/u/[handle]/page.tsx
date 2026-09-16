@@ -27,7 +27,7 @@ export default async function OwnerProfilePage({ params }: OwnerProfilePageProps
   const { handle } = await params;
 
   return (
-    <main className="min-h-screen bg-pet-cream">
+    <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
       <OwnerSocialProfileView handle={handle.toLowerCase()} />
     </main>
   );

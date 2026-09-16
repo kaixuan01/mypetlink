@@ -122,7 +122,7 @@ export function SocialSearchView() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
+    <div className="mx-auto w-full max-w-3xl pt-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">Search</h1>
         <Link

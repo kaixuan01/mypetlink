@@ -104,7 +104,7 @@ export function SocialExploreView() {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
+    <div className="mx-auto w-full max-w-3xl pt-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">
           Explore pets
@@ -143,13 +143,18 @@ export function SocialExploreView() {
         <h2 className="text-lg font-black text-pet-ink" id="suggested-pets">
           Suggested pets
         </h2>
+        {/*
+          Says what happens and why somebody would want it. The previous wording
+          was accurate and read like a disclaimer. What it must not do is imply
+          the graph follows the pet: the actor is the household, always.
+        */}
         <p className="mt-1 text-sm font-semibold text-pet-muted">
-          Following a pet follows the family who shares them.
+          Follow a pet&rsquo;s family to see their Moments in your feed.
         </p>
 
         {pets.length > 0 ? (
           <ul
-            className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3"
+            className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
             data-testid="explore-pets"
           >
             {pets.map((pet) => (
@@ -178,9 +183,9 @@ export function SocialExploreView() {
             </p>
           </div>
         ) : (
-          <div aria-busy="true" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="h-64 animate-pulse rounded-[1.5rem] bg-white" />
-            <div className="h-64 animate-pulse rounded-[1.5rem] bg-white" />
+          <div aria-busy="true" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="h-28 animate-pulse rounded-[1.5rem] bg-white sm:h-64" />
+            <div className="hidden h-64 animate-pulse rounded-[1.5rem] bg-white sm:block" />
             <div className="hidden h-64 animate-pulse rounded-[1.5rem] bg-white sm:block" />
           </div>
         )}

@@ -14,10 +14,8 @@ import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { LikeButton } from "@/components/social/LikeButton";
 import { MomentShareButton } from "@/components/social/MomentShareButton";
-import {
-  MomentByline,
-  MomentSubjects,
-} from "@/components/social/SocialMomentParts";
+import { SharedByIdentity } from "@/components/social/SharedByIdentity";
+import { MomentSubjects } from "@/components/social/SocialMomentParts";
 import { Icon } from "@/components/ui/Icon";
 import { socialRoutes } from "@/lib/routes";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
@@ -89,7 +87,7 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
 
   return (
     <SocialLayout>
-      <div className="mx-auto w-full max-w-2xl px-4 pb-4 sm:px-0">
+      <div className="mx-auto w-full max-w-2xl pb-4">
         <BackControl onBack={() => router.back()} />
 
         {phase.state === "loading" ? <MomentSkeleton /> : null}
@@ -166,11 +164,17 @@ function MomentArticle({
       className="brand-card mt-3 overflow-hidden rounded-[1.5rem] p-0"
       data-testid="moment-detail"
     >
-      <header className="flex flex-col gap-1.5 p-4 pb-3">
+      {/*
+        The pet on top, the household under it. A card byline puts the two on
+        one line because a card has a dozen of them and no room; a Moment's own
+        page has one, and squeezing a display name and a handle into the same
+        constrained line there meant both truncated and neither was readable.
+        The hierarchy is also the point: the Moment is about the pet, and the
+        household is who shared it.
+      */}
+      <header className="flex flex-col gap-3 p-4 pb-3">
         <MomentSubjects subjects={moment.subjects} />
-        {moment.author ? (
-          <MomentByline author={moment.author} publishedAt={null} />
-        ) : null}
+        {moment.author ? <SharedByIdentity author={moment.author} /> : null}
       </header>
 
       {media.length > 0 ? (

@@ -539,7 +539,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   if (state.status === "social-profile") {
     return (
-      <main className="min-h-screen bg-pet-cream">
+      <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
         <OwnerSocialProfileView handle={state.handle} />
       </main>
     );
@@ -547,7 +547,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   if (state.status === "social-connections") {
     return (
-      <main className="min-h-screen bg-pet-cream">
+      <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
         <OwnerConnectionsView handle={state.handle} relation={state.relation} />
       </main>
     );

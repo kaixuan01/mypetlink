@@ -66,7 +66,7 @@ export function CommunityMyProfileView() {
     return (
       <div
         aria-busy="true"
-        className="mx-auto w-full max-w-4xl px-4 py-10"
+        className="mx-auto w-full max-w-4xl py-10"
         data-testid="my-profile-loading"
       >
         <span className="sr-only">Loading your profile</span>
@@ -79,7 +79,7 @@ export function CommunityMyProfileView() {
 
   if (phase === "error") {
     return (
-      <div className="mx-auto w-full max-w-lg px-4 py-16 text-center">
+      <div className="mx-auto w-full max-w-lg py-16 text-center">
         <h1 className="text-xl font-black text-pet-ink">
           We couldn&rsquo;t load your profile
         </h1>
@@ -93,7 +93,7 @@ export function CommunityMyProfileView() {
   if (phase === "setup") {
     return (
       <div
-        className="mx-auto w-full max-w-lg px-4 py-12 text-center"
+        className="mx-auto w-full max-w-lg py-12 text-center"
         data-testid="my-profile-setup"
       >
         <LinkoMascot
@@ -118,7 +118,7 @@ export function CommunityMyProfileView() {
   if (phase === "inactive") {
     return (
       <div
-        className="mx-auto w-full max-w-lg px-4 py-12 text-center"
+        className="mx-auto w-full max-w-lg py-12 text-center"
         data-testid="my-profile-inactive"
       >
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-pet-border bg-pet-cream">

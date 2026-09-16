@@ -35,7 +35,7 @@ export function SocialLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-pet-cream">
       {signedIn === false ? <PublicSocialHeader /> : <NeutralSocialHeader />}
-      <main className="mx-auto w-full max-w-7xl px-0 pb-16 pt-2 sm:px-6">
+      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-2 sm:px-6">
         {children}
       </main>
     </div>

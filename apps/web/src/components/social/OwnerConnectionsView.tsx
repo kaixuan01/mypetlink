@@ -148,7 +148,7 @@ export function OwnerConnectionsView({
     return (
       <div
         aria-busy="true"
-        className="mx-auto w-full max-w-2xl px-4 py-10"
+        className="mx-auto w-full max-w-2xl py-10"
         data-testid="owner-connections-loading"
       >
         <span className="sr-only">Loading</span>
@@ -163,7 +163,7 @@ export function OwnerConnectionsView({
 
   if (state !== "ready" || !profile) {
     return (
-      <div className="mx-auto w-full max-w-lg px-4 py-16 text-center">
+      <div className="mx-auto w-full max-w-lg py-16 text-center">
         <LinkoMascot
           alt="Linko the MyPetLink mascot waving"
           className="mx-auto"
@@ -190,7 +190,7 @@ export function OwnerConnectionsView({
   const followers = relation === "followers";
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6">
+    <div className="mx-auto w-full max-w-2xl pt-6">
       <Link
         className="inline-flex items-center gap-1.5 text-sm font-bold text-pet-muted transition hover:text-pet-ink"
         href={ownerSocialProfilePath(profile.handle)}

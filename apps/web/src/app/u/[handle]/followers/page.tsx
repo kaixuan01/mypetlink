@@ -28,7 +28,7 @@ export default async function OwnerFollowersPage({
   const { handle } = await params;
 
   return (
-    <main className="min-h-screen bg-pet-cream">
+    <main className="min-h-screen bg-pet-cream px-4 sm:px-6">
       <OwnerConnectionsView handle={handle.toLowerCase()} relation="followers" />
     </main>
   );
