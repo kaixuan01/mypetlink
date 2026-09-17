@@ -1,4 +1,5 @@
-import { SamplePetPhoto } from "@/components/marketing/SamplePetPhoto";
+import { LinkoMascot } from "@/components/brand/LinkoMascot";
+import { PetAvatar } from "@/components/ui/PetAvatar";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { communityPreviewCards } from "@/data/communityPreview";
@@ -15,9 +16,9 @@ import { socialRoutes } from "@/lib/routes";
  *
  * It is a server component with no data fetching at all, so it cannot delay
  * first paint and cannot be affected by the Social API being down — the
- * homepage must not go quiet because Community did. The cards come from
- * MyPetLink's own demo content rather than real families; see
- * `communityPreview` for why discoverability is not marketing consent.
+ * homepage must not go quiet because Community did. It also means no owner's
+ * pet can reach this page by being discoverable: there is no query here to
+ * select one. See `communityPreview` for why that distinction matters.
  *
  * On a phone the row scrolls sideways instead of stacking. Three stacked cards
  * would add roughly a screen and a half of height to a page that already has
@@ -48,11 +49,27 @@ export function CommunityTeaser() {
             >
               <article className="brand-card flex h-full flex-col overflow-hidden rounded-[1.5rem] p-5">
                 <div className="flex min-w-0 items-center gap-3">
-                  <SamplePetPhoto
-                    name={card.petName}
-                    species={card.species}
-                    src={card.photoUrl}
-                  />
+                  {/*
+                    Brand art or an initial avatar. There is no photo URL to
+                    pass: nothing on this page points at a real pet's media.
+                  */}
+                  {card.mascot ? (
+                    <LinkoMascot
+                      alt="Linko, the MyPetLink mascot"
+                      className="shrink-0"
+                      pose={card.mascot}
+                      size={96}
+                    />
+                  ) : (
+                    <PetAvatar
+                      pet={{
+                        photoInitial: card.photoInitial,
+                        photoTone: card.photoTone,
+                        species: card.species,
+                      }}
+                      size="lg"
+                    />
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-base font-black text-pet-ink">
                       {card.petName}
@@ -80,7 +97,8 @@ export function CommunityTeaser() {
           real who did not ask to be here.
         */}
         <p className="mt-4 text-xs font-semibold text-pet-muted">
-          Sample profiles, shown to illustrate Community.
+          Sample pets shown to illustrate the Community experience. Real
+          families and their Moments are in Explore.
         </p>
 
         <div className="mt-7">

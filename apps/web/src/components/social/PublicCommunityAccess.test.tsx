@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   SocialPetCard,
@@ -104,6 +104,42 @@ describe("Explore without an account", () => {
 
     await waitFor(() => expect(mocks.getSuggestedPets).toHaveBeenCalled());
     expect(mocks.getExploreMoments).toHaveBeenCalled();
+  });
+});
+
+describe("discoverability is not marketing consent", () => {
+  it("still shows real discoverable pets in Explore", async () => {
+    render(<SocialExploreView />);
+
+    // The other half of the boundary. Fixing the homepage must not quietly
+    // narrow Community: a family who switched Social on still appears here,
+    // which is the permission they actually gave.
+    const list = await screen.findByTestId("explore-pets");
+
+    expect(within(list).getByText("Mochi")).toBeTruthy();
+    expect(list.textContent).toContain("@tanfamily");
+    await waitFor(() => expect(mocks.getSuggestedPets).toHaveBeenCalled());
+  });
+
+  it("keeps Search on the same real discoverability rules", () => {
+    const search = read("components/social/SocialSearchExperience.tsx");
+
+    // Search asks the discovery API and applies no marketing filter of its own.
+    expect(search).toContain("searchSocial");
+    expect(search).not.toContain("IsSampleEligible");
+    expect(search).not.toContain("communityPreview");
+  });
+
+  it("keeps the two decisions in different places entirely", () => {
+    // The landing teaser cannot consult a discoverability flag, and the
+    // discovery surfaces cannot consult the marketing list. Neither can drift
+    // into the other by accident.
+    const teaser = read("data/communityPreview.ts");
+    const explore = read("components/social/SocialExploreView.tsx");
+
+    expect(teaser).not.toContain("Discoverable");
+    expect(explore).not.toContain("communityPreview");
+    expect(explore).not.toContain("IsSampleEligible");
   });
 });
 

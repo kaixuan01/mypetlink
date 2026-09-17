@@ -13,7 +13,7 @@ import Image from "next/image";
  * Adding a fourth makes her scenery rather than a character.
  */
 
-type LinkoPose = "wave" | "celebrate";
+export type LinkoPose = "wave" | "celebrate";
 
 /**
  * Source artwork is 440x440 (wave) and 240x240 (celebrate). Rendering wider

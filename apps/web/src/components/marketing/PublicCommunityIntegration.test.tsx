@@ -265,6 +265,55 @@ describe("the landing Community section", () => {
     expect(screen.queryByRole("button", { name: /load more|show more/i })).toBeNull();
   });
 
+  it("cannot show a real pet just because its owner made it discoverable", () => {
+    // The invariant this section exists to protect. A family switching Social
+    // on agreed to appear inside Community — Explore, Search, their own public
+    // profile. They did not agree to be the front page of the product.
+    //
+    // It is enforced structurally rather than by filtering: there is no query
+    // here at all, so no flag an owner can toggle has any path to this page.
+    const teaser = read("components/marketing/CommunityTeaser.tsx");
+    const data = read("data/communityPreview.ts");
+
+    for (const source of [teaser, data]) {
+      expect(source).not.toContain("getSuggestedPets");
+      expect(source).not.toContain("getExploreMoments");
+      expect(source).not.toContain("getSocialFeed");
+      expect(source).not.toContain("searchSocial");
+      expect(source).not.toContain("IsDiscoverable");
+      expect(source).not.toContain("isDiscoverable");
+      expect(source).not.toContain("viewerFollowsOwner");
+    }
+  });
+
+  it("does not hardcode a real pet's identity either", () => {
+    // The first card used to be a copy of the configured sample pet — a real
+    // name and a real photo URL under a real pet's media path. That content is
+    // governed by Pet.IsSampleEligible plus an admin-chosen featured pet, so an
+    // admin can withdraw it; a hardcoded copy could not be withdrawn. Marketing
+    // that outlives its own approval is the defect, whoever owns the pet.
+    const data = read("data/communityPreview.ts");
+
+    // Looks for the import, since the comment above it explains what it no
+    // longer uses and why.
+    expect(data).not.toMatch(/from "@\/data\/publicSample"/);
+    expect(data).not.toMatch(/import[\s\S]{0,80}staticSampleExperiencePet/);
+    // No route into real media, and no field to paste one into.
+    expect(data).not.toContain("media.mypetlink.com.my");
+    expect(data).not.toContain("photoUrl");
+    expect(data).not.toMatch(/https?:\/\//);
+  });
+
+  it("links no card to a real profile", () => {
+    const teaser = read("components/marketing/CommunityTeaser.tsx");
+
+    // The only destination is Explore, where real Community properly begins.
+    expect(teaser).toContain("socialRoutes.explore");
+    expect(teaser).not.toContain("/p/");
+    expect(teaser).not.toContain("/u/");
+    expect(teaser).not.toContain("/moments/");
+  });
+
   it("shows only MyPetLink's own sample content, and says so", () => {
     render(<CommunityTeaser />);
 
@@ -275,7 +324,7 @@ describe("the landing Community section", () => {
     expect(source).not.toContain("getExploreMoments");
     expect(source).not.toContain("useEffect");
 
-    expect(screen.getByText(/sample profiles/i)).toBeTruthy();
+    expect(screen.getByText(/sample pets shown to illustrate/i)).toBeTruthy();
   });
 
   it("invents no people and no engagement", () => {
@@ -305,15 +354,20 @@ describe("the landing Community section", () => {
     expect(source).not.toContain("apiRequest");
   });
 
-  it("loads its images lazily, through the existing preview primitive", () => {
+  it("draws its cards from brand art and the app's own avatar", () => {
     const source = read("components/marketing/CommunityTeaser.tsx");
 
-    // SamplePetPhoto already lazy-loads and falls back to the initial avatar
-    // when an image fails, so no third card design was invented here.
-    expect(source).toContain("SamplePetPhoto");
-    expect(read("components/marketing/SamplePetPhoto.tsx")).toContain(
-      'loading="lazy"'
-    );
+    // Brand mascot art, or the initial avatar the app already draws for a pet
+    // with no photo. Neither can reach a real pet's media, which is the point:
+    // there is no image source here that an owner's upload could land in.
+    expect(source).toContain("LinkoMascot");
+    expect(source).toContain("PetAvatar");
+    expect(source).not.toContain("SamplePetPhoto");
+    expect(source).not.toContain("<img");
+
+    // The mascot is not marked priority here, so it does not compete with the
+    // hero for the first paint.
+    expect(source).not.toMatch(/LinkoMascot[\s\S]{0,160}priority/);
   });
 });
 

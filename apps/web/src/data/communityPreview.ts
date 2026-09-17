@@ -1,36 +1,54 @@
-import { staticSampleExperiencePet } from "@/data/publicSample";
-
 /**
  * The three cards on the landing page's Community section.
  *
- * **Why this is a static list and not a query.** A pet being discoverable means
- * its family agreed to appear inside Community. It does not mean they agreed to
- * be marketing on the front page of the website, and treating one as the other
- * would be helping ourselves to a consent nobody gave. Real households are
- * reachable one click away, in Explore, where the rule they actually opted into
- * applies.
+ * **Discoverability is not marketing consent.** A family switching a pet's
+ * Social profile on agreed to appear inside Community — in Explore, in Search,
+ * on their own public profile. They did not agree to be the face of the product
+ * on its front page, and treating one permission as the other helps ourselves
+ * to a consent nobody gave.
  *
- * So this is MyPetLink's own demo content: the sample pet the marketing site
- * already publishes, plus two illustrative pets.
+ * So nothing here is chosen from live data, and no eligibility flag is consulted
+ * to build it. There is no query to get wrong later: a pet cannot arrive on this
+ * page because of something an owner toggled, only because somebody wrote it
+ * here on purpose.
  *
- * **No household is named.** Not even the sample's — the name attached to that
- * pet is its *finder-facing* owner name, and the finder identity and the Social
- * identity are separate things that must not be quietly merged. A card here
- * shows a pet and a Moment, and attributing it to anybody would either expose
- * the wrong identity or invent a person.
+ * **Not even an approved sample.** This list previously took its first card from
+ * `staticSampleExperiencePet` — a real pet's name and a real photo URL under a
+ * real pet's media path. That content IS governed elsewhere: the sample
+ * experience is gated on `Pet.IsSampleEligible` plus an admin-chosen featured
+ * pet, so an admin can withdraw it. A hardcoded copy of it here could not be
+ * withdrawn — revoke the flag and the homepage would keep showing the photo.
+ * Marketing content that outlives its own approval is the defect, separately
+ * from whose pet it happens to be.
  *
- * **No counts of any kind.** No likes, no followers, no "join 2,000 families".
- * An empty network that advertises numbers is lying, and a real one does not
- * need to.
+ * What is left is content MyPetLink owns outright: Linko, the brand mascot
+ * drawn for this product, and two illustrative pets that are not anybody. They
+ * carry no photo URL, no handle, no public code and no link to a real profile.
+ *
+ * **No household is named and no counts appear.** Naming one would either
+ * expose an identity or invent a person, and an empty network that advertises
+ * follower numbers is lying.
+ *
+ * A future explicit opt-in — "allow MyPetLink to feature this pet in promotional
+ * surfaces" — would be the right way to widen this, and would be a separate
+ * decision from Social discoverability. See the report for that suggestion; it
+ * is deliberately not built here.
  */
+
+import type { LinkoPose } from "@/components/brand/LinkoMascot";
+import type { PetSpecies } from "@/types";
 
 export type CommunityPreviewCard = {
   id: string;
   petName: string;
-  species: string;
+  species: PetSpecies;
   breed: string;
-  /** A real photo where we own one; otherwise the initial avatar the app uses. */
-  photoUrl: string | null;
+  /**
+   * How the card is illustrated. A mascot pose is brand art; a tone is the
+   * initial avatar the app already draws for a pet with no photo. Deliberately
+   * no URL field: there is nowhere for a real pet's media to be pasted in.
+   */
+  mascot?: LinkoPose;
   photoInitial: string;
   photoTone: "mint" | "apricot" | "sky";
   momentTitle: string;
@@ -39,12 +57,12 @@ export type CommunityPreviewCard = {
 
 export const communityPreviewCards: CommunityPreviewCard[] = [
   {
-    id: "sample-topu",
-    petName: staticSampleExperiencePet.name,
-    species: staticSampleExperiencePet.species,
-    breed: "Domestic Shorthair",
-    photoUrl: staticSampleExperiencePet.profilePhotoUrl,
-    photoInitial: "T",
+    id: "linko",
+    petName: "Linko",
+    species: "Cat",
+    breed: "MyPetLink mascot",
+    mascot: "wave",
+    photoInitial: "L",
     photoTone: "mint",
     momentTitle: "Sunny spot, claimed",
     momentCaption:
@@ -55,7 +73,6 @@ export const communityPreviewCards: CommunityPreviewCard[] = [
     petName: "Milo",
     species: "Dog",
     breed: "Golden Retriever",
-    photoUrl: null,
     photoInitial: "M",
     photoTone: "apricot",
     momentTitle: "First day home",
@@ -67,7 +84,6 @@ export const communityPreviewCards: CommunityPreviewCard[] = [
     petName: "Luna",
     species: "Cat",
     breed: "British Shorthair",
-    photoUrl: null,
     photoInitial: "L",
     photoTone: "sky",
     momentTitle: "Grooming day",
