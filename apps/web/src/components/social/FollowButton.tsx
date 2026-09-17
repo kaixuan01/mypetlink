@@ -20,6 +20,8 @@ type FollowButtonProps = {
   onChange: (relationship: OwnerRelationship) => void;
   /** Null until the signed-in check has run in the browser. */
   signedIn: boolean | null;
+  /** "subtle" outlines the control for surfaces where Follow is not the point. */
+  emphasis?: "solid" | "subtle";
   /** Which screen this control is on. Categorical; never which household. */
   analyticsSource?: AnalyticsSocialSource;
   className?: string;
@@ -43,9 +45,12 @@ export function FollowButton({
   relationship,
   onChange,
   signedIn,
+  emphasis = "solid",
   analyticsSource = "direct",
   className = "",
 }: FollowButtonProps) {
+  const notFollowingClass =
+    emphasis === "subtle" ? subtleFollowClass : followClass;
   const [pending, setPending] = useState(false);
   // The failure is remembered together with the household it belonged to, so a
   // button that moves to another household drops it without an effect — and so
@@ -107,7 +112,7 @@ export function FollowButton({
     return relationship.allowsFollowers ? (
       <Link
         aria-label={`Sign in to follow ${displayName}`}
-        className={`${baseClass} max-w-full ${followClass} ${className}`}
+        className={`${baseClass} max-w-full ${notFollowingClass} ${className}`}
         data-testid="follow-button-signin"
         href={ownerLoginPath(ownerSocialProfilePath(handle))}
       >
@@ -134,7 +139,7 @@ export function FollowButton({
             : `Follow ${displayName} (@${handle})`
         }
         aria-pressed={following}
-        className={`${baseClass} max-w-full ${following ? followingClass : followClass} follow-button`}
+        className={`${baseClass} max-w-full ${following ? followingClass : notFollowingClass} follow-button`}
         data-following={following ? "true" : "false"}
         data-testid="follow-button"
         disabled={pending || signedIn === null}
@@ -162,5 +167,15 @@ export function FollowButton({
 const baseClass =
   "inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60";
 const followClass = "border-pet-teal bg-pet-teal text-white hover:bg-[#1f7fa8]";
+/**
+ * The same action, carrying less of the page.
+ *
+ * On a profile, Follow is why somebody arrived and a solid button is right. In
+ * a suggestion card it sits beside a pet's name and a handle in muted type,
+ * where solid made the action louder than the pet it refers to. Outlined keeps
+ * the brand blue, the 40px target and the word — it simply stops shouting.
+ */
+const subtleFollowClass =
+  "border-pet-teal bg-white text-pet-teal hover:bg-[#e8f3ff]";
 const followingClass =
   "border-pet-border bg-white text-pet-ink hover:bg-pet-cream";

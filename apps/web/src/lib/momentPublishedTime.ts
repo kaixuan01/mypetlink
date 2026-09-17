@@ -10,15 +10,28 @@
  * shared, and a Moment taken back into private keeps the date it first went out.
  * Showing the creation date would quietly rewrite both.
  *
- * **The viewer's timezone.** `formatFinderDateTime` pins Malaysia deliberately,
- * because a finder's timestamp describes something that happened in Malaysia.
- * A Moment is read wherever the reader is, so it is formatted wherever the
- * reader is.
+ * **The viewer's timezone, the product's date order.** Those are two different
+ * decisions and they were being made by one word. `undefined` as a locale hands
+ * both to the browser, so a reader in a US locale saw "Aug 10, 2026" — the one
+ * spelling the product never uses. Every other formatter in this app names its
+ * locale (`en-MY` or `en-GB`); these three were the only ones that did not.
+ *
+ * So the locale is named and the timezone is not. `formatFinderDateTime` pins
+ * Malaysia deliberately, because a finder's timestamp describes something that
+ * happened in Malaysia; a Moment is read wherever the reader is, so it keeps
+ * their clock while using the product's way of writing a date.
  *
  * **`now` is passed in, never read here.** A formatter that reads the clock is
  * impure: it makes a card re-time itself on every re-render and a test flaky by
  * construction. Callers capture the moment their list loaded and pass it down.
  */
+
+/**
+ * The product's date order: day, month, year. Named rather than inferred, so a
+ * Moment reads the same way for everybody. No timezone is pinned — the clock
+ * stays the reader's.
+ */
+const dateLocale = "en-MY";
 
 /**
  * Relative age, in the shortest form that is still honest.
@@ -79,7 +92,7 @@ export function formatMomentPublishedExact(
     return "";
   }
 
-  const time = new Intl.DateTimeFormat(undefined, {
+  const time = new Intl.DateTimeFormat(dateLocale, {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -105,7 +118,7 @@ export function formatMomentPublishedLabel(
     return "";
   }
 
-  const full = new Intl.DateTimeFormat(undefined, {
+  const full = new Intl.DateTimeFormat(dateLocale, {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -151,7 +164,7 @@ function parsePublished(publishedAt: string | null | undefined): number | null {
 }
 
 function shortDate(instant: number): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(dateLocale, {
     day: "numeric",
     month: "short",
     year: "numeric",

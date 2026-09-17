@@ -116,17 +116,21 @@ export function SocialPetCard({
           </span>
         </Link>
 
-        {/* The handle is what the Follow button acts on, so it is stated in
-            full and given room to be read. Beside a small photo on a phone
-            there is width for it; in the narrow tile there never was. The link
-            carries vertical padding so its hit area clears the 24px minimum
-            without changing how it looks. */}
-        <p className="mt-1 min-w-0 text-xs font-bold text-pet-muted @max-[15rem]:mt-2">
+        {/* The handle is what the Follow button acts on, so it is the part that
+            has to be read — "Shared by" is only there to say what the handle
+            IS, and it was previously carrying the same weight as the identity
+            it labels. It is lighter now and the handle is not, so the card
+            reads pet, then household, in that order.
+
+            The link carries vertical padding so its hit area clears the 24px
+            minimum without changing how it looks. */}
+        <p className="mt-1 min-w-0 text-xs @max-[15rem]:mt-2">
           <Link
-            className="block truncate py-1 transition hover:text-pet-ink"
+            className="block truncate py-1 font-bold text-pet-ink/80 transition hover:text-pet-ink"
             href={`/u/${pet.owner.handle.toLowerCase()}`}
           >
-            <span className="font-semibold">Shared by </span>@{pet.owner.handle}
+            <span className="font-semibold text-pet-muted">Shared by </span>
+            @{pet.owner.handle}
           </Link>
         </p>
 
@@ -138,6 +142,11 @@ export function SocialPetCard({
         <div className="mt-2 flex justify-end @max-[15rem]:mt-2 @max-[15rem]:justify-start">
           <FollowButton
             analyticsSource={analyticsSource}
+            /* A suggestion, not a decision. Beside muted identity text a solid
+               teal pill was the loudest thing on the card, which put the action
+               ahead of the pet it is about. Outlined keeps the brand blue and
+               the same 40px target while letting the pet lead. */
+            emphasis="subtle"
             displayName={pet.owner.displayName}
             handle={pet.owner.handle}
             onChange={(next) =>

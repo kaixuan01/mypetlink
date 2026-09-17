@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   formatMomentPublishedAge,
@@ -77,14 +79,14 @@ describe("how long ago a Moment was published", () => {
     expect(formatMomentPublishedAge(iso(at(2026, 9, 10)), now)).toBe("6d");
   });
 
-  it("gives a date once it is a week old", () => {
-    const old = formatMomentPublishedAge(iso(at(2026, 8, 10)), now);
-
-    // The exact rendering is the viewer's locale's business; what matters is
-    // that it stopped counting and named the day.
-    expect(old).toMatch(/10/);
-    expect(old).toMatch(/2026/);
-    expect(old).not.toMatch(/^\d+d$/);
+  it("gives a date once it is a week old, in the product's order", () => {
+    // Day, month, year — not the viewer's locale's guess. This used to read
+    // "the rendering is the viewer's locale's business", which let an en-US
+    // browser print "Aug 10, 2026" on every older card: the one spelling the
+    // product never uses, and the defect this assertion now catches.
+    expect(formatMomentPublishedAge(iso(at(2026, 8, 10)), now)).toBe(
+      "10 Aug 2026"
+    );
   });
 
   it("never reports a future Moment as negative", () => {
@@ -108,12 +110,24 @@ describe("a Moment with no publish date", () => {
 
 describe("the exact time, for the Moment's own page", () => {
   it("names the day and the time of day", () => {
-    const exact = formatMomentPublishedExact(iso(at(2026, 8, 10, 20, 42)));
+    // The format the Moment's own page is specified to show, exactly.
+    expect(formatMomentPublishedExact(iso(at(2026, 8, 10, 20, 42)))).toBe(
+      "10 Aug 2026 · 8:42 PM"
+    );
+  });
 
-    expect(exact).toContain("2026");
-    expect(exact).toContain("10");
-    expect(exact).toContain("·");
-    expect(exact).toMatch(/8:42\s?PM/);
+  it("writes the date the same way as the rest of the product", () => {
+    // Every other formatter in the app names its locale; these three were the
+    // only ones that let the browser choose, which is how the order drifted.
+    const source = readFileSync(
+      join(__dirname, "momentPublishedTime.ts"),
+      "utf8"
+    );
+
+    expect(source).not.toContain("DateTimeFormat(undefined");
+    expect(source).toContain('const dateLocale = "en-MY"');
+    // And still no pinned timezone: the clock stays the reader's.
+    expect(source).not.toContain("timeZone");
   });
 
   it("uppercases the meridiem, as the rest of the product does", () => {

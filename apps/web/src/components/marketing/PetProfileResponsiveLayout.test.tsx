@@ -169,8 +169,20 @@ describe("the Follow action", () => {
 
     // The label used to vary by surface. One label means one width, and one
     // width means the identity beside it cannot be squeezed by a prop.
+    //
+    // This looks at the label rather than banning a word: a caller may choose
+    // how loud the control is — a suggestion card outlines it — but never what
+    // it says, because that is what changes how much room the handle gets.
     expect(source).not.toContain("attribution");
-    expect(source).not.toContain('surface');
+    expect(source).not.toContain("FollowLabel");
+    // No prop decides the wording.
+    expect(source).not.toMatch(/label\s*\?:/);
+
+    // The two words it can show, and nothing else. The accessible name still
+    // names the household — that costs no width and is what a screen reader
+    // needs to know which Follow this is.
+    expect(source).toContain(">Follow<");
+    expect(source).toContain('"Following"');
   });
 });
 

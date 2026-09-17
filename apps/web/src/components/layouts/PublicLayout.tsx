@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { PublicBrandLink } from "@/components/brand/PublicBrandLink";
 import {
   DesktopPublicNav,
   MobilePublicNav,
@@ -69,16 +70,7 @@ export function PublicLayout({
               compactHeader ? "gap-2 min-[361px]:gap-3 sm:gap-4" : "gap-4"
             }`}
           >
-            <Link href="/" className="flex min-w-0 items-center">
-              <BrandLogo
-                className={`w-auto ${
-                  compactHeader
-                    ? "h-10 max-w-[calc(100vw-5.5rem)] object-contain object-left min-[361px]:h-11 sm:h-12 lg:h-14 lg:max-w-[235px]"
-                    : "h-14 max-w-[235px]"
-                }`}
-                priority
-              />
-            </Link>
+            <PublicBrandLink compact={compactHeader} priority />
 
             <DesktopPublicNav loggedIn={loggedIn} />
 

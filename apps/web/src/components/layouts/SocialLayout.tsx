@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { PublicBrandLink } from "@/components/brand/PublicBrandLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { socialRoutes } from "@/lib/routes";
@@ -73,9 +73,7 @@ function NeutralSocialHeader() {
       data-testid="social-header-resolving"
     >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link aria-label="MyPetLink home" className="flex items-center" href="/">
-          <BrandLogo />
-        </Link>
+        <PublicBrandLink compact />
         <span aria-hidden="true" className="h-10 w-28 rounded-full bg-pet-cream" />
       </div>
     </header>
@@ -96,9 +94,7 @@ function PublicSocialHeader() {
       data-testid="social-header-public"
     >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link aria-label="MyPetLink home" className="flex items-center" href="/">
-          <BrandLogo />
-        </Link>
+        <PublicBrandLink compact priority />
 
         <div className="flex items-center gap-1 sm:gap-2">
           {/*
