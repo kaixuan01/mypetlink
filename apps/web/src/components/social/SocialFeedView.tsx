@@ -30,12 +30,22 @@ import { getSocialFeed } from "@/services/socialFeedService";
  */
 export function SocialFeedView() {
   const signedIn = useSignedIn();
+  /*
+    Null until the first page answers. The server reports it because an empty
+    feed cannot: "nothing here" is either "you have not followed anyone" or
+    "nobody you follow has posted lately", and those want opposite things said
+    to them. Kept here rather than in useMomentPages because Explore shares that
+    hook and has no viewer relationship to report.
+  */
+  const [hasFollowing, setHasFollowing] = useState<boolean | null>(null);
 
   // Two events, two meanings. "Viewed" is one screen opening; "page loaded" is
   // each further page fetched with a cursor. The first page is counted once,
   // by "viewed", and never twice.
   const load = useCallback(async (cursor?: string) => {
     const page = await getSocialFeed(cursor);
+
+    setHasFollowing(page.hasFollowing);
 
     if (cursor) {
       trackEvent("social_feed_page_loaded", { source: "feed" });
@@ -59,12 +69,30 @@ export function SocialFeedView() {
     reload,
   } = useMomentPages(load);
 
-  const sparse = state === "ready" && moments.length < 5;
+  const ready = state === "ready";
+  /*
+    Four states, and the difference that matters is the relationship, not the
+    count. Somebody who follows nobody is invited to go and find families;
+    somebody who follows a dozen quiet ones is told they are up to date. The old
+    screen said the first thing to both of them.
+  */
+  const followsNobody = ready && hasFollowing === false;
+  const onboarding = followsNobody;
+  const caughtUpWithFollows =
+    ready && hasFollowing === true && moments.length === 0;
+  // Discovery under a short feed, only once there is a real feed to be short.
+  const sparse = ready && !followsNobody && moments.length > 0 && moments.length < 5;
 
   return (
     <div className="mx-auto w-full max-w-xl">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-black text-pet-ink">Moments</h1>
+        {/*
+          "Home", not "Moments". My Pets already has a Moments section and so
+          does the Community profile, and this is neither — it is what the
+          households you follow have been doing. The bottom bar has always
+          called it Home; the page now agrees with it.
+        */}
+        <h1 className="text-2xl font-black text-pet-ink">Home</h1>
         <Link
           className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
           href={socialRoutes.explore}
@@ -100,10 +128,26 @@ export function SocialFeedView() {
         </div>
       ) : null}
 
-      {state === "ready" && moments.length === 0 ? <FeedEmptyState /> : null}
+      {onboarding ? <FeedOnboarding hasOwnMoments={moments.length > 0} /> : null}
+
+      {caughtUpWithFollows ? <CaughtUpState /> : null}
 
       {moments.length > 0 ? (
         <div data-testid="feed-list">
+          {/*
+            Named only while the feed is entirely the reader's own work. Once
+            anybody is followed the stream stops being "yours" and the heading
+            would be a lie, so it goes away rather than becoming permanent
+            furniture on a page that is not an archive.
+          */}
+          {followsNobody ? (
+            <h2
+              className="mt-6 text-lg font-black text-pet-ink"
+              data-testid="feed-own-moments-heading"
+            >
+              Your Moments
+            </h2>
+          ) : null}
           <SocialMomentStream
             analyticsSource="feed"
             endText="You&rsquo;re all caught up."
@@ -126,17 +170,43 @@ export function SocialFeedView() {
 }
 
 /**
- * A brand-new owner's first screen.
+ * What a reader who follows nobody is told.
  *
- * Says what the feed is FOR and gives one way to fill it. It never pretends
- * there is content, and it never apologises for an empty screen that is empty
- * for a perfectly ordinary reason.
+ * Two shapes, because two situations. With no Moments of their own this is the
+ * whole screen and can afford the mascot and a second action; with their own
+ * Moments underneath it has to be a band rather than a hero, or the content
+ * they came to see is pushed off the bottom of a phone.
+ *
+ * It never says the feed is empty when it is not, and it never calls the page
+ * an archive of your own work — it explains why the page looks the way it does
+ * and offers the one thing that changes it.
  */
-function FeedEmptyState() {
+function FeedOnboarding({ hasOwnMoments }: { hasOwnMoments: boolean }) {
+  if (hasOwnMoments) {
+    return (
+      <section
+        className="mt-5 rounded-[1.5rem] border border-pet-border bg-white p-4 sm:p-5"
+        data-testid="feed-onboarding"
+      >
+        <h2 className="text-base font-black text-pet-ink">
+          Follow pet families to fill your feed
+        </h2>
+        <p className="mt-1 text-sm font-semibold leading-6 text-pet-muted">
+          Their new Moments will appear here alongside your own.
+        </p>
+        <div className="mt-3">
+          <CTAButton href={socialRoutes.explore} variant="secondary">
+            Explore pets
+          </CTAButton>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div
       className="mt-5 rounded-[1.75rem] border border-pet-border bg-white p-8 text-center"
-      data-testid="feed-empty"
+      data-testid="feed-onboarding"
     >
       <LinkoMascot
         alt="Linko the MyPetLink mascot waving"
@@ -145,15 +215,44 @@ function FeedEmptyState() {
         size={96}
       />
       <h2 className="mt-4 text-lg font-black text-pet-ink">
-        Your feed starts with pets you care about
+        Welcome to your feed
       </h2>
       <p className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-        Follow a pet&rsquo;s family and their new Moments will appear here.
-        Anything you share publicly shows up too.
+        Follow pet families to start seeing their Moments here. Anything you
+        share publicly shows up too.
       </p>
+      {/*
+        One action. Sharing a Moment was the obvious second, but it is not a
+        route — it is a menu action that needs a pet to attach the Moment to,
+        which is exactly what somebody on this screen may not have yet. A button
+        that leads to "add a pet first" is a worse welcome than no button.
+      */}
       <div className="mt-5">
         <CTAButton href={socialRoutes.explore}>Explore pets</CTAButton>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Followed households, none of whom has posted lately.
+ *
+ * Says nothing about following, because this reader already follows people and
+ * being told to go and find some would read as the product having forgotten
+ * them. Quiet, and short — there is nothing wrong here.
+ */
+function CaughtUpState() {
+  return (
+    <div
+      className="mt-5 rounded-[1.5rem] border border-pet-border bg-white p-8 text-center"
+      data-testid="feed-caught-up"
+    >
+      <h2 className="text-lg font-black text-pet-ink">
+        You&rsquo;re all caught up
+      </h2>
+      <p className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+        No new Moments from the families you follow. Check back soon.
+      </p>
     </div>
   );
 }

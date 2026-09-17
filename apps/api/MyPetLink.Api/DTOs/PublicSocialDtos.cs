@@ -92,6 +92,31 @@ public sealed record PublicMomentPageResponse(
     string? NextCursor);
 
 /// <summary>
+/// A page of the signed-in owner's feed, plus the one thing an empty page
+/// cannot say for itself.
+///
+/// "No Moments" has two completely different meanings: nobody is followed yet,
+/// or people are followed and none of them has posted lately. The first needs
+/// an invitation to go and find families; the second must never say "follow
+/// somebody" to a person who already follows a dozen. Item count cannot tell
+/// them apart, so the relationship is reported alongside the page rather than
+/// guessed from it.
+///
+/// A separate record from <see cref="PublicMomentPageResponse"/> because this
+/// fact is true of a feed and of nothing else: Explore, a profile's Moments and
+/// a pet's Moments have no viewer relationship to describe.
+/// </summary>
+public sealed record SocialFeedPageResponse(
+    IReadOnlyCollection<PublicMomentListItemResponse> Items,
+    string? NextCursor,
+    /// <summary>
+    /// Whether the viewer follows anybody at all — not whether this page has
+    /// anything in it. Answered by an existence check against the follow index,
+    /// so it costs a seek and never grows with the size of the follow list.
+    /// </summary>
+    bool HasFollowing);
+
+/// <summary>
 /// Where a handle currently resolves. Used by the edge to answer a request for
 /// a handle an account used to hold.
 /// </summary>

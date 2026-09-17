@@ -3,7 +3,10 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { SocialFeedView } from "@/components/social/SocialFeedView";
 
 export const metadata: Metadata = {
-  title: "Moments",
+  // "Home", like the heading and the bottom bar. "Moments" named a thing that
+  // exists in two other places — My Pets and the Community profile — and named
+  // none of them uniquely.
+  title: "Home",
   // A feed is one person's, and it is made of relationships they chose.
   robots: { index: false, follow: false },
 };

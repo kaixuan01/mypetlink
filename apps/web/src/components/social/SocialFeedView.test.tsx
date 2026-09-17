@@ -37,8 +37,13 @@ vi.mock("@/services/momentLikeService", () => ({
 
 import { SocialFeedView } from "@/components/social/SocialFeedView";
 
-function page(titles: string[], nextCursor: string | null = null): PublicMomentPage {
+function page(
+  titles: string[],
+  nextCursor: string | null = null,
+  hasFollowing = true
+): PublicMomentPage & { hasFollowing: boolean } {
   return {
+    hasFollowing,
     items: titles.map((title, index) => ({
       id: `moment-${title}`,
       title,
@@ -209,17 +214,76 @@ describe("SocialFeedView", () => {
     expect(screen.queryByRole("button", { name: /show more/i })).toBeNull();
   });
 
-  it("gives a brand-new owner somewhere to start", async () => {
-    mocks.getSocialFeed.mockResolvedValue({ items: [], nextCursor: null });
+  it("welcomes a brand-new owner who follows nobody and has nothing", async () => {
+    mocks.getSocialFeed.mockResolvedValue(page([], null, false));
 
     render(<SocialFeedView />);
 
-    const empty = await screen.findByTestId("feed-empty");
+    const onboarding = await screen.findByTestId("feed-onboarding");
 
-    expect(empty.textContent).toContain("Your feed starts with pets you care about");
+    expect(onboarding.textContent).toContain("Welcome to your feed");
     expect(
-      within(empty).getByRole("link", { name: /explore pets/i }).getAttribute("href")
+      within(onboarding).getByRole("link", { name: /explore pets/i }).getAttribute("href")
     ).toBe("/explore");
+
+    // Not "all caught up": there is nothing to be caught up with.
+    expect(screen.queryByTestId("feed-caught-up")).toBeNull();
+  });
+
+  it("explains a quiet feed to somebody who follows nobody but has posted", async () => {
+    mocks.getSocialFeed.mockResolvedValue(page(["Beach day"], null, false));
+
+    render(<SocialFeedView />);
+
+    const onboarding = await screen.findByTestId("feed-onboarding");
+
+    // A band above the content, not a hero that pushes it off the screen.
+    expect(onboarding.textContent).toContain("Follow pet families");
+    expect(onboarding.textContent).not.toContain("Welcome to your feed");
+
+    // And their own work is named, so the page is not mistaken for an archive.
+    expect(screen.getByTestId("feed-own-moments-heading").textContent).toBe(
+      "Your Moments"
+    );
+    expect(screen.getByTestId("feed-list")).toBeTruthy();
+  });
+
+  it("tells somebody who already follows families that they are up to date", async () => {
+    mocks.getSocialFeed.mockResolvedValue(page([], null, true));
+
+    render(<SocialFeedView />);
+
+    const caughtUp = await screen.findByTestId("feed-caught-up");
+
+    // The old screen told this reader to go and follow somebody, which they had
+    // already done. "No content right now" is not "no relationships".
+    expect(caughtUp.textContent).toContain("all caught up");
+    expect(caughtUp.textContent).not.toMatch(/follow pet families|welcome to your feed/i);
+    expect(screen.queryByTestId("feed-onboarding")).toBeNull();
+  });
+
+  it("drops the onboarding panel once the feed is somebody else's too", async () => {
+    mocks.getSocialFeed.mockResolvedValue(page(["Beach day", "Nap time"], null, true));
+
+    render(<SocialFeedView />);
+    await screen.findByTestId("feed-list");
+
+    // A normal feed is a normal feed: no permanent panel, and no heading
+    // claiming the stream belongs to the reader.
+    expect(screen.queryByTestId("feed-onboarding")).toBeNull();
+    expect(screen.queryByTestId("feed-own-moments-heading")).toBeNull();
+    expect(screen.queryByTestId("feed-caught-up")).toBeNull();
+  });
+
+  it("calls itself Home, not Moments", async () => {
+    render(<SocialFeedView />);
+
+    // My Pets has a Moments section and so does the Community profile. This is
+    // neither, and the bottom bar has always called it Home.
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Home" })
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1, name: "Moments" })).toBeNull();
   });
 
   it("offers a retry instead of a dead screen when the feed fails", async () => {

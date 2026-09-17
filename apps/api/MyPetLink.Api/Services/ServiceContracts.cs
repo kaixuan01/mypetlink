@@ -152,7 +152,7 @@ public interface IMomentLikeService : ISkeletonService
 /// </summary>
 public interface ISocialFeedService : ISkeletonService
 {
-    Task<PublicMomentPageResponse> GetFeedAsync(
+    Task<SocialFeedPageResponse> GetFeedAsync(
         Guid? currentUserId, string? cursor, int? pageSize,
         CancellationToken cancellationToken = default);
 }

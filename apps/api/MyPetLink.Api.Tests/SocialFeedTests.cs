@@ -22,6 +22,49 @@ public sealed class SocialFeedTests
     private static readonly Guid Buddy = SocialSurfaceHarness.BuddyId;
     private static readonly Guid Shy = SocialSurfaceHarness.ShyId;
 
+    // ---- Whether the viewer follows anybody ------------------------------
+
+    [Fact]
+    public async Task Feed_SaysWhenTheViewerFollowsNobody()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(Alice, Mochi, "Mochi on the sofa", 10);
+
+        var feed = await harness.Feed.GetFeedAsync(Alice, null, null);
+
+        // Her own Moment is there, and she follows no one. Those are separate
+        // facts: the page is not empty, but the relationship is.
+        Assert.NotEmpty(feed.Items);
+        Assert.False(feed.HasFollowing);
+    }
+
+    [Fact]
+    public async Task Feed_SaysTheViewerFollowsSomebodyEvenWhenNobodyHasPosted()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.FollowAsync(Alice, "limfamily");
+
+        var feed = await harness.Feed.GetFeedAsync(Alice, null, null);
+
+        // The case the old UI got wrong: an empty page here used to be read as
+        // "you follow nobody", and this reader was told to go and follow
+        // somebody she had already followed.
+        Assert.Empty(feed.Items);
+        Assert.True(feed.HasFollowing);
+    }
+
+    [Fact]
+    public async Task Feed_StopsSayingSoAfterAnUnfollow()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.FollowAsync(Alice, "limfamily");
+        Assert.True((await harness.Feed.GetFeedAsync(Alice, null, null)).HasFollowing);
+
+        await harness.Graph.UnfollowAsync(Alice, "limfamily");
+
+        Assert.False((await harness.Feed.GetFeedAsync(Alice, null, null)).HasFollowing);
+    }
+
     [Fact]
     public async Task AFollowedHouseholdsPublicMoment_Appears()
     {

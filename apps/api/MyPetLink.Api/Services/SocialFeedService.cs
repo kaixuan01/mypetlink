@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -38,7 +39,7 @@ public sealed class SocialFeedService : SkeletonService, ISocialFeedService
         _momentCards = momentCards;
     }
 
-    public Task<PublicMomentPageResponse> GetFeedAsync(
+    public async Task<SocialFeedPageResponse> GetFeedAsync(
         Guid? currentUserId,
         string? cursor,
         int? pageSize,
@@ -67,12 +68,25 @@ public sealed class SocialFeedService : SkeletonService, ISocialFeedService
             // place to rely on a cleanup having run.
             .Where(moment => !blocked.Contains(moment.AuthorUserId));
 
-        return _momentCards.PageAsync(
+        var page = await _momentCards.PageAsync(
             query,
             cursor,
             pageSize,
             actorId,
             cancellationToken,
             SocialCursor.FeedPageSize);
+
+        // Asked separately from the page, and deliberately as an existence
+        // check rather than a count: an empty feed means one of two unrelated
+        // things — nobody followed yet, or nobody followed has posted lately —
+        // and telling a person who follows a dozen families to go and follow
+        // somebody is the worse of the two mistakes. Any() against the follow
+        // index is a seek; it does not grow with the follow list, and it does
+        // not touch the Moment query above.
+        var hasFollowing = await _dbContext.OwnerFollows
+            .AsNoTracking()
+            .AnyAsync(follow => follow.FollowerUserId == actorId, cancellationToken);
+
+        return new SocialFeedPageResponse(page.Items, page.NextCursor, hasFollowing);
     }
 }
