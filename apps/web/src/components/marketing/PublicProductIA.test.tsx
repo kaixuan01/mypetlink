@@ -148,15 +148,44 @@ describe("public terminology", () => {
 describe("Smart Tag product facts", () => {
   const page = () => read("app/smart-pet-tags/page.tsx");
 
-  it("takes its price from the one place that holds it", () => {
-    expect(smartTagAddOn.price).toBe("RM29.90");
+  it("shows the current retail price, from the one place that holds it", () => {
+    // The approved customer-facing retail price. Pinned as a literal on
+    // purpose: this is the assertion that should fail if somebody changes the
+    // number without deciding to, which is exactly how it became RM29.90.
+    expect(smartTagAddOn.price).toBe("RM39.90");
     expect(smartTagAddOnsStatus.price).toBe(smartTagAddOn.price);
+  });
 
-    // No page writes the tag's price of its own. (RM0 for the free plan is
-    // copy about a plan, not a second copy of this number.)
-    for (const file of ["app/smart-pet-tags/page.tsx", "app/pricing/page.tsx", "app/page.tsx"]) {
-      expect(read(file)).not.toContain("RM29.90");
-      expect(read(file)).not.toContain("RM39.90");
+  it("is written on no page of its own", () => {
+    // Every public surface reads the constant, so a price cannot be right on
+    // one page and stale on another. (RM0 for the free plan is copy about a
+    // plan, not a second copy of this number.)
+    for (const file of [
+      "app/smart-pet-tags/page.tsx",
+      "app/pricing/page.tsx",
+      "app/page.tsx",
+      "app/where-to-buy/page.tsx",
+      "components/marketing/SmartTagShowcase.tsx",
+      "components/marketing/LandingHero.tsx",
+    ]) {
+      expect(read(file)).not.toMatch(/RM\s?\d+\.\d\d/);
+    }
+  });
+
+  it("does not reach the order flow or wholesale pricing", () => {
+    // Three separate facts. Retail display is this constant; an order line
+    // takes its amount from the tag catalogue; a merchant sale has its own
+    // WholesaleUnitPrice. Collapsing them would make a marketing edit reprice
+    // real orders.
+    // The constant is a display string, not a number anything can compute with.
+    expect(typeof smartTagAddOn.price).toBe("string");
+    expect(smartTagAddOn.price).toMatch(/^RM\d+\.\d\d$/);
+
+    for (const file of [
+      "components/portal/TagOrderFlow.tsx",
+      "services/tagService.ts",
+    ]) {
+      expect(read(file)).not.toContain("smartTagAddOn");
     }
   });
 

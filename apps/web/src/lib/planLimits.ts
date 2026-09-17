@@ -86,7 +86,21 @@ export const premiumPlan = {
 export const smartTagAddOn = {
   name: "MyPetLink QR + NFC Smart Tag",
   shortName: "QR + NFC smart tag",
-  price: "RM29.90",
+  /**
+   * The customer-facing retail price, and the only place it is written.
+   *
+   * Every public surface reads this — the landing page, pricing, Where to Buy,
+   * the Smart Tag showcase — so a price cannot be right on one page and stale
+   * on another. It is deliberately NOT what an order is charged: order lines
+   * take their amounts from the tag catalogue in the database, and merchant
+   * sales from their own WholesaleUnitPrice. Retail display, order pricing and
+   * wholesale are three separate facts and must not collapse into one constant.
+   *
+   * The seeded AppSetting `tag.qr_nfc.price` holds the same figure and is
+   * admin-editable, but nothing reads it today. If that is ever wired up it
+   * should replace this constant rather than sit beside it.
+   */
+  price: "RM39.90",
   billingNote: "one-time",
   description:
     "A QR + NFC smart tag where scan and tap open the same Safety Profile.",
