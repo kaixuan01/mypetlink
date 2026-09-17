@@ -45,6 +45,16 @@ const profiles: {
   },
 ];
 
+/** The one thing the removed pillars section said that these cards do not. */
+const careDetails = [
+  "Basic care records",
+  "Medication and allergy notes",
+  "Vet visit history",
+  // Named as unbuilt, deliberately. The page has always said "coming soon"
+  // here rather than implying the product already reminds anybody.
+  "Reminders coming soon",
+];
+
 export function PetProfilesSection() {
   // Warm ground, between the white explanation above and the blue product
   // section below. Backgrounds carry the rhythm across the page so sections do
@@ -113,6 +123,34 @@ export function PetProfilesSection() {
               </ul>
             </article>
           ))}
+        </div>
+
+        {/*
+          What the profile keeps besides the two pages.
+          
+          This replaces a whole "Safety, care and memories" section that used to
+          sit further down the page. Two of its three columns restated the two
+          cards above — the Safety column listed the Safety Profile's contents,
+          the Memories column listed the Share Profile's — and only Care said
+          anything new. So Care is what survived, as one line rather than a
+          third of a section.
+        */}
+        <div className="mt-8 rounded-[1.5rem] border border-pet-border bg-white/70 p-5 sm:p-6">
+          <h3 className="text-base font-black text-pet-ink">
+            And the details you need on hand.
+          </h3>
+          <ul className="mt-3 grid gap-2 text-sm text-pet-muted sm:grid-cols-3">
+            {careDetails.map((detail) => (
+              <li className="flex gap-2" key={detail}>
+                <Icon
+                  aria-hidden="true"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-pet-coral"
+                  name="record"
+                />
+                {detail}
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div className="mt-7 flex justify-start">

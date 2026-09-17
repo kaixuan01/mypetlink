@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { PRIMARY_CTA_LABEL } from "@/components/layouts/PublicNav";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
+import { CommunityTeaser } from "@/components/marketing/CommunityTeaser";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { FinderJourney } from "@/components/marketing/FinderJourney";
 import { LandingHero } from "@/components/marketing/LandingHero";
@@ -9,8 +10,9 @@ import { PetProfilesSection } from "@/components/marketing/PetProfilesSection";
 import { SmartTagShowcase } from "@/components/marketing/SmartTagShowcase";
 import { WhereToBuyTeaser } from "@/components/marketing/WhereToBuyTeaser";
 import { Badge } from "@/components/ui/Badge";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { socialEnabled } from "@/lib/features";
 import {
   freePlanLimits,
   gpsSafety,
@@ -44,39 +46,6 @@ export const metadata: Metadata = createMarketingMetadata({
  * at the close; everything else that navigates is a text link, because a page
  * with seven buttons has no primary action at all.
  */
-
-const pillars: { icon: IconName; title: string; points: string[] }[] = [
-  {
-    icon: "shield",
-    title: "Safety",
-    points: [
-      "Safety Profile for finders",
-      "Downloadable QR code",
-      "WhatsApp or call contact",
-      "Emergency and safety notes",
-    ],
-  },
-  {
-    icon: "record",
-    title: "Care",
-    points: [
-      "Basic care records",
-      "Medication and allergy notes",
-      "Vet visit history",
-      "Reminders coming soon",
-    ],
-  },
-  {
-    icon: "heart",
-    title: "Memories",
-    points: [
-      "Pet moments",
-      "Public or private memories",
-      "Life timeline",
-      "Shareable profile",
-    ],
-  },
-];
 
 const faqs = [
   {
@@ -131,46 +100,15 @@ export default function Home() {
       {/* 3. The two pages a pet gets, and what a finder may see. */}
       <PetProfilesSection />
 
-      {/* 4. The physical tag that makes the Safety Profile wearable. */}
-      <SmartTagShowcase />
+      {/*
+        4. Community — after the two pages a pet gets, because that is the
+        moment "here is what people actually share" means something, and before
+        the tag so the commercial run at the end stays unbroken.
+      */}
+      {socialEnabled ? <CommunityTeaser /> : null}
 
-      {/* 5. What the profile does beyond safety. */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
-          <PageHeader
-            as="h2"
-            eyebrow="What you get"
-            title="Safety, care, and memories."
-          />
-          <div className="grid gap-4 md:grid-cols-3">
-            {pillars.map((pillar) => (
-              <article
-                className="brand-card rounded-[1.5rem] p-5 sm:p-6"
-                key={pillar.title}
-              >
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
-                  <Icon aria-hidden="true" className="h-5 w-5" name={pillar.icon} />
-                </span>
-                <h3 className="mt-4 text-lg font-black text-pet-ink">
-                  {pillar.title}
-                </h3>
-                <ul className="mt-3 space-y-2 text-sm text-pet-muted">
-                  {pillar.points.map((point) => (
-                    <li className="flex gap-2" key={point}>
-                      <Icon
-                        aria-hidden="true"
-                        className="mt-0.5 h-4 w-4 shrink-0 text-pet-coral"
-                        name="paw"
-                      />
-                      {point}
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* 5. The physical tag that makes the Safety Profile wearable. */}
+      <SmartTagShowcase />
 
       {/* 6. Pricing — what is actually available, then the roadmap in one line. */}
       <section className="bg-pet-cream">

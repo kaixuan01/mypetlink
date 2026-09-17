@@ -94,8 +94,16 @@ describe("homepage pet finder preview", () => {
     mocks.load.mockResolvedValueOnce(milo);
     const first = render(<HomePage />);
     const image = await screen.findByRole("img", { name: "Milo's profile" });
+    // Scoped to the hero's own card: Milo and Luna are MyPetLink's demo pets and
+    // now also appear in the Community section's sample cards, so a page-wide
+    // query by name matches more than the preview under test.
+    const heroPreview = image.closest("article") as HTMLElement;
     fireEvent.error(image);
-    expect(screen.getByRole("img", { name: "Milo profile photo unavailable" })).toBeTruthy();
+    expect(
+      within(heroPreview).getByRole("img", {
+        name: "Milo profile photo unavailable",
+      })
+    ).toBeTruthy();
     first.unmount();
 
     mocks.load.mockResolvedValueOnce({ available: false, pet: null });
@@ -104,9 +112,14 @@ describe("homepage pet finder preview", () => {
       name: "Your pet's shareable profile",
     });
     expect(genericHeading).toBeTruthy();
-    expect(genericHeading.closest("article")?.classList.contains("h-[31rem]")).toBe(true);
-    expect(screen.queryByText("Milo")).toBeNull();
-    expect(screen.queryByText("Topu")).toBeNull();
+    const preview = genericHeading.closest("article") as HTMLElement;
+    expect(preview.classList.contains("h-[31rem]")).toBe(true);
+
+    // Scoped to the hero preview. The point is that the fallback card names no
+    // real pet — not that the word never appears on the page, which it now does
+    // in the Community section's sample cards further down.
+    expect(within(preview).queryByText("Milo")).toBeNull();
+    expect(within(preview).queryByText("Topu")).toBeNull();
   });
 
   it("keeps both guided sample destinations reachable from the page", async () => {
