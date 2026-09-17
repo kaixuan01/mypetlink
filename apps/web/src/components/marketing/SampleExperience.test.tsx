@@ -52,7 +52,7 @@ describe("SampleExperience", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Princess Buttercup the Third's mini website",
+        name: "Princess Buttercup the Third's Public Share Profile",
       })
     ).toBeTruthy();
     expect(
@@ -76,14 +76,17 @@ describe("SampleExperience", () => {
     render(<SampleExperience />);
 
     expect(
-      await screen.findByRole("heading", { name: "Topu's mini website" })
+      await screen.findByRole("heading", { name: "Topu's Public Share Profile" })
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Found Topu?" })).toBeTruthy();
     expect(
       screen.getByText("Curious, friendly, and always looking for treats.")
     ).toBeTruthy();
     expect(screen.getByText("Public moments and life timeline")).toBeTruthy();
-    expect(screen.getByText("No full owner address shown")).toBeTruthy();
+    // The Safety card shows the finder experience now rather than a list of
+    // its features, so the same promise is made where a finder would see it.
+    expect(screen.getByText(/never a home address/)).toBeTruthy();
+    expect(screen.getByText("General area")).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Create Your Pet's Profile" })
     ).toBeTruthy();
@@ -95,7 +98,7 @@ describe("SampleExperience", () => {
     render(<SampleExperience />);
 
     expect(
-      await screen.findByRole("heading", { name: "Topu's mini website" })
+      await screen.findByRole("heading", { name: "Topu's Public Share Profile" })
     ).toBeTruthy();
     expect(screen.queryByText(/invalid selection/i)).toBeNull();
     expect(screen.queryByText(/check again soon/i)).toBeNull();
@@ -126,11 +129,11 @@ describe("SampleExperience sample destinations", () => {
       name: "View Princess Buttercup the Third's sample Public Profile",
     });
     const safetyLink = screen.getByRole("link", {
-      name: "View Princess Buttercup the Third's sample Safety Profile",
+      name: "Open Princess Buttercup the Third's sample Safety Profile",
     });
 
     expect(publicLink.textContent).toContain("View Public Profile");
-    expect(safetyLink.textContent).toContain("View Safety Profile");
+    expect(safetyLink.textContent).toContain("Safety Profile sample");
     expect(publicLink.getAttribute("href")).toBe(
       publicProfilePath(configuredPet.pet.publicSlug, configuredPet.pet.publicCode)
     );
@@ -153,7 +156,7 @@ describe("SampleExperience sample destinations", () => {
     ).toBe(staticSampleExperienceDestinations.publicProfilePath);
     expect(
       screen
-        .getByRole("link", { name: "View Topu's sample Safety Profile" })
+        .getByRole("link", { name: "Open Topu's sample Safety Profile" })
         .getAttribute("href")
     ).toBe(staticSampleExperienceDestinations.safetyProfilePath);
   });
@@ -171,7 +174,7 @@ describe("SampleExperience sample destinations", () => {
       ).getAttribute("href")
     ).toBe(staticSampleExperienceDestinations.publicProfilePath);
     expect(
-      screen.getByRole("link", { name: "View Topu's sample Safety Profile" })
+      screen.getByRole("link", { name: "Open Topu's sample Safety Profile" })
     ).toBeTruthy();
   });
 
@@ -186,7 +189,7 @@ describe("SampleExperience sample destinations", () => {
         name: "View Princess Buttercup the Third's sample Public Profile",
       }),
       screen.getByRole("link", {
-        name: "View Princess Buttercup the Third's sample Safety Profile",
+        name: "Open Princess Buttercup the Third's sample Safety Profile",
       }),
     ];
 

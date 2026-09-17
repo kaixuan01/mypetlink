@@ -16,7 +16,17 @@ export default function SamplePage() {
     <PublicLayout>
       <section className="brand-blue-section px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          <PageHeader eyebrow="Sample experiences" title="See MyPetLink in two real situations" description="See the friendly profile owners share, and the Safety Profile a finder can use to contact the owner quickly." />
+          {/*
+            "Two real situations" claimed more than this page delivers: these
+            are a staged sample pet, not a customer's story, and a visitor who
+            reads "real" and then meets Linko has been told something untrue
+            about a page whose whole job is trust.
+          */}
+          <PageHeader
+            description="A worked example of both pages a pet gets: the profile an owner shares, and the Safety Profile a finder opens to contact them."
+            eyebrow="Sample experience"
+            title="See how Public Share and Safety Profiles work"
+          />
           <SampleExperience />
         </div>
       </section>

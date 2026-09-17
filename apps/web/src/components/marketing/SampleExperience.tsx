@@ -62,7 +62,7 @@ export function SampleExperience() {
                   Public Share Profile
                 </p>
                 <h2 className="mt-2 break-words text-2xl font-black text-pet-ink sm:text-3xl">
-                  {petName}&apos;s mini website
+                  {petName}&apos;s Public Share Profile
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-pet-muted">
                   A warm pet page for family and friends, with approved details,
@@ -113,11 +113,28 @@ export function SampleExperience() {
           className="brand-card flex min-w-0 scroll-mt-28 flex-col overflow-hidden rounded-[2rem]"
           id="safety-profile"
         >
+          {/*
+            A rehearsal of the real page, not a description of it.
+
+            This card used to be a large QR mark above three bullet points about
+            features, which put the way IN to the experience ahead of the
+            experience itself and left the card looking half-empty beside the
+            profile sample. Somebody deciding whether this is worth setting up
+            needs to see what the person holding their lost pet will see: the
+            pet, two obvious ways to reach the owner, where it is, and what to
+            know before approaching it.
+
+            Everything below is sample data. The two contact controls are not
+            links — there is no number here to dial, and a marketing page must
+            not be able to place a real call.
+          */}
           <div className="brand-paw-dots bg-[#e8f3ff] p-6">
-            <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center">
-              <span className="grid h-24 w-24 shrink-0 place-items-center rounded-[2rem] border-4 border-white bg-white text-pet-teal shadow-lg">
-                <Icon name="qr" className="h-10 w-10" />
-              </span>
+            <div className="flex min-w-0 items-center gap-4">
+              <SamplePetPhoto
+                name={petName}
+                species={petSpecies}
+                src={petPhoto}
+              />
               <div className="min-w-0">
                 <p className="text-sm font-bold uppercase text-pet-teal">
                   Safety Profile
@@ -125,33 +142,93 @@ export function SampleExperience() {
                 <h2 className="mt-2 break-words text-2xl font-black text-pet-ink sm:text-3xl">
                   Found {petName}?
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  A contact-focused pet page for finders, with large action
-                  buttons and safe location guidance.
+                <p className="mt-1 text-sm font-semibold text-pet-muted">
+                  {petSpecies} · Sample pet
                 </p>
               </div>
             </div>
           </div>
-          <CardBody
-            icon="shield"
-            items={[
-              "WhatsApp owner, call owner, and found-location actions",
-              "Safety note, emergency note, and general area",
-              "No full owner address shown",
-            ]}
-            tone="text-pet-teal"
-          >
-            <CTAButton
-              ariaLabel={`View ${petName}'s sample Safety Profile`}
-              className="mt-2"
-              fullWidth
-              href={safetyPath}
-              icon="shield"
-              variant="coral"
+
+          <div className="flex min-w-0 flex-1 flex-col gap-4 p-6">
+            <div
+              className="grid gap-2 sm:grid-cols-2"
+              data-testid="sample-safety-contact"
             >
-              View Safety Profile
-            </CTAButton>
-          </CardBody>
+              {/*
+                Buttons, not links. A sample must look like the real controls
+                without being able to act like them.
+              */}
+              <span
+                aria-hidden="true"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#25d366] px-4 text-sm font-black text-white"
+              >
+                <Icon aria-hidden="true" className="h-4 w-4" name="share" />
+                WhatsApp owner
+              </span>
+              <span
+                aria-hidden="true"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-black text-pet-ink"
+              >
+                <Icon aria-hidden="true" className="h-4 w-4" name="qr" />
+                Call owner
+              </span>
+              <span className="sr-only">
+                Sample contact buttons. On a real Safety Profile these reach the
+                owner by WhatsApp or a phone call.
+              </span>
+            </div>
+
+            <dl className="grid gap-3">
+              <div className="rounded-[1.25rem] border border-pet-border bg-pet-cream p-4">
+                <dt className="text-xs font-black uppercase tracking-wide text-pet-muted">
+                  General area
+                </dt>
+                <dd className="mt-1 text-sm font-bold text-pet-ink">
+                  Bangsar, Kuala Lumpur
+                </dd>
+              </div>
+              <div className="rounded-[1.25rem] border border-pet-border bg-pet-cream p-4">
+                <dt className="text-xs font-black uppercase tracking-wide text-pet-muted">
+                  Safety note
+                </dt>
+                <dd className="mt-1 text-sm font-semibold leading-6 text-pet-ink">
+                  {petName} may be nervous around dogs. Approach slowly and
+                  speak quietly.
+                </dd>
+              </div>
+            </dl>
+
+            <div className="rounded-[1.25rem] border border-dashed border-pet-border p-4">
+              <p className="text-sm font-black text-pet-ink">Found this pet?</p>
+              <p className="mt-1 text-sm leading-6 text-pet-muted">
+                A finder can send the general area where they found{" "}
+                {petName}, when the owner switches it on.
+              </p>
+              <span
+                aria-hidden="true"
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-pet-teal px-4 text-sm font-bold text-pet-teal"
+              >
+                Share found location
+              </span>
+            </div>
+
+            <p className="text-xs font-semibold text-pet-muted">
+              Sample details only. A real Safety Profile shows the contact
+              options its owner switched on, and never a home address.
+            </p>
+
+            <div className="mt-auto">
+              <CTAButton
+                ariaLabel={`Open ${petName}'s sample Safety Profile`}
+                fullWidth
+                href={safetyPath}
+                icon="shield"
+                variant="coral"
+              >
+                Open the live Safety Profile sample
+              </CTAButton>
+            </div>
+          </div>
         </article>
       </div>
 
