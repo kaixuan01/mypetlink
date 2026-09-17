@@ -15,8 +15,24 @@ vi.mock("@/services/authService", () => ({
   isOwnerAuthenticated: () => mocks.authed,
 }));
 
+// The structural tests below describe the navigation as it ships once Social is
+// on; the flag-off shape is asserted separately at the end of this file.
+vi.mock("@/lib/features", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/features")>(
+    "@/lib/features"
+  );
+
+  return {
+    ...actual,
+    socialEnabled: true,
+    ownerProductFeatures: { ...actual.ownerProductFeatures, socialEnabled: true },
+  };
+});
+
 const { PublicLayout } = await import("./PublicLayout");
-const { PRIMARY_CTA_LABEL, primaryPublicNav } = await import("./PublicNav");
+const { PRIMARY_CTA_LABEL, primaryPublicNav, productNav } = await import(
+  "./PublicNav"
+);
 
 function renderLayout() {
   return render(
@@ -66,13 +82,68 @@ describe("public navigation structure", () => {
     );
   });
 
-  it("lists the four product destinations in order", () => {
-    expect(primaryPublicNav.slice(0, 4).map((item) => item.label)).toEqual([
-      "How It Works",
+  it("keeps the top level short by grouping the product pages", () => {
+    // Four product pages used to sit at the top level with no hierarchy, which
+    // left Community — a pillar of the product now — nowhere to go that did not
+    // make it six. They are one idea, so they are one menu.
+    expect(productNav.map((item) => item.label)).toEqual([
       "Pet Profiles",
+      "Safety Profile",
       "Smart Tags",
+      "How It Works",
+    ]);
+
+    expect(primaryPublicNav.map((item) => item.label)).toEqual([
+      "Community",
       "Pricing",
     ]);
+  });
+
+  it("puts Community at the top level, pointing at Explore", () => {
+    const community = primaryPublicNav.find(
+      (item) => item.label === "Community"
+    );
+
+    expect(community?.href).toBe("/explore");
+  });
+
+  it("does not promote Search to the navbar", () => {
+    // Search is a tool inside Explore. A navbar link to an empty search box is
+    // a dead end, and "Community, Explore, Search" is three names for one place.
+    for (const item of [...productNav, ...primaryPublicNav]) {
+      expect(item.label).not.toMatch(/search/i);
+      expect(item.href).not.toBe("/search");
+    }
+  });
+
+  it("lists no destination twice across the two tiers", () => {
+    const hrefs = [...productNav, ...primaryPublicNav].map((item) => item.href);
+
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("promotes Community only while Social is switched on", async () => {
+    // Built fresh with the real flag rather than the mock above: a build with
+    // Social off must not put a Community link on the public header, because
+    // the same build tells owners Community is not open yet.
+    vi.resetModules();
+    vi.doMock("@/lib/features", async () => {
+      const actual = await vi.importActual<typeof import("@/lib/features")>(
+        "@/lib/features"
+      );
+      return { ...actual, socialEnabled: false };
+    });
+
+    const off = await import("./PublicNav");
+
+    expect(
+      off.primaryPublicNav.some((item) => item.label === "Community")
+    ).toBe(false);
+    // The product pages are unaffected — only Social promotion is gated.
+    expect(off.productNav.map((item) => item.label)).toContain("Pet Profiles");
+
+    vi.doUnmock("@/lib/features");
+    vi.resetModules();
   });
 
   it("hides Where to Buy while no public purchase channel exists", () => {

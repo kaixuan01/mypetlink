@@ -6,10 +6,12 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import {
   DesktopPublicNav,
   MobilePublicNav,
-  primaryPublicNav,
+  footerProductNav,
 } from "@/components/layouts/PublicNav";
 import { siteConfig } from "@/config/site";
-import { marketingRoutes } from "@/lib/routes";
+import { socialEnabled } from "@/lib/features";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
+import { marketingRoutes, socialRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 
 export function PublicLayout({
@@ -151,14 +153,33 @@ export function PublicLayout({
             Grouped so the footer carries the quieter destinations the header
             no longer needs to. Every link points at a route that exists.
           */}
-          <div className="grid gap-8 sm:grid-cols-3 md:justify-items-end">
+          <div
+            className={`grid gap-8 md:justify-items-end ${socialEnabled ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
+          >
             <FooterColumn
               links={[
-                ...primaryPublicNav,
-                { href: marketingRoutes.sample, label: "Sample Profile" },
+                ...footerProductNav,
+                { href: marketingRoutes.pricing, label: "Pricing" },
+                ...(publicCommerceAvailability.showWhereToBuy
+                  ? [{ href: marketingRoutes.whereToBuy, label: "Where to Buy" }]
+                  : []),
               ]}
               title="Product"
             />
+            {/*
+              Community's own column, and only when there is a Community to
+              point at — a heading with everything but Community under it would
+              be worse than no heading. Explore is the way in; Search lives
+              inside Explore rather than being promoted here.
+            */}
+            {socialEnabled ? (
+              <FooterColumn
+                links={[
+                  { href: socialRoutes.explore, label: "Explore Community" },
+                ]}
+                title="Community"
+              />
+            ) : null}
             <FooterColumn
               links={[
                 { href: `${marketingRoutes.home}#faq`, label: "FAQ" },
