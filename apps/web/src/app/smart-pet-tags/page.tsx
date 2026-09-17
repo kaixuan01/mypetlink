@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { Badge } from "@/components/ui/Badge";
-import { CTAButton } from "@/components/ui/CTAButton";
+import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { smartTagAddOn, smartTagAddOnsStatus } from "@/lib/planLimits";
@@ -94,18 +94,31 @@ export default function SmartPetTagsPage() {
             A finder reaches your Safety Profile in whichever way suits their
             phone, and sees only the contact details you chose to share.
           </p>
+          {/*
+            Says what the tag does not do in the buyer's terms rather than ours.
+            The previous wording appended a roadmap note about tracking, which
+            invites somebody to wait for something rather than telling them what
+            they are buying today.
+          */}
           <p className="mt-5 rounded-[1.25rem] border border-pet-border p-4 text-sm leading-6 text-pet-muted">
-            This tag does not broadcast a pet&apos;s location and is not a GPS
-            tracker. GPS Safety is planned separately for a later phase.
+            This tag does not track your pet&apos;s live location. It helps a
+            finder open your pet&apos;s Safety Profile and contact you quickly.
           </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <CTAButton href={marketingRoutes.pricing}>View Pricing</CTAButton>
-            <CTAButton href={marketingRoutes.howItWorks} variant="secondary">
-              How MyPetLink Works
-            </CTAButton>
-            <CTAButton href={marketingRoutes.petProfile} variant="outline">
-              Start With a Free Profile
-            </CTAButton>
+          {/*
+            One primary action and one way to read further. This ended on three
+            buttons of equal weight — pricing, how it works, and start free —
+            which left no answer to "what do I do now?". Pricing is a click away
+            in the navigation.
+          */}
+          <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+            <CreateProfileCTA>Get Started Free</CreateProfileCTA>
+            <a
+              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
+              href={marketingRoutes.howItWorks}
+            >
+              Learn how it works
+              <Icon aria-hidden="true" className="h-4 w-4 -rotate-90" name="chevron" />
+            </a>
           </div>
         </div>
       </section>

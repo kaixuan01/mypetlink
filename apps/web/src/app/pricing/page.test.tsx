@@ -2,6 +2,7 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { smartTagAddOn } from "@/lib/planLimits";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -40,7 +41,7 @@ describe("PricingPage product hierarchy", () => {
       .closest("article");
 
     expect(nfcCard).toBeTruthy();
-    expect(within(nfcCard!).getByText("RM39.90")).toBeTruthy();
+    expect(within(nfcCard!).getByText(smartTagAddOn.price)).toBeTruthy();
     expect(within(nfcCard!).getByText("One-time purchase")).toBeTruthy();
     expect(within(nfcCard!).getByText("QR scan")).toBeTruthy();
     expect(within(nfcCard!).getByText("NFC tap")).toBeTruthy();

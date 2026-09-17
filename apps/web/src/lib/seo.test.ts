@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { smartTagAddOn } from "@/lib/planLimits";
 import { metadata as homeMetadata } from "@/app/page";
 import { metadata as howItWorksMetadata } from "@/app/how-it-works/page";
 import { metadata as petProfileMetadata } from "@/app/pet-profile/page";
@@ -264,7 +265,7 @@ describe("pricing social metadata", () => {
     };
     const image = openGraph.images?.[0];
     const description =
-      "Create your pet profile for free. Add the QR + NFC Smart Tag for RM39.90 — a one-time purchase.";
+      `Create your pet profile for free. Add the QR + NFC Smart Tag for ${smartTagAddOn.price} — a one-time purchase.`;
     const imageAlt =
       "MyPetLink pricing: free profile and the one-time QR plus NFC smart tag";
 

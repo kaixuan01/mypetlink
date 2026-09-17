@@ -2,6 +2,7 @@ import {
   getCountedPetProfiles as getLifecycleCountedPetProfiles,
   type PetLifecycleLike,
 } from "@/lib/petLifecycle";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 
 export const phase1Positioning =
   "Create a free pet profile first. Add the QR + NFC Smart Tag when you want extra safety. Premium care features are coming soon.";
@@ -85,7 +86,7 @@ export const premiumPlan = {
 export const smartTagAddOn = {
   name: "MyPetLink QR + NFC Smart Tag",
   shortName: "QR + NFC smart tag",
-  price: "RM39.90",
+  price: "RM29.90",
   billingNote: "one-time",
   description:
     "A QR + NFC smart tag where scan and tap open the same Safety Profile.",
@@ -95,15 +96,22 @@ export const smartTagAddOn = {
   ],
 } as const;
 
-// Marketing status for the physical Smart Tag add-on. The tag is not yet
-// available to purchase, so public pages present it as "Coming Soon". This is
-// the single source of truth for the landing and pricing pages so they never
-// disagree on status, price, or copy.
+/**
+ * Marketing status for the physical Smart Tag add-on.
+ *
+ * Derived from the same availability rule that decides whether Where to Buy is
+ * offered, rather than being a second hardcoded string beside it. Those two
+ * could previously disagree: turning ordering on would have published a buying
+ * guide while every other page still said "Coming Soon".
+ */
 export const smartTagAddOnsStatus = {
-  status: "Coming Soon",
+  status: publicCommerceAvailability.onlineOrderingAvailable
+    ? "Available now"
+    : "Coming Soon",
   price: smartTagAddOn.price,
-  shortDescription:
-    "A one-time QR + NFC smart pet tag add-on, coming soon.",
+  shortDescription: publicCommerceAvailability.onlineOrderingAvailable
+    ? "A one-time QR + NFC smart pet tag add-on."
+    : "A one-time QR + NFC smart pet tag add-on, coming soon.",
 } as const;
 
 export const gpsSafety = {
