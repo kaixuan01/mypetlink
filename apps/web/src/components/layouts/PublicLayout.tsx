@@ -7,7 +7,7 @@ import { PublicBrandLink } from "@/components/brand/PublicBrandLink";
 import {
   DesktopPublicNav,
   MobilePublicNav,
-  footerProductNav,
+  productNav,
 } from "@/components/layouts/PublicNav";
 import { siteConfig } from "@/config/site";
 import { socialEnabled } from "@/lib/features";
@@ -148,9 +148,16 @@ export function PublicLayout({
           <div
             className={`grid gap-8 md:justify-items-end ${socialEnabled ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
           >
+            {/*
+              Product is what a pet can have. How It Works and the sample are
+              how somebody learns about it, so they moved to Support — the
+              Product column had grown to seven links by mixing the two.
+            */}
             <FooterColumn
               links={[
-                ...footerProductNav,
+                ...productNav.filter(
+                  (item) => item.href !== marketingRoutes.howItWorks
+                ),
                 { href: marketingRoutes.pricing, label: "Pricing" },
                 ...(publicCommerceAvailability.showWhereToBuy
                   ? [{ href: marketingRoutes.whereToBuy, label: "Where to Buy" }]
@@ -174,6 +181,8 @@ export function PublicLayout({
             ) : null}
             <FooterColumn
               links={[
+                { href: marketingRoutes.howItWorks, label: "How It Works" },
+                { href: marketingRoutes.sample, label: "Sample Profile" },
                 { href: `${marketingRoutes.home}#faq`, label: "FAQ" },
                 { href: `mailto:${siteConfig.supportEmail}`, label: "Contact support" },
               ]}

@@ -95,7 +95,7 @@ export default function TermsPage() {
           <LegalSection
             id="public-pages"
             number={4}
-            title="Public Pet Profiles and Safety Profiles"
+            title="Public Share Profiles and Safety Profiles"
           >
             <LegalBulletList
               items={[

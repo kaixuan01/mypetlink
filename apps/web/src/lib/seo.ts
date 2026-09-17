@@ -224,6 +224,7 @@ export const indexableSitemapEntries = [
   { path: marketingRoutes.howItWorks, lastModified: "2026-07-18" },
   { path: marketingRoutes.smartPetTags, lastModified: "2026-07-18" },
   { path: marketingRoutes.petProfile, lastModified: "2026-07-18" },
+  { path: marketingRoutes.safetyProfile, lastModified: "2026-09-17" },
   { path: marketingRoutes.sample, lastModified: "2026-07-23" },
   // The Community doorway, and the only social path listed. Individual
   // profiles and Moments stay out of the index; see app/explore/page.tsx.

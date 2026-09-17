@@ -284,6 +284,10 @@ export const marketingRoutes = {
   howItWorks: "/how-it-works",
   smartPetTags: "/smart-pet-tags",
   petProfile: "/pet-profile",
+  // The product page for the finder-facing profile. Product navigation used to
+  // point its "Safety Profile" entry at the sample anchor below, which sent
+  // somebody who clicked a product name into a demo gallery instead.
+  safetyProfile: "/safety-profile",
   sample: "/sample",
   // Public buying guide. Reachable by URL today; public discovery is governed
   // by publicCommerceAvailability so every surface follows the same channels.

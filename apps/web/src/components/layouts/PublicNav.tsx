@@ -35,14 +35,14 @@ export type PublicNavItem = { href: string; label: string };
 /**
  * What MyPetLink is, one level down.
  *
- * Safety Profile points at the sample rather than a page of its own because
- * that is where the product explains it — `/pet-profile` covers both pages a
- * pet gets, and the sample is where a visitor can actually look at one. No new
- * route is invented for a menu entry.
+ * Every entry is a product page. Safety Profile used to point at the sample
+ * anchor because no page of its own existed yet, which meant a product label
+ * quietly delivered a demo — the sample is now where that page's closing CTA
+ * goes, which is the one place linking to it is honest.
  */
 export const productNav: PublicNavItem[] = [
   { href: marketingRoutes.petProfile, label: "Pet Profiles" },
-  { href: marketingRoutes.sampleSafetyProfile, label: "Safety Profile" },
+  { href: marketingRoutes.safetyProfile, label: "Safety Profile" },
   { href: marketingRoutes.smartPetTags, label: "Smart Tags" },
   { href: marketingRoutes.howItWorks, label: "How It Works" },
 ];
@@ -64,12 +64,6 @@ export const primaryPublicNav: PublicNavItem[] = [
   ...(publicCommerceAvailability.showWhereToBuy
     ? [{ href: marketingRoutes.whereToBuy, label: "Where to Buy" }]
     : []),
-];
-
-/** Everything the footer lists under Product, in one place. */
-export const footerProductNav: PublicNavItem[] = [
-  ...productNav,
-  { href: marketingRoutes.sample, label: "Sample Profile" },
 ];
 
 /** One label for one action, everywhere on the public site. */
