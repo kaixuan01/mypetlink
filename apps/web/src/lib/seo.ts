@@ -9,7 +9,8 @@ import {
   publicProfileSocialImageSize,
 } from "@/lib/publicProfileSocial";
 import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
-import { marketingRoutes, samplePet } from "@/lib/routes";
+import { socialEnabled } from "@/lib/features";
+import { marketingRoutes, samplePet, socialRoutes } from "@/lib/routes";
 import type { PublicPetProfile } from "@/types";
 
 export const privateRobots: NonNullable<Metadata["robots"]> = {
@@ -224,6 +225,13 @@ export const indexableSitemapEntries = [
   { path: marketingRoutes.smartPetTags, lastModified: "2026-07-18" },
   { path: marketingRoutes.petProfile, lastModified: "2026-07-18" },
   { path: marketingRoutes.sample, lastModified: "2026-07-23" },
+  // The Community doorway, and the only social path listed. Individual
+  // profiles and Moments stay out of the index; see app/explore/page.tsx.
+  // Submitted only when Social is actually on: a build with it off should not
+  // be asking search engines to index a Community it is not offering.
+  ...(socialEnabled
+    ? [{ path: socialRoutes.explore, lastModified: "2026-09-17" }]
+    : []),
   ...(publicCommerceAvailability.showWhereToBuy
     ? [{ path: marketingRoutes.whereToBuy, lastModified: "2026-09-10" }]
     : []),
