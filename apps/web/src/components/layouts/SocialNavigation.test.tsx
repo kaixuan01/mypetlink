@@ -61,16 +61,21 @@ function signIn() {
 
 /** Exercises the two actions that cannot be plain links. */
 function SocialActionsProbe() {
-  const { openCreate, openOwnProfile } = useSocialActions();
+  const { openCreate, closeCreate, composerOpen, openOwnProfile } =
+    useSocialActions();
 
   return (
     <div>
       <button onClick={openCreate} type="button">
         Share a Moment
       </button>
+      <button onClick={closeCreate} type="button">
+        Close composer
+      </button>
       <button onClick={openOwnProfile} type="button">
         My profile
       </button>
+      <p data-testid="composer-state">{composerOpen ? "open" : "closed"}</p>
     </div>
   );
 }
@@ -166,34 +171,43 @@ describe("social phone navigation", () => {
 });
 
 describe("social actions", () => {
-  it("sends an owner with no pets to add one rather than to an empty editor", async () => {
+  it("opens the composer instead of leaving Community", async () => {
     render(<SocialActionsProbe />);
 
     fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/pets/new"));
+    // Share used to be a navigation into the Owner Portal: /pets/new with no
+    // pets, a pet's Moments page with one, /moments with several. All three
+    // dropped somebody out of Community to write something for Community.
+    expect(screen.getByTestId("composer-state").textContent).toBe("open");
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it("opens the editor directly when there is only one pet", async () => {
-    mocks.getPets.mockResolvedValue({ data: [{ id: "pet-1" }] });
+  it("does not navigate anywhere for any number of pets", async () => {
+    for (const pets of [[], [{ id: "pet-1" }], [{ id: "pet-1" }, { id: "pet-2" }]]) {
+      mocks.push.mockClear();
+      mocks.getPets.mockResolvedValue({ data: pets });
 
-    render(<SocialActionsProbe />);
+      const view = render(<SocialActionsProbe />);
+      fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
-
-    await waitFor(() =>
-      expect(mocks.push).toHaveBeenCalledWith("/pets/pet-1/moments/new")
-    );
+      // How many pets there are is the composer's question now, answered
+      // inside the dialog — it is no longer a routing decision.
+      expect(mocks.push).not.toHaveBeenCalled();
+      view.unmount();
+    }
   });
 
-  it("lets an owner with several pets choose first", async () => {
-    mocks.getPets.mockResolvedValue({ data: [{ id: "pet-1" }, { id: "pet-2" }] });
-
+  it("closes again without navigating", () => {
     render(<SocialActionsProbe />);
 
     fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close composer" }));
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/moments"));
+    // Cancel leaves the reader exactly where they were, because they never
+    // went anywhere — no push to /feed, no push back to anything.
+    expect(screen.getByTestId("composer-state").textContent).toBe("closed");
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("opens the owner's own profile inside Community, not the public page", async () => {

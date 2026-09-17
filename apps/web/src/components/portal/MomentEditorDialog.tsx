@@ -80,6 +80,32 @@ type MomentEditorDialogProps = {
    */
   primaryPet?: PetListItem;
   otherPets?: PetListItem[];
+  /**
+   * Lets the caller offer a choice of which pet the Moment is mainly about.
+   *
+   * The Owner Portal never needs this: it opens from a pet's own page, so the
+   * primary subject is already decided by the route. Community Share has no pet
+   * context at all — it is reached from a feed — so it supplies the owner's pets
+   * and handles the choice here rather than in a separate step, which would
+   * mean two dialogs to write one Moment.
+   *
+   * Supplied together or not at all; without both, the selector is not offered
+   * and nothing about the existing flow changes.
+   */
+  primaryPetOptions?: PetListItem[];
+  onPrimaryPetChange?: (petId: string) => void;
+  /**
+   * Wording and width for the surface this editor is opening on.
+   *
+   * The Owner Portal is a management context and says "Add a moment for
+   * Mochi"; Community is a sharing one and says "Share a Moment", because the
+   * nav item somebody just pressed says Share. Same editor, same rules — only
+   * the words around them belong to the place they were opened from.
+   */
+  dialogTitle?: string;
+  dialogDescription?: string;
+  submitLabel?: string;
+  maxWidthClassName?: string;
   initialMoment?: PetMoment;
   submitting: boolean;
   error?: string;
@@ -106,6 +132,12 @@ export function MomentEditorDialog({
   petName,
   primaryPet,
   otherPets = [],
+  primaryPetOptions,
+  onPrimaryPetChange,
+  dialogTitle: dialogTitleOverride,
+  dialogDescription,
+  submitLabel,
+  maxWidthClassName,
   initialMoment,
   submitting,
   error,
@@ -186,16 +218,23 @@ export function MomentEditorDialog({
     });
   }
 
-  const dialogTitle = mode === "create" ? `Add a moment for ${petName}` : "Update this memory";
+  const dialogTitle =
+    dialogTitleOverride ??
+    (mode === "create" ? `Add a moment for ${petName}` : "Update this memory");
   const formId = `moment-editor-${mode}-form`;
-  const primaryLabel = mode === "create" ? "Add Moment" : "Save Changes";
+  const primaryLabel =
+    submitLabel ?? (mode === "create" ? "Add Moment" : "Save Changes");
 
   return (
     <FormDialog
       cancelAction={{ disabled: submitting, label: "Cancel" }}
       closeLabel="Close moment editor"
-      description="Add the details once, then choose where this memory appears."
-      eyebrow={mode === "create" ? "Add Moment" : "Edit Moment"}
+      description={
+        dialogDescription ??
+        "Add the details once, then choose where this memory appears."
+      }
+      eyebrow={dialogTitleOverride ? undefined : mode === "create" ? "Add Moment" : "Edit Moment"}
+      maxWidthClassName={maxWidthClassName}
       onRequestClose={onRequestClose}
       open
       primaryAction={{
@@ -218,6 +257,30 @@ export function MomentEditorDialog({
                 <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]" role="alert">
                   {error}
                 </div>
+              ) : null}
+
+              {primaryPetOptions && onPrimaryPetChange ? (
+                /*
+                  Which pet this Moment is mainly about. First, because it is
+                  the one answer everything else hangs off — the additional
+                  subjects below are "who else was there", and that question
+                  makes no sense until this one is settled.
+                */
+                <Field label="Pet">
+                  <select
+                    className="brand-input brand-select"
+                    data-testid="moment-primary-pet"
+                    disabled={submitting}
+                    onChange={(event) => onPrimaryPetChange(event.target.value)}
+                    value={primaryPet?.id ?? ""}
+                  >
+                    {primaryPetOptions.map((pet) => (
+                      <option key={pet.id} value={pet.id}>
+                        {pet.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
               ) : null}
 
               <div className="grid gap-4 md:grid-cols-2">

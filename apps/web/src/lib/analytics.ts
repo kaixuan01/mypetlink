@@ -113,7 +113,7 @@ type AnalyticsPayloads = {
   pet_create_started: { source: "owner_portal" };
   pet_created: { source: "owner_portal" };
   public_profile_viewed: { surface: "public_profile" };
-  moment_created: { source: "owner_portal" };
+  moment_created: { source: "owner_portal" | "community" };
   share_clicked: { surface: "public_profile" | "owner_portal" };
   share_link_copied: { surface: "public_profile" | "owner_portal" };
   care_record_created: {

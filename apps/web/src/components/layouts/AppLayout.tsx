@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { SocialBottomNav } from "@/components/layouts/SocialBottomNav";
+import { CommunityMomentComposer } from "@/components/social/CommunityMomentComposer";
 import { OwnerKeyboardViewport } from "@/components/layouts/OwnerKeyboardViewport";
 import {
   OwnerHeaderActionsProvider,
@@ -71,9 +72,21 @@ export function AppLayout({
   const pathname = usePathname();
   const mode = getAppMode(pathname);
   const socialActions = useSocialActions();
+
   const socialActiveId = getActiveSocialNavItemId(pathname);
   const unreadActivity = useUnreadActivity(socialNavItems.length > 0);
   const router = useRouter();
+
+  /*
+    A new Moment changes what the surface underneath should show, and the
+    surfaces fetch their own data on mount. Refreshing the current route asks
+    them to do that again without a full reload and without moving anybody:
+    Home may gain the Moment, a profile gains it, and Explore is left to its own
+    discovery rules rather than having private content pushed into it.
+  */
+  const refreshAfterMomentShared = useCallback(() => {
+    router.refresh();
+  }, [router]);
   const collapsed = useSyncExternalStore(
     subscribeSidebarCollapsed,
     getSidebarCollapsed,
@@ -276,6 +289,20 @@ export function AppLayout({
         ) : (
           <MobileBottomNav />
         )}
+
+        {/*
+          Mounted by the shell, not by a page, so Share opens the same composer
+          from Home, Explore, Activity, a profile or a Moment — and closing it
+          leaves the reader exactly where they were, because they never went
+          anywhere. It covers the phone bar rather than sitting under it: the
+          dialog is above the bar's layer and marks the page behind it inert.
+        */}
+        {socialActions.composerOpen ? (
+          <CommunityMomentComposer
+            onClose={socialActions.closeCreate}
+            onCreated={refreshAfterMomentShared}
+          />
+        ) : null}
         </div>
       </OwnerHeaderActionsProvider>
     </AuthGuard>

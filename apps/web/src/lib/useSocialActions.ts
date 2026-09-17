@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { ownerRoutes, socialRoutes } from "@/lib/routes";
-import { getPets } from "@/services/petService";
 
 /**
  * The two navigation actions that cannot be a plain link.
@@ -16,40 +15,28 @@ import { getPets } from "@/services/petService";
  */
 export function useSocialActions() {
   const router = useRouter();
-  const [resolving, setResolving] = useState<"create" | "profile" | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   /**
    * Share a Moment.
    *
-   * With no pets there is nothing to write a Moment about, so the honest
-   * destination is adding one — not an editor with an empty pet picker. With
-   * one pet it opens that pet's editor directly; with several it opens Moments,
-   * where the pet is chosen first and the editor's own multi-pet selector takes
-   * over from there.
+   * This used to be a navigation. It fetched the owner's pets and pushed them
+   * into the Owner Portal — a pet's Moments page with one, the Moments index
+   * with several, Add a pet with none — which meant pressing Share in a feed
+   * dropped somebody out of Community and left them to find the way back. The
+   * two contexts are different products: Community Share is writing something,
+   * My Pets → Moments is managing an archive.
+   *
+   * It opens the composer in place instead, and the composer resolves the pets
+   * itself. Nothing here needs the server any more, so nothing here waits.
    */
-  const openCreate = useCallback(async () => {
-    setResolving("create");
+  const openCreate = useCallback(() => {
+    setComposerOpen(true);
+  }, []);
 
-    try {
-      const response = await getPets();
-      const pets = response.data ?? [];
-
-      if (pets.length === 0) {
-        router.push(ownerRoutes.petNew);
-        return;
-      }
-
-      router.push(
-        pets.length === 1
-          ? ownerRoutes.petMomentNew(pets[0].id)
-          : ownerRoutes.moments
-      );
-    } catch {
-      router.push(ownerRoutes.moments);
-    } finally {
-      setResolving(null);
-    }
-  }, [router]);
+  const closeCreate = useCallback(() => {
+    setComposerOpen(false);
+  }, []);
 
   /**
    * My profile.
@@ -83,9 +70,10 @@ export function useSocialActions() {
 
   return {
     openCreate,
+    closeCreate,
+    composerOpen,
     openOwnProfile,
     signInFor,
-    resolving,
     socialHome: socialRoutes.feed,
   };
 }
