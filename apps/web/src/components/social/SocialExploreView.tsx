@@ -115,11 +115,33 @@ export function SocialExploreView() {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-3xl pt-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
+    /*
+      Explore is a browsing page, so it gets a browsing page's width. It used to
+      cap itself at max-w-3xl — 768px — which is a reading measure, and inside
+      the ~1230px the shell actually offers that left 460px of nothing down both
+      sides while the suggestion cards squeezed into 248px columns. The wide
+      container is the page; the narrow column below is only for the Moments,
+      which are the one thing here that is genuinely read rather than scanned.
+    */
+    <div className="mx-auto w-full max-w-5xl pt-6">
+      {/*
+        Title and controls on one line from `sm` up, so the three things that
+        steer this page read as one toolbar instead of three left-aligned rows
+        with a filter drifting underneath. On a phone the filter drops to its
+        own row, because a species name and a Search button will not share 358px
+        without one of them truncating.
+      */}
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">
           Explore pets
         </h1>
+
+        <div className="order-3 flex w-full items-center gap-2 sm:order-none sm:w-auto">
+          <SpeciesFilterSelect
+            onChange={setSpecies}
+            options={options}
+            value={species}
+          />
         {/*
           A button, not a link to /search: from Explore this opens search over
           the page somebody is already reading. The route still exists for a
@@ -134,23 +156,24 @@ export function SocialExploreView() {
           <Icon aria-hidden="true" className="h-4 w-4" name="search" />
           Search
         </button>
+        </div>
       </header>
 
       {/*
-        One control instead of a chip per species. The row was built from
-        whichever species actually have discoverable pets, so it grew with the
-        product — twenty-one are supported — and wrapped onto several lines on a
-        phone before anybody reached a pet.
+        A container, so the suggestions count columns against the room they have
+        rather than against the window. The two shells do not offer the same
+        canvas: at a 1024px window an anonymous visitor has about 960px here,
+        while a signed-in owner has about 670 once the 288px sidebar is taken
+        out. Keyed to the viewport, the same "lg" rule would put three columns
+        into both — 312px each in one and 216px each in the other, which is
+        narrow enough to flip the cards back into the tall tiles this whole pass
+        is removing.
       */}
-      <div className="mt-4">
-        <SpeciesFilterSelect
-          onChange={setSpecies}
-          options={options}
-          value={species}
-        />
-      </div>
-
-      <section aria-labelledby="suggested-pets" className="mt-6">
+      <section
+        aria-labelledby="suggested-pets"
+        className="@container mt-6"
+        data-testid="suggested-pets-section"
+      >
         <h2 className="text-lg font-black text-pet-ink" id="suggested-pets">
           Suggested pets
         </h2>
@@ -164,8 +187,20 @@ export function SocialExploreView() {
         </p>
 
         {pets.length > 0 ? (
+          /*
+            Columns follow how many suggestions there actually are, capped at
+            three. A lone suggestion laid into a three-column grid is a 333px
+            card with 690px of nothing beside it, which reads as a page that
+            failed to load rather than a page with one thing to show; given the
+            row to itself it is simply a card, and the measure stops it growing
+            into a banner.
+          */
           <ul
-            className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
+            className={`mt-4 grid gap-3 ${
+              pets.length === 1
+                ? "max-w-xl grid-cols-1"
+                : "grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-3"
+            }`}
             data-testid="explore-pets"
           >
             {pets.map((pet) => (
@@ -194,10 +229,15 @@ export function SocialExploreView() {
             </p>
           </div>
         ) : (
-          <div aria-busy="true" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="h-28 animate-pulse rounded-[1.5rem] bg-white sm:h-64" />
-            <div className="hidden h-64 animate-pulse rounded-[1.5rem] bg-white sm:block" />
-            <div className="hidden h-64 animate-pulse rounded-[1.5rem] bg-white sm:block" />
+          // Row-shaped, like the cards that replace it, so the section does not
+          // collapse from three tall blocks into three short ones on arrival.
+          <div
+            aria-busy="true"
+            className="mt-4 grid grid-cols-1 gap-3 @2xl:grid-cols-2 @4xl:grid-cols-3"
+          >
+            <div className="h-36 animate-pulse rounded-[1.5rem] bg-white" />
+            <div className="hidden h-36 animate-pulse rounded-[1.5rem] bg-white @2xl:block" />
+            <div className="hidden h-36 animate-pulse rounded-[1.5rem] bg-white @4xl:block" />
           </div>
         )}
       </section>

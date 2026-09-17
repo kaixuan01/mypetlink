@@ -222,8 +222,10 @@ describe("Explore keeps its own data and its own telemetry", () => {
     expect(explore).toContain('className="mx-auto mt-10 w-full max-w-xl"');
     expect(read("components/social/SocialFeedView.tsx")).toContain("max-w-xl");
 
-    // The pets above keep the wider page: a row of three is a different job.
-    expect(explore).toContain('className="mx-auto w-full max-w-3xl pt-6"');
+    // The pets above keep the wider page: a row of three is a different job,
+    // and that page has since widened again to a browsing measure so the
+    // suggestions stop standing in a field of empty.
+    expect(explore).toContain('className="mx-auto w-full max-w-5xl pt-6"');
   });
 
   it("does not fetch a whole page of Moments' media at once", () => {

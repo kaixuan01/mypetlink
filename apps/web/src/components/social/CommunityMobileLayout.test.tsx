@@ -134,15 +134,20 @@ describe("Explore's own lists", () => {
   const explore = read("components/social/SocialExploreView.tsx");
 
   it("stacks suggestions one per row on a phone", () => {
-    expect(explore).toContain('className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"');
+    // Columns are counted against the section's own width now, not the
+    // window's, because the signed-in shell takes 288px of the window for its
+    // sidebar and a viewport rule cannot tell the two canvases apart. A phone
+    // is below every threshold either way, so it stays one per row.
+    expect(explore).toContain("grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-3");
   });
 
   it("holds placeholders in the shape the real cards arrive in", () => {
     // A two-column placeholder collapsing into one column of rows is a visible
     // reflow the moment the data lands.
     expect(explore).toContain(
-      'aria-busy="true" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"'
+      'className="mt-4 grid grid-cols-1 gap-3 @2xl:grid-cols-2 @4xl:grid-cols-3"'
     );
+    expect(explore).toContain('aria-busy="true"');
   });
 
   it("explains what following does without claiming the pet is followed", () => {
@@ -154,28 +159,34 @@ describe("Explore's own lists", () => {
 });
 
 describe("a suggested pet", () => {
-  it("is a row on a phone and a tile once there is room", () => {
+  it("is a row where there is width and a tile where there is not", () => {
     renderPet();
 
     const card = screen.getByTestId("social-pet-card");
 
+    // Keyed to the card's own container rather than the window. The feed's
+    // shelf gives it about 184px, where a row cannot hold a photo and a handle
+    // side by side; Explore's grid gives it about 333px, where the tile shape
+    // stretches a 4:5 photo into a poster. Both are "desktop" to a viewport
+    // rule, which is how Explore ended up with 248x456 tiles.
+    expect(card.parentElement?.className).toContain("@container");
     expect(card.className).toContain("flex");
-    expect(card.className).toContain("sm:flex-col");
+    expect(card.className).toContain("@max-[15rem]:flex-col");
     // Padding moves from the card to the text column when it becomes a tile.
     expect(card.className).toContain("p-3");
-    expect(card.className).toContain("sm:p-0");
+    expect(card.className).toContain("@max-[15rem]:p-0");
   });
 
   it("keeps its photo small enough to stay metadata", () => {
     const { container } = renderPet();
     const frame = container.querySelector("span.relative");
 
-    // A fixed 80px square on a phone; the 4:5 tile crop only once it is a tile.
+    // A fixed 80px square in the row; the 4:5 crop only in the narrow tile.
     expect(frame?.className).toContain("h-20");
     expect(frame?.className).toContain("w-20");
-    expect(frame?.className).toContain("sm:aspect-[4/5]");
+    expect(frame?.className).toContain("@max-[15rem]:aspect-[4/5]");
     // And it never gives that square up to the identity beside it.
-    expect(frame?.parentElement?.className).toContain("shrink-0");
+    expect(frame?.className).toContain("shrink-0");
   });
 
   it("gives the handle the width to be read", () => {
@@ -202,7 +213,9 @@ describe("a suggested pet", () => {
     expect(follow.textContent).not.toContain("@");
     // Pushed to the end of the row so the identity keeps the width it needs.
     expect(follow.closest("div")?.className).toContain("justify-end");
-    expect(follow.closest("div")?.className).toContain("sm:justify-start");
+    expect(follow.closest("div")?.className).toContain(
+      "@max-[15rem]:justify-start"
+    );
   });
 
   it("still names the household the control acts on", () => {

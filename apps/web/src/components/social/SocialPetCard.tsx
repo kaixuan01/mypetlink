@@ -54,12 +54,30 @@ export function SocialPetCard({
   };
 
   return (
-    <article
-      className="brand-card flex min-w-0 gap-3 overflow-hidden rounded-[1.5rem] p-3 sm:flex-col sm:gap-0 sm:p-0"
-      data-testid="social-pet-card"
-    >
-      <Link className="block shrink-0 sm:w-full" href={`/p/${pet.publicSlug}`}>
-        <span className="relative block h-20 w-20 overflow-hidden rounded-[1rem] bg-pet-apricot sm:aspect-[4/5] sm:h-auto sm:w-full sm:rounded-none">
+    /*
+      The card follows the width it is given, not the width of the window.
+
+      It has two shapes: a row, photo beside the identity, and a column with a
+      tall photo above it. Which one is right depends entirely on how much room
+      this card has — and two callers give it very different amounts. The feed's
+      suggestion shelf is three cards inside a 576px column, about 184px each,
+      where a row cannot fit a photo and a handle side by side. Explore's
+      discovery grid is three cards across a thousand, about 330px each, where
+      the column shape stretches a 4:5 photo to 400px tall and turns a
+      suggestion into a poster.
+
+      Keyed to the viewport, those two cases are indistinguishable — both are
+      "desktop" — which is why Explore ended up with 248x456 tiles standing in a
+      1232px canvas. Keyed to the container, each one simply gets the shape that
+      fits.
+    */
+    <div className="@container">
+      <article
+        className="brand-card flex min-w-0 gap-3 overflow-hidden rounded-[1.5rem] p-3 @max-[15rem]:flex-col @max-[15rem]:gap-0 @max-[15rem]:p-0"
+        data-testid="social-pet-card"
+      >
+      <Link className="block shrink-0 @max-[15rem]:w-full" href={`/p/${pet.publicSlug}`}>
+        <span className="relative block h-20 w-20 shrink-0 overflow-hidden rounded-[1rem] bg-pet-apricot @max-[15rem]:aspect-[4/5] @max-[15rem]:h-auto @max-[15rem]:w-full @max-[15rem]:rounded-none">
           {pet.photoThumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -70,19 +88,19 @@ export function SocialPetCard({
             />
           ) : (
             <span className="grid h-full w-full place-items-center text-pet-ink/40">
-              <Icon aria-hidden="true" className="h-8 w-8 sm:h-10 sm:w-10" name="paw" />
+              <Icon aria-hidden="true" className="h-8 w-8 @max-[15rem]:h-10 @max-[15rem]:w-10" name="paw" />
             </span>
           )}
 
           {pet.lostModeEnabled ? (
-            <span className="absolute left-1 top-1 rounded-full bg-pet-coral px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-white sm:left-2 sm:top-2 sm:px-2 sm:text-[11px]">
+            <span className="absolute left-1 top-1 rounded-full bg-pet-coral px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-white @max-[15rem]:left-2 @max-[15rem]:top-2 @max-[15rem]:px-2 @max-[15rem]:text-[11px]">
               Missing
             </span>
           ) : null}
         </span>
       </Link>
 
-      <div className="flex min-w-0 flex-1 flex-col sm:p-3">
+      <div className="flex min-w-0 flex-1 flex-col @max-[15rem]:p-3">
         <Link className="min-w-0" href={`/p/${pet.publicSlug}`}>
           <span className="block truncate text-base font-black text-pet-ink">
             {pet.name}
@@ -103,7 +121,7 @@ export function SocialPetCard({
             there is width for it; in the narrow tile there never was. The link
             carries vertical padding so its hit area clears the 24px minimum
             without changing how it looks. */}
-        <p className="mt-1 min-w-0 text-xs font-bold text-pet-muted sm:mt-2">
+        <p className="mt-1 min-w-0 text-xs font-bold text-pet-muted @max-[15rem]:mt-2">
           <Link
             className="block truncate py-1 transition hover:text-pet-ink"
             href={`/u/${pet.owner.handle.toLowerCase()}`}
@@ -117,7 +135,7 @@ export function SocialPetCard({
             the target unambiguous, not the label alone. It sits at the end of
             the row on a phone so it never competes with the identity for the
             width that identity needs. */}
-        <div className="mt-1 flex justify-end sm:mt-2 sm:justify-start">
+        <div className="mt-2 flex justify-end @max-[15rem]:mt-2 @max-[15rem]:justify-start">
           <FollowButton
             analyticsSource={analyticsSource}
             displayName={pet.owner.displayName}
@@ -129,7 +147,8 @@ export function SocialPetCard({
             signedIn={signedIn}
           />
         </div>
-      </div>
-    </article>
+        </div>
+      </article>
+    </div>
   );
 }
