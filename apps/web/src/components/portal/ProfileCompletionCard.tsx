@@ -178,7 +178,7 @@ export function ProfileCompletionCard({
             rel="noopener noreferrer"
             target="_blank"
           >
-            View Public Profile
+            View Share Profile
           </Link>
         </div>
       ) : null}

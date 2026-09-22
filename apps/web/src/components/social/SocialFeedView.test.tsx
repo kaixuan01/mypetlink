@@ -223,7 +223,7 @@ describe("SocialFeedView", () => {
 
     expect(onboarding.textContent).toContain("Welcome to your feed");
     expect(
-      within(onboarding).getByRole("link", { name: /explore pets/i }).getAttribute("href")
+      within(onboarding).getByRole("link", { name: /explore/i }).getAttribute("href")
     ).toBe("/explore");
 
     // Not "all caught up": there is nothing to be caught up with.

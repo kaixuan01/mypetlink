@@ -25,7 +25,7 @@ type PetSocialSettingsListProps = {
  * owner who is happy with the first is not necessarily happy with the second.
  *
  * Nothing here switches anything on by itself, and nothing here reaches outside
- * Social: a pet's Public Profile, its Safety Profile, its contact details and
+ * Social: a pet's Share Profile, its Safety Profile, its contact details and
  * its Smart Tag are all somewhere else and stay exactly as they were.
  */
 export function PetSocialSettingsList({
@@ -161,8 +161,7 @@ export function PetSocialSettingsList({
           className="rounded-2xl bg-pet-surface px-4 py-3 text-sm font-semibold text-pet-muted"
           data-testid="pet-social-master-off"
         >
-          Turn on your social profile above to share pets with the MyPetLink
-          community. We&apos;ll remember the choices you make here.
+          Turn on your Community Profile above to share pets in Community. We&apos;ll remember the choices you make here.
         </p>
       ) : null}
 
@@ -215,13 +214,13 @@ export function PetSocialSettingsList({
               }
               helperText={
                 blockedByLifecycle
-                  ? `Only an active pet can be shared on MyPetLink Social.`
+                  ? `Only an active pet can be shared in Community.`
                   : blockedByPublicProfile
-                    ? `Turn on ${pet.name}'s Public Profile first, on their profile page.`
-                    : `Show ${pet.name} on your social profile and in the Moments you share.`
+                    ? `Turn on ${pet.name}'s Share Profile first, on their profile page.`
+                    : `Show ${pet.name} on your Community Profile and in the Moments you share.`
               }
               id={`pet-social-enabled-${pet.petId}`}
-              label={`Show ${pet.name} on MyPetLink Social`}
+              label={`Show ${pet.name} in Community`}
               onChange={(checked) => void save(pet, { isSocialEnabled: checked })}
             />
 
@@ -232,7 +231,7 @@ export function PetSocialSettingsList({
               helperText={
                 pet.isSocialEnabled
                   ? `Let people who don't have your link find ${pet.name} when they browse or search.`
-                  : `Available once ${pet.name} is shared on MyPetLink Social.`
+                  : `Available once ${pet.name} is shared in Community.`
               }
               id={`pet-social-discoverable-${pet.petId}`}
               label={`Let people find ${pet.name} when browsing`}

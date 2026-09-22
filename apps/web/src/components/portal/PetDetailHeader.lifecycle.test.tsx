@@ -39,7 +39,7 @@ it("lets the Archived badge carry state while retention copy adds new informatio
 
   render(<PetDetailHeader pet={archived} petOrders={[]} tags={[]} />);
 
-  expect(await screen.findByText("Memories and records stay saved.")).toBeTruthy();
+  expect(await screen.findByText("Moments and records stay saved.")).toBeTruthy();
   expect(screen.getByText("Archived")).toBeTruthy();
   expect(screen.queryByText(/This pet profile is archived/i)).toBeNull();
   expect(screen.queryByText(/Archived profiles are hidden/i)).toBeNull();

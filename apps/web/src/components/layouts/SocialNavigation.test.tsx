@@ -289,7 +289,9 @@ describe("the public social shell", () => {
     expect(
       screen.getByRole("link", { name: "Sign in" }).getAttribute("href")
     ).toBe("/login?redirect=%2Fexplore");
-    expect(screen.getByRole("link", { name: /get started/i })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /create free pet profile/i })
+    ).toBeTruthy();
 
     // Nothing from the owner portal is mentioned to somebody who cannot use it.
     await waitFor(() =>
@@ -314,6 +316,8 @@ describe("the public social shell", () => {
     await waitFor(() =>
       expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull()
     );
-    expect(screen.queryByRole("link", { name: /get started/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /create free pet profile/i })
+    ).toBeNull();
   });
 });

@@ -37,8 +37,8 @@ Never hand-write them.
 > Terminology and how these surfaces relate:
 > [`product-model.md`](../../../docs/architecture/product-model.md) is canonical.
 > `/p/` is the **Share Profile**; "Pet Profile" is the umbrella concept, not this
-> page. Owner-portal buttons still say "View / Preview Public Profile" — that is
-> tracked terminology debt, not a second concept.
+> page. The owner portal names it the same way — "View Share Profile",
+> "Share Profile enabled" — so there is one name to search for.
 
 ---
 

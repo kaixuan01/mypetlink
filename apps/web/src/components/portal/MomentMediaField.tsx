@@ -130,7 +130,7 @@ export function MomentMediaField({
         </span>
       </div>
       <p className="text-xs leading-5 text-pet-muted">
-        Add photos or videos that tell this memory. The first item will be used
+        Add photos or videos that tell this Moment. The first item will be used
         as the cover.
       </p>
 
@@ -246,7 +246,7 @@ export function MomentMediaField({
 
       {isFull ? (
         <p className="text-xs font-semibold text-pet-muted">
-          You&apos;ve reached the {max} media limit for this memory.
+          You&apos;ve reached the {max} media limit for this Moment.
         </p>
       ) : null}
       {error ? (

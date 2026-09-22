@@ -128,7 +128,7 @@ describe("Share Pet Card native sharing", () => {
 
     await waitFor(() => expect(mocks.share).toHaveBeenCalledTimes(1));
     expect(mocks.share.mock.calls[0][0].text).not.toContain(
-      "memories, and important safety information"
+      "Moments, and important safety information"
     );
   });
 

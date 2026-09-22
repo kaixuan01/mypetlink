@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PublicBrandLink } from "@/components/brand/PublicBrandLink";
-import { CTAButton } from "@/components/ui/CTAButton";
+import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { socialEnabled } from "@/lib/features";
 import { ownerRoutes, socialRoutes } from "@/lib/routes";
@@ -145,7 +145,7 @@ function PublicSocialHeader() {
           >
             Sign in
           </Link>
-          <CTAButton href="/pets/new">Get started</CTAButton>
+          <CreateProfileCTA />
         </div>
       </div>
     </header>

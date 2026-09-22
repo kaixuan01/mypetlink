@@ -48,7 +48,7 @@ const filters: AdminFilterDef[] = [
     { value: "true", label: "On" }, { value: "false", label: "Off" },
   ] },
   { type: "select", key: "petType", label: "Pet Type", options: PET_TYPE_OPTIONS.map((value) => ({ value, label: value })) },
-  { type: "select", key: "publicProfile", label: "Public Profile", options: [
+  { type: "select", key: "publicProfile", label: "Share Profile", options: [
     { value: "accessible", label: "Accessible" },
     { value: "unavailable", label: "Unavailable" },
     { value: "setup-issue", label: "Setup issue" },
@@ -248,7 +248,7 @@ export function AdminPetsManager() {
     if (pet.publicProfileAccessible && pet.publicSlug && pet.publicCode) {
       const path = publicProfilePath(pet.publicSlug, pet.publicCode);
       list.push(
-        { label: "Open Public Share Profile", href: path, external: true },
+        { label: "Open Share Profile", href: path, external: true },
         { label: "Copy public link", onSelect: () => void copyLink(path, "Public profile link") }
       );
     }
@@ -280,7 +280,7 @@ export function AdminPetsManager() {
     },
     { id: "owner", header: "Owner", sortId: "owner", cell: (pet) => <Link className="font-bold text-slate-800 hover:underline" href={adminRoutes.owner(pet.ownerId)}>{pet.ownerName}<span className="block text-xs font-semibold text-slate-500">{pet.ownerEmail || "—"}</span></Link> },
     { id: "type", header: "Type / Breed", sortId: "petType", cell: (pet) => <span className="whitespace-nowrap">{pet.customSpecies || pet.species}{pet.breed ? ` · ${pet.breed}` : ""}</span> },
-    { id: "publicProfile", header: "Public Profile", cell: (pet) => <RouteBadge accessible={pet.publicProfileAccessible} issue={pet.publicProfileSetupIssue} /> },
+    { id: "publicProfile", header: "Share Profile", cell: (pet) => <RouteBadge accessible={pet.publicProfileAccessible} issue={pet.publicProfileSetupIssue} /> },
     { id: "qrSafety", header: "Safety Profile", cell: (pet) => <RouteBadge accessible={pet.qrSafetyAccessible} issue={pet.qrSafetySetupIssue} /> },
     { id: "tags", header: "Smart Tags", sortId: "smartTagCount", cell: (pet) => pet.totalSmartTagCount === 0 ? <Badge tone="soft">No physical tag</Badge> : <div className="whitespace-nowrap"><Badge tone={pet.activeSmartTagCount > 0 ? "mint" : "soft"}>{pet.activeSmartTagCount > 0 ? `${pet.activeSmartTagCount} active` : "No active tags"}</Badge><p className="mt-1 text-xs font-semibold text-slate-400">{pet.totalSmartTagCount} linked</p></div> },
     { id: "lifecycle", header: "Lifecycle", sortId: "lifecycle", cell: (pet) => <Badge tone={lifecycleTone[pet.lifecycle]}>{pet.lifecycle}</Badge> },

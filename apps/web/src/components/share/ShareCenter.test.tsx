@@ -113,7 +113,7 @@ describe("ShareCenter", () => {
     ).toBeTruthy();
 
     // Everything rarer stays one level down.
-    expect(screen.queryByText("Download Public Profile QR")).toBeNull();
+    expect(screen.queryByText("Download Share Profile QR")).toBeNull();
     expect(screen.queryByText("Copy Safety Profile Link")).toBeNull();
   });
 
@@ -164,7 +164,7 @@ describe("ShareCenter", () => {
     openCenter(pet);
 
     fireEvent.click(screen.getByRole("button", { name: /Show Profile QR/ }));
-    const publicQr = screen.getByText(`${pet.name}'s Public Profile`);
+    const publicQr = screen.getByText(`${pet.name}'s Share Profile`);
     expect(publicQr.getAttribute("data-target")).toBe(pet.publicProfilePath);
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
@@ -187,7 +187,7 @@ describe("ShareCenter", () => {
     expect(screen.getByText("Safety Profile")).toBeTruthy();
     expect(screen.getByText(`For someone who finds ${pet.name}.`)).toBeTruthy();
     expect(screen.getByText("Copy Safety Profile Link")).toBeTruthy();
-    expect(screen.getByText("Download Public Profile QR")).toBeTruthy();
+    expect(screen.getByText("Download Share Profile QR")).toBeTruthy();
   });
 
   it("hides the Safety Profile options while that experience is off", () => {
@@ -198,7 +198,7 @@ describe("ShareCenter", () => {
     fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
 
     expect(screen.queryByText("Copy Safety Profile Link")).toBeNull();
-    expect(screen.getByText("Download Public Profile QR")).toBeTruthy();
+    expect(screen.getByText("Download Share Profile QR")).toBeTruthy();
   });
 
   it("explains when there is nothing public to share yet", () => {
@@ -207,7 +207,7 @@ describe("ShareCenter", () => {
 
     expect(
       screen.getByText(
-        `${pet.name}'s public profile is switched off, so there is nothing to share yet.`
+        `${pet.name}'s Share Profile is switched off, so there is nothing to share yet.`
       )
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Copy Profile Link/ })).toBeNull();
@@ -242,7 +242,7 @@ describe("ShareCenter", () => {
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
     expect(share).toHaveBeenCalledWith({
       title: `Meet ${pet.name} | MyPetLink`,
-      text: `View ${pet.name}'s public profile, memories, and important safety information.`,
+      text: `View ${pet.name}'s Share Profile, Moments, and important safety information.`,
       url: expect.stringContaining(pet.publicProfilePath),
     });
     // The shareable profile address, never the social preview image.
@@ -297,7 +297,7 @@ describe("ShareCenter", () => {
     expect(
       screen.queryByRole("button", { name: /Share with another app/ })
     ).toBeNull();
-    expect(screen.getByText("Download Public Profile QR")).toBeTruthy();
+    expect(screen.getByText("Download Share Profile QR")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
@@ -384,12 +384,12 @@ describe("ShareCenter", () => {
     openCenter(pet);
 
     fireEvent.click(screen.getByRole("button", { name: /Show Profile QR/ }));
-    expect(screen.getByText(`${pet.name}'s Public Profile`)).toBeTruthy();
+    expect(screen.getByText(`${pet.name}'s Share Profile`)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Close share options" }));
     fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
 
     expect(screen.getByText("Share Pet Card")).toBeTruthy();
-    expect(screen.queryByText(`${pet.name}'s Public Profile`)).toBeNull();
+    expect(screen.queryByText(`${pet.name}'s Share Profile`)).toBeNull();
   });
 });

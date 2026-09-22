@@ -115,11 +115,11 @@ describe("PetProfileForm Sharing and Contact mobile UX", () => {
     await openTab(/Sharing & Privacy/);
 
     const publicProfile = screen.getByRole("switch", {
-      name: "Public Profile enabled",
+      name: "Share Profile enabled",
     });
     const checkboxNames = [
-      "Show care history on Public Profile",
-      "Show public memories",
+      "Show care history on Share Profile",
+      "Show Moments on Share Profile",
       "Show Life Timeline",
       "Show birthday in Life Timeline",
     ];
@@ -184,26 +184,26 @@ describe("PetProfileForm Sharing and Contact mobile UX", () => {
       name: /^Use different contact details for this pet/,
     });
 
-    expect(screen.getByRole("textbox", { name: "Owner display name" })).toHaveProperty(
+    expect(screen.getByRole("textbox", { name: "Name finders see" })).toHaveProperty(
       "value",
       "Pet contact"
     );
     fireEvent.click(ownerDefaults);
-    expect(screen.queryByRole("textbox", { name: "Owner display name" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Name finders see" })).toBeNull();
     expect(screen.getByText("Account owner")).toBeTruthy();
 
     fireEvent.click(petSpecific);
-    expect(screen.getByRole("textbox", { name: "Owner display name" })).toHaveProperty(
+    expect(screen.getByRole("textbox", { name: "Name finders see" })).toHaveProperty(
       "value",
       "Account owner"
     );
-    fireEvent.change(screen.getByRole("textbox", { name: "Owner display name" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Name finders see" }), {
       target: { value: "Edited pet contact" },
     });
     fireEvent.click(ownerDefaults);
     fireEvent.click(petSpecific);
 
-    expect(screen.getByRole("textbox", { name: "Owner display name" })).toHaveProperty(
+    expect(screen.getByRole("textbox", { name: "Name finders see" })).toHaveProperty(
       "value",
       "Account owner"
     );
@@ -254,7 +254,7 @@ describe("PetProfileForm Sharing and Contact mobile UX", () => {
     for (const name of ["WhatsApp", "Phone call", "General area", "Emergency note"]) {
       fireEvent.click(screen.getByRole("switch", { name }));
     }
-    for (const name of ["Show owner name", "Show allergies on Public Profile"]) {
+    for (const name of ["Show owner name", "Show allergies on Share Profile"]) {
       fireEvent.click(screen.getByRole("checkbox", { name }));
     }
     clickSave();

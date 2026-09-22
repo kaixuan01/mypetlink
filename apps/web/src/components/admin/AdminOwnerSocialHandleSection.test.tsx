@@ -63,7 +63,7 @@ describe("AdminOwnerSocialHandleSection", () => {
 
     expect(await screen.findByText("@MyPetLink")).toBeTruthy();
     expect(screen.getByText("Reserved name")).toBeTruthy();
-    expect(screen.getByText("Social profile on")).toBeTruthy();
+    expect(screen.getByText("Community Profile on")).toBeTruthy();
   });
 
   it("says when an owner has no handle yet", async () => {
@@ -183,8 +183,8 @@ describe("AdminOwnerSocialHandleSection", () => {
     render(<AdminOwnerSocialHandleSection ownerUserId="owner-1" />);
 
     expect(
-      await screen.findByText(/still has to turn their\s+social profile on/i)
+      await screen.findByText(/still has to turn their\s+Community Profile on/i)
     ).toBeTruthy();
-    expect(screen.getByText("Social profile off")).toBeTruthy();
+    expect(screen.getByText("Community Profile off")).toBeTruthy();
   });
 });

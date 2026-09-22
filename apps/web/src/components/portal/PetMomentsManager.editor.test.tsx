@@ -83,7 +83,7 @@ describe("PetMomentsManager shared edit flow", () => {
     fireEvent.click(opener);
 
     expect(
-      screen.getByRole("dialog", { name: `Add a moment for ${mockPets[0].name}` })
+      screen.getByRole("dialog", { name: `Add a Moment for ${mockPets[0].name}` })
     ).toBeTruthy();
     expect(new URL(window.location.href).searchParams.get("edit")).toBe("new");
     expect(screen.getByText("No pet moments yet")).toBeTruthy();
@@ -144,7 +144,7 @@ describe("PetMomentsManager shared edit flow", () => {
     await screen.findByText(mockMoments[0].title);
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(new URL(window.location.href).searchParams.get("edit")).toBe(mockMoments[0].id);
-    expect(screen.getByRole("dialog", { name: "Update this memory" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Update this Moment" })).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Updated memory" },
@@ -154,7 +154,7 @@ describe("PetMomentsManager shared edit flow", () => {
     await waitFor(() => expect(mocks.updatePetMoment).toHaveBeenCalledOnce());
     expect(mocks.updatePetMoment.mock.calls[0][0]).toBe(mockMoments[0].id);
     expect(await screen.findByText("Updated memory")).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "Update this memory" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Update this Moment" })).toBeNull();
     expect(new URL(window.location.href).searchParams.has("edit")).toBe(false);
   });
 
@@ -170,7 +170,7 @@ describe("PetMomentsManager shared edit flow", () => {
     );
 
     const editor = await screen.findByRole("dialog", {
-      name: "Update this memory",
+      name: "Update this Moment",
     });
     expect(within(editor).getByDisplayValue(mockMoments[0].title)).toBeTruthy();
     expect(mocks.getPetMoments).toHaveBeenCalledOnce();
@@ -188,7 +188,7 @@ describe("PetMomentsManager shared edit flow", () => {
 
     expect(
       await screen.findByRole("dialog", {
-        name: `Add a moment for ${mockPets[0].name}`,
+        name: `Add a Moment for ${mockPets[0].name}`,
       })
     ).toBeTruthy();
     expect(window.location.pathname).toBe(
@@ -210,7 +210,7 @@ describe("PetMomentsManager shared edit flow", () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this memory" })
+        screen.queryByRole("dialog", { name: "Update this Moment" })
       ).toBeNull()
     );
     expect(window.location.pathname).toBe(
@@ -254,7 +254,7 @@ describe("PetMomentsManager shared edit flow", () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this memory" })
+        screen.queryByRole("dialog", { name: "Update this Moment" })
       ).toBeNull()
     );
     expect(new URL(window.location.href).searchParams.has("edit")).toBe(false);
@@ -270,7 +270,7 @@ describe("PetMomentsManager shared edit flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this memory" })
+        screen.queryByRole("dialog", { name: "Update this Moment" })
       ).toBeNull()
     );
 
@@ -282,7 +282,7 @@ describe("PetMomentsManager shared edit flow", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
 
     await screen.findByRole("dialog", {
-      name: `Add a moment for ${mockPets[0].name}`,
+      name: `Add a Moment for ${mockPets[0].name}`,
     });
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("");
     expect((screen.getByLabelText("Caption") as HTMLTextAreaElement).value).toBe("");
@@ -334,7 +334,7 @@ describe("PetMomentsManager shared edit flow", () => {
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
       await waitFor(() =>
         expect(
-          screen.queryByRole("dialog", { name: "Update this memory" })
+          screen.queryByRole("dialog", { name: "Update this Moment" })
         ).toBeNull()
       );
     }
@@ -348,7 +348,7 @@ describe("PetMomentsManager shared edit flow", () => {
     expect(await screen.findByText("Saved after cycles")).toBeTruthy();
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this memory" })
+        screen.queryByRole("dialog", { name: "Update this Moment" })
       ).toBeNull()
     );
     expect(pushState).toHaveBeenCalledTimes(3);
@@ -364,7 +364,7 @@ describe("PetMomentsManager shared edit flow", () => {
     const opener = screen.getByRole("button", { name: "Edit" });
     opener.focus();
     fireEvent.click(opener);
-    const editor = screen.getByRole("dialog", { name: "Update this memory" });
+    const editor = screen.getByRole("dialog", { name: "Update this Moment" });
     fireEvent.change(screen.getByLabelText("Caption"), {
       target: { value: "Unsaved caption" },
     });
@@ -384,7 +384,7 @@ describe("PetMomentsManager shared edit flow", () => {
         screen.queryByRole("dialog", { name: "Discard your changes?" })
       ).toBeNull()
     );
-    expect(screen.getByRole("dialog", { name: "Update this memory" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Update this Moment" })).toBeTruthy();
     expect(document.activeElement).toBe(cancel);
     expect(document.body.style.overflow).toBe("hidden");
   });
@@ -411,7 +411,7 @@ describe("PetMomentsManager shared edit flow", () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this memory" })
+        screen.queryByRole("dialog", { name: "Update this Moment" })
       ).toBeNull()
     );
     expect(new URL(window.location.href).searchParams.has("edit")).toBe(false);

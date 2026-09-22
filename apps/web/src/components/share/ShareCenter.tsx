@@ -308,7 +308,7 @@ export function ShareCenter({
                   </>
                 ) : (
                   <p className="rounded-[1.25rem] border border-pet-border bg-white px-4 py-3.5 text-sm font-semibold leading-6 text-pet-muted">
-                    {target.name}&apos;s public profile is switched off, so
+                    {target.name}&apos;s Share Profile is switched off, so
                     there is nothing to share yet.
                   </p>
                 )}
@@ -333,8 +333,8 @@ export function ShareCenter({
                   fileNameBase={`${target.slug}-public-profile-qr`}
                   helperText={`Scan to view ${target.name}'s profile`}
                   targetPath={target.publicProfilePath}
-                  title={`${target.name}'s Public Profile`}
-                  viewLabel="Open Public Profile"
+                  title={`${target.name}'s Share Profile`}
+                  viewLabel="Open Share Profile"
                 />
               </div>
             ) : null}
@@ -360,13 +360,13 @@ export function ShareCenter({
                       ) : null}
                       <ShareRow
                         icon="qr"
-                        label="Download Public Profile QR"
+                        label="Download Share Profile QR"
                         onClick={() => setView("public-qr")}
                       />
                       <ShareRow
                         href={target.publicProfilePath}
                         icon="paw"
-                        label="Open Public Profile"
+                        label="Open Share Profile"
                       />
                     </>
                   ) : null}

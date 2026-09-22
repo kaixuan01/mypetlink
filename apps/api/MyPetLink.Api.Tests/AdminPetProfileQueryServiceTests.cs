@@ -195,7 +195,7 @@ public sealed class AdminPetProfileQueryServiceTests
         var csv = Encoding.UTF8.GetString(export.Content);
 
         Assert.Contains("Topu", csv);
-        Assert.Contains("Public Profile Slug", csv);
+        Assert.Contains("Share Profile Slug", csv);
         Assert.DoesNotContain(harness.LostPetId.ToString(), csv);
         Assert.DoesNotContain("safe-topu", csv);
         Assert.DoesNotContain("Please call me", csv);

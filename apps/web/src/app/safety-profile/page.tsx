@@ -74,7 +74,7 @@ export default function SafetyProfileGuidePage() {
       <section className="brand-peach-section px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-6xl">
           <PageHeader
-            action={<CreateProfileCTA>Create Free Pet Profile</CreateProfileCTA>}
+            action={<CreateProfileCTA />}
             description="Every MyPetLink pet gets a Safety Profile — a page built for whoever finds them, not for browsing. It is free, and a physical tag is optional."
             eyebrow="Safety Profile"
             title="Help a finder reach you quickly"
@@ -179,7 +179,7 @@ export default function SafetyProfileGuidePage() {
 
           <article className="rounded-[1.75rem] border border-pet-border bg-white p-6">
             <h2 className="text-xl font-black text-pet-ink">
-              Public Share Profile
+              Share Profile
             </h2>
             <p className="mt-3 text-sm leading-6 text-pet-muted">
               For friends, family and pet communities. Your pet&apos;s story,
@@ -190,7 +190,7 @@ export default function SafetyProfileGuidePage() {
               href={marketingRoutes.petProfile}
               variant="outline"
             >
-              About Public Share Profiles
+              About Share Profiles
             </CTAButton>
           </article>
         </div>

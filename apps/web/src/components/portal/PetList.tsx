@@ -145,7 +145,7 @@ export function PetList({
     return (
       <EmptyState
         title="No pets yet"
-        description="Create your first pet profile to start adding photos, memories, and care records."
+        description="Create your first pet profile to start adding photos, Moments, and care records."
         actionHref={ownerRoutes.petNew}
         actionLabel="Add your first pet"
       />
@@ -200,7 +200,7 @@ function getPetEmptyState(filter: PetLifecycleFilter) {
     return {
       title: "No archived profiles yet.",
       description:
-        "Profiles you archive will appear here, while memories and records stay saved.",
+        "Profiles you archive will appear here, while Moments and records stay saved.",
     };
   }
 
@@ -208,7 +208,7 @@ function getPetEmptyState(filter: PetLifecycleFilter) {
     return {
       title: "No memorial profiles.",
       description:
-        "When a pet has passed away, Memorial Mode keeps their memories in one gentle place.",
+        "When a pet has passed away, Memorial Mode keeps their Moments in one gentle place.",
     };
   }
 

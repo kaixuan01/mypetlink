@@ -78,11 +78,11 @@ public sealed class TransactionalEmailDesignTests
         Assert.Contains("alt=\"MyPetLink\"", preview.HtmlBody);
         Assert.Contains("alt=\"Pet profile\"", preview.HtmlBody);
         Assert.Contains("alt=\"Contact details\"", preview.HtmlBody);
-        Assert.Contains("alt=\"Preview public profile\"", preview.HtmlBody);
+        Assert.Contains("alt=\"Preview Share Profile\"", preview.HtmlBody);
         Assert.Contains("Welcome to MyPetLink, Aina!", preview.HtmlBody);
         Assert.Contains("Create your pet&#x2019;s profile", preview.HtmlBody);
         Assert.Contains("Add your contact details", preview.HtmlBody);
-        Assert.Contains("Preview your public profile", preview.HtmlBody);
+        Assert.Contains("Preview your Share Profile", preview.HtmlBody);
         Assert.Contains("You&#x2019;re almost there!", preview.HtmlBody);
         Assert.Contains(
             "Complete your profile and you&#x2019;re ready to share it.",

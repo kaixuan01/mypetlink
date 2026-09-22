@@ -11,7 +11,7 @@ export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.petProfile,
   title: "Free Shareable Pet Profiles in Malaysia | MyPetLink",
   description:
-    "Create a free shareable profile for a cat, dog, or other pet, with owner-approved details, memories, care records, and a separate Safety Profile.",
+    "Create a free shareable profile for a cat, dog, or other pet, with owner-approved details, Moments, care records, and a separate Safety Profile.",
 });
 
 const benefits: { icon: IconName; title: string; description: string }[] = [
@@ -19,13 +19,13 @@ const benefits: { icon: IconName; title: string; description: string }[] = [
     icon: "heart",
     title: "A profile worth sharing",
     description:
-      "Introduce your pet with a photo, bio, personality, favourite things, public memories, and life milestones.",
+      "Introduce your pet with a photo, bio, personality, favourite things, shared Moments, and life milestones.",
   },
   {
     icon: "record",
     title: "Care details stay organized",
     description:
-      "Keep useful care records together and choose whether selected badges or details belong on the public profile.",
+      "Keep useful care records together and choose whether selected badges or details belong on the Share Profile.",
   },
   {
     icon: "shield",
@@ -44,7 +44,7 @@ export default function PetProfileGuidePage() {
             eyebrow="Pet profiles"
             title="One home for your pet's story, care, and safety"
             description="Start with a free profile for a cat, dog, or other pet in Malaysia. A physical tag is optional."
-            action={<CreateProfileCTA>Create Free Pet Profile</CreateProfileCTA>}
+            action={<CreateProfileCTA />}
           />
           <div className="grid gap-4 md:grid-cols-3">
             {benefits.map((benefit) => (
@@ -63,9 +63,9 @@ export default function PetProfileGuidePage() {
       <section className="bg-white px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-5xl gap-5 md:grid-cols-2">
           <article className="rounded-[1.75rem] border border-pet-border p-6">
-            <h2 className="text-xl font-black text-pet-ink">Public Share Profile</h2>
+            <h2 className="text-xl font-black text-pet-ink">Share Profile</h2>
             <p className="mt-3 text-sm leading-6 text-pet-muted">
-              A warm page for friends, family, and pet communities. It focuses on your pet&apos;s identity, personality, memories, and owner-approved details.
+              A warm page for friends, family, and pet communities. It focuses on your pet&apos;s identity, personality, Moments, and owner-approved details.
             </p>
             <CTAButton className="mt-5" href={marketingRoutes.samplePublicProfile} variant="secondary">
               View Sample Profile

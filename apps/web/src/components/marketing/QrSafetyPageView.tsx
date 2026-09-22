@@ -103,7 +103,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
             {isMemorial
-              ? "This pet is marked as memorial. The profile and memories are kept for remembrance."
+              ? "This pet is marked as memorial. The profile and Moments are kept for remembrance."
               : "This MyPetLink profile is not currently active."}
           </p>
           {isMemorial && pet.publicProfilePath ? (

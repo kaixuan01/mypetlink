@@ -119,7 +119,7 @@ describe("an anonymous visitor", () => {
     // subject of SocialLayoutVisitorShell.test.tsx — this build has it off, and
     // a Share Profile must work either way.
     expect(header.textContent).toContain("Sign in");
-    expect(header.textContent).toMatch(/get started/i);
+    expect(header.textContent).toMatch(/create free pet profile/i);
   });
 
   it("is offered no Community destination while Community is off", () => {

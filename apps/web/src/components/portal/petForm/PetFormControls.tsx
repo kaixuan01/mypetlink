@@ -762,7 +762,7 @@ export function ThemePreviewPanel({
               className="text-xs font-black uppercase"
               style={{ color: theme.colors.accent }}
             >
-              Pet Memory
+              Moment
             </p>
             <p
               className="mt-1 text-sm font-black"

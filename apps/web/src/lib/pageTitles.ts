@@ -59,7 +59,7 @@ export function ownerPetPageTitle(
     case "records":
       return `${petName} Care Records`;
     case "moments":
-      return `${petName} Memories`;
+      return `${petName} Moments`;
     case "moment-new":
       return `Add a moment for ${petName}`;
     case "timeline":
@@ -77,7 +77,7 @@ export function ownerPetPageTitle(
 }
 
 export function publicPetProfileDocumentTitle(petName: string) {
-  return `${petName} | ${siteConfig.productName} Pet Profile`;
+  return `${petName} | ${siteConfig.productName} Share Profile`;
 }
 
 export function qrSafetyPageTitle(petName: string) {

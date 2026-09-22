@@ -111,7 +111,7 @@ export function MomentMediaCarousel({
           >
             <span aria-hidden="true">♡</span>
           </span>
-          <p className="mt-3 text-sm font-bold text-pet-muted">Memory note</p>
+          <p className="mt-3 text-sm font-bold text-pet-muted">Moment note</p>
         </div>
       </div>
     );

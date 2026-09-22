@@ -133,7 +133,7 @@ export function SocialExploreView() {
       */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">
-          Explore pets
+          Community
         </h1>
 
         <div className="order-3 flex w-full items-center gap-2 sm:order-none sm:w-auto">

@@ -47,7 +47,7 @@ export default async function NewMomentPage({ params }: NewMomentPageProps) {
     <AppLayout>
       <PageHeader
         eyebrow="Pet moments"
-        title={`${pet.data.name}'s memories`}
+        title={`${pet.data.name}'s Moments`}
         description="Save photos, short videos, milestones, funny moments, and life notes for this pet."
       />
 

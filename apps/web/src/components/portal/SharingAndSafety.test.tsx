@@ -81,7 +81,7 @@ describe("Sharing & Safety layout", () => {
     expect(screen.queryByText("Public profile visibility")).toBeNull();
     expect(screen.queryByText("Safety Profile visibility")).toBeNull();
     expect(screen.queryByText(/Public profile is (on|off)/i)).toBeNull();
-    expect(within(subcardFor("Public Profile")).getByText("Shared")).toBeTruthy();
+    expect(within(subcardFor("Share Profile")).getByText("Shared")).toBeTruthy();
   });
 
   it("gives both profiles a status, description, management action, and view link", async () => {
@@ -89,7 +89,7 @@ describe("Sharing & Safety layout", () => {
     renderOverview(pet);
     await screen.findByText("Sharing & Safety");
 
-    const publicCard = subcardFor("Public Profile");
+    const publicCard = subcardFor("Share Profile");
     const safetyCard = subcardFor("Safety Profile");
     expect(publicCard).toBeTruthy();
     expect(safetyCard).toBeTruthy();
@@ -117,7 +117,7 @@ describe("Sharing & Safety layout", () => {
     await screen.findByText("Sharing & Safety");
 
     expect(
-      within(subcardFor("Public Profile"))
+      within(subcardFor("Share Profile"))
         .getByRole("link", { name: "View profile" })
         .getAttribute("href")
     ).toContain(pet.publicProfilePath);
@@ -173,7 +173,7 @@ describe("Sharing & Safety layout", () => {
 
     const lostHeading = screen.getByRole("heading", { name: "Lost Mode" });
     expect(subcardFor("Safety Profile")!.contains(lostHeading)).toBe(false);
-    expect(subcardFor("Public Profile")!.contains(lostHeading)).toBe(false);
+    expect(subcardFor("Share Profile")!.contains(lostHeading)).toBe(false);
   });
 
   it("keeps the resting Lost Mode quiet, with no urgent styling", async () => {

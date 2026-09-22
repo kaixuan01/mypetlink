@@ -1032,7 +1032,7 @@ public sealed class PetService : SkeletonService, IPetService
             }
         }
 
-        throw ServerConfig("public_code_generation_failed", "Could not generate a unique public profile code.");
+        throw ServerConfig("public_code_generation_failed", "Could not generate a unique Share Profile code.");
     }
 
     private async Task<string> GenerateUniqueSafetyCodeAsync(CancellationToken cancellationToken)

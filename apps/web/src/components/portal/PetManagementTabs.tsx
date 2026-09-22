@@ -279,7 +279,7 @@ function OverviewTab({
       <OverviewSummaryCard
         action={
           <Link
-            aria-label="View all pet memories"
+            aria-label="View all Moments"
             className={summaryHeaderActionClass}
             href={ownerRoutes.petMoments(pet.id)}
           >
@@ -289,7 +289,7 @@ function OverviewTab({
         }
         icon="heart"
         sectionId="moments"
-        title="Pet Memories"
+        title="Moments"
         description="Photo and video moments you choose to keep private or share."
       >
         {recentMoments.length ? (
@@ -326,7 +326,7 @@ function OverviewTab({
             })}
           </div>
         ) : (
-          <p className="text-sm text-pet-muted">No pet memories yet.</p>
+          <p className="text-sm text-pet-muted">No Moments yet.</p>
         )}
         <div className="mt-auto pt-1">
           <CTAButton
@@ -335,7 +335,7 @@ function OverviewTab({
             variant="secondary"
             icon="plus"
           >
-            {memoryLimit.canCreate ? "Add Moment" : "Memory Limit Reached"}
+            {memoryLimit.canCreate ? "Add Moment" : "Moment Limit Reached"}
           </CTAButton>
         </div>
       </OverviewSummaryCard>
@@ -425,7 +425,7 @@ function OverviewTab({
           >
             {publicProfilesEnabled ? (
               <ProfileSubcard
-                ariaLabel="Public Profile overview"
+                ariaLabel="Share Profile overview"
                 badge={
                   <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
                     {publicProfileAccessible ? "Shared" : "Not shared"}
@@ -449,7 +449,7 @@ function OverviewTab({
                     </Link>
                   ) : null
                 }
-                title="Public Profile"
+                title="Share Profile"
               />
             ) : null}
 
@@ -657,7 +657,7 @@ function OverviewTab({
           description="Emergency finder actions are turned off while this profile is in Memorial Mode."
         >
           <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-            Memories, care records, and Life Timeline remain available. You can
+            Moments, care records, and Life Timeline remain available. You can
             edit memorial details from the pet edit page.
           </p>
           <CTAButton
@@ -674,7 +674,7 @@ function OverviewTab({
           icon="record"
           title="Saved profile history"
           badge={<Badge tone="soft">Archived</Badge>}
-          description="Memories and records stay saved."
+          description="Moments and records stay saved."
         >
           <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
             Restore this profile from the menu at the top of this page.

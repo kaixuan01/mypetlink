@@ -354,7 +354,7 @@ export async function fetchPublicSocialProfile(
 export function buildPublicProfileHead(profile: EdgePublicProfile) {
   const name = cleanMetadataText(profile.name, 80) || "Pet";
   const title = `Meet ${name} | MyPetLink`;
-  const description = `View ${name}'s public profile, memories, and important safety information.`;
+  const description = `View ${name}'s Share Profile, Moments, and important safety information.`;
   const canonical = `${productionSiteOrigin}/p/${encodeURIComponent(profile.publicSlug)}`;
   const socialImage = `${productionSiteOrigin}/social/pets/${encodeURIComponent(profile.publicSlug)}.jpg?v=${encodeURIComponent(profile.publicProfileVersion)}`;
   const imageAlt = `${name}'s profile on MyPetLink`;

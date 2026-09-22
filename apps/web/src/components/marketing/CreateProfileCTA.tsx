@@ -8,6 +8,17 @@ import { AnalyticsEvent, trackEvent, type AnalyticsSurface } from "@/lib/analyti
 import { ownerRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 
+/**
+ * One label for one action, everywhere on the public site.
+ *
+ * It lives beside the action rather than in the navigation bar so that a
+ * marketing page can name the button without importing a header, and so the
+ * default below and every explicit use cannot drift apart. The site used to
+ * say "Get Started", "Start Free Profile", "Get Started Free", "Create Free
+ * Pet Profile" and "Create Your Pet's Profile" for the same destination.
+ */
+export const PRIMARY_CTA_LABEL = "Create Free Pet Profile";
+
 type CreateProfileCTAProps = {
   children?: ReactNode;
   className?: string;
@@ -22,7 +33,7 @@ type CreateProfileCTAProps = {
 };
 
 export function CreateProfileCTA({
-  children = "Start Free Profile",
+  children = PRIMARY_CTA_LABEL,
   className,
   fullWidth,
   icon = "paw",

@@ -343,7 +343,7 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains(
             "Add the contact details you&#x2019;d like finders to use.",
             rendered.HtmlBody);
-        Assert.Contains("Preview your public profile", rendered.HtmlBody);
+        Assert.Contains("Preview your Share Profile", rendered.HtmlBody);
         Assert.Contains("Just a few simple steps", rendered.HtmlBody);
         Assert.Contains(
             "Set up the essentials now, then update your pet&#x2019;s profile anytime.",
@@ -360,7 +360,7 @@ public sealed class OwnerWelcomeEmailTests
             rendered.HtmlBody);
         Assert.Contains("alt=\"Pet profile\"", rendered.HtmlBody);
         Assert.Contains("alt=\"Contact details\"", rendered.HtmlBody);
-        Assert.Contains("alt=\"Preview public profile\"", rendered.HtmlBody);
+        Assert.Contains("alt=\"Preview Share Profile\"", rendered.HtmlBody);
         Assert.Contains(">1</div>", rendered.HtmlBody);
         Assert.Contains(">2</div>", rendered.HtmlBody);
         Assert.Contains(">3</div>", rendered.HtmlBody);

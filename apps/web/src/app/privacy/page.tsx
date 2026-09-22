@@ -85,10 +85,10 @@ const informationGroups: {
     ],
   },
   {
-    title: "Memories and moments",
+    title: "Moments",
     icon: "heart",
     items: [
-      "Photos, captions, dates, and memory details",
+      "Photos, captions, dates, and Moment details",
       "Visibility settings such as public or private where supported",
     ],
   },
@@ -135,7 +135,7 @@ const publicProfileItems = [
   "Personality tags",
   "Favourite things",
   "General area",
-  "Public memories",
+  "Shared Moments",
   "Owner-approved public notes",
 ];
 
@@ -153,7 +153,7 @@ const qrSafetyItems = [
 const privateByDefaultItems = [
   "Full home address",
   "Private care notes",
-  "Private memories",
+  "Private Moments",
   "Account email",
   "Internal order details",
   "Full payment proof",
@@ -241,7 +241,7 @@ export default function PrivacyPage() {
             <div className="grid gap-3 lg:grid-cols-3">
               <VisibilityCard
                 icon="heart"
-                title="Public Share Profile may show"
+                title="Share Profile may show"
                 items={publicProfileItems}
               />
               <VisibilityCard
@@ -261,9 +261,9 @@ export default function PrivacyPage() {
             <LegalBulletList
               items={[
                 "Create and manage pet profiles.",
-                "Display Public Share Profiles and Safety Profiles based on owner settings.",
+                "Display publicly shared Share Profiles and Safety Profiles based on owner settings.",
                 "Enable finder contact through WhatsApp, call, or related contact options.",
-                "Manage Lost Mode, safety notes, care records, and memories.",
+                "Manage Lost Mode, safety notes, care records, and Moments.",
                 "Process smart tag orders and payment proof where applicable.",
                 "Provide support and respond to owner requests.",
                 "Improve the service and user experience.",

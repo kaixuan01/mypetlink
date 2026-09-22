@@ -109,7 +109,7 @@ describe("AdminOwnerDetailDrawer", () => {
     expect(screen.queryByText("Phone shown by default")).toBeNull();
     expect(screen.queryByText("WhatsApp shown by default")).toBeNull();
     expect(screen.queryByText("Owner name shown by default")).toBeNull();
-    expect(screen.getByText("Memory usage is near the current plan limit.")).toBeTruthy();
+    expect(screen.getByText("Moment usage is near the current plan limit.")).toBeTruthy();
     expect(screen.getByText("Pending Review")).toBeTruthy();
     expect(screen.getByText("Email Sent")).toBeTruthy();
     expect(screen.getByText("Message type: Welcome")).toBeTruthy();

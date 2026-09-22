@@ -134,12 +134,12 @@ describe("SettingsPanel loading behaviour", () => {
       "Show call contact",
       "Show emergency note",
       "Show care badges",
-      "Show public memories",
+      "Show Moments on Share Profile",
       "Show Life Timeline",
       "Show birthday in Life Timeline",
       "Show adoption day in Life Timeline",
       "Allow public care record details",
-      "Show allergies on Public Profiles",
+      "Show allergies on Share Profiles",
     ]) {
       expect(screen.queryByRole("checkbox", { name: label })).toBeNull();
     }
@@ -279,7 +279,7 @@ describe("SettingsPanel loading behaviour", () => {
     );
 
     expect(await screen.findByRole("alert")).toBeTruthy();
-    expect((screen.getByLabelText("Owner display name") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Name finders see") as HTMLInputElement).value).toBe(
       "Still Unsaved"
     );
     screen
@@ -295,7 +295,7 @@ describe("SettingsPanel loading behaviour", () => {
     render(<SettingsPanel />);
 
     const name = (await screen.findByLabelText(
-      "Owner display name"
+      "Name finders see"
     )) as HTMLInputElement;
     expect(name.value).toBe("");
     expect(name.placeholder).toBe("e.g. Sarah Tan");
@@ -308,7 +308,7 @@ describe("SettingsPanel loading behaviour", () => {
     render(<SettingsPanel />);
 
     const name = (await screen.findByLabelText(
-      "Owner display name"
+      "Name finders see"
     )) as HTMLInputElement;
     expect(name.value).toBe("");
     expect(document.body.textContent).not.toContain("Aina");

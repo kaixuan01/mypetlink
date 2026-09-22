@@ -18,10 +18,10 @@ describe("public profile social sharing", () => {
   it("builds dynamic, safely cleaned social copy", () => {
     expect(getPublicProfileSocialTitle("Nori")).toBe("Meet Nori | MyPetLink");
     expect(getPublicProfileSocialDescription("Nori")).toBe(
-      "View Nori's public profile, memories, and important safety information."
+      "View Nori's Share Profile, Moments, and important safety information."
     );
     expect(getPublicProfileSocialDescription("  O'Malley\u0000  ")).toBe(
-      "View O'Malley's public profile, memories, and important safety information."
+      "View O'Malley's Share Profile, Moments, and important safety information."
     );
   });
 

@@ -85,7 +85,7 @@ export function AppearanceSection({
       title="Appearance"
       description={`Customize the photos and theme shown on ${
         form.name || "your pet"
-      }'s public profile and safety page.`}
+      }'s Share Profile and Safety Profile.`}
     >
       <div className="grid min-w-0 gap-6">
         <section
@@ -114,7 +114,7 @@ export function AppearanceSection({
             <div className="min-w-0 [&_button]:min-h-11">
               <ImageUploadField
                 label="Cover photo"
-                helper="A warm wide banner for the public profile."
+                helper="A warm wide banner for the Share Profile."
                 value={form.coverUrl}
                 onChange={(dataUrl) => {
                   updateField("coverUrl", dataUrl);
@@ -162,7 +162,7 @@ export function AppearanceSection({
             <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)] lg:items-start">
               <div className="brand-soft-card min-w-0 overflow-hidden rounded-[1.5rem]">
                 <CoverPhoto
-                  alt={`${form.name || "Your pet"} public profile cover preview`}
+                  alt={`${form.name || "Your pet"} Share Profile cover preview`}
                   fallbackStyle={{ background: selectedTheme.gradients.cover }}
                   onCropMetricsChange={setCoverCropMetrics}
                   positionX={form.coverPositionX}
@@ -179,7 +179,7 @@ export function AppearanceSection({
                     {form.name || "Your pet"}
                   </p>
                   <p className="mt-1 text-sm text-pet-muted">
-                    Public Share Profile preview
+                    Share Profile preview
                   </p>
                 </div>
               </div>

@@ -187,9 +187,9 @@ and each is given independently:
 
 | Control | Where the owner sets it | What it decides |
 | --- | --- | --- |
-| **Owner Social** — `OwnerSocialProfiles.IsSocialEnabled` | Settings → Social profile, "Turn on my social profile" | Whether the household participates at all. A master switch: with it off, no pet of theirs is visible however its own switches are set. |
-| **Pet Social** — `PetSocialProfiles.IsSocialEnabled` | Settings → Social profile → Your pets, "Show {pet} on MyPetLink Social" | Whether this particular pet appears on the owner's Social profile, in Social Moments, and in their followers' feeds. |
-| **Pet discoverability** — `PetSocialProfiles.IsDiscoverable` | Settings → Social profile → Your pets, "Let people find {pet} when browsing" | Whether somebody who was *not* given a link may meet this pet through Explore and Search. |
+| **Owner Social** — `OwnerSocialProfiles.IsSocialEnabled` | Community → Edit profile, "Turn on my Community Profile" | Whether the household participates at all. A master switch: with it off, no pet of theirs is visible however its own switches are set. |
+| **Pet Social** — `PetSocialProfiles.IsSocialEnabled` | Community → Edit profile → Pets, "Show {pet} in Community" | Whether this particular pet appears on the owner's Social profile, in Social Moments, and in their followers' feeds. |
+| **Pet discoverability** — `PetSocialProfiles.IsDiscoverable` | Community → Edit profile → Pets, "Let people find {pet} when browsing" | Whether somebody who was *not* given a link may meet this pet through Explore and Search. |
 
 A fourth, older control sits underneath and belongs to a different screen:
 **`PetPublicProfiles.IsPublicProfileEnabled`**, on the pet's own profile page,

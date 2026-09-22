@@ -111,7 +111,7 @@ describe("the page container", () => {
     // All three are direct children of the one container, so nothing can drift
     // onto a second vertical line the way the old centred Moments column did.
     const container = screen
-      .getByRole("heading", { name: "Explore pets" })
+      .getByRole("heading", { name: "Community" })
       .closest("div.max-w-5xl") as HTMLElement;
 
     expect(container).toBeTruthy();
@@ -126,7 +126,7 @@ describe("the toolbar", () => {
     await screen.findByTestId("explore-pets");
 
     const header = screen
-      .getByRole("heading", { name: "Explore pets" })
+      .getByRole("heading", { name: "Community" })
       .closest("header") as HTMLElement;
 
     // The filter used to sit in its own block underneath, which read as three

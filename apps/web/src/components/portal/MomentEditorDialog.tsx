@@ -235,7 +235,7 @@ export function MomentEditorDialog({
 
   const dialogTitle =
     dialogTitleOverride ??
-    (mode === "create" ? `Add a moment for ${petName}` : "Update this memory");
+    (mode === "create" ? `Add a Moment for ${petName}` : "Update this Moment");
   const formId = `moment-editor-${mode}-form`;
   const primaryLabel =
     submitLabel ?? (mode === "create" ? "Add Moment" : "Save Changes");
@@ -246,7 +246,7 @@ export function MomentEditorDialog({
       closeLabel="Close moment editor"
       description={
         dialogDescription ??
-        "Add the details once, then choose where this memory appears."
+        "Add the details once, then choose where this Moment appears."
       }
       eyebrow={dialogTitleOverride ? undefined : mode === "create" ? "Add Moment" : "Edit Moment"}
       maxWidthClassName={maxWidthClassName}

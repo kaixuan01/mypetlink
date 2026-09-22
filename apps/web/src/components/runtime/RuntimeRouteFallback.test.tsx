@@ -203,9 +203,9 @@ describe("RuntimeRouteFallback owner authentication", () => {
       </RuntimeRouteFallback>
     );
 
-    expect(await screen.findByText("Milo's memories")).toBeTruthy();
+    expect(await screen.findByText("Milo's Moments")).toBeTruthy();
     expect(
-      await screen.findByRole("dialog", { name: "Add a moment for Milo" })
+      await screen.findByRole("dialog", { name: "Add a Moment for Milo" })
     ).toBeTruthy();
     expect(window.location.pathname).toBe("/pets/owner-pet-id/moments");
     expect(new URL(window.location.href).searchParams.get("edit")).toBe("new");

@@ -32,7 +32,7 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
     [
         "Owner Name", "Owner Email", "Plan", "Plan Code", "Plan Status", "Assignment",
         "Active Pets", "Pet Limit", "Pet Usage",
-        "Memories (Busiest Pet)", "Memory Limit", "Memory Usage", "Total Memories",
+        "Moments (Busiest Pet)", "Moment Limit", "Moment Usage", "Total Moments",
         "Care Records", "Care Record Limit",
         "Manual Override", "Effective Date (UTC)", "Updated At (UTC)"
     ];

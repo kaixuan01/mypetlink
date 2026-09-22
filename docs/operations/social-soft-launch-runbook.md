@@ -183,7 +183,7 @@ Run as a real owner account on a phone, after step 6.
 | 13 | Settings → Blocked accounts → Unblock | They reappear; they are NOT following you again |
 | 14 | **Scan a tag** | `/t` or `/n` opens the **Safety Profile**, not Social |
 | 15 | **Safety contact** | WhatsApp and Call work |
-| 16 | Safety Profile, bottom | "View Public Profile" leads to `/p/{slug}` — below the contact actions |
+| 16 | Safety Profile, bottom | "View Share Profile" leads to `/p/{slug}` — below the contact actions |
 | 17 | Manage: edit a pet, add a care record | Unchanged |
 
 **Rollback-sensitive checks.** Steps 14, 15 and 17 must pass identically with

@@ -375,7 +375,7 @@ public sealed class MediaService : SkeletonService, IMediaService
 
             case MediaUploadCategory.MomentImage:
             case MediaUploadCategory.MomentVideo:
-                var momentId = RequireGuid(request.MomentId, "momentId", "Memory is required.");
+                var momentId = RequireGuid(request.MomentId, "momentId", "Moment is required.");
                 var memory = await _dbContext.PetMemories
                     .Include(item => item.Pet)
                     .SingleOrDefaultAsync(
@@ -385,7 +385,7 @@ public sealed class MediaService : SkeletonService, IMediaService
                             && item.Pet.DeletedAt == null
                             && item.DeletedAt == null,
                         cancellationToken)
-                    ?? throw NotFound("Memory was not found.");
+                    ?? throw NotFound("Moment was not found.");
                 return new UploadTarget(memory.PetId, MediaOwnerType.PetMemory, memory.Id);
 
             case MediaUploadCategory.OwnerAvatar:
@@ -491,7 +491,7 @@ public sealed class MediaService : SkeletonService, IMediaService
         var profile = await _dbContext.OwnerSocialProfiles
             .Include(item => item.AvatarMediaFile)
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken)
-            ?? throw NotFound("Social profile was not found.");
+            ?? throw NotFound("Community Profile was not found.");
 
         var oldMedia = profile.AvatarMediaFile;
         profile.AvatarMediaFileId = media.Id;
@@ -561,7 +561,7 @@ public sealed class MediaService : SkeletonService, IMediaService
                     && item.Pet.DeletedAt == null
                     && item.DeletedAt == null,
                 cancellationToken)
-            ?? throw NotFound("Memory was not found.");
+            ?? throw NotFound("Moment was not found.");
 
         memory.CoverMediaFileId ??= media.Id;
     }

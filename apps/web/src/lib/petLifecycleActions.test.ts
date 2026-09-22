@@ -39,7 +39,7 @@ describe("pet lifecycle actions", () => {
     expect(getPetLifecycleConfirmation("memorial", "Milo")).toEqual({
       title: "Move to Memorial?",
       message:
-        "This keeps Milo's profile, memories, and timeline, but the Safety Profile will no longer show emergency finder contact actions.",
+        "This keeps Milo's profile, Moments, and timeline, but the Safety Profile will no longer show emergency finder contact actions.",
       confirmLabel: "Move to Memorial",
       cancelLabel: "Cancel",
     });

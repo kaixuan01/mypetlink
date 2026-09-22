@@ -548,7 +548,7 @@ export function PublicSharePetProfile({
               className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6"
               style={{ color: theme.colors.mutedText }}
             >
-              Memories and public details can still be viewed, but emergency
+              Moments and public details can still be viewed, but emergency
               finder actions are turned off.
             </p>
           </section>
@@ -1061,5 +1061,5 @@ function getPublicProfileErrorMessage(error: unknown) {
     return "We could not reach MyPetLink right now. Please try again.";
   }
 
-  return "We could not load this public profile right now. Please try again.";
+  return "We could not load this Share Profile right now. Please try again.";
 }

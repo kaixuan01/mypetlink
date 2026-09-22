@@ -65,10 +65,10 @@ export const premiumPlan = {
   name: "Premium Plan",
   status: "Coming Soon",
   description:
-    "For owners with multiple pets, richer memories, reminders, family access, scan history, and advanced care tools.",
+    "For owners with multiple pets, richer Moments, reminders, family access, scan history, and advanced care tools.",
   features: [
     "More pet profiles",
-    "More or unlimited memories",
+    "More or unlimited Moments",
     "Photo and video albums",
     "Care reminders",
     "Scan history",
@@ -175,10 +175,10 @@ export function getMemoryLimitState(memoryCount: number) {
     isAtLimit,
     isOverLimit,
     usageLabel: isOverLimit
-      ? `${memoryCount} memories saved during early access`
-      : `${memoryCount} of ${max} pet memories used`,
+      ? `${memoryCount} Moments saved during early access`
+      : `${memoryCount} of ${max} Moments used`,
     message: isOverLimit
-      ? "You're currently above the new Free memory limit because you joined during early access. Existing memories stay safe and editable. New memories may require Premium when it becomes available."
-      : "You've reached the Free memory limit for this pet. Premium albums and more memories are coming soon. Your existing memories remain safe.",
+      ? "You're currently above the new Free Moment limit because you joined during early access. Existing Moments stay safe and editable. New Moments may require Premium when it becomes available."
+      : "You've reached the Free Moment limit for this pet. Premium albums and more Moments are coming soon. Your existing Moments remain safe.",
   };
 }

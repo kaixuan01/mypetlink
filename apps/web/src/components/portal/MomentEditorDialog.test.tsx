@@ -46,7 +46,7 @@ describe("MomentEditorDialog", () => {
 
       expect(document.querySelector(`[data-moment-editor-mode="${mode}"]`)).toBeTruthy();
       const dialog = screen.getByRole("dialog", {
-        name: mode === "edit" ? "Update this memory" : "Add a moment for Topu",
+        name: mode === "edit" ? "Update this Moment" : "Add a Moment for Topu",
       });
       const body = screen.getByTestId("form-dialog-body");
       const form = document.querySelector(
@@ -88,7 +88,7 @@ describe("MomentEditorDialog", () => {
         )
       ).toBeTruthy();
       expect(screen.queryByText("Family Only")).toBeNull();
-      expect(screen.queryByText("Show on Public Profile")).toBeNull();
+      expect(screen.queryByText("Show on Share Profile")).toBeNull();
       expect(screen.queryByText(/Preview: this moment/i)).toBeNull();
       expect(
         screen.queryByText(/Private and family-only memories stay inside/i)

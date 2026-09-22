@@ -80,7 +80,7 @@ function displayNameInput() {
 
 function socialSwitch() {
   return screen.getByRole("switch", {
-    name: /turn on my social profile/i,
+    name: /turn on my Community Profile/i,
   }) as HTMLButtonElement;
 }
 
@@ -124,7 +124,7 @@ describe("SocialProfileSettings", () => {
     await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
 
     const socialSwitch = screen.getByRole("switch", {
-      name: /turn on my social profile/i,
+      name: /turn on my Community Profile/i,
     });
     expect(socialSwitch.getAttribute("aria-checked")).toBe("false");
   });
@@ -148,7 +148,7 @@ describe("SocialProfileSettings", () => {
     // Names the one thing actually missing, rather than listing every
     // prerequisite and leaving the owner to work out which applies to them.
     expect(
-      screen.getByText(/choose and save a handle before turning on your social profile/i)
+      screen.getByText(/choose and save a handle before turning on your Community Profile/i)
     ).toBeTruthy();
   });
 
@@ -182,7 +182,7 @@ describe("SocialProfileSettings", () => {
 
     expect(socialSwitch().disabled).toBe(true);
     expect(
-      screen.getByText(/add a display name before turning on your social profile/i)
+      screen.getByText(/add a display name before turning on your Community Profile/i)
     ).toBeTruthy();
 
     fireEvent.change(displayNameInput(), { target: { value: "Mochi and Coco" } });
@@ -232,7 +232,7 @@ describe("SocialProfileSettings", () => {
     expect(displayNameInput().value).toBe("Mochi and Coco");
     expect(generalAreaInput().value).toBe("Bangsar, Kuala Lumpur");
 
-    fireEvent.click(screen.getByRole("button", { name: /save social profile/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save Community Profile/i }));
     await waitFor(() => expect(mocks.updateOwnerSocialProfile).toHaveBeenCalledTimes(2));
 
     // And the refreshed concurrency token is used, not the one from page load.
@@ -312,7 +312,7 @@ describe("SocialProfileSettings", () => {
     expect(followers.getAttribute("aria-checked")).toBe("true");
     expect(followers.disabled).toBe(true);
     expect(
-      screen.getAllByText(/will apply when your social profile is turned on/i).length
+      screen.getAllByText(/will apply when your Community Profile is turned on/i).length
     ).toBe(2);
   });
 
@@ -441,7 +441,7 @@ describe("SocialProfileSettings", () => {
     fireEvent.change(generalAreaInput(), {
       target: { value: "No. 12, Jalan Maarof" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /save social profile/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save Community Profile/i }));
 
     await waitFor(() =>
       expect(screen.getByText(/not a full street address/i)).toBeTruthy()
@@ -480,6 +480,6 @@ describe("SocialProfileSettings", () => {
 
     render(<SocialProfileSettings />);
 
-    expect(screen.getByText(/sign in to set up your social profile/i)).toBeTruthy();
+    expect(screen.getByText(/sign in to set up your Community Profile/i)).toBeTruthy();
   });
 });

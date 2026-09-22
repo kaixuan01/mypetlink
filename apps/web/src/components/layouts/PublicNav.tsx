@@ -3,7 +3,10 @@
 import { useState } from "react";
 
 import Link from "next/link";
-import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
+import {
+  CreateProfileCTA,
+  PRIMARY_CTA_LABEL,
+} from "@/components/marketing/CreateProfileCTA";
 import { PublicProductMenu } from "@/components/layouts/PublicProductMenu";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
@@ -66,8 +69,9 @@ export const primaryPublicNav: PublicNavItem[] = [
     : []),
 ];
 
-/** One label for one action, everywhere on the public site. */
-export const PRIMARY_CTA_LABEL = "Get Started";
+// Re-exported so the many callers that already import it from here keep
+// working; it is defined beside the action it names.
+export { PRIMARY_CTA_LABEL };
 
 export function DesktopPublicNav({ loggedIn }: { loggedIn: boolean }) {
   return (

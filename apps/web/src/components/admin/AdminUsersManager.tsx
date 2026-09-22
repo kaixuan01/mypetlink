@@ -79,7 +79,7 @@ const filters: AdminFilterDef[] = [
   { type: "select", key: "petUsageNearLimit", label: "Pet Usage", options: [
     { value: "true", label: "Near plan limit" }, { value: "false", label: "Within plan limit" },
   ], advanced: true },
-  { type: "select", key: "memoryUsageNearLimit", label: "Memory Usage", options: [
+  { type: "select", key: "memoryUsageNearLimit", label: "Moment Usage", options: [
     { value: "true", label: "Near plan limit" }, { value: "false", label: "Within plan limit" },
   ], advanced: true },
   { type: "date-range", key: "joined", label: "Joined", advanced: true },

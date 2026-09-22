@@ -84,9 +84,9 @@ it("keeps one Public Profile source of truth and hides unreleased owner tools", 
   expect(screen.queryByText("Public profile visibility")).toBeNull();
   expect(screen.queryByText("Safety Profile visibility")).toBeNull();
   const publicProfile = screen.getByRole("group", {
-    name: "Public Profile overview",
+    name: "Share Profile overview",
   });
-  expect(screen.getAllByRole("heading", { name: "Public Profile" })).toHaveLength(1);
+  expect(screen.getAllByRole("heading", { name: "Share Profile" })).toHaveLength(1);
   expect(within(publicProfile).getByText("Shared")).toBeTruthy();
   expect(
     within(publicProfile).getByText("Anyone with the link can view this page.")
@@ -129,7 +129,7 @@ it("does not expose public actions when the pet profile is private", async () =>
   );
 
   const publicProfile = await screen.findByRole("group", {
-    name: "Public Profile overview",
+    name: "Share Profile overview",
   });
   expect(within(publicProfile).getByText("Not shared")).toBeTruthy();
   expect(within(publicProfile).getByText(/This profile is not shared/)).toBeTruthy();
@@ -148,7 +148,7 @@ it("leaves Share Center ownership outside the Overview subcard", async () => {
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 
   const publicProfile = await screen.findByRole("group", {
-    name: "Public Profile overview",
+    name: "Share Profile overview",
   });
   expect(within(publicProfile).getByRole("link", { name: "View profile" })).toBeTruthy();
   expect(within(publicProfile).queryByRole("link", { name: "Manage sharing" })).toBeNull();
@@ -179,7 +179,7 @@ it("keeps the compact Moment actions on their existing destinations", async () =
   ).toBe(`/pets/${pet.id}/moments?edit=new`);
   expect(
     screen
-      .getByRole("link", { name: "View all pet memories" })
+      .getByRole("link", { name: "View all Moments" })
       .getAttribute("href")
   ).toBe(`/pets/${pet.id}/moments`);
 });
@@ -310,7 +310,7 @@ it("keeps Memorial editing while Archived restore guidance points to the header 
   expect(
     await screen.findByText("Restore this profile from the menu at the top of this page.")
   ).toBeTruthy();
-  expect(screen.getByText("Memories and records stay saved.")).toBeTruthy();
+  expect(screen.getByText("Moments and records stay saved.")).toBeTruthy();
   expect(
     screen.queryByText(/Archived profiles stay saved/i)
   ).toBeNull();
@@ -361,7 +361,7 @@ it("uses Shared and Only me for Overview Moment badges", async () => {
   );
 
   const memories = (
-    await screen.findByRole("heading", { name: "Pet Memories" })
+    await screen.findByRole("heading", { name: "Moments" })
   ).closest("section")!;
   expect(within(memories).getAllByText("Shared")).toHaveLength(1);
   expect(within(memories).getAllByText("Only me")).toHaveLength(2);
@@ -396,7 +396,7 @@ it("allows long Moment titles two lines without disturbing overview status or ac
   expect(list?.className).toContain("grid-cols-[minmax(0,1fr)]");
   expect(overviewGrid?.className).toContain("grid-cols-[minmax(0,1fr)]");
   expect(within(row as HTMLElement).getByText("Shared")).toBeTruthy();
-  expect(screen.getByRole("link", { name: "View all pet memories" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "View all Moments" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Add Moment" })).toBeTruthy();
 });
 

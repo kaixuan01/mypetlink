@@ -21,7 +21,7 @@ describe("PetMomentCard owner audience badges", () => {
 
     expect(screen.getByText(expected)).toBeTruthy();
     expect(screen.queryByText("Family Only")).toBeNull();
-    expect(screen.queryByText("Public Profile")).toBeNull();
+    expect(screen.queryByText("Share Profile")).toBeNull();
   });
 
   it("keeps Timeline placement separate from audience compatibility fields", () => {
@@ -49,7 +49,7 @@ describe("PetMomentCard owner audience badges", () => {
     );
     expect(screen.getByText("Only me")).toBeTruthy();
     expect(screen.getByText("In Life Timeline")).toBeTruthy();
-    expect(screen.queryByText("Public Profile")).toBeNull();
+    expect(screen.queryByText("Share Profile")).toBeNull();
   });
 
   it("gives a long title two mobile lines before the owner badge metadata", () => {

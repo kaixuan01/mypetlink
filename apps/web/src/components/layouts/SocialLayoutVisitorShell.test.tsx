@@ -25,7 +25,7 @@ vi.mock("@/lib/useSignedIn", () => ({
  * with Community switched off.
  *
  * So the two Community links follow `socialEnabled` like every other entry
- * point, and the rest of the header — brand, sign in, get started — does not,
+ * point, and the rest of the header — brand, sign in, create a profile — does not,
  * because none of it is Community.
  */
 
@@ -102,7 +102,11 @@ describe("visitor shell with Community off", () => {
     // The page itself is unaffected: a Share Profile is not a Community page.
     expect(screen.getByText("Somebody’s pet")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /get started/i })).toBeTruthy();
+    // The shared profile-creation control, so this header names the action
+    // the same way every other surface does.
+    expect(
+      screen.getByRole("button", { name: /create free pet profile/i })
+    ).toBeTruthy();
   });
 
   it("sends sign-in back to the page being read, never to a Community route", async () => {

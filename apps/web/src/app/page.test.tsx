@@ -163,7 +163,7 @@ describe("landing page commercial claims", () => {
     ).toBeGreaterThan(0);
     expect(
       main().getByText(
-        new RegExp(`${freePlanLimits.maxMemoriesPerPet} pet memories`, "i")
+        new RegExp(`${freePlanLimits.maxMemoriesPerPet} Moments`, "i")
       )
     ).toBeTruthy();
   });

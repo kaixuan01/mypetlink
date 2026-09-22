@@ -99,7 +99,7 @@ function loadCoverPreviewGeometry({
   height?: number;
 }) {
   const image = screen.getByAltText(
-    "Milo public profile cover preview"
+    "Milo Share Profile cover preview"
   ) as HTMLImageElement;
   Object.defineProperties(image, {
     naturalWidth: { configurable: true, value: naturalWidth },
@@ -304,17 +304,17 @@ describe("PetProfileForm lifecycle workflow", () => {
       screen.getByRole("heading", { name: "Sharing & Privacy" })
     ).toBeTruthy();
     expect(
-      screen.queryByRole("tab", { name: "Public Profile" })
+      screen.queryByRole("tab", { name: "Share Profile" })
     ).toBeNull();
     expect(window.location.search).toBe("?tab=public");
   });
 
-  it("keeps the functional Public Profile enabled control in Edit mode", async () => {
+  it("keeps the functional Share Profile enabled control in Edit mode", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openSharingPrivacy();
 
     const accessToggle = screen.getByRole("switch", {
-      name: /Public Profile enabled/,
+      name: /Share Profile enabled/,
     });
     expect(accessToggle.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(accessToggle);
@@ -341,7 +341,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("checkbox", {
-        name: "Show care history on Public Profile",
+        name: "Show care history on Share Profile",
       })
     ).toBeTruthy();
     expect(
@@ -362,7 +362,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeNull();
     expect(
       screen.queryByRole("checkbox", {
-        name: "Show allergies on Public Profile",
+        name: "Show allergies on Share Profile",
       })
     ).toBeNull();
 
@@ -372,15 +372,15 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toHaveLength(1);
     expect(
       screen.getAllByRole("checkbox", {
-        name: "Show allergies on Public Profile",
+        name: "Show allergies on Share Profile",
       })
     ).toHaveLength(1);
     expect(screen.getByText("Allergies")).toBeTruthy();
     expect(
-      screen.getByText(/Public Profile or Safety Profile/)
+      screen.getByText(/Share Profile or Safety Profile/)
     ).toBeTruthy();
     expect(
-      screen.getByText(/general area on this pet's Public Profile and Safety Profile/)
+      screen.getByText(/general area on this pet's Share Profile and Safety Profile/)
     ).toBeTruthy();
   });
 
@@ -399,7 +399,7 @@ describe("PetProfileForm lifecycle workflow", () => {
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Show care history on Public Profile",
+        name: "Show care history on Share Profile",
       })
     );
     clickSave();
@@ -910,7 +910,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     });
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Show this memorial on the public profile",
+        name: "Show this memorial on the Share Profile",
       })
     );
     clickSave();
@@ -1201,7 +1201,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     await openContactSafety();
 
     const allergyVisibility = screen.getByRole("checkbox", {
-      name: "Show allergies on Public Profile",
+      name: "Show allergies on Share Profile",
     }) as HTMLInputElement;
     const ownerVisibility = screen.getByRole("checkbox", {
       name: "Show owner name",
@@ -1247,7 +1247,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(
       (
         screen.getByRole("checkbox", {
-          name: "Show allergies on Public Profile",
+          name: "Show allergies on Share Profile",
         }) as HTMLInputElement
       ).checked
     ).toBe(true);
@@ -1274,7 +1274,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openContactSafety();
-    fireEvent.change(screen.getByRole("textbox", { name: "Owner display name" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Name finders see" }), {
       target: { value: "x".repeat(81) },
     });
     fireEvent.click(screen.getByRole("tab", { name: /Basic Info/ }));
@@ -1318,7 +1318,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(
       1
     );
-    expect(screen.queryByText("Public Profile URL")).toBeNull();
+    expect(screen.queryByText("Share Profile URL")).toBeNull();
   });
 
   it("sends explicit empty lists when both favourite fields are cleared", async () => {

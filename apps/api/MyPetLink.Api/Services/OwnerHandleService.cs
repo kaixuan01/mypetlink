@@ -293,7 +293,7 @@ public sealed class OwnerHandleService : SkeletonService, IOwnerHandleService
             ?? throw new ApiException(
                 StatusCodes.Status404NotFound,
                 "not_found",
-                "This owner does not have a social profile yet.");
+                "This owner does not have a Community Profile yet.");
 
         var currentHolder = await _dbContext.OwnerSocialProfiles
             .Where(item => item.NormalizedHandle == normalized)
@@ -311,7 +311,7 @@ public sealed class OwnerHandleService : SkeletonService, IOwnerHandleService
             throw new ApiException(
                 StatusCodes.Status409Conflict,
                 "reserved_handle_assigned",
-                "Another social profile already holds this reserved handle. "
+                "Another Community Profile already holds this reserved handle. "
                 + "Reassign it explicitly if that is what you intend.");
         }
 
@@ -381,7 +381,7 @@ public sealed class OwnerHandleService : SkeletonService, IOwnerHandleService
             throw new ApiException(
                 StatusCodes.Status409Conflict,
                 "reserved_handle_assigned",
-                "Another social profile already holds this reserved handle. "
+                "Another Community Profile already holds this reserved handle. "
                 + "Reload and try again.");
         }
 

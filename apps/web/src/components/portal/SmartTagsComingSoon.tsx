@@ -30,7 +30,7 @@ export function SmartTagsComingSoon({ petId, className = "" }: SmartTagsComingSo
           <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
             We are getting our physical QR + NFC Smart Tags ready. Tag
             ordering is not open just yet. In the meantime, your pet&apos;s
-            free Safety Profile and Public Share Profile are already active — no
+            free Safety Profile and Share Profile are already active — no
             physical tag needed to keep a Safety Profile ready for finders.
           </p>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">

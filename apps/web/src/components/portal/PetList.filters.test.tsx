@@ -86,9 +86,9 @@ it("keeps every status filter directly named and preserves filter semantics", as
   const archivedCard = screen.getByText(archivedPet.name).closest("article")!;
   expect(within(archivedCard).getByText("Archived")).toBeTruthy();
   expect(
-    within(archivedCard).getByText("Memories and records stay saved.")
+    within(archivedCard).getByText("Moments and records stay saved.")
   ).toBeTruthy();
-  expect(within(archivedCard).getByRole("link", { name: "Enable Profile" })).toBeTruthy();
+  expect(within(archivedCard).getByRole("link", { name: "Enable Share Profile" })).toBeTruthy();
 
   const allTab = within(tabList).getByRole("tab", { name: "All" });
   fireEvent.click(allTab);

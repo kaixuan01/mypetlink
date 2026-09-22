@@ -101,7 +101,7 @@ describe("the Safety Profile page", () => {
 
   it("keeps the two profiles distinct rather than merging them", () => {
     expect(page()).toContain("Safety Profile");
-    expect(page()).toContain("Public Share Profile");
+    expect(page()).toContain("Share Profile");
     expect(page()).toContain("marketingRoutes.petProfile");
   });
 });
@@ -118,7 +118,7 @@ describe("public terminology", () => {
   ];
 
   it("has one official name for the shareable profile", () => {
-    // AGENTS.md names it "Public Share Profile" and permits "Public Profile" /
+    // AGENTS.md names it "Share Profile" and permits "Share Profile" /
     // "Share Profile" as short forms. What it must not have is a fourth name
     // that also reads like a product.
     for (const file of publicCopy) {
@@ -214,7 +214,8 @@ describe("Smart Tag product facts", () => {
   });
 
   it("ends on one action and one way to read further", () => {
-    expect(page()).toContain("Get Started Free");
+    // The shared control, not a repeated literal: one label for one action.
+    expect(page()).toContain("<CreateProfileCTA />");
     expect(page()).toContain("Learn how it works");
     // The three equal-weight buttons are gone.
     expect(page()).not.toContain("View Pricing");

@@ -111,7 +111,7 @@ export default function SmartPetTagsPage() {
             in the navigation.
           */}
           <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <CreateProfileCTA>Get Started Free</CreateProfileCTA>
+            <CreateProfileCTA />
             <a
               className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
               href={marketingRoutes.howItWorks}

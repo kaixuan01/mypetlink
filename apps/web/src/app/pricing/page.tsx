@@ -62,7 +62,7 @@ export default function PricingPage() {
                   price={freePlan.price}
                   note={freePlan.description}
                   features={freePlan.features}
-                  action={<CreateProfileCTA fullWidth>Start Free Profile</CreateProfileCTA>}
+                  action={<CreateProfileCTA fullWidth />}
                 />
                 <PricingCard
                   badge="Coming Soon"
@@ -211,7 +211,7 @@ function SmartTagAction({ status }: { status: string }) {
   if (status === "Available now") {
     return (
       <CTAButton fullWidth href={ownerRoutes.tagOrder()}>
-        Order a Smart Tag
+        Get a Smart Tag
       </CTAButton>
     );
   }

@@ -96,7 +96,7 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
         target="_blank"
         rel="noopener noreferrer"
       >
-        View Public Profile
+        View Share Profile
       </CTAButton>
     </div>
   );
@@ -118,7 +118,7 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
 
       {!pet.visibility.showTimeline ? (
         <p className="mt-5 rounded-[1.25rem] bg-pet-apricot/60 p-4 text-sm font-semibold leading-6 text-[#9b4037]">
-          Life Timeline is currently hidden on {pet.name}&apos;s public profile.
+          Life Timeline is currently hidden on {pet.name}&apos;s Share Profile.
           Turn on Show Life Timeline in Edit Pet Details to share these
           milestones.
         </p>
@@ -190,7 +190,7 @@ function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
               </Badge>
             ) : null}
             <Badge tone={publiclyShown ? "mint" : "soft"}>
-              {publiclyShown ? "Shown on public profile" : "Hidden from public"}
+              {publiclyShown ? "Shown on Share Profile" : "Hidden from Share Profile"}
             </Badge>
           </div>
           <p className="mt-2 text-xs font-bold uppercase text-pet-muted">

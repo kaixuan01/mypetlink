@@ -59,10 +59,10 @@ export function SampleExperience() {
               />
               <div className="min-w-0">
                 <p className="text-sm font-bold uppercase text-pet-coral">
-                  Public Share Profile
+                  Share Profile
                 </p>
                 <h2 className="mt-2 break-words text-2xl font-black text-pet-ink sm:text-3xl">
-                  {petName}&apos;s Public Share Profile
+                  {petName}&apos;s Share Profile
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-pet-muted">
                   A warm pet page for family and friends, with approved details,
@@ -98,13 +98,13 @@ export function SampleExperience() {
             tone="text-pet-coral"
           >
             <CTAButton
-              ariaLabel={`View ${petName}'s sample Public Profile`}
+              ariaLabel={`View ${petName}'s sample Share Profile`}
               className="mt-2"
               fullWidth
               href={publicPath}
               icon="heart"
             >
-              View Public Profile
+              View Share Profile
             </CTAButton>
           </CardBody>
         </article>
@@ -238,9 +238,7 @@ export function SampleExperience() {
           Start free, choose what visitors can see, and add a Smart Tag only if
           you want one.
         </p>
-        <CreateProfileCTA className="mt-5">
-          Create Your Pet&apos;s Profile
-        </CreateProfileCTA>
+        <CreateProfileCTA className="mt-5" />
       </section>
     </div>
   );

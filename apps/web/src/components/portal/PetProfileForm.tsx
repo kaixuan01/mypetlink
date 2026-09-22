@@ -1090,7 +1090,7 @@ export function PetProfileForm({
             Manage {form.name || currentPet.name}&apos;s content
           </p>
           <p className="-mt-1 text-xs leading-5 text-pet-muted">
-            Records and memories are managed on their own pages. Add life
+            Records and Moments are managed on their own pages. Add life
             events such as Adoption Day as a Moment.
           </p>
           <div
@@ -1141,7 +1141,7 @@ export function PetProfileForm({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                View Public Profile
+                View Share Profile
               </CTAButton>
             ) : null}
             {safetyProfilesOwnerUiEnabled ? (

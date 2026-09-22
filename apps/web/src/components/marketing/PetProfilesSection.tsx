@@ -23,7 +23,7 @@ const profiles: {
 }[] = [
   {
     icon: "heart",
-    title: "Public Share Profile",
+    title: "Share Profile",
     audience: "For friends and family",
     description:
       "A friendly page you can share anywhere — your pet's story, photos, moments and life timeline.",

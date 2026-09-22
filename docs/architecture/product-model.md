@@ -427,20 +427,32 @@ Also:
 | `OwnerProfiles.OwnerDisplayName` | the name finders see | a bare "display name" |
 | `OwnerSocialProfiles.DisplayName` | the Community name | a bare "display name" |
 
-### Terminology debt, deliberately not yet paid
+### Terminology debt, paid
 
-These are known, tracked, and scheduled for a separate controlled stage. They
-are **not** licence to keep writing them in new code.
+The four inconsistencies this document was written to settle are settled in the
+product UI: `/p/` is the **Share Profile** everywhere a reader meets it, a
+`PetMemory` is a **Moment**, the social half is **Community**, and `/explore` is
+the Community discovery surface with **Explore** as the way to reach it.
 
-- `/p/` is still called "Public Profile" across the owner portal, the share
-  sheet and several marketing surfaces, and "Pet Profile" in the page title
-  (`lib/pageTitles.ts`).
-- "Memories" still appears in plan limits, page titles, the Moments manager and
-  the dashboard, alongside "Moments".
-- "social profile" and "MyPetLink Social" still appear in Community settings
-  copy, under navigation that says "Community".
-- `/explore` is labelled "Community" in the public nav and "Explore" in-app, and
-  its heading reads "Explore pets".
+`src/lib/productTerminology.test.ts` guards them by reading the source of every
+surface that names one, so a second name cannot quietly come back.
+
+**What deliberately still reads the old way, and why:**
+
+- **`"Memory"` is one of eleven Moment categories**, beside "Vet Visit" and
+  "Achievement". It is a stored `MomentType` value, so renaming it would be a
+  data change, and in that list it means something specific — a keepsake.
+- **"memorial" and "In memory of"** are ordinary English about a pet that has
+  died. They have nothing to do with the Moments feature.
+- **Internal names are untouched by design**: `PetMemory`, `PetPublicProfile`,
+  `OwnerSocialProfile`, `maxMemoriesPerPet`, `MemoryVisibility`, the `Social*`
+  namespace, the `/api/v1/memories` routes and every DTO property. Code and
+  schema keep the names they were built with.
+- **Legal copy stays explicit where the sentence depends on it.** The Terms say
+  "Share Profiles and Safety Profiles are publicly shared pages", and the
+  Privacy Notice says "publicly shared Share Profiles", because a reader of a
+  legal clause should not have to recognise a product name to understand what is
+  public.
 
 ---
 

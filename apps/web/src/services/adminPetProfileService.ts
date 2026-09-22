@@ -323,7 +323,7 @@ export async function downloadAdminPetProfilesExport(
     rows = rows.filter((row) => selected.has(row.id));
   }
   const data = [
-    ["Pet Name", "Owner Name", "Pet Type", "Breed", "Lifecycle", "Lost Mode", "Public Profile Status", "Safety Profile Status", "Active Smart Tags", "Total Smart Tags", "Allergies Present", "Created", "Updated"],
+    ["Pet Name", "Owner Name", "Pet Type", "Breed", "Lifecycle", "Lost Mode", "Share Profile Status", "Safety Profile Status", "Active Smart Tags", "Total Smart Tags", "Allergies Present", "Created", "Updated"],
     ...rows.map((row) => [row.name, row.ownerName, row.customSpecies || row.species, row.breed ?? "", row.lifecycle,
       row.lostModeEnabled ? "On" : "Off", routeStatus(row.publicProfileAccessible, row.publicProfileSetupIssue),
       routeStatus(row.qrSafetyAccessible, row.qrSafetySetupIssue), String(row.activeSmartTagCount),

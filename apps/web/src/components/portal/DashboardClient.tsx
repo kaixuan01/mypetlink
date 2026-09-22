@@ -239,9 +239,9 @@ export function DashboardClient({
   const stats: DashboardStatData[] = [
     { label: "Pets", value: pets.length, href: ownerRoutes.pets },
     ...(publicProfilesEnabled
-      ? [{ label: "Public profiles", value: publicProfileCount }]
+      ? [{ label: "Share Profiles", value: publicProfileCount }]
       : []),
-    { label: "Memories", value: allMoments.length, href: ownerRoutes.moments },
+    { label: "Moments", value: allMoments.length, href: ownerRoutes.moments },
   ];
 
   return (
@@ -377,7 +377,7 @@ function DashboardStat({ label, value, href }: DashboardStatData) {
         {value}
       </span>
       {/* Three of these share a phone's width, so the label wraps rather than
-          truncating: "Public profiles" cut to "Public pr…" says less than two
+          truncating: "Share Profiles" cut to "Share Pr…" says less than two
           short lines do. */}
       <span className="mt-1 block text-[11px] font-bold leading-4 text-pet-muted sm:text-xs">
         {label}
@@ -442,7 +442,7 @@ function ZeroPetWelcome() {
         Welcome to MyPetLink
       </h1>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-pet-muted sm:text-base">
-        Create your first pet profile to start adding photos, memories, and
+        Create your first pet profile to start adding photos, Moments, and
         care records you can share.
       </p>
       <CTAButton
@@ -579,7 +579,7 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
                 This profile is private and cannot be shared yet.
               </p>
               <Link
-                aria-label={`Enable ${pet.name}'s public profile`}
+                aria-label={`Enable ${pet.name}'s Share Profile`}
                 className="inline-flex min-h-11 shrink-0 items-center justify-center self-start whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-xs font-extrabold text-pet-ink transition hover:bg-pet-cream"
                 href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
               >
@@ -621,7 +621,7 @@ function ShareProfileActions({
         triggerClassName="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-teal bg-pet-teal px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] sm:px-4"
       />
       <Link
-        aria-label={`View ${pet.name}'s public profile`}
+        aria-label={`View ${pet.name}'s Share Profile`}
         className="inline-flex min-h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-white/70"
         href={sharePath}
         rel="noopener noreferrer"

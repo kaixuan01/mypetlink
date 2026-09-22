@@ -21,8 +21,8 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
     private static readonly string[] ExportHeaders =
     [
         "Pet Name", "Owner Name", "Owner Email", "Pet Type", "Breed", "Gender",
-        "Lifecycle", "Lost Mode", "Public Profile Enabled", "Public Profile Status",
-        "Public Profile Slug", "Safety Profile Enabled", "Safety Profile Status",
+        "Lifecycle", "Lost Mode", "Share Profile Enabled", "Share Profile Status",
+        "Share Profile Slug", "Safety Profile Enabled", "Safety Profile Status",
         "Active Smart Tag Count", "Total Smart Tag Count", "Allergies Present",
         "Created At (UTC)", "Updated At (UTC)"
     ];
@@ -348,7 +348,7 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
                 "accessible" => pets.Where(IsPublicProfileAccessibleExpression()),
                 "setup-issue" => pets.Where(HasPublicProfileIssueExpression()),
                 "unavailable" => pets.Where(IsPublicProfileUnavailableExpression()),
-                _ => throw ValidationFailed("publicProfile", "Public Profile status is not supported.")
+                _ => throw ValidationFailed("publicProfile", "Share Profile status is not supported.")
             };
         }
         if (query.ShowAllergiesPublicly.HasValue)

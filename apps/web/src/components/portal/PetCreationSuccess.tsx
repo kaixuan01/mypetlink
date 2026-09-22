@@ -65,7 +65,7 @@ export function PetCreationSuccess({
             rel="noopener noreferrer"
             target="_blank"
           >
-            View public profile
+            View Share Profile
           </Link>
         ) : null}
       </div>

@@ -22,13 +22,13 @@ it("keeps one accessible Public Profile action on the pet card", () => {
   const pet = mockPets[0];
   render(<PetCard pet={pet} />);
 
-  const publicProfile = screen.getByRole("link", { name: "Public Profile" });
+  const publicProfile = screen.getByRole("link", { name: "Share Profile" });
   expect(publicProfile.getAttribute("href")).toBe(pet.publicProfilePath);
   expect(publicProfile.getAttribute("target")).toBe("_blank");
 
   fireEvent.click(screen.getByRole("button", { name: "More actions" }));
 
-  expect(screen.queryByRole("link", { name: "View public profile" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "View Share Profile" })).toBeNull();
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Smart tags" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Order tag" })).toBeNull();
@@ -66,8 +66,8 @@ it("shows management instead of public actions for a private profile", () => {
   render(<PetCard pet={pet} tags={[]} orders={[]} />);
 
   expect(screen.getByText("Private")).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Enable Profile" })).toBeTruthy();
-  expect(screen.queryByRole("link", { name: "Public Profile" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Enable Share Profile" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Share Profile" })).toBeNull();
 });
 
 it("uses the Archived badge for state and keeps retention copy fully visible", () => {
@@ -75,13 +75,13 @@ it("uses the Archived badge for state and keeps retention copy fully visible", (
   render(<PetCard pet={archived} />);
 
   expect(screen.getByText("Archived")).toBeTruthy();
-  const retention = screen.getByText("Memories and records stay saved.");
+  const retention = screen.getByText("Moments and records stay saved.");
   expect(retention.classList.contains("line-clamp-2")).toBe(false);
   expect(screen.queryByText(/This profile is archived/i)).toBeNull();
   expect(screen.queryByText("Archived Profile")).toBeNull();
 
   // T12 is deliberately unchanged: the existing action remains available.
-  expect(screen.getByRole("link", { name: "Enable Profile" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Enable Share Profile" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "More actions" }));
   expect(screen.getByRole("button", { name: "Restore to List" })).toBeTruthy();
 });
