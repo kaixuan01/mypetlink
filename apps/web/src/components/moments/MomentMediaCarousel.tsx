@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { MediaCounter } from "@/components/moments/MediaCounter";
+import { MomentImage } from "@/components/moments/MomentImage";
 import {
   MomentMediaViewer,
   pauseMediaElements,
@@ -208,13 +209,12 @@ export function MomentMediaCarousel({
               full card reached the same page eagerly and turned a page of
               fifteen Moments into fifteen immediate image requests.
             */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <MomentImage
               alt={activeItem.altText ?? `${title} photo`}
               className="h-full w-full object-contain transition duration-300 group-hover/media:scale-[1.015] motion-reduce:transition-none motion-reduce:group-hover/media:scale-100"
               decoding="async"
               loading="lazy"
-              src={activeUrl}
+              url={activeUrl}
             />
             <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/0 opacity-0 transition group-hover/media:bg-black/15 group-hover/media:opacity-100 group-focus-visible/media:bg-black/15 group-focus-visible/media:opacity-100 motion-reduce:transition-none">
               <span className="grid h-14 w-14 place-items-center rounded-full bg-black/60 text-white shadow-xl backdrop-blur-sm">

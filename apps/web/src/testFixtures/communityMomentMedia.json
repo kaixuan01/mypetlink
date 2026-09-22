@@ -1,0 +1,87 @@
+[
+  {
+    "id": "c3-text-only",
+    "title": "Quiet afternoon notes",
+    "momentDate": "2026-09-20",
+    "publishedAt": "2026-09-20T08:30:00+08:00",
+    "type": "Memory",
+    "caption": "A text-only Moment keeps the story readable without an empty media gap.",
+    "author": { "handle": "fixturefamily", "displayName": "The Fixture Family", "avatarUrl": null, "avatarThumbnailUrl": null },
+    "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
+    "media": [],
+    "likeCount": 2,
+    "viewerHasLiked": false
+  },
+  {
+    "id": "c3-landscape",
+    "title": "A wide walk by the lake",
+    "momentDate": "2026-09-20",
+    "publishedAt": "2026-09-20T09:00:00+08:00",
+    "type": "Outdoor / Trip",
+    "caption": "Landscape image fixture.",
+    "author": { "handle": "fixturefamily", "displayName": "The Fixture Family", "avatarUrl": null, "avatarThumbnailUrl": null },
+    "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
+    "media": [{ "id": "c3-landscape-image", "type": "image", "url": "https://c3-media.test/landscape.svg", "caption": null, "altText": "Mochi walking beside a wide blue lake", "sortOrder": 0 }],
+    "likeCount": 3,
+    "viewerHasLiked": false
+  },
+  {
+    "id": "c3-portrait",
+    "title": "Window watch",
+    "momentDate": "2026-09-20",
+    "publishedAt": "2026-09-20T09:30:00+08:00",
+    "type": "Funny Moment",
+    "caption": "Portrait image fixture.",
+    "author": { "handle": "fixturefamily", "displayName": "The Fixture Family", "avatarUrl": null, "avatarThumbnailUrl": null },
+    "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
+    "media": [{ "id": "c3-portrait-image", "type": "image", "url": "https://c3-media.test/portrait.svg", "caption": null, "altText": "Mochi sitting tall beside a sunny window", "sortOrder": 0 }],
+    "likeCount": 4,
+    "viewerHasLiked": false
+  },
+  {
+    "id": "c3-multi-image",
+    "title": "Three shapes of one happy day",
+    "momentDate": "2026-09-20",
+    "publishedAt": "2026-09-20T10:00:00+08:00",
+    "type": "Memory",
+    "caption": "Landscape, portrait and square images in one carousel.",
+    "author": { "handle": "fixturefamily", "displayName": "The Fixture Family", "avatarUrl": null, "avatarThumbnailUrl": null },
+    "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
+    "media": [
+      { "id": "c3-multi-landscape", "type": "image", "url": "https://c3-media.test/landscape.svg", "caption": "At the lake", "altText": "Mochi walking beside a wide blue lake", "sortOrder": 0 },
+      { "id": "c3-multi-portrait", "type": "image", "url": "https://c3-media.test/portrait.svg", "caption": "At the window", "altText": "Mochi sitting tall beside a sunny window", "sortOrder": 1 },
+      { "id": "c3-multi-square", "type": "image", "url": "https://c3-media.test/square.svg", "caption": "Ready to play", "altText": "Mochi beside a bright play ball", "sortOrder": 2 }
+    ],
+    "likeCount": 5,
+    "viewerHasLiked": false
+  },
+  {
+    "id": "c3-video",
+    "title": "A short playtime clip",
+    "momentDate": "2026-09-20",
+    "publishedAt": "2026-09-20T10:30:00+08:00",
+    "type": "Funny Moment",
+    "caption": "Short MP4 fixture.",
+    "author": { "handle": "fixturefamily", "displayName": "The Fixture Family", "avatarUrl": null, "avatarThumbnailUrl": null },
+    "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
+    "media": [{ "id": "c3-video-media", "type": "video", "url": "https://c3-media.test/video.mp4", "caption": null, "altText": "Mochi playing in a colourful room", "sortOrder": 0 }],
+    "likeCount": 6,
+    "viewerHasLiked": false
+  },
+  {
+    "id": "c3-mixed-media",
+    "title": "Photo and video playtime",
+    "momentDate": "2026-09-20",
+    "publishedAt": "2026-09-20T11:00:00+08:00",
+    "type": "Memory",
+    "caption": "The current product supports ordered image and video items in one Moment.",
+    "author": { "handle": "fixturefamily", "displayName": "The Fixture Family", "avatarUrl": null, "avatarThumbnailUrl": null },
+    "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
+    "media": [
+      { "id": "c3-mixed-square", "type": "image", "url": "https://c3-media.test/square.svg", "caption": null, "altText": "Mochi beside a bright play ball", "sortOrder": 0 },
+      { "id": "c3-mixed-video", "type": "video", "url": "https://c3-media.test/video.mp4", "caption": null, "altText": "Mochi playing in a colourful room", "sortOrder": 1 }
+    ],
+    "likeCount": 7,
+    "viewerHasLiked": false
+  }
+]

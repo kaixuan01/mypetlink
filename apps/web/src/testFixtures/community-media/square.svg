@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <rect width="640" height="640" fill="#d8f0df"/>
+  <circle cx="500" cy="485" r="78" fill="#ff786f"/>
+  <ellipse cx="280" cy="390" rx="120" ry="105" fill="#ffad73"/>
+  <circle cx="310" cy="270" r="88" fill="#ffbf8c"/>
+  <path d="M245 220l24-88 55 72M324 204l65-65 5 104" fill="#ffbf8c" stroke="#17315f" stroke-width="11" stroke-linejoin="round"/>
+  <circle cx="280" cy="270" r="9" fill="#17315f"/><circle cx="337" cy="270" r="9" fill="#17315f"/>
+  <path d="M290 307q19 18 40 0" fill="none" stroke="#17315f" stroke-width="9" stroke-linecap="round"/>
+  <text x="28" y="55" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#17315f">Square QA fixture</text>
+</svg>

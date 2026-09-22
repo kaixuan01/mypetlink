@@ -140,6 +140,41 @@ describe("MomentMediaCarousel", () => {
     expect(screen.getByLabelText("Media 1 of 1").textContent).toBe("1 / 1");
   });
 
+  it("replaces a failed carousel photo without hiding the Moment", () => {
+    render(<MomentMediaCarousel moment={makeMoment([photoOne, photoTwo])} />);
+
+    fireEvent.error(screen.getByAltText("First photo"));
+
+    const unavailable = screen.getByTestId(
+      "moment-carousel-image-unavailable"
+    );
+    expect(unavailable.textContent).toContain(
+      "This photo is not available right now."
+    );
+    expect(unavailable.getAttribute("aria-label")).toContain("First photo");
+    expect(screen.getByLabelText("Media 1 of 2")).toBeTruthy();
+
+    // Failure belongs to that URL, not to the carousel. The next image still
+    // renders normally.
+    fireEvent.click(screen.getByLabelText("Next media"));
+    expect(screen.getByAltText("Second photo")).toBeTruthy();
+  });
+
+  it("replaces a failed viewer photo inside the stable media frame", () => {
+    render(<MomentMediaCarousel moment={makeMoment([photoOne])} />);
+    fireEvent.click(screen.getByLabelText("Open Beach day photo 1 of 1"));
+
+    const viewer = screen.getByRole("dialog", {
+      name: "Beach day media viewer",
+    });
+    fireEvent.error(within(viewer).getByAltText("First photo"));
+
+    expect(
+      within(viewer).getByTestId("moment-carousel-image-unavailable")
+        .textContent
+    ).toContain("This photo is not available right now.");
+  });
+
   it("uses a chronology-first mobile ratio without changing the Moments presentation", () => {
     const { container, rerender } = render(
       <MomentMediaCarousel moment={makeMoment([photoOne, photoTwo])} />
@@ -197,6 +232,17 @@ describe("MomentMediaCarousel", () => {
     expect(preview.autoplay).toBe(false);
     expect(preview.controls).toBe(false);
     expect(screen.getByText("0:11")).toBeTruthy();
+  });
+
+  it("turns a video error into a readable fallback instead of a permanent loader", () => {
+    render(<MomentMediaCarousel moment={makeMoment([video])} />);
+    const preview = screen.getByLabelText("First video");
+
+    expect(screen.getByText("Loading video…")).toBeTruthy();
+    fireEvent.error(preview);
+
+    expect(screen.getByText("This video is not available right now.")).toBeTruthy();
+    expect(screen.queryByText("Loading video…")).toBeNull();
   });
 
   it("starts and pauses inline playback without opening the viewer", () => {
