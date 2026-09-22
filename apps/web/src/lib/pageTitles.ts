@@ -3,7 +3,7 @@ import { siteConfig } from "@/config/site";
 export const loadingTitle = "Loading";
 export const genericNotFoundTitle = "Page not found";
 export const petNotFoundTitle = "Pet not found";
-export const publicProfileNotFoundTitle = "Pet profile not found";
+export const publicProfileNotFoundTitle = "Share Profile not found";
 export const qrSafetyNotFoundTitle = "Safety Profile not found";
 export const tagNotFoundTitle = "Tag not found";
 export const orderNotFoundTitle = "Order not found";

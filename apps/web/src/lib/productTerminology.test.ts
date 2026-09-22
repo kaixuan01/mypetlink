@@ -47,11 +47,23 @@ const LINE_COMMENT = /[/][/][^\r\n]*/g;
 /** camelCase and PascalCase: an internal lower-to-upper transition. */
 const COMPOUND_IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*[a-z0-9][A-Za-z0-9_$]*[A-Z][A-Za-z0-9_$]*/g;
 
+/**
+ * A reader sees a sentence, not the lines it was typed on.
+ *
+ * JSX wraps prose wherever the formatter decides, so
+ * `the Public Share\n  Profile.` renders as "the Public Share Profile" and
+ * matched nothing while this compared raw source. Three retired names shipped
+ * that way, on a file this list already named. Collapsing runs of whitespace to
+ * one space compares what the screen shows instead of how it was indented.
+ */
+const WHITESPACE_RUN = /\s+/g;
+
 function visibleCopy(source: string) {
   return source
     .replace(BLOCK_COMMENT, " ")
     .replace(LINE_COMMENT, " ")
-    .replace(COMPOUND_IDENTIFIER, " ");
+    .replace(COMPOUND_IDENTIFIER, " ")
+    .replace(WHITESPACE_RUN, " ");
 }
 
 /** Owner- and visitor-facing surfaces that name one of the three concepts. */
@@ -60,6 +72,12 @@ const surfaces = [
   "components/portal/petForm/ContactSafetySection.tsx",
   "components/portal/petForm/BasicInfoSection.tsx",
   "components/portal/petForm/AppearanceSection.tsx",
+  // The shared form controls carry their own prose — the theme preview caption
+  // named the page it previews, and nothing was watching this file.
+  "components/portal/petForm/PetFormControls.tsx",
+  // The Share Profile itself, including the copy a visitor meets when the link
+  // is broken.
+  "components/marketing/PublicSharePetProfile.tsx",
   "components/portal/PetManagementTabs.tsx",
   "components/portal/PetCard.tsx",
   "components/portal/PetMomentsManager.tsx",
@@ -86,6 +104,8 @@ const stalePhrases = [
   "public profile",
   "Public profiles",
   "MyPetLink Pet Profile",
+  // A missing /p/ is a missing Share Profile, not a missing pet.
+  "Pet profile not found",
   // A PetMemory is a Moment.
   "Memories",
   "memories",
@@ -110,6 +130,63 @@ describe("no surface carries a second name for a settled concept", () => {
     const found = stalePhrases.filter((phrase) => copy.includes(phrase));
 
     expect(found).toEqual([]);
+  });
+
+  it("sees a phrase the way it renders, not the way it was indented", () => {
+    // The reason three names survived a guard that already named their file.
+    const wrapped = `<p>
+      Adjust the cover that appears on the Public Share
+      Profile.
+    </p>`;
+
+    expect(wrapped).not.toContain("Public Share Profile");
+    expect(visibleCopy(wrapped)).toContain("Public Share Profile");
+  });
+
+  it("still lets legitimate English and identifiers through", () => {
+    const legitimate = `
+      // A retired name in a comment: Public Profile.
+      const maxMemoriesPerPet = plan.maxMemoriesPerPet;
+      const type: MomentType = "Memory";
+      <p>In memory of {pet.name}</p>
+      <p>This profile only shows owner-approved public information.</p>
+    `;
+    const copy = visibleCopy(legitimate);
+
+    expect(stalePhrases.filter((phrase) => copy.includes(phrase))).toEqual([]);
+  });
+});
+
+/**
+ * The exact strings that reached an owner's screen after Stage 2 said they were
+ * gone. Pinned individually, because a list that only says "these phrases are
+ * absent" cannot say what should be there instead.
+ */
+describe("the leaks the final audit found stay fixed", () => {
+  it("names the page the cover preview belongs to", () => {
+    const copy = visibleCopy(read("components/portal/petForm/AppearanceSection.tsx"));
+
+    expect(copy).toContain("appears on the Share Profile");
+    expect(copy).toContain("Share Profile and Safety Profile");
+  });
+
+  it("names the page the theme preview is previewing", () => {
+    const copy = visibleCopy(read("components/portal/petForm/PetFormControls.tsx"));
+
+    expect(copy).toContain("Share Profile will look");
+  });
+
+  it("tells a visitor which page is missing, not that the pet is", () => {
+    const copy = visibleCopy(read("components/marketing/PublicSharePetProfile.tsx"));
+
+    // "MyPetLink" is a compound identifier, so visibleCopy strips it out of
+    // the prose along with every camelCase name; the sentence it leaves behind
+    // is what this asserts on.
+    expect(copy).toContain("Share Profile not found");
+    expect(copy).not.toContain("Pet profile not found");
+    expect(copy).toContain("Share Profile for this link");
+    // The eyebrow above the card names the same page, not the umbrella.
+    expect(copy).not.toContain("Pet profile");
   });
 });
 

@@ -6,7 +6,7 @@ This document is the reference for the sharing surfaces only. It does not
 change any route, destination, or backend behaviour — the three public pages
 keep the meanings defined in `AGENTS.md`.
 
-Owners are the main audience, but a visitor looking at a Public Share Profile
+Owners are the main audience, but a visitor looking at a Share Profile
 shares the pet through the same dialog. Where the two differ, it is said so
 below.
 
@@ -19,8 +19,8 @@ point. Every surface opens the same dialog, so sharing is learned once:
 | --- | --- |
 | Dashboard pet card | `DashboardClient.tsx` — the primary **Share** action, beside **View** |
 | Pet detail hero | `PetDetailHeader.tsx` — the primary **Share** action, beside **Edit** |
-| Public Share Profile, viewed by its owner | `PublicProfileOwnerControls.tsx` |
-| Public Share Profile, viewed by anyone else | `PublicProfileOwnerControls.tsx` — **Share profile**, beside **Copy Link** |
+| Share Profile, viewed by its owner | `PublicProfileOwnerControls.tsx` |
+| Share Profile, viewed by anyone else | `PublicProfileOwnerControls.tsx` — **Share profile**, beside **Copy Link** |
 
 Do not add a second, competing share control to any of these surfaces, and do
 not open the device share sheet straight from a Share button. If a new surface
@@ -53,8 +53,8 @@ The first level answers "I want to share my pet" and stops at four choices:
    hero of the dialog: a richer tile carrying the pet's photo, because it is
    the everyday way owners share a pet. The three rows under it are
    deliberately quieter.
-2. **Copy Profile Link** — the Public Share Profile address.
-3. **Show Profile QR** — the Public Share Profile QR. Named "Profile" because
+2. **Copy Profile Link** — the Share Profile address.
+3. **Show Profile QR** — the Share Profile QR. Named "Profile" because
    MyPetLink also has a Safety QR; the two must never read as the same thing.
 4. **More sharing options** — its supporting line depends on what is actually
    available: "Other apps, downloads and safety sharing." when the Safety
@@ -73,7 +73,7 @@ Everything rarer sits one level down, under **More sharing options**:
 - **Share with another app** — the phone or browser's own sharing options. This
   is the only route to them, and it is hidden where the browser has none, so
   that panel degrades to the copy and download choices rather than breaking.
-- Download Public Profile QR, Open Public Profile.
+- Download Share Profile QR, Open Share Profile.
 - A separate **Safety Profile** block — copy link, show QR, open page — labelled
   "For someone who finds {Pet}." This keeps the finder-facing page distinct from
   the profile an owner shares with friends, without giving it equal weight in
@@ -96,7 +96,7 @@ The 1080x1350 portrait card has one canonical composition, and it is owner
 approved. It carries, top to bottom: the large hero photo in its rounded frame,
 the **circular pet portrait** overlapping below it, the MyPetLink lockup, the
 pet's name, one line of metadata, the "Meet {Pet} on MyPetLink" tagline, the
-Public Profile QR, the scan instruction, and mypetlink.com.my. **The hero photo
+Share Profile QR, the scan instruction, and mypetlink.com.my. **The hero photo
 and the circular portrait are both deliberate. Neither is redundant, and
 neither may be removed.**
 
@@ -114,7 +114,7 @@ Three refinements are worth knowing about:
 
 ### Theme awareness
 
-The Share Card follows the pet's selected Public Profile theme through
+The Share Card follows the pet's selected Share Profile theme through
 `ShareCardPalette` - **one layout, a bounded allowlisted palette**. There is no
 renderer or template per theme, and no owner-supplied colour ever reaches the
 canvas.
@@ -209,7 +209,7 @@ than sharing.
 
 These are two different things and should stay that way.
 
-- **Plain profile share** - the owner sends the Public Profile URL, and the
+- **Plain profile share** - the owner sends the Share Profile URL, and the
   receiving platform renders its own preview from our Open Graph metadata and
   the 1200x630 OG image.
 - **Share Pet Card** - the owner sends the 1080x1350 JPEG with a short caption

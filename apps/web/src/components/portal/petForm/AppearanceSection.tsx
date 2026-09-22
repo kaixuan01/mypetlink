@@ -141,8 +141,7 @@ export function AppearanceSection({
                   Cover preview &amp; position
                 </h3>
                 <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
-                  Adjust the same cover view that appears on the Public Share
-                  Profile.
+                  Adjust the same cover view that appears on the Share Profile.
                 </p>
               </div>
               {form.coverUrl ? (
@@ -259,8 +258,8 @@ export function AppearanceSection({
 
           {hasUnsavedThemeChange ? (
             <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
-              Save changes to update {form.name || "your pet"}&apos;s public
-              profile and Safety Profile.
+              Save changes to update {form.name || "your pet"}&apos;s Share
+              Profile and Safety Profile.
             </p>
           ) : null}
 

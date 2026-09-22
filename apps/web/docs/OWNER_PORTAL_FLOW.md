@@ -110,15 +110,21 @@ never display or copy it. See `PUBLIC_PROFILE_ROUTING.md`.
 `/pets/{petId}` (`src/app/pets/[id]/page.tsx`) is the **main management page**
 for a single pet. The server page loads the pet, records, moments, and tags,
 then renders a pet header (photo, name, species/breed/age, QR + smart tag
-status) plus **`PetManagementTabs`** (client) with five tabs:
+status) plus **`PetManagementTabs`** (client) with three tabs, plus a fourth when
+Smart Tags are switched on:
 
-| Tab        | Content                                                                 |
-| ---------- | ----------------------------------------------------------------------- |
-| Overview   | **Sharing & Privacy** (Share Profile, Safety Profile, Community), smart tag status, emergency note, recent records, recent moments |
-| Records    | `RecordsManager` for this pet                                            |
-| Moments    | `PetMomentsManager` (memories + life timeline)                           |
-| Smart Tag  | `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report tag lost/archive/restore/order replacement) |
-| Settings   | Links to edit profile, privacy, public profile theme, contact preferences |
+| Tab          | Content                                                                 |
+| ------------ | ----------------------------------------------------------------------- |
+| Overview     | **Sharing & Privacy** (Share Profile, Safety Profile, Community), smart tag status, Lost Mode, emergency note, recent records, recent moments |
+| Care Records | `RecordsManager` for this pet                                            |
+| Moments      | `PetMomentsManager` (Moments + life timeline)                            |
+| Smart Tag    | Only when `smartTagsEnabled`. `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report tag lost/archive/restore/order replacement) |
+
+**There is no Settings tab, and adding one would be a mistake.** Every setting
+the hub reports on is changed in exactly one place - Edit Pet -> Share Profile,
+Edit Pet -> Contact & Safety, or Community -> Edit Profile - and the Overview
+card links out to those. A Settings tab would become a second route to the same
+switches, which is the duplication the next section exists to prevent.
 
 Tabs are in-page client state (static export has no server). The per-pet
 sub-routes below still exist for deep links, the `MobileBottomNav`, and the

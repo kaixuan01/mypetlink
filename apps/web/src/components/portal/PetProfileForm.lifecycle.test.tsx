@@ -622,7 +622,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
     fireEvent.click(screen.getByRole("radio", { name: /Mint Green/ }));
     expect(
-      screen.getByText(/Save changes to update .*public profile and Safety Profile/)
+      screen.getByText(/Save changes to update .*Share\s+Profile and Safety Profile/)
     ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: /Basic Info/ }));

@@ -5,7 +5,7 @@
 This is the entry point for any AI agent (or developer) working on MyPetLink. It
 explains the product structure, the non-negotiable rules, and where the detailed
 guides live. The goal is that every future change follows the same route rules,
-tag logic, owner pages, and public profile sharing â€” instead of each agent
+tag logic, owner pages, and Share Profile sharing â€” instead of each agent
 inventing its own conventions.
 
 **Precedence.** Current code is the behavioural source of truth: where this
@@ -42,17 +42,18 @@ contradictions either way — they mean one of the two is stale.
 
 ## 2. What MyPetLink is
 
-A mobile-first web app that gives every pet a **safe public profile**. If a pet
-is lost, a finder scans a QR code or taps an NFC tag, opens the pet's public
-profile, and contacts the owner. Owners also manage care records, memories
-(moments), smart tags, and orders from a private portal.
+A mobile-first web app that gives every pet a **Pet Profile**: a Share Profile
+to send to people, and a Safety Profile for whoever finds them. If a pet
+is lost, a finder scans a QR code or taps an NFC tag, opens the pet's Safety
+Profile, and contacts the owner. Owners also manage care records, Moments,
+smart tags, and orders from a private portal.
 
 Core promise: **A safer way home for your pet.**
 
 **Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
-gadget. Create a **Free Profile** first; it includes the Public Share Profile,
+gadget. Create a **Free Profile** first; it includes the Share Profile,
 pet-level Safety Profile, basic finder contact, basic care records, and up to 3
-pets with up to 10 memories per pet. The physical **QR + NFC Smart Tag** is an
+pets with up to 10 Moments per pet. The physical **QR + NFC Smart Tag** is an
 optional one-time add-on; scanning or tapping it opens the same safety content. **Premium is
 Coming Soon** and must not be presented as a live subscription or checkout flow.
 Never imply finder contact costs money (it's free on the Free plan). The public
@@ -166,7 +167,7 @@ There is exactly **one** public identifier per physical tag: the **TagCode**.
 token. **Never** expose the internal database `id` in a URL or in owner-facing
 UI. Owner UI shows the TagCode prominently labelled `TAG CODE`.
 
-The public profile share link uses a separate stable **`publicCode`** (lowercase
+The Share Profile link uses a separate stable **`publicCode`** (lowercase
 4 chars, `generatePublicCode()`) â€” this is the pet's public key, distinct from
 the tag's TagCode. See `PUBLIC_PROFILE_ROUTING.md`.
 
@@ -232,7 +233,7 @@ without pet selection.
    management hub; `/pets/{petId}/edit` is the tabbed edit form â€” see
    `OWNER_PORTAL_FLOW.md` Â§3). Public pages are never an owner dashboard.
 9. **The public share page and Safety Profile are DIFFERENT; never mix them.**
-   - **`/p/{petSlug}-{publicCode}` = Public Share Profile.** Friendly, IG-style,
+   - **`/p/{petSlug}-{publicCode}` = Share Profile.** Friendly, IG-style,
      shareable. Primary action is *Share*. Tabs: About / Moments / Timeline. No
      emergency CTAs, no "I found this pet", no "Send Found Location", no safety-
      page wording except the **Lost Mode** banner when pet-level `lostModeEnabled` is on.
@@ -269,9 +270,9 @@ without pet selection.
     it. See
     [`docs/architecture/owner-sharing-experience.md`](../../../docs/architecture/owner-sharing-experience.md).
 11. **Public previews open in a new tab.** Every owner-portal button that opens a
-    public route - "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
+    public route - "View Share Profile" (`/p/{slug}-{publicCode}`),
     "View Safety Profile" (`/q/{safetyCode}`), "View Tag Scan Page"
-    (`/t/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
+    (`/q/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
     so the portal stays open in the original tab. `CTAButton` forwards
     `target`/`rel` to both internal `Link` and external `<a>`. When the logged-in
     owner views their own `/p/` page, a small "Viewing as public" bar (Share

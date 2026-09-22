@@ -383,7 +383,7 @@ describe("MomentEditorDialog", () => {
  * The audience control has to describe the audience it actually creates.
  *
  * One switch publishes a Moment to the pet's Share Profile, the household's
- * Community profile, its own page, every follower's feed and — when the
+ * Community Profile, its own page, every follower's feed and — when the
  * household and pet are discoverable — Explore. It used to be labelled "Anyone
  * with the link", which is the phrase people read as "unlisted".
  */
@@ -416,7 +416,7 @@ describe("Moment audience copy", () => {
 
     // Every surface the switch actually publishes to is named.
     expect(text).toContain("Share Profile");
-    expect(text).toContain("Community profile");
+    expect(text).toContain("Community Profile");
     expect(text).toContain("Explore");
   });
 

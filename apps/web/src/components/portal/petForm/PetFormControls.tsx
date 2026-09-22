@@ -685,7 +685,7 @@ export function ThemePreviewPanel({
             className="text-sm font-black"
             style={{ color: theme.colors.text }}
           >
-            How {petName}&apos;s public profile will look
+            How {petName}&apos;s Share Profile will look
           </p>
           <p
             className="mt-2 text-sm leading-6"
