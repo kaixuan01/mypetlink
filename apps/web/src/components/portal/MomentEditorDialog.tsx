@@ -37,6 +37,20 @@ const momentCategories: MomentType[] = [
 
 type OwnerMomentVisibility = Exclude<MomentVisibility, "Family Only">;
 
+/**
+ * Who actually sees a Moment.
+ *
+ * "Anyone with the link" was wrong, and wrong in the direction that matters:
+ * it is the standard phrase for unlisted, so an owner read it as "nobody finds
+ * this unless I send it". A Public Moment appears on the pet's Share Profile,
+ * on the household's Community profile, on its own page, in the feed of
+ * everyone who follows them, and — once the household and the pet are
+ * discoverable — in Explore, where strangers browse.
+ *
+ * One switch drives all of that: `showOnPublicProfile` is derived from this
+ * value, it is not a second choice. So the label has to name the widest
+ * audience, not the narrowest.
+ */
 const audienceOptions: Array<{
   value: OwnerMomentVisibility;
   label: string;
@@ -49,8 +63,9 @@ const audienceOptions: Array<{
   },
   {
     value: "Public",
-    label: "Anyone with the link",
-    description: "Allow this Moment to appear on your pet's shared profile.",
+    label: "Shared publicly",
+    description:
+      "Appears on your pet's Share Profile and your Community profile, and may appear in Community feeds or Explore when your profile and pet are discoverable.",
   },
 ];
 

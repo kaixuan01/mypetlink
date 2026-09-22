@@ -168,13 +168,21 @@ public sealed record PublicSafetyPageResponse(
     PublicSafetyContactResponse? Contact,
 
     /// <summary>
-    /// The pet's Public Share Profile, when the owner has opted into sharing it
-    /// AND into social. Null otherwise, which is how the finder page decides
-    /// whether to offer the link at all.
+    /// The pet's Share Profile, when the owner has switched it on and the pet's
+    /// lifecycle still serves that page. Null otherwise, which is how the finder
+    /// page decides whether to offer the link at all.
     ///
-    /// A slug and nothing else. It is the PET's page, never the owner's social
-    /// identity: somebody scanned an animal, and routing them straight into a
-    /// person's social profile is not what they came for.
+    /// Community participation is NOT a condition. It was until the Share
+    /// Profile and Community were decoupled; see
+    /// docs/architecture/product-model.md.
+    ///
+    /// A slug and nothing else. It is the PET's page, never the owner's
+    /// Community identity: somebody scanned an animal, and routing them straight
+    /// into a person's Community profile is not what they came for.
+    ///
+    /// Populated on the direct Safety Profile route only. A Smart Tag scan
+    /// resolves the same Safety Profile but leaves this null today — see
+    /// TagScanService.BuildSafetyProfile.
     /// </summary>
     string? PublicProfileSlug = null);
 

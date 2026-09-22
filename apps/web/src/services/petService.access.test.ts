@@ -172,6 +172,38 @@ describe("Public Profile and Safety Profile access independence", () => {
     expect(safetyPage.data?.name).toBe("Kopi");
   });
 
+  it("offers no Share Profile bridge when that profile is switched off", async () => {
+    const pet = await createTestPet();
+
+    // The API answers this on the server and sends an empty path when the
+    // answer is no. The local path used to copy the path across regardless,
+    // so the finder page offered a button to a page that refuses to render.
+    await updatePet(pet.id, { publicProfileEnabled: false });
+    const safetyPage = await getPublicPetProfileBySafetyCode(pet.safetyCode);
+
+    expect(safetyPage.data?.name).toBe("Kopi");
+    expect(safetyPage.data?.publicProfilePath).toBe("");
+  });
+
+  it("offers the Share Profile bridge while that profile is switched on", async () => {
+    const pet = await createTestPet();
+
+    const safetyPage = await getPublicPetProfileBySafetyCode(pet.safetyCode);
+
+    expect(safetyPage.data?.publicProfilePath).toBe(pet.publicProfilePath);
+    expect(safetyPage.data?.publicProfilePath).not.toBe("");
+  });
+
+  it("restores the Share Profile bridge when the profile is switched back on", async () => {
+    const pet = await createTestPet();
+
+    await updatePet(pet.id, { publicProfileEnabled: false });
+    await updatePet(pet.id, { publicProfileEnabled: true });
+    const safetyPage = await getPublicPetProfileBySafetyCode(pet.safetyCode);
+
+    expect(safetyPage.data?.publicProfilePath).toBe(pet.publicProfilePath);
+  });
+
   it("disabling the Safety Profile keeps the Public Profile reachable", async () => {
     const pet = await createTestPet();
 

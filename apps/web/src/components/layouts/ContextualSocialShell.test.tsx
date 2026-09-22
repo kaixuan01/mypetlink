@@ -104,7 +104,7 @@ describe("an anonymous visitor", () => {
     expect(screen.queryByTestId("community-shell")).toBeNull();
   });
 
-  it("is offered somewhere to go rather than only somewhere to sign up", () => {
+  it("is offered a way in and a way to start", () => {
     render(
       <SocialLayout>
         <p>profile</p>
@@ -113,12 +113,26 @@ describe("an anonymous visitor", () => {
 
     const header = screen.getByTestId("social-header-public");
 
-    // A shared profile that offers only "sign in" is a microsite. Explore and
-    // Search are public, so they cost nothing and are where a visitor who liked
-    // what they saw would want to go next.
-    expect(header.querySelector('a[href="/explore"]')).toBeTruthy();
-    expect(header.querySelector('a[href="/search"]')).toBeTruthy();
+    // A shared profile that offers only "sign in" is a microsite, so the header
+    // also carries the action that starts an account. Whether it additionally
+    // offers Explore and Search depends on the Community flag, which is the
+    // subject of SocialLayoutVisitorShell.test.tsx — this build has it off, and
+    // a Share Profile must work either way.
     expect(header.textContent).toContain("Sign in");
+    expect(header.textContent).toMatch(/get started/i);
+  });
+
+  it("is offered no Community destination while Community is off", () => {
+    render(
+      <SocialLayout>
+        <p>profile</p>
+      </SocialLayout>
+    );
+
+    const header = screen.getByTestId("social-header-public");
+
+    expect(header.querySelector('a[href="/explore"]')).toBeNull();
+    expect(header.querySelector('a[href="/search"]')).toBeNull();
   });
 
   it("is shown no owner destination at all", () => {

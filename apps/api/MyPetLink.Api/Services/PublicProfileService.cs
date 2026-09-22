@@ -241,7 +241,7 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             lostModeActive ? source.LostMessage : null,
             lostModeActive ? source.LostRewardNote : null,
             lostModeActive ? source.LostExtraContactInstruction : null,
-            source.ShowOwnerName ? source.ResolveOwnerDisplayName() : null,
+            source.ResolveAnonymousOwnerDisplayName(),
             source.ShowGeneralArea ? source.ResolveGeneralArea() : null,
             source.ShowCareBadges,
             source.ShowMoments,
@@ -628,6 +628,37 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
 
         public PublicMediaProjection? ProfileMedia { get; init; }
         public PublicMediaProjection? CoverMedia { get; init; }
+
+        /// <summary>
+        /// The owner name this anonymous Share Profile response may carry.
+        ///
+        /// Two gates, not one. <c>ShowOwnerName</c> is the owner's own choice and
+        /// still decides whether any name appears at all. On top of it, a pet
+        /// that shows social attribution carries NO finder-facing name, because a
+        /// single payload naming both "The Tan Family" and "Alice Tan" hands an
+        /// anonymous caller the correlation between the household's chosen
+        /// community identity and the real name a finder is given — which is the
+        /// collapse the three identities exist to prevent.
+        ///
+        /// The Share Profile page suppressed one of the two names in React. That
+        /// left the boundary enforced by a component rather than by the response,
+        /// so the edge preview function, a future client, or anyone reading the
+        /// network tab still got both. It belongs here.
+        ///
+        /// Deliberately scoped to this projection: the Safety Profile is a
+        /// different audience with a different need — a finder has to be able to
+        /// ask for a person by name — and carries no social attribution to
+        /// correlate against. See <c>QrSafetyService</c>.
+        /// </summary>
+        public string? ResolveAnonymousOwnerDisplayName()
+        {
+            if (!ShowOwnerName || ShowsSocialAttribution)
+            {
+                return null;
+            }
+
+            return ResolveOwnerDisplayName();
+        }
 
         /// <summary>
         /// Mirrors <c>PetDtoMapper.ResolveOwnerDisplayName</c> against projected

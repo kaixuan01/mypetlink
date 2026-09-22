@@ -59,6 +59,49 @@ const socialEntryPoints = [
     marker: "SocialProfileSettingsSection",
     file: "community/profile/edit.html",
   },
+  {
+    // The entry point search engines get. `seo.ts` lists Explore in the sitemap
+    // only while Social is on, so this is a real difference between the two
+    // artifacts and it lives in a third file — a single page changing shape
+    // cannot fake the verdict on its own.
+    name: "Explore listed for search engines",
+    marker: "/explore",
+    file: "sitemap.xml",
+  },
+];
+
+/**
+ * Community entry points that the export cannot be asked about.
+ *
+ * `SocialLayout`'s visitor header renders after hydration — the prerendered
+ * HTML for `/p/{slug}-{publicCode}` carries the neutral "resolving" header in
+ * both states — and `socialEnabled` is a function call rather than a literal,
+ * so the branch survives minification and sits in the chunks either way.
+ * Searching the export for these links finds them in both artifacts and would
+ * report a confident, wrong verdict.
+ *
+ * It is also the entry point that matters most: that header sits above a pet's
+ * Share Profile, the page owners actually send to people, and it was offering
+ * Explore and Search in a build where every other surface had hidden Community.
+ *
+ * So it is checked where the answer is knowable — in the source that produced
+ * the artifact. This is a weaker kind of evidence than the checks above and is
+ * reported as such. The behavioural proof is
+ * `src/components/layouts/SocialLayoutVisitorShell.test.tsx`, which renders the
+ * shell in both states; this guard exists so that deleting the gate cannot pass
+ * a release build even if that test is removed with it.
+ */
+const gatedSources = [
+  {
+    name: "Share Profile visitor header",
+    file: "src/components/layouts/SocialLayout.tsx",
+    // Not "these strings exist somewhere in the file" — that would pass on a
+    // file where the gate had been deleted and the links left behind. Both
+    // Community links must sit INSIDE the conditional.
+    opensGate: "socialEnabled ? (",
+    closesGate: ") : null}",
+    mustBeInsideGate: ["social-header-explore", "social-header-search"],
+  },
 ];
 
 /**
@@ -75,6 +118,14 @@ const controls = [
     name: "Community profile editor page",
     marker: "Edit profile",
     file: "community/profile/edit.html",
+  },
+  {
+    // The sitemap is generated in both states and always lists the marketing
+    // pages. Without this, "no /explore in the sitemap" and "no sitemap" would
+    // look the same.
+    name: "Sitemap lists the marketing pages",
+    marker: "<loc>",
+    file: "sitemap.xml",
   },
 ];
 
@@ -127,6 +178,20 @@ async function readArtifact(file, minBytes) {
   return readFile(full, "utf8");
 }
 
+/**
+ * Source rather than artifact, for the one entry point an export cannot answer
+ * for. Read from the same tree the build was produced from.
+ */
+async function readSource(file) {
+  const full = path.join(appRoot, file);
+
+  try {
+    return await readFile(full, "utf8");
+  } catch {
+    return fail(`Expected ${file} in the source tree, but it is not there.`);
+  }
+}
+
 async function main() {
   const expected = process.argv[2];
 
@@ -143,8 +208,13 @@ async function main() {
   }
 
   const cache = new Map();
-  const load = async (file, minBytes = 1024) => {
-    if (!cache.has(file)) cache.set(file, await readArtifact(file, minBytes));
+  // The sitemap is a short, complete document rather than a page an absence is
+  // read out of the middle of; ten URLs is plenty to trust and it sits just
+  // under the page threshold.
+  const minimumBytes = { "sitemap.xml": 512 };
+  const load = async (file, minBytes) => {
+    const floor = minBytes ?? minimumBytes[file] ?? 1024;
+    if (!cache.has(file)) cache.set(file, await readArtifact(file, floor));
     return cache.get(file);
   };
 
@@ -185,6 +255,44 @@ async function main() {
     );
   }
 
+  // 4. The entry points the export cannot answer for. State-independent: this
+  //    asks whether the gate is still there, not which side of it we built.
+  for (const source of gatedSources) {
+    const text = await readSource(source.file);
+    const opens = text.indexOf(source.opensGate);
+
+    if (opens === -1) {
+      fail(
+        `${source.name}: ${source.file} no longer contains "${source.opensGate}". ` +
+          `Its Community links are rendered in the browser, so no export can ` +
+          `show whether they are gated — the gate has to be visible here.`
+      );
+    }
+
+    const closes = text.indexOf(source.closesGate, opens);
+
+    if (closes === -1) {
+      fail(
+        `${source.name}: found "${source.opensGate}" in ${source.file} but no ` +
+          `closing "${source.closesGate}" after it, so the guarded region ` +
+          `cannot be read.`
+      );
+    }
+
+    const guarded = text.slice(opens, closes);
+    const loose = source.mustBeInsideGate.filter((marker) => !guarded.includes(marker));
+
+    if (loose.length > 0) {
+      fail(
+        `${source.name}: these Community links are not inside the ` +
+          `socialEnabled gate in ${source.file}:\n` +
+          loose.map((marker) => `    - ${marker}`).join("\n") +
+          `\n  This header sits above every shared Share Profile. With Community ` +
+          `off it must offer no Community destination at all.`
+      );
+    }
+  }
+
   const routes = JSON.parse(await load("_routes.json", 0));
   const requiredIncludes = [
     "/p/*",
@@ -206,8 +314,10 @@ async function main() {
 
   console.log(
     `Social flag verified: the export is Social ${expected.toUpperCase()}.\n` +
-      `  ${socialEntryPoints.length} entry points checked, ` +
+      `  ${socialEntryPoints.length} entry points checked in the export, ` +
       `${controls.length} control markers confirmed, ` +
+      `${gatedSources.length} client-rendered entry point ` +
+      `${gatedSources.length === 1 ? "gate" : "gates"} confirmed at source, ` +
       `${requiredRoutes.length} routes present, ` +
       `_routes.json admits every finder and social path.`
   );

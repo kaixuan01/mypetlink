@@ -128,27 +128,36 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             PetDtoMapper.ParseAllergies(pet.AllergiesJson),
             safetySetting.ShowFoundLocationAction,
             contact,
-            await ResolveSocialBridgeSlugAsync(pet, cancellationToken));
+            ResolveShareProfileSlug(pet));
     }
 
     /// <summary>
-    /// Whether this finder may be offered the pet's Public Share Profile, and
-    /// where it is.
+    /// Whether this finder may be offered the pet's Share Profile, and where it
+    /// is.
     ///
-    /// Four separate consents, all required: the pet is shareable, the pet
-    /// participates socially, its household participates socially, and the pet
-    /// is neither archived nor memorial. Discoverability is deliberately NOT
-    /// among them — this is a direct link to a page the finder already reached
-    /// by scanning the animal in front of them, which is the opposite of
-    /// discovery, and treating it as discovery would quietly turn
+    /// Two conditions, and only two: the owner has switched the Share Profile on,
+    /// and the pet's lifecycle still serves that page. Both are conditions of the
+    /// Share Profile itself, which is the point — the bridge exists to say "this
+    /// page is available", so it must ask the page, not something else.
+    ///
+    /// <b>Community participation is deliberately NOT among them.</b> It used to
+    /// be: the bridge additionally required the pet and its household to be in
+    /// Community, which meant an owner who switched their Share Profile on and
+    /// stayed out of Community silently got no link to their own page — the
+    /// default state for every existing account. That inverted the product rule
+    /// that a share link never implies social participation, by making social
+    /// participation a precondition for a share link. See
+    /// docs/architecture/product-model.md.
+    ///
+    /// Discoverability is not among them either, and for a separate reason: a
+    /// finder reached this by scanning the animal in front of them, which is the
+    /// opposite of discovery. Treating it as discovery would quietly turn
     /// IsDiscoverable into a private-profile switch.
     ///
-    /// One scalar query, not an owner profile: the finder page needs a boolean,
-    /// and a finder page is the last place to load things it does not need.
+    /// This is now a pure function of data already loaded, so the finder page
+    /// makes one query fewer than it did.
     /// </summary>
-    private async Task<string?> ResolveSocialBridgeSlugAsync(
-        Pet pet,
-        CancellationToken cancellationToken)
+    private static string? ResolveShareProfileSlug(Pet pet)
     {
         if (pet.PublicProfile is not { IsPublicProfileEnabled: true }
             || pet.LifecycleStatus != PetLifecycleStatus.Active)
@@ -156,17 +165,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             return null;
         }
 
-        var socialParticipates = await _dbContext.Pets
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.Id == pet.Id
-                    && item.SocialProfile != null
-                    && item.SocialProfile.IsSocialEnabled
-                    && item.OwnerUser.SocialProfile != null
-                    && item.OwnerUser.SocialProfile.IsSocialEnabled,
-                cancellationToken);
-
-        return socialParticipates ? PetDtoMapper.ResolvePublicSlug(pet) : null;
+        return PetDtoMapper.ResolvePublicSlug(pet);
     }
 
     public async Task<PublicFinderSocialResponse> GetSocialBySafetyCodeAsync(

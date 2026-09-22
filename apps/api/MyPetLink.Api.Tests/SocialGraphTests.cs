@@ -424,10 +424,16 @@ public sealed class SocialGraphTests
         Assert.Equal(StatusCodes.Status401Unauthorized, error.StatusCode);
     }
 
-    // ---- Safety Profile to Public Profile bridge ------------------------
+    // ---- Safety Profile to Share Profile bridge -------------------------
+    //
+    // The bridge asks the Share Profile whether it is available, and nothing
+    // else. It used to additionally require the pet AND its household to be in
+    // Community, which meant an owner who switched sharing on and stayed out of
+    // Community — the state every existing account is in — silently got no link
+    // to their own page. See docs/architecture/product-model.md.
 
     [Fact]
-    public async Task AnEligiblePet_OffersItsPublicProfileFromTheSafetyPage()
+    public async Task AnEligiblePet_OffersItsShareProfileFromTheSafetyPage()
     {
         using var harness = await Harness.CreateAsync();
         await harness.SetPetSocialAsync(MochiId, enabled: true);
@@ -438,7 +444,7 @@ public sealed class SocialGraphTests
     }
 
     [Fact]
-    public async Task APetWhoseHouseholdIsNotSocial_OffersNoBridge()
+    public async Task APetWhoseHouseholdIsNotSocial_StillOffersTheBridge()
     {
         using var harness = await Harness.CreateAsync();
         await harness.SetPetSocialAsync(MochiId, enabled: true);
@@ -446,7 +452,8 @@ public sealed class SocialGraphTests
 
         var page = await harness.Safety.GetBySafetyCodeAsync("s-pubmochi");
 
-        Assert.Null(page.PublicProfileSlug);
+        // Leaving Community does not un-share a pet's Share Profile.
+        Assert.Equal("mochi-pubmochi", page.PublicProfileSlug);
 
         // And the finder page itself is untouched.
         Assert.Equal("Mochi", page.Name);
@@ -454,19 +461,39 @@ public sealed class SocialGraphTests
     }
 
     [Fact]
-    public async Task APetThatIsNotSocial_OffersNoBridge()
+    public async Task APetThatIsNotSocial_StillOffersTheBridge()
     {
         using var harness = await Harness.CreateAsync();
         await harness.SetPetSocialAsync(MochiId, enabled: false);
 
-        Assert.Null((await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);
+        Assert.Equal(
+            "mochi-pubmochi",
+            (await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);
     }
 
+    /// <summary>
+    /// The condition that does gate it: the owner's own sharing switch.
+    /// </summary>
     [Fact]
     public async Task APetWithSharingSwitchedOff_OffersNoBridge()
     {
         using var harness = await Harness.CreateAsync();
         await harness.SetPetSocialAsync(MochiId, enabled: true);
+        await harness.SetPublicProfileAsync(MochiId, enabled: false);
+
+        Assert.Null((await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);
+    }
+
+    /// <summary>
+    /// Sharing off and Community on is the combination that proves which of the
+    /// two the bridge actually reads.
+    /// </summary>
+    [Fact]
+    public async Task SharingOffAndCommunityOn_OffersNoBridge()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true);
+        await harness.SetSocialAsync(AliceId, enabled: true);
         await harness.SetPublicProfileAsync(MochiId, enabled: false);
 
         Assert.Null((await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);

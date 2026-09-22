@@ -1166,9 +1166,27 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
 // The Safety Profile is a finder-first safety surface. Known allergies are
 // intentionally always included there, independently of the owner's regular
 // Public Profile allergy visibility choice.
+/**
+ * A pet as its Safety Profile presents it.
+ *
+ * The Share Profile path is cleared unless that profile is actually switched
+ * on, because the finder page reads a non-empty `publicProfilePath` as "offer
+ * the bridge". The API decides this on the server and sends an empty string
+ * when the answer is no; the local fallback was copying the path across
+ * unconditionally, so a pet whose owner had switched their Share Profile off
+ * still got a "View Share Profile" button that led to a page that refuses to
+ * render. Same contract on both paths.
+ *
+ * Lifecycle is deliberately not re-checked here: the callers already refuse a
+ * memorial or archived pet before reaching this, and the memorial branch of the
+ * finder page offers its own memorial link.
+ */
 export function toQrSafetyProfile(pet: Pet): PublicPetProfile {
+  const profile = toPublicProfile(pet);
+
   return {
-    ...toPublicProfile(pet),
+    ...profile,
+    publicProfilePath: pet.publicProfileEnabled ? profile.publicProfilePath : "",
     allergies: pet.allergies,
   };
 }
