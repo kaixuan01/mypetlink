@@ -141,6 +141,39 @@ export function AccountRowSkeleton() {
 }
 
 /**
+ * Search-result rows at rest: avatar and two lines of identifying text.
+ *
+ * Search sits directly on the cream Community page rather than inside a white
+ * card, so these use the stronger border/apricot tints. That keeps the rows
+ * visible while preserving the dimensions of the links that replace them.
+ */
+export function SearchResultsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div
+      aria-busy="true"
+      className="space-y-1"
+      data-testid="search-loading"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div
+          aria-hidden="true"
+          className="flex animate-pulse items-center gap-3 rounded-[1.25rem] p-2"
+          data-testid="search-result-skeleton"
+          key={index}
+        >
+          <span className="block h-11 w-11 shrink-0 rounded-full bg-pet-apricot" />
+          <span className="min-w-0 flex-1 space-y-1.5">
+            <span className="block h-3 w-1/3 rounded-full bg-pet-border" />
+            <span className="block h-3 w-1/2 rounded-full bg-pet-border" />
+          </span>
+        </div>
+      ))}
+      <span className="sr-only">Loading search results.</span>
+    </div>
+  );
+}
+
+/**
  * `count` Moment placeholders in the column the real stream uses.
  * Two is the default: enough to read as a list, not so many that a fast
  * response flashes a wall of grey.

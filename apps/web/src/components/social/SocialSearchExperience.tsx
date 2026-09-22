@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { SearchResultsSkeleton } from "@/components/social/SocialSkeletons";
 import { Icon } from "@/components/ui/Icon";
+import { CTAButton } from "@/components/ui/CTAButton";
 import {
   toAnalyticsCountBucket,
   toAnalyticsQueryLengthBucket,
@@ -18,6 +20,15 @@ import {
 } from "@/services/socialDiscoveryService";
 
 type Tab = "pets" | "owners";
+type SearchPhase = "loading" | "ready" | "error";
+
+type SearchRequestState = {
+  key: string;
+  phase: SearchPhase;
+  pets: SocialPetCard[];
+  owners: SocialOwnerCard[];
+  rateLimited: boolean;
+};
 
 type SocialSearchExperienceProps = {
   /**
@@ -70,18 +81,33 @@ export function SocialSearchExperience({
 }: SocialSearchExperienceProps) {
   const [term, setTerm] = useState(initialQuery);
   const [tab, setTab] = useState<Tab>("pets");
-  const [pets, setPets] = useState<SocialPetCard[]>([]);
-  const [owners, setOwners] = useState<SocialOwnerCard[]>([]);
-  const [phase, setPhase] = useState<"searching" | "done" | "error">("done");
-  const [rateLimited, setRateLimited] = useState(false);
+  const [queryRevision, setQueryRevision] = useState(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [request, setRequest] = useState<SearchRequestState>({
+    key: "",
+    phase: "loading",
+    pets: [],
+    owners: [],
+    rateLimited: false,
+  });
   const ownInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = externalInputRef ?? ownInputRef;
 
   const trimmed = term.trim();
   const tooShort = trimmed.length < minimumSearchLength;
+  // A revision distinguishes re-entering the same text from the earlier
+  // request for it. That prevents a cached-looking flash of old results while
+  // the new, debounced request is waiting to start.
+  const requestKey = `${queryRevision}:${retryAttempt}:${trimmed}`;
   // Derived, not stored: a box too short to search is a state of the input, not
   // a result the component has to remember.
-  const state = tooShort ? "idle" : phase;
+  const state = tooShort
+    ? "idle"
+    : request.key === requestKey
+      ? request.phase
+      : "loading";
+  const pets = state === "ready" ? request.pets : [];
+  const owners = state === "ready" ? request.owners : [];
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
@@ -98,20 +124,30 @@ export function SocialSearchExperience({
     // that is already in flight stop mattering the moment the query moves on,
     // so a slow answer to "mo" can never land on top of the answer to "mochi".
     const controller = new AbortController();
+    const query = trimmed;
 
     const timer = window.setTimeout(() => {
       // Announced when the request actually goes out rather than on every
       // keystroke, so a screen reader is not told "Searching" per character.
-      setPhase("searching");
-      setRateLimited(false);
+      setRequest({
+        key: requestKey,
+        phase: "loading",
+        pets: [],
+        owners: [],
+        rateLimited: false,
+      });
 
-      searchSocial(trimmed, undefined, controller.signal)
+      searchSocial(query, undefined, controller.signal)
         .then((results) => {
           if (controller.signal.aborted) return;
 
-          setPets(results.pets);
-          setOwners(results.owners);
-          setPhase("done");
+          setRequest({
+            key: requestKey,
+            phase: "ready",
+            pets: results.pets,
+            owners: results.owners,
+            rateLimited: false,
+          });
 
           // Buckets only. There is no key on this event through which the
           // query itself could travel — not truncated, not hashed.
@@ -124,7 +160,7 @@ export function SocialSearchExperience({
             result_count_bucket: toAnalyticsCountBucket(
               results.pets.length + results.owners.length
             ),
-            query_length_bucket: toAnalyticsQueryLengthBucket(trimmed.length),
+            query_length_bucket: toAnalyticsQueryLengthBucket(query.length),
           });
         })
         .catch((error: unknown) => {
@@ -132,13 +168,17 @@ export function SocialSearchExperience({
 
           // The typed query is deliberately left alone: clearing the box on a
           // failure makes somebody retype what they already typed.
-          setRateLimited(
-            typeof error === "object" &&
+          setRequest({
+            key: requestKey,
+            phase: "error",
+            pets: [],
+            owners: [],
+            rateLimited:
+              typeof error === "object" &&
               error !== null &&
               "status" in error &&
-              (error as { status?: number }).status === 429
-          );
-          setPhase("error");
+              (error as { status?: number }).status === 429,
+          });
         });
     }, 300);
 
@@ -146,7 +186,7 @@ export function SocialSearchExperience({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmed]);
+  }, [requestKey, trimmed]);
 
   const results = tab === "pets" ? pets : owners;
 
@@ -172,7 +212,10 @@ export function SocialSearchExperience({
             className="min-h-12 w-full rounded-full border border-pet-border bg-white pl-11 pr-4 text-base font-semibold text-pet-ink outline-none transition focus:border-pet-teal focus:ring-2 focus:ring-pet-teal/30"
             data-testid="social-search-input"
             id="social-search-input"
-            onChange={(event) => setTerm(event.target.value)}
+            onChange={(event) => {
+              setTerm(event.target.value);
+              setQueryRevision((revision) => revision + 1);
+            }}
             placeholder="Search pets or pet parents"
             ref={inputRef}
             type="search"
@@ -203,25 +246,38 @@ export function SocialSearchExperience({
             data-testid="search-hint"
           >
             {trimmed.length === 0
-              ? "Search for pets or Pet Parents by name or handle."
+              ? "Search by pet name, Pet Parent name, or handle."
               : `Type at least ${minimumSearchLength} letters to search.`}
           </p>
         ) : null}
 
-        {state === "searching" ? <ResultSkeleton /> : null}
+        {state === "loading" ? <SearchResultsSkeleton /> : null}
 
         {state === "error" ? (
-          <p
-            className="text-sm font-semibold text-pet-muted"
+          <div
+            className="rounded-[1.5rem] border border-pet-border bg-white p-5 text-center"
             data-testid="search-error"
+            role="alert"
           >
-            {rateLimited
-              ? "That's a lot of searching. Please wait a moment and try again."
-              : "We couldn't search right now. Please try again in a moment."}
-          </p>
+            <p className="text-base font-black text-pet-ink">
+              Couldn&rsquo;t load search results.
+            </p>
+            <p className="mt-1 text-sm font-semibold text-pet-muted">
+              {request.rateLimited
+                ? "That’s a lot of searching. Please wait a moment, then retry."
+                : "Please try again in a moment."}
+            </p>
+            <CTAButton
+              className="mt-4 min-h-11"
+              onClick={() => setRetryAttempt((attempt) => attempt + 1)}
+              variant="secondary"
+            >
+              Retry
+            </CTAButton>
+          </div>
         ) : null}
 
-        {state === "done" ? (
+        {state === "ready" ? (
           results.length > 0 ? (
             <ul
               className="space-y-1"
@@ -240,14 +296,23 @@ export function SocialSearchExperience({
                   ))}
             </ul>
           ) : (
-            <p
-              className="text-sm font-semibold text-pet-muted"
+            <div
+              className="rounded-[1.5rem] border border-pet-border bg-white p-5 text-center"
               data-testid={
                 tab === "pets" ? "search-pets-empty" : "search-owners-empty"
               }
             >
-              {tab === "pets" ? "No pets found" : "No Pet Parents found"}
-            </p>
+              <p className="text-base font-black text-pet-ink">
+                {pets.length === 0 && owners.length === 0
+                  ? `No results for “${trimmed}”`
+                  : tab === "pets"
+                    ? `No pets for “${trimmed}”`
+                    : `No Pet Parents for “${trimmed}”`}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-pet-muted">
+                Try another pet name, Pet Parent name, or handle.
+              </p>
+            </div>
           )
         ) : null}
       </div>
@@ -354,27 +419,6 @@ function Avatar({
         <Icon className="h-5 w-5 text-pet-muted" name={icon} />
       )}
     </span>
-  );
-}
-
-/**
- * Rows in the shape the real ones arrive in, so the list does not jump when the
- * answer lands. Three, because more would be a page of grey where there may
- * only be one result.
- */
-function ResultSkeleton() {
-  return (
-    <div aria-busy="true" className="space-y-1" data-testid="search-loading">
-      {[0, 1, 2].map((row) => (
-        <div className="flex items-center gap-3 p-2" key={row}>
-          <span className="h-11 w-11 shrink-0 animate-pulse rounded-full bg-pet-cream" />
-          <span className="min-w-0 flex-1 space-y-1.5">
-            <span className="block h-3 w-1/3 animate-pulse rounded-full bg-pet-cream" />
-            <span className="block h-3 w-1/2 animate-pulse rounded-full bg-pet-cream" />
-          </span>
-        </div>
-      ))}
-    </div>
   );
 }
 

@@ -103,6 +103,18 @@ afterEach(() => {
 });
 
 describe("SocialSearchView", () => {
+  it("starts idle without pretending there are no results", () => {
+    render(<SocialSearchView />);
+
+    expect(screen.getByTestId("search-hint").textContent).toMatch(
+      /pet name.*Pet Parent name.*handle/i
+    );
+    expect(screen.queryByTestId("search-loading")).toBeNull();
+    expect(screen.queryByTestId("search-pets-empty")).toBeNull();
+    expect(screen.queryByTestId("search-error")).toBeNull();
+    expect(mocks.searchSocial).not.toHaveBeenCalled();
+  });
+
   it("calls the two tabs Pets and Pet Parents", () => {
     render(<SocialSearchView />);
 
@@ -134,6 +146,20 @@ describe("SocialSearchView", () => {
 
     await waitFor(() => expect(mocks.searchSocial).toHaveBeenCalledTimes(1));
     expect(mocks.searchSocial.mock.calls[0][0]).toBe("moch");
+  });
+
+  it("shows a visible row-shaped loading state", async () => {
+    mocks.searchSocial.mockImplementation(() => new Promise(() => {}));
+
+    render(<SocialSearchView />);
+    type("moch");
+
+    const loading = screen.getByTestId("search-loading");
+    expect(loading.getAttribute("aria-busy")).toBe("true");
+    expect(screen.getAllByTestId("search-result-skeleton")).toHaveLength(3);
+
+    await vi.advanceTimersByTimeAsync(600);
+    expect(mocks.searchSocial).toHaveBeenCalledTimes(1);
   });
 
   it("abandons a search the typist has already moved past", async () => {
@@ -239,12 +265,12 @@ describe("SocialSearchView", () => {
     type("zzzz");
     await vi.advanceTimersByTimeAsync(600);
 
-    expect((await screen.findByTestId("search-pets-empty")).textContent).toBe(
-      "No pets found"
-    );
+    const empty = await screen.findByTestId("search-pets-empty");
+    expect(empty.textContent).toContain("No results for “zzzz”");
+    expect(empty.textContent).toMatch(/pet name.*Pet Parent name.*handle/i);
   });
 
-  it("explains a failure without losing the box", async () => {
+  it("explains a failure without losing the box or showing empty copy", async () => {
     mocks.searchSocial.mockRejectedValue(new Error("network"));
 
     render(<SocialSearchView />);
@@ -252,13 +278,59 @@ describe("SocialSearchView", () => {
     type("moch");
     await vi.advanceTimersByTimeAsync(600);
 
-    expect(await screen.findByTestId("search-error")).toBeTruthy();
+    const error = await screen.findByTestId("search-error");
+    expect(error.textContent).toContain("Couldn’t load search results.");
+    expect(error.getAttribute("role")).toBe("alert");
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(screen.queryByTestId("search-pets-empty")).toBeNull();
+    expect(screen.queryByTestId("search-owners-empty")).toBeNull();
+    expect(screen.queryByText(/No results for/)).toBeNull();
     // The query survives: clearing it would make somebody retype what they
     // already typed to recover from a failure that was not theirs.
     expect(
       (screen.getByLabelText("Search pets or pet parents") as HTMLInputElement)
         .value
     ).toBe("moch");
+  });
+
+  it("retries the current query without making somebody retype it", async () => {
+    mocks.searchSocial
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(
+        results("moch", [pet("Mochi", "tanfamily")], [])
+      );
+
+    render(<SocialSearchView />);
+    type("moch");
+    await vi.advanceTimersByTimeAsync(600);
+    await screen.findByTestId("search-error");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(screen.getByTestId("search-loading")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(600);
+
+    await screen.findByTestId("search-pets");
+    expect(mocks.searchSocial.mock.calls.map((call) => call[0])).toEqual([
+      "moch",
+      "moch",
+    ]);
+    expect(
+      (screen.getByLabelText("Search pets or pet parents") as HTMLInputElement)
+        .value
+    ).toBe("moch");
+  });
+
+  it("allows anonymous visitors to search and open public results", async () => {
+    window.localStorage.clear();
+    render(<SocialSearchView />);
+
+    type("moch");
+    await vi.advanceTimersByTimeAsync(600);
+
+    const row = await screen.findByTestId("search-pet-row");
+    expect(row.getAttribute("href")).toBe("/p/mochi-pubmochi");
+    expect(mocks.searchSocial).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/sign in to search/i)).toBeNull();
   });
 
   it("says something useful when the search rate limit is hit", async () => {

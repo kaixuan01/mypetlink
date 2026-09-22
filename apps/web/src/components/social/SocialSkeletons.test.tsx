@@ -20,6 +20,7 @@ import {
   MomentCardSkeleton,
   MomentStreamSkeleton,
   PetCardSkeleton,
+  SearchResultsSkeleton,
 } from "./SocialSkeletons";
 
 afterEach(cleanup);
@@ -38,6 +39,7 @@ describe("placeholders are visible against the page", () => {
     ["moment card", <MomentCardSkeleton key="m" />, "moment-card-skeleton"],
     ["pet card", <PetCardSkeleton key="p" />, "pet-card-skeleton"],
     ["account row", <AccountRowSkeleton key="a" />, "account-row-skeleton"],
+    ["search results", <SearchResultsSkeleton key="s" />, "search-loading"],
   ])("%s uses tinted fills, never bare white", (_label, element, testId) => {
     render(element);
     const used = fills(screen.getByTestId(testId));
@@ -107,5 +109,19 @@ describe("the stream placeholder", () => {
 
     rerender(<MomentStreamSkeleton count={3} />);
     expect(screen.getAllByTestId("moment-card-skeleton")).toHaveLength(3);
+  });
+});
+
+describe("the search placeholder", () => {
+  it("matches result rows and announces the region as busy", () => {
+    render(<SearchResultsSkeleton />);
+    const search = screen.getByTestId("search-loading");
+
+    expect(search.getAttribute("aria-busy")).toBe("true");
+    expect(screen.getAllByTestId("search-result-skeleton")).toHaveLength(3);
+    for (const row of screen.getAllByTestId("search-result-skeleton")) {
+      expect(row.getAttribute("aria-hidden")).toBe("true");
+      expect(row.querySelector(".h-11.w-11")).not.toBeNull();
+    }
   });
 });
