@@ -396,7 +396,7 @@ Owner portal shows:
 
 Trigger:
 
-- Owner scans or taps the physical tag and completes activation from `/t/:tagCode`.
+- Owner scans the physical tag's printed QR and completes activation from `/q/:tagCode` (legacy printed tags at `/t/:tagCode` still work; NFC never offers first-time activation).
 - The frontend then calls `POST /api/v1/tags/{tagCode}/activate` from that scan activation flow.
 
 Required state:
@@ -409,7 +409,7 @@ Result:
 - tag `Active`
 - `ActivatedAt` recorded
 - if the linked order is still `Shipped`, the order may be marked `Delivered`
-- scan link `/t/:tagCode` opens pet QR Safety content
+- the tag's scan links (`/q/:tagCode`, `/n/:tagCode`, legacy `/t/:tagCode`) open the pet's Safety Profile
 - audit log written
 
 ## Cancellation Rules

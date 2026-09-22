@@ -2,6 +2,15 @@
 
 Planning draft for the future MyPetLink backend. This is not a migration script and must not be treated as approved production SQL.
 
+> **Historical planning document.** It describes what was intended at the time,
+> not necessarily what shipped. For current concepts, terminology and route
+> semantics follow
+> [`../architecture/product-model.md`](../architecture/product-model.md); for
+> current behaviour, follow the code. Terminology here predates the canonical
+> model — in particular it says "QR Safety Page", which is now explicitly
+> forbidden; the page is the **Safety Profile**.
+
+
 Target stack: SQL Server, EF Core, C# .NET 8 Web API.
 
 ## Phase 1 Rules

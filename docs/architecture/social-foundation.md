@@ -28,6 +28,12 @@ which is exactly why that field cannot be reused as a social name. An owner may
 be "Sarah Tan" to a finder and "@mochis_human" to the network, and no endpoint
 returns both.
 
+That last sentence is now enforced rather than merely intended:
+`PublicProfileService.ResolveAnonymousOwnerDisplayName` omits `ownerDisplayName`
+from the anonymous Share Profile response whenever it carries `sharedBy`. It was
+previously suppressed only by the React page, which meant the edge preview
+function, any other client, and the network tab still saw both names.
+
 **Rules enforced in code:**
 
 - `OwnerSocialProfileFactory.CreateDisabled` is the only place a profile row is
@@ -557,7 +563,7 @@ as of the end of Phase 1L.
 | Search | `/search` | public, `noindex` |
 | Activity | `/notifications` | signed in only |
 | Pet Moments | `/p/{slug}` Moments tab | public |
-| Safety → Public Profile bridge | bottom of `/q/{code}` | finder |
+| Safety → Share Profile bridge | bottom of `/q/{code}` | finder |
 
 **One card projection.** `SocialMomentProjection` turns an already-narrowed
 query into Moment cards for every surface. Selection is each caller's job — it
@@ -573,8 +579,15 @@ are themselves discoverable, `Direct` names every socially-enabled subject.
 **Discoverability is a discovery control, not a secrecy switch.** A pet or
 household with social on and discovery off is still on its own page, still in
 the feed of anybody who already follows it, and still refused to Explore,
-search, and the subject list of a discovery card. The Safety → Public Profile
-bridge is a direct link and so does not require discoverability either.
+search, and the subject list of a discovery card.
+
+**The Safety → Share Profile bridge is not a social surface at all.** It depends
+only on the Share Profile being switched on and the pet's lifecycle still
+serving that page — not on discoverability, and *not on Community
+participation*. It briefly required both social switches, which silently
+withheld an owner's own share link from every household that had not joined
+Community. See `QrSafetyService.ResolveShareProfileSlug` and
+[`product-model.md`](product-model.md).
 
 **Counts are computed, never stored.** Followers, following and likes are
 indexed `COUNT`s. There is still no counter column anywhere in Social (see
@@ -676,7 +689,7 @@ Deliberately absent, to be added in later phases:
 - Feed — 1I
 - Explore and search — 1J
 - Notifications UI — 1K
-- Navigation changes and the Safety Profile → Public Profile bridge — 1L
+- Navigation changes and the Safety Profile → Share Profile bridge — 1L
 - Comments, reports, moderation — **Phase 2**
 - Pet-level follow — evaluated, deferred; revisit with real engagement data
 - Any social email — a new consent category, not built

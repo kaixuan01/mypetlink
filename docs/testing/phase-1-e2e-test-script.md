@@ -247,7 +247,7 @@ Preconditions: Owner active pet with an assigned physical tag.
 | ID | Role | Steps | Expected | Actual | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | Owner | Share Profile QR | Encodes `/p/{petSlug}` | | | |
-| M2 | Owner | QR Safety Page QR | Encodes `/q/{safetyCode}` | | | |
+| M2 | Owner | Safety Profile QR | Encodes `/q/{safetyCode}` | | | |
 | M3 | Owner/Admin | Physical Tag QR | Encodes `/t/{tagCode}` (never `/q`) | | | |
 | M4 | Owner | Default view | Large QR not shown by default; a compact action opens it | | | |
 | M5 | Owner | Open QR modal | Modal shows QR + copy/view/download | | | |

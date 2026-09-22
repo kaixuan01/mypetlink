@@ -2,7 +2,17 @@
 
 > Read [`AI_AGENT_REFERENCE.md`](./AI_AGENT_REFERENCE.md) first. This document
 > describes the **signed-in owner portal** only. Public scan/share routes are in
-> [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md).
+> [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md), and the concepts
+> and their canonical names are in
+> [`product-model.md`](../../../docs/architecture/product-model.md).
+>
+> Two naming notes while reading this file. The page at `/p/{slug}-{publicCode}`
+> is the **Share Profile**; buttons and labels in the portal still say "Public
+> Profile", which is tracked terminology debt rather than a second concept. The
+> owner portal is one half of the product — the **Community** half (`/feed`,
+> `/explore`, `/u/{handle}`, `/community/profile`) shares the same shell and is
+> described in `product-model.md`; `src/lib/appMode.ts` decides which half a
+> route belongs to.
 
 ---
 
@@ -222,7 +232,9 @@ and manager re-fetches on `petId` change.
   Actions depend on status: unassigned or assigned-but-not-active tags offer
   **View Tag Scan Page**, **Copy Tag Link**, and **View Order** where applicable.
   Owner Portal pages do **not** show a direct **Activate Tag** button; owners
-  activate only after scanning/tapping the physical tag at `/t/{tagCode}`.
+  activate only after scanning the physical tag's printed QR at `/q/{tagCode}`
+  (legacy printed tags at `/t/{tagCode}` still work; NFC never offers
+  first-time activation).
   Active tags can be disabled or marked **Report Tag Lost**; inactive tags offer
   **Request Replacement** and **Archive Tag**; archived tags offer **Restore to
   List** and **View Status**. "View Tag" / "View Status" (`tagPath`) is always

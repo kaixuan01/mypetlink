@@ -16,7 +16,7 @@ Core identity: `id` (`pet_{slug}`), `slug`, `name`, `species` (+ `customSpecies`
 
 Public identifiers:
 - `publicCode` — stable lowercase 4-char code; final segment of the share URL `/p/{slug}-{publicCode}`. Lookup is always by `publicCode`, never slug.
-- `safetyCode` — the pet-level QR Safety Page code for `/q/{safetyCode}`; `qrSafetyEnabled` toggles the page.
+- `safetyCode` — the pet-level Safety Profile code for `/q/{safetyCode}`; `qrSafetyEnabled` toggles the page.
 - Pre-built paths kept in sync by `petService`: `publicProfilePath`, `qrSafetyPath`, `finderProfileUrl` (legacy alias of the safety path).
 
 Lifecycle: `lifecycleStatus`: `Active | Memorial | Archived` (+ `previousLifecycleStatus` for restore, `memorial` details). Helpers in `src/lib/petLifecycle.ts` (`isActivePet`, `isMemorialPet`, `isArchivedPet`, `getCountedPetProfiles` — archived pets do not count toward plan limits). **Memorial is not Active; Lost Mode is not Memorial.**
@@ -43,7 +43,7 @@ Contact & privacy: embedded `owner` contact (`name`, `phone`, `whatsapp`, `emerg
 - In backend mode, public physical tag scans use `/api/v1/public/tags/{tagCode}` without owner auth. Active backend tags return the same safety projection as `/q/:safetyCode`; pending, inactive, memorial-linked, archived, and not-found tags never expose owner contact.
 - Pending-family (`Pending`, `Preparing`, `Delivered`) exists because order fulfillment is folded into the tag record in this frontend phase; a real backend should move fulfillment to the order and collapse tags to the 5 logical states.
 - Status helpers live in `src/lib/tagStatus.ts`: `isActivePhysicalTag`, `isPendingPhysicalTag`, `isInactivePhysicalTag`, `getTagDisplayStatus`, `shouldShowTagForFilter`, `getPetSmartTagStatus`. A tag linked to a Memorial/Archived pet is displayed as inactive even if its own status is `Active`.
-- Finder resolution (`getFinderState` in `tagService.ts`): not-found → branded page; `Unassigned`/no petId → activation prompt; inactive statuses or archived → safe inactive page (no owner contact); pending → pending state; otherwise active → QR Safety Page content.
+- Finder resolution (`getFinderState` in `tagService.ts`): not-found → branded page; `Unassigned`/no petId → activation prompt; inactive statuses or archived → safe inactive page (no owner contact); pending → pending state; otherwise active → Safety Profile content.
 
 ## Order model (`TagOrder`)
 
@@ -76,5 +76,5 @@ Backend mode stores payment proof metadata only (`MediaFiles` + `PaymentProofs` 
 
 - `CareRecord`: typed care events with `publicVisibility` (`Private | Public badge only | Public details`) and a derived `status` (`complete | overdue | due-soon | upcoming`). A missing next due date is completed history; a date before today in Malaysia is overdue; today through 30 days is due soon; later dates are upcoming. The API derives the authoritative backend response value, while `apps/web/src/lib/careRecordStatus.ts` applies the same rule to the static/local fallback and public-profile records that do not carry that response field. In backend mode, owner Records pages read/write these through `/api/v1/pets/{petId}/care-records` and `/api/v1/care-records/{recordId}`. File upload/storage for attachments is not implemented yet.
 - `PetMoment`: memories with media (max 5 per moment), visibility, and timeline flags. In backend mode, owner Moments pages read/write memory details through `/api/v1/pets/{petId}/memories` and `/api/v1/memories/{memoryId}`. Public profile projections include only `Public` memories marked for the gallery or Life Timeline. Real photo/video upload storage is not implemented yet, so API-mode memory media is shown as a later enhancement.
-- `QrStatus` (`active | draft | paused`) — QR profile status used by the earlier admin QR Profiles view.
+- `QrStatus` (`active | draft | paused`) — QR profile status used by the earlier admin Safety Profiles view.
 - Company/config constants: `src/config/site.ts` (company, support email, business registration no.) and `src/config/payment.ts` (manual payment copy).

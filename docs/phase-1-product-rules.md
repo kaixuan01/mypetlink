@@ -1,11 +1,16 @@
 # MyPetLink Phase 1 Product Rules
 
-The non-negotiable product rules for the current phase. Frontend copy, Admin Portal behavior, and future backend design must all follow these.
+The non-negotiable product rules for the current phase. Frontend copy, Admin Portal behavior, and backend design must all follow these.
+
+> **Terminology and route semantics are defined in
+> [`architecture/product-model.md`](architecture/product-model.md), which is
+> canonical.** This file states the commercial and lifecycle rules; where the
+> two touch the same thing, the product model wins.
 
 ## Plans and pricing
 
 1. **Free Profile is RM0 and available now** — up to 3 pets and up to 10 memories per pet (archived pets don't count toward the limit). Early-access users above the limit keep their existing profiles.
-2. Every pet gets a **Public Share Profile** (`/p/`) and a **pet-level QR Safety Page** (`/q/`) without buying a physical tag.
+2. Every pet gets a **Share Profile** (`/p/`) and a **pet-level Safety Profile** (`/q/`) without buying a physical tag. Neither requires Community participation.
 3. **The Smart Tag is an optional one-time add-on**, not a subscription:
    - MyPetLink QR + NFC Smart Tag — **RM39.90**, one-time — the only physical tag sold
    - The QR-only MyPetLink QR Pet Tag (RM19.90) is **discontinued**. It is never offered, priced, or orderable; records created while it was sold stay readable.
@@ -23,7 +28,7 @@ The non-negotiable product rules for the current phase. Frontend copy, Admin Por
 ## Identity and routing rules
 
 - One public identifier per physical tag: the **TagCode** (`MPL-XXXX-XXXX`). Same code on the printed tag, QR URL, NFC URL, owner display, and admin search. Never introduce a second token; never expose internal database ids.
-- `/q/{safetyCode}` = pet-level QR Safety Page (emergency-focused). `/t/{tagCode}` = physical tag scan link (active tags open the same safety content). `/p/{slug}-{publicCode}` = friendly share profile. Never mix the share profile and the safety page.
+- `/q/{safetyCode}` = pet-level **Safety Profile** (finder-first). `/q/{tagCode}` (QR) and `/n/{tagCode}` (NFC) = current physical tag scan links; `/t/{tagCode}` = legacy printed-tag link, retained for already-issued tags. Active tags all open the same Safety Profile. `/p/{slug}-{publicCode}` = **Share Profile**. Never mix the Share Profile and the Safety Profile, and never call `/q/` a "QR Safety Page".
 - Lost/disabled/replaced/archived tags never expose owner contact.
 - **Lost tag ≠ Lost Mode.** A lost *tag* is an inactive physical tag; *Lost Mode* is a pet-level flag (`lostModeEnabled`) that changes the public pages.
 - **Memorial ≠ Active.** Memorial and archived pets are not active; their linked tags are treated as inactive safety tags even if the tag record says Active.

@@ -12,18 +12,35 @@
 | Route                        | Purpose                          | Lookup key            |
 | ---------------------------- | -------------------------------- | --------------------- |
 | `/q/{safetyCode}`            | Pet-level Safety Profile for finders | `safetyCode`       |
-| `/t/{tagCode}`               | A physical tag was scanned/tapped; also the customer activation entry point | `tagCode`             |
-| `/activate/{tagCode}`        | Compatibility redirect back to `/t/{tagCode}` | `tagCode`             |
-| `/p/{slug}-{publicCode}`     | Share a pet's public profile     | `publicCode`          |
+| `/q/{tagCode}`               | **Current** physical tag QR entry, and the activation entry point | `tagCode` |
+| `/n/{tagCode}`               | Physical tag NFC entry. Never offers first-time activation | `tagCode` |
+| `/t/{tagCode}`               | **Legacy** printed-tag entry, retained for already-issued tags | `tagCode` |
+| `/activate/{tagCode}`        | Compatibility redirect to `/q/{tagCode}` | `tagCode`             |
+| `/p/{slug}-{publicCode}`     | Share Profile                    | `publicCode`          |
 
-Pet-level Safety Profile links use **`/q/{safetyCode}`**. Physical QR codes and NFC chips point at **`/t/{tagCode}`**; active tags open the same Safety Profile, while inactive tags show an inactive tag page. Tag activation is also completed from `/t/{tagCode}` after the owner scans/taps the physical tag.
+Pet-level Safety Profile links use **`/q/{safetyCode}`**. Newly produced physical
+QR codes point at **`/q/{tagCode}`** and NFC chips at **`/n/{tagCode}`**; active
+tags open the same Safety Profile, while inactive tags show an inactive tag page.
+Activation is completed from **`/q/{tagCode}`** after the owner scans the printed
+QR. `/t/{tagCode}` is retained because tags carrying it have already been printed
+— it still resolves and still supports activation, and must not be removed.
+
+`/q` resolves a pet Safety Profile first and a tag second: one route, two kinds
+of code, Safety Profile taking precedence.
 
 Build these URLs with the helpers in `src/lib/routes.ts` (`qrSafetyPath`,
-`tagPath`, `publicProfilePath`). Never hand-write them.
+`tagQrPath`, `tagNfcPath`, `tagPath`, `activatePath`, `publicProfilePath`).
+Never hand-write them.
+
+> Terminology and how these surfaces relate:
+> [`product-model.md`](../../../docs/architecture/product-model.md) is canonical.
+> `/p/` is the **Share Profile**; "Pet Profile" is the umbrella concept, not this
+> page. Owner-portal buttons still say "View / Preview Public Profile" — that is
+> tracked terminology debt, not a second concept.
 
 ---
 
-## 2. `/t/{tagCode}` â€” the finder state machine
+## 2. The tag finder state machine (`/q/{tagCode}`, `/n/`, legacy `/t/`)
 
 `src/app/t/[tagCode]/page.tsx` is a static-export server page
 (`dynamicParams = false`, params from `staticTagCodeParams()`). It computes the
@@ -57,13 +74,13 @@ A finder scanning an **active** tag must see the Safety Profile directly.
 
 ---
 
-## 3. `/t/{tagCode}` â€” activation flow
+## 3. Activation flow (from `/q/{tagCode}`; legacy `/t/{tagCode}` still works)
 
 `src/app/t/[tagCode]/page.tsx` renders **`TagActivationFlow`** directly for
 `unassigned` and `pending` scan states. The flow keeps the TagCode on the
 Physical Tag Scan Page the whole time and never forces a re-scan or an early
 dashboard redirect. `src/app/activate/[tagCode]/page.tsx` exists only as a
-compatibility redirect back to `/t/{tagCode}`. Render precedence:
+compatibility redirect to `/q/{tagCode}`. Render precedence:
 
 1. **Success** (just activated) â†’ "Activated" screen with: Preview Public
    Profile, View Tag Scan Page, Go to Dashboard.
@@ -105,7 +122,7 @@ finder safety page). It is **looked up by `publicCode`, never by slug**:
 > (`/p/{slug}-{publicCode}`) is the **friendly, IG-style** page an owner shares
 > with friends, family, and pet communities. It is **NOT** the emergency finder
 > page. The finder/emergency experience lives on the Safety Profile
-> (`/q/{safetyCode}`); active physical tag scans (`/t/{tagCode}`) render that same view. Never mix
+> (`/q/{safetyCode}`); active physical tag scans (`/q/{tagCode}`, `/n/{tagCode}`, legacy `/t/{tagCode}`) render that same view. Never mix
 > them. A previous version wrongly made the share page finder-first â€” do not
 > reintroduce that.
 
@@ -162,7 +179,7 @@ Keep them distinct.
 > copied, or navigated to. Every public profile link is `/p/{petSlug}-{publicCode}`.
 > Build it with `publicProfilePath(slug, publicCode)` (or `pet.publicProfilePath`),
 > never by concatenating the slug by itself. The Safety Profile is the separate
-> pet-level route `/q/{safetyCode}`; physical tags use `/t/{tagCode}` as scan
+> pet-level route `/q/{safetyCode}`; physical tags use `/q/{tagCode}` (QR), `/n/{tagCode}` (NFC) or legacy `/t/{tagCode}` as scan
 > entry points.
 
 ---

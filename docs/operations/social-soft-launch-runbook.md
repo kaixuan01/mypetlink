@@ -69,7 +69,11 @@ Each step is reversible. Do them in this order.
 
    Then verify the site is unchanged: no Community group in the sidebar, no
    Social section in Owner Settings, no Follow button on a pet's public page,
-   and the mobile bar is the management one.
+   the mobile bar is the management one, and — the one that was missed once
+   — **no Explore or Search link in the visitor header above a Share Profile**
+   (`/p/{slug}-{publicCode}`, signed out). That header is client rendered, so
+   the export cannot be searched for it; `verify-social-flag.mjs` checks the
+   gate at source and `SocialLayoutVisitorShell.test.tsx` renders both states.
 
 4. **Smoke-test the finder routes before enabling anything.** This is the
    check that matters most, and it must pass with Social off:
@@ -115,9 +119,11 @@ Each step is reversible. Do them in this order.
 ## Rolling back
 
 - **Take Social away:** set `NEXT_PUBLIC_SOCIAL_ENABLED=false` and redeploy the
-  web app. Every social entry point disappears; the routes and the API stay
-  reachable, so existing `/u/` links keep working for anybody who saved one,
-  exactly as `/p/` does under its own flag.
+  web app. Every social entry point disappears — public navigation, the landing
+  teaser, the owner sidebar and phone bar, Owner Settings, the sitemap, and the
+  visitor header above a Share Profile. The routes and the API stay reachable, so
+  existing `/u/` links keep working for anybody who saved one, exactly as `/p/`
+  does under its own flag.
 - **Data is never deleted by a rollback.** Handles, follows, likes and activity
   remain. Re-enabling restores the same world.
 - **Do not roll back the migration** to disable Social. It is unnecessary and

@@ -1,6 +1,9 @@
 # Architecture Docs
 
-System architecture documentation will grow as the platform moves beyond the frontend-only MVP.
+- **[`product-model.md`](product-model.md) is the canonical reference** for MyPetLink's
+  concepts, terminology, route semantics and the relationships between Pet
+  Profile, Share Profile, Safety Profile, Community Profile, Smart Tags and
+  Moments. Read it before relying on any other document's vocabulary.
 
 - Backend architecture planning is in [`../backend/backend-architecture.md`](../backend/backend-architecture.md).
 - For the current frontend architecture, see [`apps/web/docs/AI_AGENT_REFERENCE.md`](../../apps/web/docs/AI_AGENT_REFERENCE.md).
