@@ -14,14 +14,25 @@ public sealed class PaymentReservationExpiryWorker : BackgroundService
     private readonly IOptionsMonitor<OrderReservationOptions> _options;
     private readonly ILogger<PaymentReservationExpiryWorker> _logger;
 
+    /// <summary>
+    /// Wall clock in production, virtual time in tests. Without this the only
+    /// way to observe a retry was to wait out a real poll interval, which made
+    /// the retry test a race against a stopwatch on a loaded CI runner.
+    /// Optional and defaulting to the system clock, so DI and every existing
+    /// caller are unaffected - the same shape as AdminAccessManagementService.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
+
     public PaymentReservationExpiryWorker(
         IServiceScopeFactory scopeFactory,
         IOptionsMonitor<OrderReservationOptions> options,
-        ILogger<PaymentReservationExpiryWorker> logger)
+        ILogger<PaymentReservationExpiryWorker> logger,
+        TimeProvider? timeProvider = null)
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -54,8 +65,12 @@ public sealed class PaymentReservationExpiryWorker : BackgroundService
 
             try
             {
+                // The five-second floor is a production guard against
+                // hammering the database and is deliberately not relaxed for
+                // tests; they move the clock instead.
                 await Task.Delay(
                     TimeSpan.FromSeconds(Math.Clamp(options.PollIntervalSeconds, 5, 3600)),
+                    _timeProvider,
                     stoppingToken);
             }
             catch (OperationCanceledException)
