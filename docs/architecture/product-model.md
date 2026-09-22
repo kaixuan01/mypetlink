@@ -182,9 +182,14 @@ Two consequences worth stating, because both have been got wrong before:
   tell which one a stranger is actually seeing. Summaries state and link.
 - **A summary may not guess.** Community participation is derived from two
   authenticated reads (`/api/v1/social/me/pets` and `/api/v1/social/me/profile`).
-  When either is unavailable the Community row is omitted entirely rather than
-  asserting "Not in Community" - a wrong reassurance about who can see a pet is
-  the one error that matters. See `src/lib/communityParticipation.ts`.
+  When either fails the row says its status is temporarily unavailable rather
+  than asserting "Not in Community" - a wrong reassurance about who can see a
+  pet is the one error that matters. See `src/lib/communityParticipation.ts`.
+- **A missing feature and missing data are different.** The row is omitted only
+  when Community does not exist for this owner at all (switched off for the
+  build, or the offline fallback). When Community exists but its state cannot be
+  read, the row stays and says so: removing it would tell the owner their pet
+  has no Community settings, which is its own false claim.
 
 Discoverability is derived from **both** the pet's `isDiscoverable` and the
 household's, because `SocialDiscoveryService` requires both. A pet whose own

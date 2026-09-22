@@ -174,9 +174,12 @@ Rules that keep the card honest:
   Profile is off. When the Safety Profile is off, the QR button, the View link
   and the general area all disappear with it: a QR code for a page that shows a
   finder nothing is worse than no QR at all.
-- **No guessing.** The Community row is derived from two authenticated reads and
-  is omitted entirely when either is unavailable, rather than claiming a pet is
-  out of Community when it may not be.
+- **No guessing.** The Community row is derived from two authenticated reads.
+  When one fails it shows *Status temporarily unavailable* with no audience
+  line, rather than claiming a pet is out of Community when it may not be. It
+  disappears only when Community is switched off for the build or there is no
+  connection to ask - a missing feature and missing data are not the same
+  thing.
 - The general area is a line of metadata, never a filled panel with its own
   label.
 - The contact warning is a compact inline notice, not a full card.

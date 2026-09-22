@@ -228,8 +228,9 @@ function OverviewTab({
     : null;
   const activeTagScanPath = activeTag ? tagQrPath(activeTag.tagCode) : "";
   const safetyBadge = getSafetyProfileBadge(pet);
-  // Read only, and absent whenever the answer is not known. See the hook.
-  const { status: communityStatus, ownerHandle: communityOwnerHandle } =
+  // Read only. Absent when Community does not exist here, and honest about not
+  // knowing when it does but its state could not be read. See the hook.
+  const { view: communityView, ownerHandle: communityOwnerHandle } =
     usePetCommunityStatus(pet.id, pet.name);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);
   const isMemorial = isMemorialPet(pet);
@@ -586,14 +587,34 @@ function OverviewTab({
               one pet, so this row reports and points rather than offering a
               second place to change the same thing.
             */}
-            {communityStatus ? (
+            {communityView.phase !== "hidden" ? (
               <ProfileSubcard
                 ariaLabel="Community status"
-                audience={communityStatus.audience}
-                badge={
-                  <Badge tone={communityStatus.tone}>{communityStatus.label}</Badge>
+                audience={
+                  communityView.phase === "known"
+                    ? communityView.status.audience
+                    : undefined
                 }
-                description="Where this pet appears through your Community Profile."
+                badge={
+                  <Badge
+                    tone={
+                      communityView.phase === "known"
+                        ? communityView.status.tone
+                        : "soft"
+                    }
+                  >
+                    {communityView.phase === "known"
+                      ? communityView.status.label
+                      : communityView.phase === "checking"
+                        ? "Checking status…"
+                        : "Status temporarily unavailable"}
+                  </Badge>
+                }
+                description={
+                  communityView.phase === "unknown"
+                    ? `We couldn't load ${pet.name}'s Community status.`
+                    : "Where this pet appears through your Community Profile."
+                }
                 manage={
                   <Link
                     className={subcardActionClass}
@@ -617,12 +638,13 @@ function OverviewTab({
                   ) : null
                 }
                 notice={
-                  communityStatus.blockedReason ? (
+                  communityView.phase === "known" &&
+                  communityView.status.blockedReason ? (
                     <p
                       className="rounded-[1rem] bg-white px-3 py-2 text-xs font-bold leading-5 text-pet-muted"
                       data-testid="community-blocked-reason"
                     >
-                      {communityStatus.blockedReason}
+                      {communityView.status.blockedReason}
                     </p>
                   ) : null
                 }
@@ -793,7 +815,8 @@ function ProfileSubcard({
 }: {
   action?: React.ReactNode;
   ariaLabel: string;
-  audience: string;
+  /** Omitted only when the row genuinely does not know who can see this. */
+  audience?: string;
   badge: React.ReactNode;
   description: string;
   link?: React.ReactNode;
@@ -815,12 +838,16 @@ function ProfileSubcard({
       <p className="text-sm leading-5 text-pet-muted">{description}</p>
       {/*
         Who, in the row's own voice. Set at body weight rather than as fine
-        print: it is the answer an owner opened this card for.
+        print: it is the answer an owner opened this card for. A row that could
+        not read its own state omits the line entirely — naming an audience it
+        has not confirmed would be the one mistake worth avoiding here.
       */}
-      <p className="text-sm font-bold leading-5 text-pet-ink">
-        <span className="text-pet-muted">Seen by: </span>
-        {audience}
-      </p>
+      {audience ? (
+        <p className="text-sm font-bold leading-5 text-pet-ink">
+          <span className="text-pet-muted">Seen by: </span>
+          {audience}
+        </p>
+      ) : null}
       {meta ? (
         <p className="text-xs font-bold leading-5 text-pet-muted">{meta}</p>
       ) : null}

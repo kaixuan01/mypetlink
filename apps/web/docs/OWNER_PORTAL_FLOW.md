@@ -161,11 +161,15 @@ Two rules the card must keep:
   View link disappears. When the Safety Profile is off, the QR button, the View
   link and the finder-facing general area all disappear too - handing out a QR
   code for a page that shows a finder nothing is worse than showing no QR.
-- **Silence when the answer is unknown.** The Community row is derived from two
-  authenticated reads. When Community is switched off for the build, the owner
-  is offline, or either read fails, the row is not rendered at all. It never
-  guesses "Not in Community", because an owner who is in Community would then
-  be told the opposite.
+- **Silence for a missing feature, honesty about missing data.** The Community
+  row is derived from two authenticated reads. It is not rendered at all when
+  Community is switched off for the build or there is no connection to ask, so
+  a soft launch or a rollback shows nothing. When Community exists but a read
+  fails, the row stays and reports *Status temporarily unavailable* with no
+  audience line and no participation word. It never guesses "Not in Community",
+  because an owner who is in Community would then be told the opposite - and it
+  never vanishes on an error, because that would suggest the pet has no
+  Community settings at all.
 
 The Community status itself lives in `src/lib/communityParticipation.ts`
 (`derivePetCommunityStatus`) and is read through

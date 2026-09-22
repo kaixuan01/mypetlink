@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getPetSocialSettings: vi.fn(),
   getOwnerSocialProfile: vi.fn(),
   apiConfigured: false,
+  socialEnabled: true,
 }));
 
 vi.mock("@/services/apiConfig", () => ({
@@ -42,7 +43,10 @@ vi.mock("@/lib/features", async (importOriginal) => {
     publicProfilesEnabled: true,
     safetyProfilesOwnerUiEnabled: true,
     smartTagsEnabled: true,
-    socialEnabled: true,
+    // A getter, so a test can switch the feature off the way a build does.
+    get socialEnabled() {
+      return mocks.socialEnabled;
+    },
   };
 });
 vi.mock("@/services/petService", async (importOriginal) => {
@@ -128,6 +132,7 @@ function community({
 beforeEach(() => {
   const pet = activePet();
   mocks.apiConfigured = false;
+  mocks.socialEnabled = true;
   mocks.getPetById.mockResolvedValue({ data: pet });
   mocks.getPetMoments.mockResolvedValue({ data: [] });
   mocks.getPetRecords.mockResolvedValue({ data: [] });
@@ -358,9 +363,40 @@ describe("Community row", () => {
     ).toBeNull();
   });
 
-  it("says nothing at all when Community could not be read", async () => {
-    // No connection: the honest outcome of not knowing is silence, not a
-    // confident "Not in Community".
+  it("links View to the household's own page after a reload, not to a stale one", async () => {
+    community({ handle: "tanfamily" });
+    renderOverview(activePet());
+
+    await screen.findByText("In Community · Discoverable");
+    expect(
+      within(row("Community"))
+        .getByRole("link", { name: "View Community Profile" })
+        .getAttribute("href")
+    ).toBe("/u/tanfamily");
+  });
+});
+
+/**
+ * A missing feature and missing data are different things.
+ *
+ * When Community is switched off for the build there is nothing to describe,
+ * and the row is correctly absent. When Community exists but its state could
+ * not be read, removing the row tells the owner their pet has no Community
+ * settings — a claim as wrong as "Not in Community", and harder to notice.
+ * So the row stays and says it does not know.
+ */
+describe("Community row when the answer is not known", () => {
+  it("renders nothing while Community is switched off for this build", async () => {
+    mocks.socialEnabled = false;
+    mocks.apiConfigured = true;
+    renderOverview(activePet());
+    await screen.findByText("Sharing & Privacy");
+
+    expect(screen.queryByRole("group", { name: "Community status" })).toBeNull();
+    expect(screen.queryByText(/Community/)).toBeNull();
+  });
+
+  it("renders nothing when there is no connection to ask", async () => {
     mocks.apiConfigured = false;
     renderOverview(activePet());
     await screen.findByText("Sharing & Privacy");
@@ -368,13 +404,92 @@ describe("Community row", () => {
     expect(screen.queryByRole("group", { name: "Community status" })).toBeNull();
   });
 
-  it("survives a failed Community read without taking the pet page down", async () => {
+  it("keeps the row and says so when the read fails", async () => {
+    mocks.apiConfigured = true;
     mocks.getPetSocialSettings.mockRejectedValue(new Error("offline"));
     renderOverview(activePet());
-    await screen.findByText("Sharing & Privacy");
 
+    const community = await screen.findByRole("group", {
+      name: "Community status",
+    });
+    expect(
+      within(community).getByText("Status temporarily unavailable")
+    ).toBeTruthy();
+    expect(
+      within(community).getByText(/couldn't load .*Community status/)
+    ).toBeTruthy();
+    // The rest of the page is untouched.
     expect(screen.getByRole("group", { name: "Share Profile status" })).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Community status" })).toBeNull();
+  });
+
+  it("infers no participation or discoverability from a failed read", async () => {
+    mocks.apiConfigured = true;
+    mocks.getOwnerSocialProfile.mockRejectedValue(new Error("boom"));
+    renderOverview(activePet());
+
+    const community = await screen.findByRole("group", {
+      name: "Community status",
+    });
+
+    for (const claim of [
+      /Not in Community/,
+      /In Community/,
+      /Discoverable/i,
+      /Hidden from discovery/i,
+    ]) {
+      expect(within(community).queryByText(claim)).toBeNull();
+    }
+    // "Seen by" names an audience; there is no audience to name.
+    expect(within(community).queryByText(/Seen by:/)).toBeNull();
+    expect(within(community).queryByTestId("community-blocked-reason")).toBeNull();
+    // Nothing to open, because the handle was never read.
+    expect(
+      within(community).queryByRole("link", { name: /View Community Profile/ })
+    ).toBeNull();
+  });
+
+  it("still points at the Community editor when the read fails", async () => {
+    mocks.apiConfigured = true;
+    mocks.getPetSocialSettings.mockRejectedValue(new Error("offline"));
+    renderOverview(activePet());
+
+    const community = await screen.findByRole("group", {
+      name: "Community status",
+    });
+    expect(
+      within(community)
+        .getByRole("link", { name: "Manage Community" })
+        .getAttribute("href")
+    ).toBe("/community/profile/edit");
+  });
+
+  it("says it is checking rather than appearing out of nowhere", async () => {
+    // The row exists from the first paint, so a slow read moves the page
+    // around no more than a fast one does.
+    mocks.apiConfigured = true;
+    mocks.getPetSocialSettings.mockReturnValue(new Promise(() => {}));
+    renderOverview(activePet());
+
+    const community = await screen.findByRole("group", {
+      name: "Community status",
+    });
+    expect(within(community).getByText("Checking status…")).toBeTruthy();
+    expect(within(community).queryByText(/Not in Community/)).toBeNull();
+    expect(within(community).queryByText(/Seen by:/)).toBeNull();
+  });
+
+  it("reports not knowing when the reads come back without this pet", async () => {
+    mocks.apiConfigured = true;
+    community({ petId: "some-other-pet" });
+    renderOverview(activePet());
+
+    const community_ = await screen.findByRole("group", {
+      name: "Community status",
+    });
+    expect(
+      await within(community_).findByText("Status temporarily unavailable")
+    ).toBeTruthy();
+    expect(within(community_).queryByText(/Not in Community/)).toBeNull();
   });
 });
 
