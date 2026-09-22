@@ -39,9 +39,11 @@ describe("Community profile entry points", () => {
     const link = screen.getByRole("link", { name: /manage community profile/i });
 
     expect(link.getAttribute("href")).toBe(ownerRoutes.socialProfileEdit);
-    expect(screen.getByText(/community & social/i)).toBeTruthy();
     expect(
-      screen.getByText(/how your profile and pets appear in the mypetlink community/i)
+      screen.getByRole("heading", { name: "Community" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/how you and your pets appear in community/i)
     ).toBeTruthy();
   });
 

@@ -1164,7 +1164,7 @@ it("keeps the invitation off an unavailable profile", async () => {
     />
   );
 
-  await screen.findByText("Pet profile not found");
+  await screen.findByText("Share Profile not found");
   expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull();
 });
 

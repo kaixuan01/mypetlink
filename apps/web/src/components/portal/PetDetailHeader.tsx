@@ -128,7 +128,7 @@ export function PetDetailHeader({
             In memory of {currentPet.name}
           </p>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
-            This pet is marked as memorial. The profile and memories are kept
+            This pet is marked as memorial. The profile and Moments are kept
             for remembrance.
           </p>
           {currentPet.memorial.passedAwayDate ? (
@@ -148,7 +148,7 @@ export function PetDetailHeader({
               variant="secondary"
               fullWidth
             >
-              Manage Memories
+              Manage Moments
             </CTAButton>
             <CTAButton
               href={ownerRoutes.petTimeline(currentPet.id)}
@@ -163,7 +163,7 @@ export function PetDetailHeader({
       ) : isArchived ? (
         <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
           <p className="text-sm font-semibold leading-6 text-pet-muted">
-            Memories and records stay saved.
+            Moments and records stay saved.
           </p>
         </div>
       ) : (

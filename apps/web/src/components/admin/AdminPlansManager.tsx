@@ -134,7 +134,7 @@ export function AdminPlansManager() {
   return (
     <div className="grid gap-4">
       <AdminNotice>
-        Plans control how many pet profiles and memories each owner can create.
+        Plans control how many pet profiles and Moments each owner can create.
         Only the Free plan is on sale today; Premium is prepared but not
         available yet, and no owner is billed automatically.
       </AdminNotice>
@@ -242,9 +242,9 @@ function PlanDefinitionsSection({
                 <th className="whitespace-nowrap px-4 py-3" scope="col">Availability</th>
                 <th className="whitespace-nowrap px-4 py-3" scope="col">Price</th>
                 <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Pets</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Memories / pet</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Moments / pet</th>
                 <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Care records</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Media / memory</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Media / Moment</th>
                 <th className="whitespace-nowrap px-4 py-3" scope="col">Extras</th>
                 <th className="whitespace-nowrap px-4 py-3 text-right" scope="col">Owners</th>
                 <th className="whitespace-nowrap px-4 py-3" scope="col">
@@ -364,7 +364,7 @@ function OwnerPlansSection({
               ],
       },
       { type: "select", key: "petUsage", label: "Pet Usage", options: usageOptions },
-      { type: "select", key: "memoryUsage", label: "Memory Usage", options: usageOptions },
+      { type: "select", key: "memoryUsage", label: "Moment Usage", options: usageOptions },
       {
         type: "select",
         key: "hasOverride",
@@ -547,7 +547,7 @@ function OwnerPlansSection({
     },
     {
       id: "memories",
-      header: "Memory Usage",
+      header: "Moment Usage",
       sortId: "memoryUsage",
       cell: (item) => (
         <span className="block min-w-32">
@@ -630,7 +630,7 @@ function OwnerPlansSection({
 
   return (
     <AdminSection
-      description="Which plan each owner is on and how their pets, memories, and care records compare to that plan's limits."
+      description="Which plan each owner is on and how their pets, Moments, and care records compare to that plan's limits."
       title="Owner plans"
     >
       <AdminFilterBar

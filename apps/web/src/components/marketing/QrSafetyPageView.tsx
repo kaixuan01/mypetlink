@@ -103,7 +103,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
             {isMemorial
-              ? "This pet is marked as memorial. The profile and memories are kept for remembrance."
+              ? "This pet is marked as memorial. The profile and Moments are kept for remembrance."
               : "This MyPetLink profile is not currently active."}
           </p>
           {isMemorial && pet.publicProfilePath ? (
@@ -151,6 +151,19 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
       data-profile-theme={theme.id}
       style={{ borderColor: theme.colors.border }}
     >
+      {/*
+        Everything above the contact buttons is budgeted against one phone
+        screen, because a Lost Mode page whose WhatsApp button needs a scroll is
+        a page that failed at its only job. Measured at 375x812 the hero used to
+        end at 581px and the buttons began at 790 — off-screen on a 375x667
+        phone entirely. So in Lost Mode the portrait steps down a size, the
+        heading steps down a size, and the shell's own "MyPetLink Safety
+        Profile" is not printed a second time 260px below itself.
+
+        None of it is removed. The wording, the portrait, the summary and the
+        owner's name are all still here; they are sized for the state the reader
+        is in.
+      */}
       <div
         className="brand-blue-section rounded-[1.75rem] p-6 text-center"
         style={{
@@ -158,25 +171,40 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         }}
       >
         <div className="flex justify-center">
-          <PetPhotoViewer pet={pet} size="xl" />
+          <PetPhotoViewer pet={pet} size={isLostMode ? "lg" : "xl"} />
         </div>
-        <p
-          className="mt-5 text-sm font-bold uppercase text-pet-teal"
-          style={{ color: theme.colors.primary }}
+        {/*
+          The shell above this card already reads "MyPetLink Safety Profile".
+          Repeating it here cost a line of vertical space to tell the reader
+          something they were told a moment ago, and in Lost Mode that space is
+          the difference between seeing a contact button and not.
+        */}
+        <h1
+          className={`mt-4 font-black leading-tight text-pet-ink ${
+            isLostMode ? "text-3xl" : "text-4xl"
+          }`}
         >
-          MyPetLink Safety Profile
-        </p>
-        <h1 className="mt-2 text-4xl font-black text-pet-ink">
           {isLostMode ? `${pet.name} is currently missing` : `Found ${pet.name}?`}
         </h1>
-        <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-          {!hasPublicContact
-            ? "The owner has not added a public contact method yet."
-            : isLostMode
-            ? "If you have found this pet, please contact the owner immediately."
-            : "Please contact the owner directly using one of the options below."}
-        </p>
-        <p className="mt-4 text-sm text-pet-muted">
+        {/*
+          In Lost Mode this line used to read "If you have found this pet,
+          please contact the owner immediately" — which the heading directly
+          above already says, and which the owner's own Lost Mode message below
+          says again word for word when they have not written their own. Three
+          statements of one fact, costing a line of the screen the contact
+          buttons need.
+
+          The no-contact case is not a repeat of anything, so it stays: a finder
+          has to be told why there is no button to press.
+        */}
+        {hasPublicContact && isLostMode ? null : (
+          <p className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+            {!hasPublicContact
+              ? "The owner has not added a public contact method yet."
+              : "Please contact the owner directly using one of the options below."}
+          </p>
+        )}
+        <p className="mt-3 text-sm text-pet-muted">
           {safetySummary}
         </p>
         {publicOwnerName ? (
@@ -186,27 +214,37 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         ) : null}
       </div>
 
+      {/*
+        The half of Lost Mode a finder needs BEFORE deciding to act: that the
+        pet is missing, and where and when it was last seen. The owner's own
+        message, the reward and any extra instructions are read after somebody
+        has decided to make contact, so they follow the buttons.
+      */}
       {isLostMode ? (
-        <section className="mt-5 rounded-[1.5rem] border-2 border-pet-coral bg-[#fff1ee] p-4">
+        <section
+          className="mt-4 rounded-[1.5rem] border-2 border-pet-coral bg-[#fff1ee] p-4"
+          data-testid="lost-mode-alert"
+        >
           <div className="flex items-center gap-2 text-sm font-black text-pet-coral">
             <Icon name="shield" className="h-4 w-4" />
             Lost Mode Active
           </div>
-          <p className="mt-2 text-sm font-semibold leading-6 text-pet-ink">
-            {lostMode.lostMessage ||
-              `If you have found ${pet.name}, please contact the owner immediately.`}
-          </p>
-          <LostModeFinderDetails className="mt-3" lostMode={lostMode} />
+          <LostModeFinderDetails
+            className="mt-3"
+            fields={["lastSeenArea", "lastSeenDateTime"]}
+            lostMode={lostMode}
+          />
         </section>
       ) : null}
 
-      {pet.allergies.length ? (
-        <div className="mt-5">
-          <SafetyAllergies allergies={pet.allergies} />
-        </div>
-      ) : null}
-
-      <div className="mt-5 grid gap-3">
+      {/*
+        Contact first. Everything a finder reads to LOOK AFTER the pet —
+        allergies, the safety note, the emergency note — is handling information
+        they need once the pet is with them, and it now sits together below,
+        where the safety note already lived. Nothing was dropped; the page just
+        stopped putting the reference material in front of the phone call.
+      */}
+      <div className="mt-4 grid gap-3">
         {hasPublicWhatsapp ? (
           <CTAButton
             href={getWhatsAppLink(whatsappE164, introMessage)}
@@ -257,7 +295,32 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         ) : null}
       </div>
 
-      <div className="mt-5 grid gap-3">
+      {/*
+        The owner's own Lost Mode message, and anything they asked a finder to
+        do. Read after somebody has decided to make contact, so printed after
+        the buttons that let them.
+      */}
+      {isLostMode ? (
+        <div
+          className="mt-4 rounded-[1.5rem] border border-pet-coral/40 bg-[#fff1ee] p-4"
+          data-testid="lost-mode-message"
+        >
+          <p className="text-sm font-semibold leading-6 text-pet-ink">
+            {lostMode.lostMessage ||
+              `If you have found ${pet.name}, please contact the owner immediately.`}
+          </p>
+          <LostModeFinderDetails
+            className="mt-3"
+            fields={["rewardNote", "extraContactInstruction"]}
+            lostMode={lostMode}
+          />
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3">
+        {pet.allergies.length ? (
+          <SafetyAllergies allergies={pet.allergies} />
+        ) : null}
         {pet.safetyNote ? (
           <div
             className="rounded-[1.25rem] bg-pet-apricot p-4"
@@ -330,18 +393,24 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           data-testid="safety-public-profile-bridge"
           style={{ borderColor: theme.colors.border }}
         >
+          {/*
+            Named for what it is, so a finder can tell it apart from the page
+            they are on. "View Public Profile" said neither whose page it was
+            nor what was on it, and used a name no other surface in the product
+            uses for /p/.
+          */}
           <h2
             className="text-sm font-black text-pet-ink"
             id="safety-public-profile-bridge"
             style={{ color: theme.colors.text }}
           >
-            About {pet.name}
+            {pet.name}&apos;s Share Profile
           </h2>
           <p
             className="mt-1 text-sm leading-6 text-pet-muted"
             style={{ color: theme.colors.mutedText }}
           >
-            Want to know more about {pet.name}?
+            Photos and Moments shared by their family.
           </p>
           <CTAButton
             className="mt-3 min-h-12"
@@ -355,7 +424,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             }
             variant="secondary"
           >
-            View Public Profile
+            View Share Profile
           </CTAButton>
         </section>
       ) : null}

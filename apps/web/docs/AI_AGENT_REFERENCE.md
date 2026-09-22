@@ -5,16 +5,24 @@
 This is the entry point for any AI agent (or developer) working on MyPetLink. It
 explains the product structure, the non-negotiable rules, and where the detailed
 guides live. The goal is that every future change follows the same route rules,
-tag logic, owner pages, and public profile sharing â€” instead of each agent
+tag logic, owner pages, and Share Profile sharing â€” instead of each agent
 inventing its own conventions.
 
-If anything in the codebase contradicts this document, treat it as a bug to fix,
-not a pattern to copy.
+**Precedence.** Current code is the behavioural source of truth: where this
+document and the code disagree about what the product *does*, the code is what
+ships and this document is what gets corrected. For what things are *called* and
+how the profiles relate,
+[`product-model.md`](../../../docs/architecture/product-model.md) is canonical
+and overrides anything here or in any historical phase document. Report genuine
+contradictions either way — they mean one of the two is stale.
 
 ---
 
 ## 1. Read these in order
 
+0. [`product-model.md`](../../../docs/architecture/product-model.md) — **canonical**
+   concepts, terminology, route semantics, and how Pet Profile, Share Profile,
+   Safety Profile, Community Profile, Smart Tags and Moments relate.
 1. **This file** â€” product structure, rules, and the route map.
 2. [`SMART_TAG_PRODUCT_STRATEGY.md`](../../../docs/product/SMART_TAG_PRODUCT_STRATEGY.md) — the
    full product/business strategy for the physical QR + NFC Smart Tag (TagCode,
@@ -24,7 +32,8 @@ not a pattern to copy.
    portal is structured (dashboard, pets, records, moments, tags, orders) and
    how pet switching works.
 4. [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md) â€” how the public
-   `/t/{tagCode}`, `/activate/{tagCode}`, and `/p/{slug}-{publicCode}` routes
+   `/q/{tagCode}`, `/n/{tagCode}`, legacy `/t/{tagCode}`, `/activate/{tagCode}`
+   and `/p/{slug}-{publicCode}` routes
    resolve and what each state renders.
 5. [`SEO_INDEXING_POLICY.md`](./SEO_INDEXING_POLICY.md) — canonical-host,
    sitemap, robots, and route-level indexing rules.
@@ -33,25 +42,29 @@ not a pattern to copy.
 
 ## 2. What MyPetLink is
 
-A mobile-first web app that gives every pet a **safe public profile**. If a pet
-is lost, a finder scans a QR code or taps an NFC tag, opens the pet's public
-profile, and contacts the owner. Owners also manage care records, memories
-(moments), smart tags, and orders from a private portal.
+A mobile-first web app that gives every pet a **Pet Profile**: a Share Profile
+to send to people, and a Safety Profile for whoever finds them. If a pet
+is lost, a finder scans a QR code or taps an NFC tag, opens the pet's Safety
+Profile, and contacts the owner. Owners also manage care records, Moments,
+smart tags, and orders from a private portal.
 
 Core promise: **A safer way home for your pet.**
 
 **Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
-gadget. Create a **Free Profile** first; it includes the Public Share Profile,
+gadget. Create a **Free Profile** first; it includes the Share Profile,
 pet-level Safety Profile, basic finder contact, basic care records, and up to 3
-pets with up to 10 memories per pet. The physical **QR + NFC Smart Tag** is an
+pets with up to 10 Moments per pet. The physical **QR + NFC Smart Tag** is an
 optional one-time add-on; scanning or tapping it opens the same safety content. **Premium is
 Coming Soon** and must not be presented as a live subscription or checkout flow.
 Never imply finder contact costs money (it's free on the Free plan). The public
 marketing pages (Home, Pricing, Privacy) are separate from the public/finder app
-pages — keep them warm and calm. The Home page has a **fixed nine-section
-order** and features grouped into **three pillars (Safety / Care / Memories)**.
-See `docs/product/MARKETING_STRATEGY.md` (repo root) §7-§13 for the full home section order, pricing
-strategy, privacy messaging, and copy rules.
+pages — keep them warm and calm. The Home page tells one story in order: what you
+get, what happens when a pet is lost, the two pages a pet gets, Community, the
+tag, pricing, where to buy, FAQ, and the closing call to action. The older
+"three pillars (Safety / Care / Memories)" grouping was removed from the page
+and should not be reintroduced from memory. See
+`docs/product/MARKETING_STRATEGY.md` (repo root) for pricing strategy, privacy
+messaging, and copy rules — its section-order text predates the current page.
 
 ---
 
@@ -101,7 +114,11 @@ strings in pages or components.** Import the helpers instead.
 | Physical NFC entry | `/n/{tagCode}` | `tagNfcPath(tagCode)` |
 | Legacy tag entry | `/t/{tagCode}` | `tagPath(tagCode)` |
 | Tag activation | `/q/{tagCode}` (legacy `/t` remains compatible) | `activatePath(tagCode)` |
-| Public share       | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)` / `getPublicProfilePath(pet)` |
+| Share Profile      | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)` / `getPublicProfilePath(pet)` |
+| Community Profile  | `/u/{handle}`                 | `ownerSocialProfilePath(handle)` |
+| One public Moment  | `/moments/{momentId}`         | `momentPath(momentId)` |
+| Community surfaces | `/feed`, `/explore`, `/search`, `/notifications` | `socialRoutes.*` |
+| Own Community profile | `/community/profile` (+ `/edit`) | `ownerRoutes.socialProfile` / `socialProfileEdit` |
 
 `getPublicProfilePath(pet)`, `getQrSafetyPath(pet)`, and
 `getTagScanPath(tag)` are convenience wrappers that take the whole object.
@@ -123,6 +140,12 @@ Key rules baked into these helpers:
   `samplePet` is the deletion-proof marketing fallback and intentional SEO
   fixture; it is not a database record or the optional personalization authority. Never
   hardcode a pet id, slug, or tag code in a page or component.
+- **Community routes are gated by `socialEnabled`, not removed.** The flag
+  decides what the product *offers*: with it off, every Community entry point
+  disappears (public nav, landing teaser, owner sidebar and phone bar, Owner
+  Settings, the sitemap, and the visitor header above a Share Profile) while the
+  routes themselves keep resolving so a saved `/u/` link still works. A Share
+  Profile is not a Community surface and must work with Community off.
 - New physical tag activation starts from the printed QR at `/q/{tagCode}`.
   Existing `/t/{tagCode}` links remain compatible. `/n/{tagCode}` never offers
   first-time activation; it instructs the owner to scan the printed QR.
@@ -144,7 +167,7 @@ There is exactly **one** public identifier per physical tag: the **TagCode**.
 token. **Never** expose the internal database `id` in a URL or in owner-facing
 UI. Owner UI shows the TagCode prominently labelled `TAG CODE`.
 
-The public profile share link uses a separate stable **`publicCode`** (lowercase
+The Share Profile link uses a separate stable **`publicCode`** (lowercase
 4 chars, `generatePublicCode()`) â€” this is the pet's public key, distinct from
 the tag's TagCode. See `PUBLIC_PROFILE_ROUTING.md`.
 
@@ -210,7 +233,7 @@ without pet selection.
    management hub; `/pets/{petId}/edit` is the tabbed edit form â€” see
    `OWNER_PORTAL_FLOW.md` Â§3). Public pages are never an owner dashboard.
 9. **The public share page and Safety Profile are DIFFERENT; never mix them.**
-   - **`/p/{petSlug}-{publicCode}` = Public Share Profile.** Friendly, IG-style,
+   - **`/p/{petSlug}-{publicCode}` = Share Profile.** Friendly, IG-style,
      shareable. Primary action is *Share*. Tabs: About / Moments / Timeline. No
      emergency CTAs, no "I found this pet", no "Send Found Location", no safety-
      page wording except the **Lost Mode** banner when pet-level `lostModeEnabled` is on.
@@ -229,22 +252,27 @@ without pet selection.
    wrongly made the share page finder-first; do not reintroduce that.
 10. **Do not recreate a separate owner QR Safety management page.**
     `/pets/{id}/qr` is a legacy compatibility route that redirects back to the
-    pet overview. Owners manage the Public Share Profile, Safety Profile, and
-    Physical Smart Tag link from `/pets/{id}`. The Public Share Profile and the
-    Safety Profile now share one **Sharing & Safety** section, which also holds
-    Lost Mode. Safety and contact settings live in
-    `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
-    tab and `/tags`.
+    pet overview. Owners manage the Share Profile, Safety Profile, and
+    Physical Smart Tag link from `/pets/{id}`. The Overview tab opens with one
+    read-only **Sharing & Privacy** card covering the Share Profile, the Safety
+    Profile and Community: each row gives a status, who can see it, and a
+    **Manage** link to the single screen that owns that setting. **Do not put a
+    switch in that card** - Share Profile flags live in
+    `Edit Pet -> Share Profile`, finder contact settings in
+    `Edit Pet -> Contact & Safety`, and Community participation and
+    discoverability in **Community -> Edit Profile**. Lost Mode is a separate
+    control on the same tab. Tag management lives in the hub **Smart Tag** tab
+    and `/tags`.
     **Sharing has exactly one entry point:** `ShareCenter`
     (`src/components/share/ShareCenter.tsx`). The Dashboard pet card, the pet
-    detail hero, the Sharing & Safety section, and the owner bar on `/p/` all
+    detail hero, the Sharing & Privacy card, and the owner bar on `/p/` all
     open the same dialog. Do not add a competing Copy/QR/Share Card row beside
     it. See
     [`docs/architecture/owner-sharing-experience.md`](../../../docs/architecture/owner-sharing-experience.md).
 11. **Public previews open in a new tab.** Every owner-portal button that opens a
-    public route - "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
+    public route - "View Share Profile" (`/p/{slug}-{publicCode}`),
     "View Safety Profile" (`/q/{safetyCode}`), "View Tag Scan Page"
-    (`/t/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
+    (`/q/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
     so the portal stays open in the original tab. `CTAButton` forwards
     `target`/`rel` to both internal `Link` and external `<a>`. When the logged-in
     owner views their own `/p/` page, a small "Viewing as public" bar (Share

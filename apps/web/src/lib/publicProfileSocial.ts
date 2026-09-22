@@ -22,7 +22,7 @@ export function getPublicProfileSocialTitle(petName: string) {
 
 export function getPublicProfileSocialDescription(petName: string) {
   const name = cleanSocialText(petName, 80) || "Pet";
-  return `View ${name}'s public profile, memories, and important safety information.`;
+  return `View ${name}'s Share Profile, Moments, and important safety information.`;
 }
 
 /**

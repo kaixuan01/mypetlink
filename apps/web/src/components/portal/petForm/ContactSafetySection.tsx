@@ -97,7 +97,7 @@ export function ContactSafetySection({
   return (
         <FormSection
           title="Contact & Safety"
-          description="Help finders contact you if your pet is lost. Your full address is never shown."
+          description="What whoever finds your pet sees on the Safety Profile, and how they reach you. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet ? (
@@ -245,7 +245,7 @@ export function ContactSafetySection({
                   <SettingRow
                     checked={form.showOwnerName}
                     control="checkbox"
-                    helperText="Show the owner name to people viewing this pet's Public Profile or Safety Profile."
+                    helperText="Show the owner name to people viewing this pet's Share Profile or Safety Profile."
                     label="Show owner name"
                     onChange={(value) => updateField("showOwnerName", value)}
                   />
@@ -338,7 +338,7 @@ export function ContactSafetySection({
               <div className="grid min-w-0 gap-4 lg:grid-cols-2">
                 <TextInput
                   error={errors.ownerName}
-                  label="Owner display name"
+                  label="Name finders see"
                   maxLength={80}
                   onChange={(value) => updateField("ownerName", value)}
                   placeholder={`${form.name || "Your pet"}'s owner`}
@@ -377,7 +377,7 @@ export function ContactSafetySection({
                 </p>
                 <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
                   WhatsApp, phone, and emergency notes appear on the Safety
-                  Profile. General area can also appear on the Public Profile.
+                  Profile. General area can also appear on the Share Profile.
                 </p>
                 <div className="mt-3 grid min-w-0 gap-2">
                   <SettingRow
@@ -395,7 +395,7 @@ export function ContactSafetySection({
                   <SettingRow
                     checked={form.showGeneralArea}
                     control="switch"
-                    helperText="Show the general area on this pet's Public Profile and Safety Profile."
+                    helperText="Show the general area on this pet's Share Profile and Safety Profile."
                     label="General area"
                     onChange={(value) => updateField("showGeneralArea", value)}
                   />
@@ -433,8 +433,8 @@ export function ContactSafetySection({
                     <SettingRow
                       checked={form.showAllergiesOnPublicProfile}
                       control="checkbox"
-                      helperText="Allergies are always shown on the Safety Profile for pet safety. Turn this on to also show them on the Public Profile."
-                      label="Show allergies on Public Profile"
+                      helperText="Allergies are always shown on the Safety Profile for pet safety. Turn this on to also show them on the Share Profile."
+                      label="Show allergies on Share Profile"
                       onChange={(value) =>
                         updateField("showAllergiesOnPublicProfile", value)
                       }

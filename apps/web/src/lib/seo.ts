@@ -175,9 +175,9 @@ export function createPublicProfileMetadata({
 }
 
 export function createUnavailablePublicProfileMetadata(): Metadata {
-  const title = "Pet Profile Unavailable | MyPetLink";
+  const title = "Share Profile Unavailable | MyPetLink";
   const description =
-    "This MyPetLink pet profile is unavailable or is not shared publicly.";
+    "This MyPetLink Share Profile is unavailable or is not shared publicly.";
   const image = canonicalUrl("/og-image.png");
 
   return {
@@ -199,7 +199,7 @@ export function createUnavailablePublicProfileMetadata(): Metadata {
           type: "image/png",
           width: 1200,
           height: 630,
-          alt: "MyPetLink pet profile",
+          alt: "MyPetLink Share Profile",
         },
       ],
     },
@@ -207,7 +207,7 @@ export function createUnavailablePublicProfileMetadata(): Metadata {
       card: "summary_large_image",
       title,
       description,
-      images: [{ url: image, alt: "MyPetLink pet profile" }],
+      images: [{ url: image, alt: "MyPetLink Share Profile" }],
     },
   };
 }

@@ -72,6 +72,15 @@ export default function SmartPetTagsPage() {
             <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold leading-6 text-pet-ink">
               Both methods open the same owner-approved Safety Profile.
             </p>
+            {/*
+              Stated on the page most likely to be read as a requirement. The
+              tag is a way to carry a Safety Profile, never a way to have one.
+            */}
+            <p className="mt-3 text-sm leading-6 text-pet-muted">
+              You do not need one. Every pet gets a Share Profile, a Safety
+              Profile and a QR code you can download for free — the Smart Tag
+              is what makes that QR code something your pet can wear.
+            </p>
 
             <ul className="mt-6 grid gap-2 text-sm font-semibold text-pet-ink sm:grid-cols-2">
               {included.map((item) => (
@@ -111,7 +120,7 @@ export default function SmartPetTagsPage() {
             in the navigation.
           */}
           <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <CreateProfileCTA>Get Started Free</CreateProfileCTA>
+            <CreateProfileCTA />
             <a
               className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
               href={marketingRoutes.howItWorks}

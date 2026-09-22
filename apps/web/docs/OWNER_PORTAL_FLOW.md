@@ -2,7 +2,16 @@
 
 > Read [`AI_AGENT_REFERENCE.md`](./AI_AGENT_REFERENCE.md) first. This document
 > describes the **signed-in owner portal** only. Public scan/share routes are in
-> [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md).
+> [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md), and the concepts
+> and their canonical names are in
+> [`product-model.md`](../../../docs/architecture/product-model.md).
+>
+> One naming note while reading this file. The page at `/p/{slug}-{publicCode}`
+> is the **Share Profile**, and the portal names it that way throughout. The
+> owner portal is one half of the product — the **Community** half (`/feed`,
+> `/explore`, `/u/{handle}`, `/community/profile`) shares the same shell and is
+> described in `product-model.md`; `src/lib/appMode.ts` decides which half a
+> route belongs to.
 
 ---
 
@@ -89,11 +98,11 @@ the entry points are hidden. If the active route belongs to a More item, the
 (`src/components/portal/PetCard.tsx`) that shows summary info (avatar, name,
 species/breed/age, QR/profile status, smart tag status, a short emergency-note
 preview) and exactly three controls: a primary **Manage** button
-(`ownerRoutes.petProfile`), a secondary **Public Profile** button, and a
+(`ownerRoutes.petProfile`), a secondary **Share Profile** button, and a
 **More** menu (Edit, Records, Moments, Smart Tags, Order Tag). Do **not** add a
 grid of equal action buttons back onto the card.
 
-The **Public Profile** button (and any owner-facing public profile link) must use
+The **Share Profile** button (and any owner-facing Share Profile link) must use
 `pet.publicProfilePath` / `publicProfilePath(slug, publicCode)` â†’
 `/p/{petSlug}-{publicCode}`. The slug-only `/p/{petSlug}` form is **deprecated**;
 never display or copy it. See `PUBLIC_PROFILE_ROUTING.md`.
@@ -101,15 +110,21 @@ never display or copy it. See `PUBLIC_PROFILE_ROUTING.md`.
 `/pets/{petId}` (`src/app/pets/[id]/page.tsx`) is the **main management page**
 for a single pet. The server page loads the pet, records, moments, and tags,
 then renders a pet header (photo, name, species/breed/age, QR + smart tag
-status) plus **`PetManagementTabs`** (client) with five tabs:
+status) plus **`PetManagementTabs`** (client) with three tabs, plus a fourth when
+Smart Tags are switched on:
 
-| Tab        | Content                                                                 |
-| ---------- | ----------------------------------------------------------------------- |
-| Overview   | Public profile status + share link, smart tag status, emergency note, contact privacy summary, recent records, recent moments |
-| Records    | `RecordsManager` for this pet                                            |
-| Moments    | `PetMomentsManager` (memories + life timeline)                           |
-| Smart Tag  | `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report tag lost/archive/restore/order replacement) |
-| Settings   | Links to edit profile, privacy, public profile theme, contact preferences |
+| Tab          | Content                                                                 |
+| ------------ | ----------------------------------------------------------------------- |
+| Overview     | **Sharing & Privacy** (Share Profile, Safety Profile, Community), smart tag status, Lost Mode, emergency note, recent records, recent moments |
+| Care Records | `RecordsManager` for this pet                                            |
+| Moments      | `PetMomentsManager` (Moments + life timeline)                            |
+| Smart Tag    | Only when `smartTagsEnabled`. `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report tag lost/archive/restore/order replacement) |
+
+**There is no Settings tab, and adding one would be a mistake.** Every setting
+the hub reports on is changed in exactly one place - Edit Pet -> Share Profile,
+Edit Pet -> Contact & Safety, or Community -> Edit Profile - and the Overview
+card links out to those. A Settings tab would become a second route to the same
+switches, which is the duplication the next section exists to prevent.
 
 Tabs are in-page client state (static export has no server). The per-pet
 sub-routes below still exist for deep links, the `MobileBottomNav`, and the
@@ -129,10 +144,50 @@ It measures the available tab row width and keeps the row to one line by moving
 overflow tabs into a **More** menu; do not replace this with horizontal scrolling
 or fixed mobile-only tab limits.
 
+### Sharing & Privacy is a summary, not a second set of switches
+
+The Overview tab opens with one **Sharing & Privacy** card that answers the
+same three questions for each audience a pet can have:
+
+| Row             | Audience                                              | Where it is changed                      |
+| --------------- | ----------------------------------------------------- | ---------------------------------------- |
+| Share Profile   | anyone the owner sends the link to                     | Edit Pet -> **Share Profile**            |
+| Safety Profile  | whoever finds the pet and scans a tag or opens a link  | Edit Pet -> **Contact & Safety**         |
+| Community       | people who visit the Community Profile, plus browsers when both the pet and the household are discoverable | **Community -> Edit Profile** |
+
+Every row shows a status, a plain-language "Seen by" line, and a **Manage**
+link out to the one screen that owns the setting. **Nothing in the card is
+editable.** Each of these settings has exactly one authoritative control, and
+duplicating a switch here would let an owner change the same thing in two
+places and disagree with themselves about which one won.
+
+Two rules the card must keep:
+
+- **No link to a page nobody can open.** When the Share Profile is off, the
+  View link disappears. When the Safety Profile is off, the QR button, the View
+  link and the finder-facing general area all disappear too - handing out a QR
+  code for a page that shows a finder nothing is worse than showing no QR.
+- **Silence for a missing feature, honesty about missing data.** The Community
+  row is derived from two authenticated reads. It is not rendered at all when
+  Community is switched off for the build or there is no connection to ask, so
+  a soft launch or a rollback shows nothing. When Community exists but a read
+  fails, the row stays and reports *Status temporarily unavailable* with no
+  audience line and no participation word. It never guesses "Not in Community",
+  because an owner who is in Community would then be told the opposite - and it
+  never vanishes on an error, because that would suggest the pet has no
+  Community settings at all.
+
+The Community status itself lives in `src/lib/communityParticipation.ts`
+(`derivePetCommunityStatus`) and is read through
+`src/components/portal/usePetCommunityStatus.ts`. Discoverability needs **both**
+the pet's switch and the household's, which is why a pet-level
+`isDiscoverable` alone is never described as discoverable. See
+`docs/architecture/product-model.md`.
+
 ### Edit page is also tabbed
 
 `/pets/{petId}/edit` (`PetProfileForm`) is a **focused, tabbed edit form**, not a
-dashboard. Its tabs are **Basic Info | Photos | Theme | Public Profile | Contact
+dashboard. Its tabs are **Basic Info | Photos | Theme | Share Profile | Contact
 & Safety**, and the two public surfaces are deliberately split:
 
 | Edit tab          | Configures                                                          |
@@ -140,7 +195,7 @@ dashboard. Its tabs are **Basic Info | Photos | Theme | Public Profile | Contact
 | Basic Info        | name, species, breed, gender, color, exact birthday/estimated birth year/unknown age, description, personality, favourites |
 | Photos            | profile + cover photo, live preview                                |
 | Theme             | `profileTheme` (applies to **both** the public share profile and the Safety Profile) |
-| Public Profile    | slug, adoption day, share-page visibility flags, **Public Profile URL** (`/p/{slug}-{publicCode}`) + View Public Profile |
+| Share Profile     | slug, adoption day, share-page visibility flags, **Share Profile URL** (`/p/{slug}-{publicCode}`) + View Share Profile |
 | Contact & Safety  | owner display name, WhatsApp/phone, general area, safety + emergency notes, finder visibility flags, **Safety Profile link** (`/q/{safetyCode}`) + View Safety Profile |
 
 The edit form does **not** embed Records / Moments / Smart Tag managers â€” only
@@ -168,7 +223,7 @@ All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 
 > **Legacy QR route:** `/pets/{id}/qr` is kept only as a compatibility redirect
 > to `/pets/{id}`. Do not link to it as a management page. The pet overview owns
-> the compact Public Share Profile, Safety Profile, and Physical Smart Tag
+> the compact Share Profile, Safety Profile, and Physical Smart Tag
 > Copy/View/Show QR actions. Safety/contact/privacy settings live in
 > `Edit Pet -> Contact & Safety`; physical tag management lives in the hub
 > **Smart Tag** tab and `/tags`.
@@ -222,7 +277,9 @@ and manager re-fetches on `petId` change.
   Actions depend on status: unassigned or assigned-but-not-active tags offer
   **View Tag Scan Page**, **Copy Tag Link**, and **View Order** where applicable.
   Owner Portal pages do **not** show a direct **Activate Tag** button; owners
-  activate only after scanning/tapping the physical tag at `/t/{tagCode}`.
+  activate only after scanning the physical tag's printed QR at `/q/{tagCode}`
+  (legacy printed tags at `/t/{tagCode}` still work; NFC never offers
+  first-time activation).
   Active tags can be disabled or marked **Report Tag Lost**; inactive tags offer
   **Request Replacement** and **Archive Tag**; archived tags offer **Restore to
   List** and **View Status**. "View Tag" / "View Status" (`tagPath`) is always
@@ -250,7 +307,7 @@ appears once the order is `Payment Confirmed`, `Preparing`, `Shipped`, or
 
 `/dashboard` reuses its already-loaded pet collection for one consolidated
 **Your pets** section. Each compact card has a dedicated management link plus
-separate Public Profile Share, QR, and View actions when that profile is public;
+separate Share Profile Share, QR, and View actions when that profile is public;
 private profiles show an Enable profile action instead. The dashboard never
 duplicates the pet list and never silently selects the first pet.
 

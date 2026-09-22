@@ -168,7 +168,7 @@ function getAccessItems({
 
 function getAccessSummary(pet?: ProfileAccessPet) {
   if (isMemorialPet(pet)) {
-    return "This memorial profile keeps memories available while finder contact actions stay off.";
+    return "This memorial profile keeps Moments available while finder contact actions stay off.";
   }
 
   if (isArchivedPet(pet)) {

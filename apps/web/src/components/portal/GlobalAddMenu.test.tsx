@@ -101,7 +101,7 @@ describe("GlobalAddMenu", () => {
       }).getAttribute("href")
     ).toBe("/pets/pet_0/records?create=1");
     expect(
-      screen.getByRole("menuitem", { name: /save a photo or memory/i })
+      screen.getByRole("menuitem", { name: /save a photo or moment/i })
         .getAttribute("href")
     ).toBe("/pets/pet_0/moments?edit=new");
   });
@@ -182,7 +182,7 @@ describe("GlobalAddMenu", () => {
     openMenu();
 
     fireEvent.click(
-      screen.getByRole("menuitem", { name: /save a photo or memory/i })
+      screen.getByRole("menuitem", { name: /save a photo or moment/i })
     );
 
     expect(screen.queryByRole("menu")).toBeNull();

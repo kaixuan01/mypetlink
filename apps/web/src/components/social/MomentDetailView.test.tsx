@@ -360,7 +360,9 @@ describe("Moment detail", () => {
     const header = screen.getByTestId("social-header-public");
 
     expect(within(header).getByRole("link", { name: /sign in/i })).toBeTruthy();
-    expect(within(header).getByRole("link", { name: /get started/i })).toBeTruthy();
+    expect(
+      within(header).getByRole("button", { name: /create free pet profile/i })
+    ).toBeTruthy();
   });
 
   it("holds a modest skeleton while it loads", () => {

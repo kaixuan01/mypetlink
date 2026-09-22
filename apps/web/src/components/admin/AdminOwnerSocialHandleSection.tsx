@@ -84,7 +84,7 @@ export function AdminOwnerSocialHandleSection({
       setState(next);
       setInput("");
       setPendingReassign(false);
-      setMessage(`Assigned @${next.handle} to this social profile.`);
+      setMessage(`Assigned @${next.handle} to this Community Profile.`);
     } catch (error) {
       if (isApiClientError(error) && error.code === "reserved_handle_assigned") {
         // Somebody already holds it. Taking it off them is a deliberate second
@@ -124,14 +124,14 @@ export function AdminOwnerSocialHandleSection({
           <span className="text-sm font-bold text-slate-500">No handle chosen yet</span>
         )}
         <Badge tone={state?.isSocialEnabled ? "mint" : "warm"}>
-          {state?.isSocialEnabled ? "Social profile on" : "Social profile off"}
+          {state?.isSocialEnabled ? "Community Profile on" : "Community Profile off"}
         </Badge>
       </div>
 
       {state && !state.isSocialEnabled ? (
         <p className="mt-2 text-sm font-semibold text-slate-600">
           A handle on its own is not public. The owner still has to turn their
-          social profile on before this name resolves to anything.
+          Community Profile on before this name resolves to anything.
         </p>
       ) : null}
 
@@ -177,7 +177,7 @@ export function AdminOwnerSocialHandleSection({
               data-testid="owner-social-handle-reassign"
             >
               <p className="text-sm font-bold text-amber-900">
-                Another social profile already holds @{input.trim().replace(/^@/, "")}.
+                Another Community Profile already holds @{input.trim().replace(/^@/, "")}.
                 Move it to this profile?
               </p>
               <div className="flex flex-wrap gap-2">

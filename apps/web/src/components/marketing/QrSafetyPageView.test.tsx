@@ -46,7 +46,7 @@ it("applies the same saved theme to the QR safety profile", async () => {
   const pet = { ...mockPets[0], profileTheme: "peach" as const };
   const { container } = render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   const themedProfile = container.querySelector("[data-profile-theme]");
   expect(themedProfile?.getAttribute("data-profile-theme")).toBe("peach");
   expect(screen.getByText("Safety note").parentElement?.getAttribute("style"))
@@ -71,7 +71,7 @@ it("never shows the Not set placeholder in the finder pet summary", async () => 
   };
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   expect(document.body.textContent).not.toContain("Not set");
 });
 
@@ -95,7 +95,7 @@ it("omits missing owner-authored Safety Profile details", async () => {
   };
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   expect(screen.queryByText(/^Owner:/)).toBeNull();
   expect(screen.queryByText("General area")).toBeNull();
   expect(screen.queryByText("Safety note")).toBeNull();
@@ -133,14 +133,14 @@ it("falls back to the pet colour in the summary when the breed is unknown", asyn
   };
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   expect(document.body.textContent).toContain("Golden brown");
 });
 
 it("hides the allergy safety section when none are saved", async () => {
   render(<QrSafetyPageView pet={{ ...mockPets[0], allergies: [] }} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   expect(screen.queryByText("Known allergies")).toBeNull();
 });
 
@@ -153,7 +153,7 @@ it("fails closed when finder visibility is unexpectedly missing", async () => {
 
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
 });
@@ -211,7 +211,7 @@ it("shows a clear fallback instead of contact instructions when no public contac
 
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  await screen.findByRole("heading", { level: 1 });
   expect(
     screen.getByText("The owner has not added a public contact method yet.")
   ).toBeTruthy();
@@ -336,14 +336,14 @@ function withPublicProfileBridge(overrides: Record<string, unknown> = {}) {
   };
 }
 
-it("offers the pet's Public Profile when the owner has opted in", async () => {
+it("offers the pet's Share Profile when the owner has opted in", async () => {
   render(<QrSafetyPageView pet={withPublicProfileBridge()} />);
 
   const bridge = await screen.findByTestId("safety-public-profile-bridge");
 
-  expect(bridge.textContent).toContain("About");
+  expect(bridge.textContent).toContain("Share Profile");
   expect(
-    within(bridge).getByRole("link", { name: "View Public Profile" }).getAttribute("href")
+    within(bridge).getByRole("link", { name: "View Share Profile" }).getAttribute("href")
   ).toBe("/p/milo-k7q2");
 });
 
@@ -352,7 +352,7 @@ it("leads to the PET's page, never to the owner's social identity", async () => 
 
   const bridge = await screen.findByTestId("safety-public-profile-bridge");
   const href = within(bridge)
-    .getByRole("link", { name: "View Public Profile" })
+    .getByRole("link", { name: "View Share Profile" })
     .getAttribute("href");
 
   // Somebody scanned an animal. Routing them into a person's social profile is
@@ -395,5 +395,105 @@ it("keeps contact first even while Lost Mode is on", async () => {
   // animal is exactly who it helps — but it stays underneath everything urgent.
   expect(
     lostBanner.compareDocumentPosition(bridge) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+});
+
+/**
+ * Lost Mode reading order.
+ *
+ * The page exists so a stranger holding somebody's pet can reach the owner. On
+ * a 375x812 phone the first contact button used to begin at y=790 — below the
+ * fold, and entirely off-screen on a 375x667 handset — because the portrait,
+ * the heading, a repeat of the shell's own branding and the whole Lost Mode
+ * narrative all came first.
+ *
+ * Nothing was removed. The order is now: what happened and where, then how to
+ * reach the owner, then everything read afterwards.
+ */
+it("puts the missing state and last-seen facts before the contact actions", async () => {
+  const pet = withFinderContact({
+    phone: "+60123456789",
+    whatsapp: "+60123456789",
+  });
+  render(
+    <QrSafetyPageView
+      pet={{
+        ...pet,
+        lostModeEnabled: true,
+        lostMode: {
+          ...pet.lostMode,
+          lastSeenArea: "Near SS2 market",
+          lostMessage: "Very friendly, answers to his name.",
+          rewardNote: "RM200 reward",
+        },
+      }}
+    />
+  );
+
+  const alert = await screen.findByTestId("lost-mode-alert");
+  const whatsapp = screen.getAllByRole("link", { name: /whatsapp/i })[0];
+
+  expect(alert.textContent).toContain("Lost Mode Active");
+  expect(alert.textContent).toContain("Near SS2 market");
+  expect(
+    alert.compareDocumentPosition(whatsapp) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+});
+
+it("moves the owner's Lost Mode narrative and reward below the contact actions", async () => {
+  const pet = withFinderContact({
+    phone: "+60123456789",
+    whatsapp: "+60123456789",
+  });
+  render(
+    <QrSafetyPageView
+      pet={{
+        ...pet,
+        lostModeEnabled: true,
+        lostMode: {
+          ...pet.lostMode,
+          lastSeenArea: "Near SS2 market",
+          lostMessage: "Very friendly, answers to his name.",
+          rewardNote: "RM200 reward",
+        },
+      }}
+    />
+  );
+
+  const message = await screen.findByTestId("lost-mode-message");
+  const whatsapp = screen.getAllByRole("link", { name: /whatsapp/i })[0];
+
+  // Still on the page, and still complete.
+  expect(message.textContent).toContain("Very friendly, answers to his name.");
+  expect(message.textContent).toContain("RM200 reward");
+  expect(
+    whatsapp.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+});
+
+it("does not repeat the shell's own Safety Profile branding inside the card", async () => {
+  render(<QrSafetyPageView pet={mockPets[0]} />);
+
+  await screen.findByRole("heading", { level: 1 });
+
+  // FinderShell prints this above the card. Printing it again 260px below cost
+  // a line of the one screen that matters.
+  expect(screen.queryByText("MyPetLink Safety Profile")).toBeNull();
+});
+
+it("keeps allergies and handling notes together, after the contact actions", async () => {
+  const pet = withFinderContact({
+    phone: "+60123456789",
+    whatsapp: "+60123456789",
+  });
+  render(<QrSafetyPageView pet={{ ...pet, allergies: ["Chicken"] }} />);
+
+  const allergies = await screen.findByText("Known allergies");
+  const whatsapp = screen.getAllByRole("link", { name: /whatsapp/i })[0];
+
+  // Handling information is what a finder reads once the pet is with them, so
+  // it sits with the safety note rather than in front of the phone call.
+  expect(
+    whatsapp.compareDocumentPosition(allergies) & Node.DOCUMENT_POSITION_FOLLOWING
   ).toBeTruthy();
 });

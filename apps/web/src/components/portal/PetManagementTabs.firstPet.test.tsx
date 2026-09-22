@@ -162,12 +162,12 @@ describe("first-pet completion heading", () => {
 
     renderTabs(pet);
 
-    await screen.findByText("Sharing & Safety");
-    expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(
+    await screen.findByText("Sharing & Privacy");
+    expect(screen.getAllByRole("link", { name: /View (Share|Safety) Profile/ })).toHaveLength(
       1
     );
     expect(
-      screen.getAllByRole("link", { name: "Manage sharing" })
+      screen.getAllByRole("link", { name: "Manage Share Profile" })
     ).toHaveLength(1);
     expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   });

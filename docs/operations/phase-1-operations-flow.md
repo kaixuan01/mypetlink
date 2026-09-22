@@ -11,7 +11,7 @@ How MyPetLink operations run in the early launch phase, using the Admin Portal (
    - **Request Resubmission** → order returns to **Pending Payment** with a friendly note; the order is never deleted.
 4. **Admin marks the order Preparing** (`/admin/orders`) → the linked tag also moves to Preparing; tag is printed/assembled.
 5. **Admin marks Shipped** (records the ship date) and later **Delivered** → the tag becomes Delivered and waits for the owner to activate it.
-6. **Owner activates the delivered tag** → tag becomes **Active**; scans open the pet's QR Safety Page.
+6. **Owner activates the delivered tag** → tag becomes **Active**; scans open the pet's Safety Profile.
 7. **Cancellations** are allowed before shipping; an unactivated linked tag is archived so it leaves the owner's tag lists.
 
 ## Retail tag flow (pet shops / resellers)

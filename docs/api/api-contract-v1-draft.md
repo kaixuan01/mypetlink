@@ -2,6 +2,15 @@
 
 Contract draft for the C# .NET 8 API.
 
+> **Historical planning document.** It describes what was intended at the time,
+> not necessarily what shipped. For current concepts, terminology and route
+> semantics follow
+> [`../architecture/product-model.md`](../architecture/product-model.md); for
+> current behaviour, follow the code. Terminology here predates the canonical
+> model — in particular it says "QR Safety Page", which is now explicitly
+> forbidden; the page is the **Safety Profile**.
+
+
 Implementation status (2026-07-04): auth, owner profile, pets, public reads, care records, memories, smart tags, orders/payment proofs, `/t` scan resolution, transactional email, and the admin group are implemented in `apps/api`. Implemented admin routes differ slightly from this draft (see `apps/api/README.md` for the authoritative list): order fulfillment uses explicit `POST /admin/orders/{id}/mark-preparing|mark-shipped|mark-delivered` routes (with `POST {id}/status` kept as a compatibility dispatcher), payment proofs add `GET /admin/payment-proofs/{id}` plus `POST {id}/approve|reject` sharing the order transition logic, tag generation/export live under `/admin/tag-inventory` (`GET`, `POST /generate`, `GET /export`), tag status actions are explicit `POST /admin/tags/{id}/disable|mark-lost|replace|archive|restore` routes, and `PATCH /admin/settings` is not implemented (read-only Phase 1). A broader notification center and found reports remain future.
 
 Base path: `/api/v1`
@@ -898,7 +907,7 @@ Entry-point rule:
 
 - Normal customer activation starts from `/t/:tagCode`, the Physical Tag Scan Page.
 - Owner Portal tag/order pages must not call this endpoint through direct Activate Tag buttons.
-- `/activate/:tagCode`, if present for compatibility, redirects back to `/t/:tagCode`.
+- `/activate/:tagCode` is a compatibility redirect to `/q/:tagCode`, the current QR entry.
 
 Request:
 
@@ -1045,7 +1054,7 @@ Initial state:
 
 Errors:
 
-- `403 feature_disabled` when Smart Tag ordering is turned off (`Features:SmartTagOrderingEnabled = false`, the launch default). Message: "Smart Tag ordering is not available yet. Your free QR Safety Page is still active." This check runs first, before validation.
+- `403 feature_disabled` when Smart Tag ordering is turned off (`Features:SmartTagOrderingEnabled = false`, the launch default). Message: "Smart Tag ordering is not available yet. Your free Safety Profile is still active." This check runs first, before validation.
 - `422` memorial/archived pet
 - `400` invalid delivery phone/address
 

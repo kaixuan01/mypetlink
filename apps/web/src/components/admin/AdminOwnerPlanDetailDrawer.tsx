@@ -172,8 +172,8 @@ export function AdminOwnerPlanDetailDrawer({
                 used={item.activePetCount}
               />
               <UsageMeter
-                detail={`${item.totalMemoryCount} memories across all pets. The limit applies per pet.`}
-                label="Memories on the busiest pet"
+                detail={`${item.totalMemoryCount} Moments across all pets. The limit applies per pet.`}
+                label="Moments on the busiest pet"
                 limit={item.maxMemoriesPerPet}
                 state={item.memoryUsageState}
                 used={item.highestMemoriesOnPet}
@@ -204,7 +204,7 @@ export function AdminOwnerPlanDetailDrawer({
             {item.petUsageState === "Over" || item.memoryUsageState === "Over" ? (
               <p className="mt-2 rounded-xl bg-[#fff7ec] px-3 py-2 text-xs font-semibold text-[#8a5a1d]">
                 This owner is above a current limit from early access or a support
-                allowance. Existing pets and memories always remain safe — limits
+                allowance. Existing pets and Moments always remain safe — limits
                 only apply to creating new ones.
               </p>
             ) : null}

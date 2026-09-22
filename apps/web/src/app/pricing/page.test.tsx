@@ -23,7 +23,9 @@ describe("PricingPage product hierarchy", () => {
 
     expect(screen.getByRole("heading", { name: "Free" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Premium" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Start Free Profile" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Create Free Pet Profile" }).length
+    ).toBeGreaterThan(0);
 
     const premiumCard = screen
       .getByRole("heading", { name: "Premium" })

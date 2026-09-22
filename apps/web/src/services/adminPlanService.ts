@@ -261,7 +261,7 @@ export async function downloadAdminOwnerPlansExport(
     [
       "Owner Name", "Owner Email", "Plan", "Plan Status", "Assignment",
       "Active Pets", "Pet Limit", "Pet Usage",
-      "Memories (Busiest Pet)", "Memory Limit", "Memory Usage",
+      "Moments (Busiest Pet)", "Moment Limit", "Moment Usage",
       "Manual Override", "Effective Date", "Updated At",
     ],
     ...rows.map((row) => [

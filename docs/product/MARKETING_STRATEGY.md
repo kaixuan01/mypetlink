@@ -9,34 +9,42 @@
 
 ## 1. Core promise
 
-**A safer way home for your pet.** Every pet can start with a free public
-profile and pet-level QR Safety Page so a finder can contact the owner quickly.
-The QR + NFC Smart Tag is an optional one-time add-on for owners who want extra
-safety on a collar.
+**A safer way home for your pet.** Every pet starts with a free **Pet
+Profile** — the umbrella record that holds their story, their care, and the two
+pages other people see: a **Share Profile** for the people the owner chooses,
+and a **Safety Profile** so a finder can contact the owner quickly. The
+QR + NFC Smart Tag is an optional one-time add-on for owners who want that
+Safety Profile on a collar.
+
+**Pet Profile is never the name of a page.** It is what a visitor is invited to
+create; `/p/` is the Share Profile. See
+[`product-model.md`](../architecture/product-model.md).
 
 ---
 
-## 2. Two public surfaces, two audiences
+## 2. Two public pet surfaces, two audiences
 
 These are **different pages with different jobs**. Never blur them in product,
-copy, or campaigns.
+copy, or campaigns. A third public page, the owner's **Community Profile**
+(`/u/{handle}`), belongs to the household rather than to a pet — see §7.
 
 | Surface | Route | Audience | Emotional job | Primary action |
 | ------- | ----- | -------- | ------------- | -------------- |
-| **Public Share Profile** | `/p/{petSlug}-{publicCode}` | Friends, family, social media, pet communities | Pride, delight, community | **Share** |
-| **QR Safety Page** | `/q/{safetyCode}` or active `/t/{tagCode}` | A stranger who opened a pet QR page or scanned a physical tag on a found pet | Urgency, trust, "help me get home" | **I found this pet — Contact Owner** |
+| **Share Profile** | `/p/{petSlug}-{publicCode}` | Friends, family, and anyone the owner sends the link to | Pride, delight, community | **Share** |
+| **Safety Profile** | `/q/{safetyCode}`, or an active tag at `/q/{tagCode}` / `/n/{tagCode}` / legacy `/t/{tagCode}` | A stranger who opened a pet QR page or scanned a physical tag on a found pet | Urgency, trust, "help me get home" | **I found this pet — Contact Owner** |
 
 - The **Share Profile** is the IG-style page an owner *chooses* to send. It is
-  warm and clean: photo, name, bio, public memories, timeline, care badges. It
+  warm and clean: photo, name, bio, public Moments, timeline, care badges. It
   is **not** emergency-first. Its only finder behaviour is a **Lost Mode** banner
   when pet-level `lostModeEnabled` is on.
-- The **QR Safety Page** is the page a finder *lands on* from a pet-level QR
-  link (`/q/{safetyCode}`) or an active physical tag (`/t/{tagCode}`). It is
+- The **Safety Profile** is the page a finder *lands on* from a pet-level QR
+  link (`/q/{safetyCode}`) or an active physical tag (`/q/{tagCode}` by QR,
+  `/n/{tagCode}` by NFC, `/t/{tagCode}` for already-issued printed tags). It is
   finder-first: big contact CTA, WhatsApp/Call/Send Found Location, emergency
   and safety notes, minimal lifestyle content.
 
 Marketing must reinforce this split. "Share with your community" = `/p/`.
-"If your pet is ever lost, a finder opens the QR Safety Page" = `/q/`; active
+"If your pet is ever lost, a finder opens the Safety Profile" = `/q/`; active
 physical tags use `/t/` and render that same safety content.
 
 ---
@@ -51,10 +59,17 @@ content that slows a finder down.
 
 ---
 
-## 4. The smart tag is the hook
+## 4. The Smart Tag is the accessory, not the product
 
-The free pet profile is the base product. Optional physical smart tags add a
-printed QR code or QR + NFC tap surface to the same pet safety content. Retail
+The free Pet Profile is the product a visitor is asked to create; the tag is an
+optional way to carry one of its pages. Public marketing must never make the
+purchase the first step — the primary CTA everywhere is
+**Create Free Pet Profile**, and `/smart-pet-tags` says outright that a tag is
+not needed.
+
+The **QR + NFC Smart Tag is the only physical tag we sell**; the QR-only
+"QR Pet Tag" is discontinued and must not appear in any campaign. A tag adds a
+scan-and-tap surface to the same Safety Profile the pet already has. Retail
 packaging, QR, NFC, and owner UI all show the same TagCode (see
 `SMART_TAG_PRODUCT_STRATEGY.md`). Campaigns should make the scan-to-reunite
 story concrete: scan or tap → safety page → contact owner. Never market an
@@ -68,7 +83,10 @@ Owners manage everything from the portal hub (`/pets/{petId}`) and a tabbed edit
 form. Owner-facing "View / Preview" buttons open the real public pages in a new
 tab so owners can see exactly what a friend or finder sees. The marketing claim
 ("you control what's public") is backed by the per-field `visibility` flags split
-across **Public Profile** and **Contact & Safety** settings.
+across the **Share Profile** and **Contact & Safety** edit tabs. The pet
+Overview summarises all three audiences read-only in one **Sharing & Privacy**
+card; see
+[`owner-sharing-experience.md`](../architecture/owner-sharing-experience.md).
 
 ---
 
@@ -76,9 +94,18 @@ across **Public Profile** and **Contact & Safety** settings.
 
 1. Keep the two surfaces distinct in every asset, mockup, and landing page.
 2. Lead the share story with *Share*; lead the tag story with *reunite*.
-3. Use real route formats (`/p/{slug}-{publicCode}`, `/t/{tagCode}`), never the
-   deprecated `/p/{slug}` alone or old short tokens.
+3. Use real route formats (`/p/{slug}-{publicCode}`, `/q/{safetyCode}`,
+   `/q/{tagCode}`), never the deprecated `/p/{slug}` alone or old short tokens.
+   `/t/{tagCode}` is retained for already-issued printed tags only.
 4. Privacy is a feature, not fine print — owners approve what's public.
+5. **Community is a household, not a pet account.** People follow a household's
+   Community Profile; participating pets and Moments appear on it. It is
+   opt-in, off by default, and promoted publicly only while
+   `NEXT_PUBLIC_SOCIAL_ENABLED` is on. Never imply a Share Profile or a Safety
+   Profile depends on it — the dependency runs the other way.
+6. **Never imply tracking.** No live GPS, geofencing, safe zones or continuous
+   location. GPS Safety is a separate, unbuilt product and is only ever
+   described as planned.
 
 ---
 
@@ -86,7 +113,7 @@ across **Public Profile** and **Contact & Safety** settings.
 
 MyPetLink is a pet **safety and care** profile product, **not** a QR/NFC gadget.
 
-- **Core message:** *"A safer profile for your pet."*
+- **Core message:** *"A safer way home for your pet."*
 - **Supporting line:** *"Create a public pet profile, save important care
   details, and let finders contact you quickly through a QR smart tag."*
 - **Free Profile is the Phase 1 product.** A pet does not need a physical tag to
@@ -99,44 +126,63 @@ MyPetLink is a pet **safety and care** profile product, **not** a QR/NFC gadget.
 
 ---
 
-## 8. Home page — required section order
+## 8. Home page — current section order
 
-The landing page (`src/app/page.tsx`) must keep this exact nine-section flow.
-Do not reorder, merge sections into a feature dump, or reintroduce many small
-cards per section. One purpose per section, fewer cards, generous whitespace.
+The landing page (`src/app/page.tsx`) tells one story in order: what you get,
+what happens when a pet is lost, the two pages a pet gets, the community, the
+tag that makes it wearable, what it costs, where to buy, the questions people
+ask, and the close. One purpose per section, fewer cards, generous whitespace.
 
-1. **Hero** — title *"A safer profile for your pet."*, the supporting subtitle,
-   primary CTA **Create Free Pet Profile**, secondary CTA **View Sample
-   Profile**, one clean profile mockup. Calm and premium, not a wall of stats.
-2. **Why it matters** — 3 cards: pets can get lost / finders need quick contact
-   / your details stay protected.
-3. **How it works** — 4 steps: create profile / choose what is public / share or
-   order a smart tag / finder scans and contacts you. Anchor `#how-it-works`.
-4. **Public Share Profile vs QR Safety Profile** — explain the two surfaces
-   (see §2) with their real routes.
-5. **Core features** — grouped into exactly **3 pillars**: Safety, Care,
-   Memories (see §9). Never a flat 7-item feature list.
-6. **Smart Tag add-on** — one optional one-time add-on: the QR + NFC Smart Tag
-   (RM39.90). Present scanning and tapping as two ways into the same Safety
-   Profile, never as two products. Anchor `#smart-tags`.
-7. **Pricing preview** — short: Free Profile / Smart Tag Add-ons / Premium
-   Coming Soon / GPS Coming Later + a **View Pricing** CTA. Do not duplicate the
-   full pricing page here.
+Two conventions hold it together, and both are enforced by the page's own
+comments: exactly one `<h1>`, in the hero, with every section below an `<h2>`;
+and the only two buttons on the page are the same signup action at the top and
+at the close, because a page with seven buttons has no primary action at all.
+
+1. **Hero** — *"A safer way home for your pet."*, the supporting subtitle, the
+   primary CTA, a sample profile preview, a three-point trust strip, and one
+   plain line stating the Smart Tag's real availability.
+2. **Finder journey** — five beats, told as a stranger's story: someone finds
+   your pet / they see the tag / they scan or tap / the Safety Profile opens /
+   they reach you. Anchor `#how-it-works`. This replaced the separate "why it
+   matters" and "how it works" sections, which both explained a process.
+3. **The two pages a pet gets** — Share Profile and Safety Profile, side by
+   side, with what each shows. Anchor `#pet-profiles`. Plus one line for care
+   details. This absorbed the old "core features" section.
+4. **Community** — a window, not a feed: three illustrative cards and a link to
+   Explore. Rendered only when `socialEnabled`. Anchor `#community`.
+7. **Smart Tag** — the one optional one-time add-on (RM39.90). Scanning and
+   tapping are two ways into the same Safety Profile, never two products.
+   Anchor `#smart-tags`.
+8. **Pricing preview** — short: Free Profile and the Smart Tag, with Premium and
+   GPS named in one muted line. Status comes from configuration, never a
+   hand-written promise. Do not duplicate the full pricing page here.
+7. **Where to buy** — renders only once a tag can actually be bought.
 8. **FAQ** — a few short answers, including that a finder without NFC can still
    scan the QR code.
-9. **Final CTA** — *"A safer way home for your pet."* + Create Free Pet Profile.
+9. **Final CTA** — *"A safer way home for your pet."* and the same signup action
+   as the hero, worded identically.
+
+> **Do not reintroduce the removed sections from memory.** "Why it matters",
+> "How it works" as a separate step list, and the "three pillars (Safety / Care /
+> Memories)" feature grouping were all deliberately folded into sections 2 and 3.
+> Two of the three pillars simply restated the two profile cards.
 
 ---
 
-## 9. Feature pillars — only three
+## 9. Naming
 
-Marketing always groups features into **three pillars**, never a long flat list:
+Follow [`../architecture/product-model.md`](../architecture/product-model.md),
+which is canonical. In marketing copy specifically:
 
-- **Safety:** QR safety profile, WhatsApp/call contact, emergency note, general
-  area (not full address).
-- **Care:** care records, reminders, medication/allergy notes, vet visit history.
-- **Memories:** pet moments, public/private memories, life timeline, shareable
-  profile.
+- `/p/{slug}-{publicCode}` is the **Share Profile** (legal copy may use the
+  fuller "Public Share Profile"). **Pet Profile** is the umbrella concept — the
+  whole pet record — not the name of that page.
+- `/q/{safetyCode}` is the **Safety Profile**. Never "QR Safety Page", "QR
+  Safety Profile" or "QR Profile"; QR and NFC name the access technology, not
+  the page.
+- `/u/{handle}` is the **Community Profile**. Community is about **households**
+  — you follow a family, not a pet.
+- A `PetMemory` is a **Moment** in anything a reader sees.
 
 ---
 
@@ -146,7 +192,7 @@ Marketing always groups features into **three pillars**, never a long flat list:
 Coming Soon, and GPS Safety Coming Later.
 
 - **Free Profile:** RM0, available now. Includes up to 3 pets, Public Share
-  Profile, QR Safety Page, WhatsApp/call owner, basic emergency note, Basic Lost
+  Profile, Safety Profile, WhatsApp/call owner, basic emergency note, Basic Lost
   Mode, Basic QR download, profile photo, shareable pet URL, basic care records,
   and up to 10 pet memories per pet. Basic finder contact is **on the Free
   plan** — never imply finder contact is locked behind Premium.
@@ -166,7 +212,7 @@ The Home pricing preview mirrors this but stays short and links out to
 ## 11. Privacy page messaging
 
 `/privacy` is the Phase 1 Privacy Notice. It should be complete enough for the
-pet profile, QR Safety Page, optional smart tag, manual payment proof, and order
+pet profile, Safety Profile, optional smart tag, manual payment proof, and order
 tracking flow, while still feeling friendly and readable on mobile.
 
 Lead with clear owner privacy control and group the Notice into:
@@ -175,7 +221,7 @@ Lead with clear owner privacy control and group the Notice into:
   memories, smart tag/order/payment proof, finder scan, and technical
   information.
 - **What can be public:** pet name, photos, breed/type, general area,
-  owner-approved notes, public memories, and finder-friendly QR Safety Page
+  owner-approved notes, public memories, and finder-friendly Safety Profile
   contact options.
 - **What stays private by default:** full address, private notes, private
   memories, account email, full payment proof, private account settings, and

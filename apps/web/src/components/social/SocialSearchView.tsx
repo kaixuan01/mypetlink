@@ -31,7 +31,7 @@ export function SocialSearchView() {
           className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
           href={socialRoutes.explore}
         >
-          Explore pets
+          Explore
         </Link>
       </header>
 

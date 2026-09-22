@@ -46,7 +46,7 @@ describe("MomentEditorDialog", () => {
 
       expect(document.querySelector(`[data-moment-editor-mode="${mode}"]`)).toBeTruthy();
       const dialog = screen.getByRole("dialog", {
-        name: mode === "edit" ? "Update this memory" : "Add a moment for Topu",
+        name: mode === "edit" ? "Update this Moment" : "Add a Moment for Topu",
       });
       const body = screen.getByTestId("form-dialog-body");
       const form = document.querySelector(
@@ -73,7 +73,7 @@ describe("MomentEditorDialog", () => {
       });
       expect(within(audience).getAllByRole("radio")).toHaveLength(2);
       expect(within(audience).getByLabelText("Only me")).toBeTruthy();
-      expect(within(audience).getByLabelText("Anyone with the link")).toBeTruthy();
+      expect(within(audience).getByLabelText("Shared publicly")).toBeTruthy();
       expect(screen.getByLabelText("Caption")).toBeTruthy();
       expect(screen.getByTestId("shared-moment-media")).toBeTruthy();
       expect(screen.getByLabelText("Show in Life Timeline")).toBeTruthy();
@@ -88,7 +88,7 @@ describe("MomentEditorDialog", () => {
         )
       ).toBeTruthy();
       expect(screen.queryByText("Family Only")).toBeNull();
-      expect(screen.queryByText("Show on Public Profile")).toBeNull();
+      expect(screen.queryByText("Show on Share Profile")).toBeNull();
       expect(screen.queryByText(/Preview: this moment/i)).toBeNull();
       expect(
         screen.queryByText(/Private and family-only memories stay inside/i)
@@ -155,7 +155,7 @@ describe("MomentEditorDialog", () => {
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Beach day");
     expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-07-12");
     expect(
-      (screen.getByLabelText("Anyone with the link") as HTMLInputElement).checked
+      (screen.getByLabelText("Shared publicly") as HTMLInputElement).checked
     ).toBe(true);
     expect(
       (screen.getByLabelText("Show in Life Timeline") as HTMLInputElement)
@@ -208,7 +208,7 @@ describe("MomentEditorDialog", () => {
         target: { value: "Funny Moment" },
       });
       if (visibility === "Public") {
-        fireEvent.click(screen.getByLabelText("Anyone with the link"));
+        fireEvent.click(screen.getByLabelText("Shared publicly"));
       }
       if (timeline) {
         fireEvent.click(screen.getByLabelText("Show in Life Timeline"));
@@ -226,7 +226,7 @@ describe("MomentEditorDialog", () => {
 
   it.each([
     { source: "Private" as const, selected: "Only me" },
-    { source: "Public" as const, selected: "Anyone with the link" },
+    { source: "Public" as const, selected: "Shared publicly" },
     { source: "Family Only" as const, selected: "Only me" },
   ])("hydrates $source as an effective owner audience", ({ source, selected }) => {
     render(
@@ -248,7 +248,7 @@ describe("MomentEditorDialog", () => {
     { from: "Public" as const, toLabel: "Only me", expected: "Private" },
     {
       from: "Private" as const,
-      toLabel: "Anyone with the link",
+      toLabel: "Shared publicly",
       expected: "Public",
     },
   ])(
@@ -376,5 +376,66 @@ describe("MomentEditorDialog", () => {
     expect(screen.getByText("Choose a moment date.")).toBeTruthy();
     expect(screen.getByText("Choose a moment category.")).toBeTruthy();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The audience control has to describe the audience it actually creates.
+ *
+ * One switch publishes a Moment to the pet's Share Profile, the household's
+ * Community Profile, its own page, every follower's feed and — when the
+ * household and pet are discoverable — Explore. It used to be labelled "Anyone
+ * with the link", which is the phrase people read as "unlisted".
+ */
+describe("Moment audience copy", () => {
+  it("names the widest audience, not the narrowest", () => {
+    render(
+      <MomentEditorDialog
+        mode="create"
+        onRequestClose={vi.fn()}
+        onSubmit={vi.fn()}
+        petName="Topu"
+        submitting={false}
+      />
+    );
+
+    const audience = screen.getByRole("group", {
+      name: "Who can see this Moment?",
+    });
+
+    // The phrase that means "unlisted" must not describe a discoverable post.
+    expect(within(audience).queryByLabelText("Anyone with the link")).toBeNull();
+
+    const shared = within(audience).getByLabelText("Shared publicly");
+    const description = document.getElementById(
+      shared.getAttribute("aria-describedby") ?? ""
+    );
+
+    expect(description).toBeTruthy();
+    const text = description?.textContent ?? "";
+
+    // Every surface the switch actually publishes to is named.
+    expect(text).toContain("Share Profile");
+    expect(text).toContain("Community Profile");
+    expect(text).toContain("Explore");
+  });
+
+  it("still offers a private option that claims nothing more than privacy", () => {
+    render(
+      <MomentEditorDialog
+        mode="create"
+        onRequestClose={vi.fn()}
+        onSubmit={vi.fn()}
+        petName="Topu"
+        submitting={false}
+      />
+    );
+
+    const audience = screen.getByRole("group", {
+      name: "Who can see this Moment?",
+    });
+    const onlyMe = within(audience).getByLabelText("Only me");
+
+    expect((onlyMe as HTMLInputElement).checked).toBe(true);
   });
 });

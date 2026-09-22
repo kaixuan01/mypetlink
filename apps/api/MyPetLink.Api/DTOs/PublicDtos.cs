@@ -168,15 +168,29 @@ public sealed record PublicSafetyPageResponse(
     PublicSafetyContactResponse? Contact,
 
     /// <summary>
-    /// The pet's Public Share Profile, when the owner has opted into sharing it
-    /// AND into social. Null otherwise, which is how the finder page decides
-    /// whether to offer the link at all.
+    /// The pet's Share Profile, when the owner has switched it on and the pet's
+    /// lifecycle still serves that page. Null otherwise, which is how the finder
+    /// page decides whether to offer the link at all.
     ///
-    /// A slug and nothing else. It is the PET's page, never the owner's social
-    /// identity: somebody scanned an animal, and routing them straight into a
-    /// person's social profile is not what they came for.
+    /// Community participation is NOT a condition. It was until the Share
+    /// Profile and Community were decoupled; see
+    /// docs/architecture/product-model.md.
+    ///
+    /// A slug and nothing else. It is the PET's page, never the owner's
+    /// Community identity: somebody scanned an animal, and routing them straight
+    /// into a person's Community profile is not what they came for.
+    ///
+    /// Every entry point to the Safety Profile answers this the same way, and
+    /// they all answer it through <see cref="ShareProfileBridge"/>.
+    ///
+    /// <b>Deliberately required, with no default.</b> It was optional, and the
+    /// tag scan path simply stopped constructing the response one argument
+    /// early — so the same pet offered the link to a finder who opened
+    /// <c>/q/{safetyCode}</c> and withheld it from one who scanned the collar,
+    /// and nothing failed to compile. A new construction site must now answer
+    /// the question rather than inherit an answer.
     /// </summary>
-    string? PublicProfileSlug = null);
+    string? PublicProfileSlug);
 
 public sealed record QrSafetyPageResponse(
     string SafetyCode,

@@ -55,7 +55,7 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 6. **Shipped** — Mark Shipped (optionally with tracking number).
 7. **Delivered** — Mark Delivered; linked tag goes to Delivered (awaiting owner activation).
 8. **Owner portal check** — `/tags` and `/orders/view` show Waiting for owner activation plus View Tag Scan Page / Copy Tag Link; neither page shows a direct Activate Tag button.
-9. **Tag active `/t`** — open `/t/:tagCode` as the matching owner, activate the assigned tag from the scan/tap flow, then scan `/t/:tagCode` again → shows safety content.
+9. **Tag active** — open `/q/:tagCode` (the current printed QR entry) as the matching owner, activate the assigned tag, then open `/q/:tagCode` again → shows safety content. Repeat on legacy `/t/:tagCode` and on `/n/:tagCode`; all three must resolve the same Safety Profile.
 10. **Mark lost** — admin marks the tag lost; `/t/:tagCode` now shows no owner contact.
 11. **Unclaimed tag generation** — `/admin/tag-inventory`, generate a small batch choosing a tag type (QR / QR + NFC) and tag variant (Lightweight / Standard); confirm unclaimed `MPL-XXXX-XXXX` codes appear with the chosen variant.
 12. **CSV export** — export the inventory CSV; file downloads with tag_code / type / batch / status / created_at.
@@ -68,7 +68,7 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 3. **Change to Tag B** — before shipping, use Change Assigned Tag to switch to Tag B; confirm Tag A returns to Unclaimed inventory and Tag B is linked to the order/owner/pet.
 4. **Ship** — mark Preparing then Shipped; confirm Change Assigned Tag is no longer offered (only Replace Tag).
 5. **Replace with Tag C** — use Replace Tag with reason "Damaged"; confirm Tag B shows `Replaced` and `/t/{TagB}` shows the inactive/no-contact page, Tag C is linked and preparing, and the order returns to Preparing Tag with "A replacement tag is being prepared."
-6. **Activate Tag C** — ship/deliver, then activate Tag C as the matching owner from `/t/{TagC}`; confirm active safety content shows.
+6. **Activate Tag C** — ship/deliver, then activate Tag C as the matching owner from `/q/{TagC}`; confirm active safety content shows.
 7. **Guards** — confirm a wrong-type or already-assigned tag cannot be selected/assigned, and that non-admin tokens are rejected (`403`). Confirm `AuditLogs` rows exist for the change and replace actions (old + new tag codes).
 
 ## 4. Public tag / lifecycle states (curl or browser)

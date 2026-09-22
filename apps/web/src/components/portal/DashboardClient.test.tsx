@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
@@ -158,9 +159,11 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");
+    const quickActions = screen.getByText("Quick actions").closest("section");
+    expect(quickActions).toBeTruthy();
     const quickLabels = ["Care Records", "Moments", "Owner Settings"];
     for (const label of quickLabels) {
-      expect(screen.getByText(label)).toBeTruthy();
+      expect(within(quickActions!).getByText(label)).toBeTruthy();
     }
     expect(screen.queryByText("Manage Pets")).toBeNull();
     expect(
@@ -274,8 +277,8 @@ describe("DashboardClient with pets", () => {
 
     await screen.findAllByText("Milo");
     expect(screen.getByText("Pets")).toBeTruthy();
-    expect(screen.getAllByText("Public profiles").length).toBeGreaterThan(0);
-    expect(screen.getByText("Memories")).toBeTruthy();
+    expect(screen.getAllByText("Share Profiles").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Moments").length).toBeGreaterThan(0);
     expect(screen.queryByText(/safety profile/i)).toBeNull();
     expect(screen.queryByText(/smart tags/i)).toBeNull();
     expect(screen.queryByText(/pending orders/i)).toBeNull();
@@ -301,7 +304,7 @@ describe("DashboardClient with pets", () => {
       })
     ).toBeNull();
     const viewProfile = screen.getByRole("link", {
-      name: "View Milo's public profile",
+      name: "View Milo's Share Profile",
     });
     expect(viewProfile.getAttribute("href")).toBe(mockPets[0].publicProfilePath);
     expect(viewProfile.getAttribute("target")).toBe("_blank");
@@ -317,7 +320,7 @@ describe("DashboardClient with pets", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Share Milo" }));
     fireEvent.click(screen.getByRole("button", { name: /Show Profile QR/ }));
 
-    const qrLink = screen.getByLabelText("Milo's Public Profile link");
+    const qrLink = screen.getByLabelText("Milo's Share Profile link");
     expect(qrLink.textContent).toMatch(/\/p\/[^?]+$/);
     expect(qrLink.textContent).not.toContain("/q/");
     fireEvent.click(screen.getByRole("button", { name: "Close share options" }));
@@ -373,7 +376,7 @@ describe("DashboardClient with pets", () => {
 
     expect((await screen.findAllByText("Private")).length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("link", { name: "Enable Milo's public profile" })
+      screen.getByRole("link", { name: "Enable Milo's Share Profile" })
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /share .* profile/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /show qr code/i })).toBeNull();

@@ -179,7 +179,7 @@ public static class AdminCapabilityCatalog
                     "Change pet settings that support staff can adjust on an owner's behalf."),
                 Sensitive(C.OwnerSocialHandleAssign, "customers", "Owners and Pets",
                     "Assign a reserved social handle",
-                    "Give an owner's social profile a protected name such as the official "
+                    "Give an owner's Community Profile a protected name such as the official "
                     + "MyPetLink account. Reserved names can never be claimed by owners themselves."),
                 Sensitive(C.PetsExport, "customers", "Owners and Pets", "Download pet records",
                     "Download pet data as a spreadsheet."),

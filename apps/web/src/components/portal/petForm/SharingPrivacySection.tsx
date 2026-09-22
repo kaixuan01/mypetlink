@@ -28,8 +28,8 @@ export function SharingPrivacySection({
 }) {
   return (
         <FormSection
-          title="Sharing & Privacy"
-          description="Share your pet's profile, photos, memories, and life timeline with friends and family."
+          title="Share Profile"
+          description="The page you share with friends and family. Anyone you send the link to can see what you choose to show here."
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet?.lifecycleStatus === "Memorial" ? (
@@ -76,7 +76,7 @@ export function SharingPrivacySection({
                     <SettingRow
                       checked={form.showMemorialOnPublicProfile}
                       control="checkbox"
-                      label="Show this memorial on the public profile"
+                      label="Show this memorial on the Share Profile"
                       onChange={(value) =>
                         updateField("showMemorialOnPublicProfile", value)
                       }
@@ -92,7 +92,7 @@ export function SharingPrivacySection({
                   checked={form.publicProfileEnabled}
                   control="switch"
                   helperText="When off, the shareable page is hidden. Your Safety Profile stays available for finders."
-                  label="Public Profile enabled"
+                  label="Share Profile enabled"
                   onChange={(value) => updateField("publicProfileEnabled", value)}
                 />
                 {!form.publicProfileEnabled ? (
@@ -100,28 +100,28 @@ export function SharingPrivacySection({
                     className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted"
                     role="status"
                   >
-                    The Public Profile page is hidden from visitors. This does
-                    not affect the Safety Profile finders see.
+                    The Share Profile is hidden from visitors. This does not
+                    affect the Safety Profile finders see.
                   </p>
                 ) : null}
               </div>
             ) : null}
 
             {mode === "edit" ? (
-              <PrivacyGroup title="What appears on the public profile">
+              <PrivacyGroup title="What appears on the Share Profile">
                 <div>
                   <SettingRow
                     checked={form.showCareBadges}
                     control="checkbox"
                     helperText="Visitors can see the type and date of care records you choose to share."
-                    label="Show care history on Public Profile"
+                    label="Show care history on Share Profile"
                     onChange={(value) => updateField("showCareBadges", value)}
                   />
                 </div>
                 <SettingRow
                   checked={form.showMoments}
                   control="checkbox"
-                  label="Show public memories"
+                  label="Show Moments on Share Profile"
                   onChange={(value) => updateField("showMoments", value)}
                 />
                 <SettingRow
@@ -161,7 +161,7 @@ export function SharingPrivacySection({
                   errorText={errors.slug}
                   helperText="This becomes the public page address."
                   htmlFor="pet-profile-slug"
-                  label="Custom public profile link name"
+                  label="Custom Share Profile link name"
                   required
                 >
                   <input

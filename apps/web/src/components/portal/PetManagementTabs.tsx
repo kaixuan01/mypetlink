@@ -36,6 +36,7 @@ import {
 } from "@/lib/petLifecycle";
 import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import { useOwnerPets } from "@/components/portal/OwnerHeaderActions";
+import { usePetCommunityStatus } from "@/components/portal/usePetCommunityStatus";
 import {
   addPublicProfileShareVersion,
   getPublicProfileShareVersion,
@@ -47,7 +48,7 @@ import {
   smartTagsEnabled,
   tagOrdersEnabled,
 } from "@/lib/features";
-import { ownerRoutes, tagQrPath } from "@/lib/routes";
+import { ownerRoutes, ownerSocialProfilePath, tagQrPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
@@ -227,6 +228,10 @@ function OverviewTab({
     : null;
   const activeTagScanPath = activeTag ? tagQrPath(activeTag.tagCode) : "";
   const safetyBadge = getSafetyProfileBadge(pet);
+  // Read only. Absent when Community does not exist here, and honest about not
+  // knowing when it does but its state could not be read. See the hook.
+  const { view: communityView, ownerHandle: communityOwnerHandle } =
+    usePetCommunityStatus(pet.id, pet.name);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
@@ -237,8 +242,13 @@ function OverviewTab({
     pet.publicProfileEnabled &&
     !isArchived &&
     (!isMemorial || pet.memorial.showMemorialOnPublicProfile);
-  const sharingProfileCount =
-    Number(publicProfilesEnabled) + Number(safetyProfilesOwnerUiEnabled);
+  // An active pet whose Safety Profile is switched off shows a finder nothing.
+  // Handing out a QR code for that page, or listing the general area a finder
+  // cannot see, contradicts the row's own "seen by nobody" line — so neither
+  // appears. A memorial or archived pet is a different case: its Safety Profile
+  // still opens, only without contact actions, and it says so.
+  const safetyProfileOff =
+    isActiveProfile && safetyBadge.label === "Safety Profile Off";
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
@@ -279,7 +289,7 @@ function OverviewTab({
       <OverviewSummaryCard
         action={
           <Link
-            aria-label="View all pet memories"
+            aria-label="View all Moments"
             className={summaryHeaderActionClass}
             href={ownerRoutes.petMoments(pet.id)}
           >
@@ -289,7 +299,7 @@ function OverviewTab({
         }
         icon="heart"
         sectionId="moments"
-        title="Pet Memories"
+        title="Moments"
         description="Photo and video moments you choose to keep private or share."
       >
         {recentMoments.length ? (
@@ -326,7 +336,7 @@ function OverviewTab({
             })}
           </div>
         ) : (
-          <p className="text-sm text-pet-muted">No pet memories yet.</p>
+          <p className="text-sm text-pet-muted">No Moments yet.</p>
         )}
         <div className="mt-auto pt-1">
           <CTAButton
@@ -335,7 +345,7 @@ function OverviewTab({
             variant="secondary"
             icon="plus"
           >
-            {memoryLimit.canCreate ? "Add Moment" : "Memory Limit Reached"}
+            {memoryLimit.canCreate ? "Add Moment" : "Moment Limit Reached"}
           </CTAButton>
         </div>
       </OverviewSummaryCard>
@@ -401,40 +411,55 @@ function OverviewTab({
       </OverviewSummaryCard>
       </div>
 
-      {/* Sharing & Safety */}
+      {/*
+        Sharing & Privacy.
+
+        One place to understand three audiences, and no place to change any of
+        them. A pet is seen by people the owner sent a link to, by whoever finds
+        the pet, and by people in Community — three different groups, previously
+        described on two screens with the third not mentioned at all. An owner
+        who wanted to know whether Mochi was in Community had to leave the pet,
+        open the Community profile editor and scroll to a list of their pets.
+
+        Each row therefore says the same three things: is it on, who can see it,
+        and where to change it. The switches themselves stay exactly where they
+        were — there is still one authoritative control for each setting, and
+        nothing below is editable.
+      */}
       {publicProfilesEnabled || safetyProfilesOwnerUiEnabled || isActiveProfile ? (
         <OverviewSummaryCard
           icon="heart"
           sectionId="sharing"
-          title="Sharing & Safety"
-          description={`See what people can view and what finders can use if they find ${pet.name}.`}
+          title="Sharing & Privacy"
+          description={`Who can see ${pet.name}, and where to change it.`}
         >
-          {/*
-            The two profiles are siblings of equal weight: one is who you show
-            the pet to, the other is who finds them. Neither should look like
-            the more important half of the page.
-          */}
           <div
-            aria-label="Sharing and safety profiles"
-            className={`grid min-w-0 divide-y divide-pet-border/70 rounded-[1.25rem] bg-pet-cream px-4 ${
-              sharingProfileCount > 1
-                ? "lg:grid-cols-2 lg:divide-x lg:divide-y-0"
-                : ""
-            }`}
+            aria-label="Sharing and privacy"
+            className="grid min-w-0 divide-y divide-pet-border/70 rounded-[1.25rem] bg-pet-cream px-4"
             role="group"
           >
             {publicProfilesEnabled ? (
               <ProfileSubcard
-                ariaLabel="Public Profile overview"
+                ariaLabel="Share Profile status"
+                audience={
+                  publicProfileAccessible
+                    ? "Anyone you send the link to."
+                    : "Nobody — the link is switched off."
+                }
                 badge={
                   <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
-                    {publicProfileAccessible ? "Shared" : "Not shared"}
+                    {publicProfileAccessible ? "On" : "Off"}
                   </Badge>
                 }
-                description={
-                  publicProfileAccessible
-                    ? "Anyone with the link can view this page."
-                    : "This profile is not shared. Manage sharing to make it available."
+                description={`The page you share with friends and family.`}
+                manage={
+                  <Link
+                    className={subcardActionClass}
+                    href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
+                  >
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0" name="settings" />
+                    Manage Share Profile
+                  </Link>
                 }
                 link={
                   publicProfileAccessible ? (
@@ -444,18 +469,19 @@ function OverviewTab({
                       rel="noopener noreferrer"
                       target="_blank"
                     >
-                      {isMemorial ? "View memorial profile" : "View profile"}
+                      {isMemorial ? "View memorial profile" : "View Share Profile"}
                       <span aria-hidden="true">&rarr;</span>
                     </Link>
                   ) : null
                 }
-                title="Public Profile"
+                title="Share Profile"
               />
             ) : null}
 
             {safetyProfilesOwnerUiEnabled ? (
               <ProfileSubcard
                 action={
+                  safetyProfileOff ? undefined : (
                   <QrCodeButton
                     ariaLabel={`Show ${pet.name}'s Safety Profile QR code`}
                     className={subcardActionClass}
@@ -480,8 +506,16 @@ function OverviewTab({
                         : "This profile is inactive, so the Safety Profile does not reveal finder contact details."
                     }
                   />
+                  )
                 }
-                ariaLabel="Safety Profile overview"
+                ariaLabel="Safety Profile status"
+                audience={
+                  isMemorial || isArchived
+                    ? "Nobody — finder contact actions are turned off for this profile."
+                    : safetyBadge.label === "Safety Profile Off"
+                      ? "Nobody — finders will not see your contact details."
+                      : `Whoever finds ${pet.name} and scans a Smart Tag or opens the Safety Profile link.`
+                }
                 badge={<Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>}
                 description={
                   isMemorial
@@ -490,20 +524,31 @@ function OverviewTab({
                       ? "Restore this profile to manage Safety Profile contact settings again."
                       : `The page someone sees if they find ${pet.name}.`
                 }
-                link={
+                manage={
                   <Link
-                    className={subcardLinkClass}
-                    href={pet.qrSafetyPath}
-                    rel="noopener noreferrer"
-                    target="_blank"
+                    className={subcardActionClass}
+                    href={ownerRoutes.petEdit(pet.id, { tab: "contact" })}
                   >
-                    View profile
-                    <span aria-hidden="true">&rarr;</span>
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0" name="settings" />
+                    Manage finder information
                   </Link>
                 }
+                link={
+                  safetyProfileOff ? null : (
+                    <Link
+                      className={subcardLinkClass}
+                      href={pet.qrSafetyPath}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      View Safety Profile
+                      <span aria-hidden="true">&rarr;</span>
+                    </Link>
+                  )
+                }
                 meta={
-                  effectiveContact.generalArea
-                    ? `General area \u00b7 ${effectiveContact.generalArea}`
+                  effectiveContact.generalArea && !safetyProfileOff
+                    ? `General area · ${effectiveContact.generalArea}`
                     : undefined
                 }
                 notice={
@@ -536,28 +581,77 @@ function OverviewTab({
                 title="Safety Profile"
               />
             ) : null}
-          </div>
 
-          {sharingProfileCount > 0 ? (
-            <Link
-              className={`${subcardActionClass} self-start`}
-              href={ownerRoutes.petEdit(pet.id, {
-                tab: publicProfilesEnabled ? "public" : "contact",
-              })}
-            >
-              <Icon
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0"
-                name="settings"
+            {/*
+              Community, read only. The switches belong to the household, not to
+              one pet, so this row reports and points rather than offering a
+              second place to change the same thing.
+            */}
+            {communityView.phase !== "hidden" ? (
+              <ProfileSubcard
+                ariaLabel="Community status"
+                audience={
+                  communityView.phase === "known"
+                    ? communityView.status.audience
+                    : undefined
+                }
+                badge={
+                  <Badge
+                    tone={
+                      communityView.phase === "known"
+                        ? communityView.status.tone
+                        : "soft"
+                    }
+                  >
+                    {communityView.phase === "known"
+                      ? communityView.status.label
+                      : communityView.phase === "checking"
+                        ? "Checking status…"
+                        : "Status temporarily unavailable"}
+                  </Badge>
+                }
+                description={
+                  communityView.phase === "unknown"
+                    ? `We couldn't load ${pet.name}'s Community status.`
+                    : "Where this pet appears through your Community Profile."
+                }
+                manage={
+                  <Link
+                    className={subcardActionClass}
+                    href={ownerRoutes.socialProfileEdit}
+                  >
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0" name="settings" />
+                    Manage Community
+                  </Link>
+                }
+                link={
+                  communityOwnerHandle ? (
+                    <Link
+                      className={subcardLinkClass}
+                      href={ownerSocialProfilePath(communityOwnerHandle)}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      View Community Profile
+                      <span aria-hidden="true">&rarr;</span>
+                    </Link>
+                  ) : null
+                }
+                notice={
+                  communityView.phase === "known" &&
+                  communityView.status.blockedReason ? (
+                    <p
+                      className="rounded-[1rem] bg-white px-3 py-2 text-xs font-bold leading-5 text-pet-muted"
+                      data-testid="community-blocked-reason"
+                    >
+                      {communityView.status.blockedReason}
+                    </p>
+                  ) : null
+                }
+                title="Community"
               />
-              {publicProfilesEnabled && safetyProfilesOwnerUiEnabled
-                ? "Manage sharing & safety"
-                : publicProfilesEnabled
-                  ? "Manage sharing"
-                  : "Manage safety"}
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
-          ) : null}
+            ) : null}
+          </div>
 
           {/* Lost Mode belongs to safety, but not inside either profile. */}
           {isActiveProfile ? (
@@ -657,7 +751,7 @@ function OverviewTab({
           description="Emergency finder actions are turned off while this profile is in Memorial Mode."
         >
           <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-            Memories, care records, and Life Timeline remain available. You can
+            Moments, care records, and Life Timeline remain available. You can
             edit memorial details from the pet edit page.
           </p>
           <CTAButton
@@ -674,7 +768,7 @@ function OverviewTab({
           icon="record"
           title="Saved profile history"
           badge={<Badge tone="soft">Archived</Badge>}
-          description="Memories and records stay saved."
+          description="Moments and records stay saved."
         >
           <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
             Restore this profile from the menu at the top of this page.
@@ -697,26 +791,36 @@ const subcardLinkClass =
   "inline-flex min-h-10 items-center gap-1 whitespace-nowrap px-1 text-sm font-extrabold text-pet-teal transition hover:underline";
 
 /**
- * One of the two equal halves of Sharing & Safety. Both profiles get the same
- * shape - title, status, a line of description, optional metadata, one action
- * and one quiet link - so the Overview stays a summary rather than a settings
- * surface.
+ * One audience, in one row.
+ *
+ * All three get the same shape — who it is, whether it is on, WHO CAN SEE IT,
+ * what it is, and where to change it — because the whole point of putting them
+ * together is that they can be compared. The audience line is the one that
+ * earns the row: "On" answers a different question from "who is looking".
+ *
+ * Status is a word, never a colour. The badge carries its own text so the
+ * three rows read identically to somebody who cannot tell mint from soft.
  */
 function ProfileSubcard({
   action,
   ariaLabel,
+  audience,
   badge,
   description,
   link,
+  manage,
   meta,
   notice,
   title,
 }: {
   action?: React.ReactNode;
   ariaLabel: string;
+  /** Omitted only when the row genuinely does not know who can see this. */
+  audience?: string;
   badge: React.ReactNode;
   description: string;
   link?: React.ReactNode;
+  manage?: React.ReactNode;
   meta?: string;
   notice?: React.ReactNode;
   title: string;
@@ -724,7 +828,7 @@ function ProfileSubcard({
   return (
     <div
       aria-label={ariaLabel}
-      className="grid min-w-0 gap-2 py-4 first:pt-0 last:pb-0 lg:px-4 lg:py-0 lg:first:pl-0 lg:last:pr-0"
+      className="grid min-w-0 gap-2 py-4 first:pt-0 last:pb-0"
       role="group"
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -732,12 +836,25 @@ function ProfileSubcard({
         {badge}
       </div>
       <p className="text-sm leading-5 text-pet-muted">{description}</p>
+      {/*
+        Who, in the row's own voice. Set at body weight rather than as fine
+        print: it is the answer an owner opened this card for. A row that could
+        not read its own state omits the line entirely — naming an audience it
+        has not confirmed would be the one mistake worth avoiding here.
+      */}
+      {audience ? (
+        <p className="text-sm font-bold leading-5 text-pet-ink">
+          <span className="text-pet-muted">Seen by: </span>
+          {audience}
+        </p>
+      ) : null}
       {meta ? (
         <p className="text-xs font-bold leading-5 text-pet-muted">{meta}</p>
       ) : null}
       {notice}
-      {action || link ? (
+      {action || link || manage ? (
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          {manage}
           {action}
           {link}
         </div>

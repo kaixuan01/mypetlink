@@ -119,7 +119,7 @@ export function PublicLayout({
             <BrandLogo className="h-16 w-auto max-w-[260px]" />
             <p className="mt-4 max-w-xl text-sm leading-6 text-pet-muted">
               Built for Malaysian pet owners who want safer public pet profiles,
-              beautiful shareable pet pages, pet memories, simpler care
+              beautiful shareable pet pages, Moments, simpler care
               records, the optional one-time MyPetLink QR + NFC Smart Tag, and
               fast WhatsApp contact when a pet is found.
             </p>
@@ -182,7 +182,7 @@ export function PublicLayout({
             <FooterColumn
               links={[
                 { href: marketingRoutes.howItWorks, label: "How It Works" },
-                { href: marketingRoutes.sample, label: "Sample Profile" },
+                { href: marketingRoutes.sample, label: "Sample Profiles" },
                 { href: `${marketingRoutes.home}#faq`, label: "FAQ" },
                 { href: `mailto:${siteConfig.supportEmail}`, label: "Contact support" },
               ]}

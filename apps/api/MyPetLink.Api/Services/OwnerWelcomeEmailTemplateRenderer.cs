@@ -65,8 +65,8 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
                 "Add the contact details you’d like finders to use."),
             new TransactionalEmailStep(
                 "welcome-preview.png",
-                "Preview public profile",
-                "Preview your public profile",
+                "Preview Share Profile",
+                "Preview your Share Profile",
                 "See how your pet’s profile will appear to others."),
             new TransactionalEmailStep(
                 "welcome-ready.png",
@@ -102,7 +102,7 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             .AppendLine("2. Add your contact details")
             .AppendLine("Add the contact details you’d like finders to use.")
             .AppendLine()
-            .AppendLine("3. Preview your public profile")
+            .AppendLine("3. Preview your Share Profile")
             .AppendLine("See how your pet’s profile will appear to others.")
             .AppendLine()
             .AppendLine("4. You’re almost there!")

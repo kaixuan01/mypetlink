@@ -44,7 +44,7 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
       <PageHeader
         eyebrow="Life timeline"
         title={`${pet.data.name}'s story`}
-        description="A gentle timeline of milestones, memories, care days, and everyday notes."
+        description="A gentle timeline of milestones, Moments, care days, and everyday notes."
       />
 
       <PetTimeline pet={pet.data} initialMoments={moments.data} />

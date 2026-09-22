@@ -685,7 +685,7 @@ export function ThemePreviewPanel({
             className="text-sm font-black"
             style={{ color: theme.colors.text }}
           >
-            How {petName}&apos;s public profile will look
+            How {petName}&apos;s Share Profile will look
           </p>
           <p
             className="mt-2 text-sm leading-6"
@@ -762,7 +762,7 @@ export function ThemePreviewPanel({
               className="text-xs font-black uppercase"
               style={{ color: theme.colors.accent }}
             >
-              Pet Memory
+              Moment
             </p>
             <p
               className="mt-1 text-sm font-black"

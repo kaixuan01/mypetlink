@@ -32,11 +32,11 @@ describe("Cloudflare public-profile edge metadata", () => {
 
     expect(head).toContain("<title>Meet Nori | MyPetLink</title>");
     expect(head).toContain(
-      "View Nori&#39;s public profile, memories, and important safety information."
+      "View Nori&#39;s Share Profile, Moments, and important safety information."
     );
     expect(
       head.match(
-        /public profile, memories, and important safety information\./g
+        /Share Profile, Moments, and important safety information\./g
       )
     ).toHaveLength(3);
     expect(head).toContain(

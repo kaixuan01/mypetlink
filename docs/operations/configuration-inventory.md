@@ -202,7 +202,7 @@ is financially or security authoritative** — the API re-checks everything.
 | Item | Problem | Recommended action |
 | --- | --- | --- |
 | `AppSettings` table (`Key`, `ValueJson`) | Generic key/value store; no runtime consumer remains | **Deprecated, physically retained.** All consumers removed 29 Jul 2026; the table and its rows are kept for one rollback window. Drop only via a future `RemoveLegacyAppSettings` migration once the conditions in the deployment docs are met. |
-| `AppSettings.tag.qr.price` | Stale duplicate of `TagProductVariants.BasePrice` | **No longer read or displayed.** Row still physically present until the drop migration. |
+| `AppSettings.tag.qr.price` | Stale duplicate of `TagProductVariants.BasePrice`, and it holds the **discontinued QR-only** tag's price | **No longer read or displayed.** Row still physically present until the drop migration. It is historical data only: never use it, or any other QR-only figure, as a price for a currently sellable product. The one retail price a public surface may show is `apps/web/src/lib/planLimits.ts`; order lines price from the tag catalogue. |
 | `AppSettings.tag.qr_nfc.price` | Same | **No longer read or displayed.** |
 | `AppSettings.premium.status` / `gps.status` | Duplicated by hardcoded strings | **No longer read.** Neither is presented as an available feature. |
 

@@ -69,7 +69,7 @@ export function getPetLifecycleConfirmation(
   if (action === "memorial") {
     return {
       title: "Move to Memorial?",
-      message: `This keeps ${petName}'s profile, memories, and timeline, but the Safety Profile will no longer show emergency finder contact actions.`,
+      message: `This keeps ${petName}'s profile, Moments, and timeline, but the Safety Profile will no longer show emergency finder contact actions.`,
       confirmLabel: "Move to Memorial",
       cancelLabel: "Cancel",
     };
@@ -78,7 +78,7 @@ export function getPetLifecycleConfirmation(
   if (action === "archive") {
     return {
       title: "Archive this pet?",
-      message: `This hides ${petName} from your main pet list. Memories, records, tags, and order history stay saved.`,
+      message: `This hides ${petName} from your main pet list. Moments, records, tags, and order history stay saved.`,
       confirmLabel: "Archive Pet",
       cancelLabel: "Cancel",
     };

@@ -55,7 +55,7 @@ describe("PetMomentsManager two-state owner presentation", () => {
     expect(screen.getAllByText("Shared")).toHaveLength(2);
     expect(screen.getAllByText("Only me")).toHaveLength(3);
     expect(screen.queryByText("Family Only")).toBeNull();
-    expect(screen.queryByText("Public Profile")).toBeNull();
+    expect(screen.queryByText("Share Profile")).toBeNull();
     expect(screen.queryByRole("heading", { name: /Family/ })).toBeNull();
 
     const stats = container.querySelector("[data-moment-stats]");

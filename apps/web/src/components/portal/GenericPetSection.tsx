@@ -36,7 +36,7 @@ const copy: Record<
   moments: {
     eyebrow: "Pet moments",
     landingTitle: "Choose a pet for Moments",
-    title: (name) => `${name}'s memories`,
+    title: (name) => `${name}'s Moments`,
     description:
       "Save photos, short videos, milestones, funny moments, and life notes for this pet.",
   },

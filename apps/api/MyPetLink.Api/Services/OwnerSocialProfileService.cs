@@ -127,7 +127,7 @@ public sealed class OwnerSocialProfileService : SkeletonService, IOwnerSocialPro
             if (request.IsSocialEnabled.Value && !MeetsEnableRequirements(profile))
             {
                 errors["isSocialEnabled"] =
-                    ["Choose a handle and a display name before turning your social profile on."];
+                    ["Choose a handle and a display name before turning your Community Profile on."];
             }
             else
             {
@@ -336,7 +336,7 @@ public sealed class OwnerSocialProfileService : SkeletonService, IOwnerSocialPro
             throw new ApiException(
                 StatusCodes.Status409Conflict,
                 "concurrency_conflict",
-                "Your social profile was changed somewhere else. Reload and try again.");
+                "Your Community Profile was changed somewhere else. Reload and try again.");
         }
     }
 

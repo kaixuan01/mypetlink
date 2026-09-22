@@ -167,7 +167,7 @@ describe("PublicProfileOwnerControls", () => {
     expect(screen.queryByText("Safety Profile")).toBeNull();
     expect(screen.queryByText("Copy Safety Profile Link")).toBeNull();
     expect(screen.queryByText("Back to Edit")).toBeNull();
-    expect(screen.getByText("Download Public Profile QR")).toBeTruthy();
+    expect(screen.getByText("Download Share Profile QR")).toBeTruthy();
   });
 
   it("returns focus to the Share button a visitor pressed", async () => {

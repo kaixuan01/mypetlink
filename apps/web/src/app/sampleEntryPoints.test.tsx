@@ -17,19 +17,25 @@ import PetProfileGuidePage from "./pet-profile/page";
 afterEach(cleanup);
 
 describe("public sample entry points", () => {
-  it("sends the how-it-works CTA to the Public Share Profile section", () => {
+  // The label names the page it opens. "View Sample Profile" could have
+  // meant either of the two a pet publishes.
+  it("sends the how-it-works CTA to the sample Share Profile", () => {
     render(<HowItWorksPage />);
 
     expect(
-      screen.getByRole("link", { name: "View Sample Profile" }).getAttribute("href")
+      screen
+        .getByRole("link", { name: "View Sample Share Profile" })
+        .getAttribute("href")
     ).toBe(marketingRoutes.samplePublicProfile);
   });
 
-  it("sends the pet-profile CTA to the Public Share Profile section", () => {
+  it("sends the pet-profile CTA to the sample Share Profile", () => {
     render(<PetProfileGuidePage />);
 
     expect(
-      screen.getByRole("link", { name: "View Sample Profile" }).getAttribute("href")
+      screen
+        .getByRole("link", { name: "View Sample Share Profile" })
+        .getAttribute("href")
     ).toBe(marketingRoutes.samplePublicProfile);
   });
 });

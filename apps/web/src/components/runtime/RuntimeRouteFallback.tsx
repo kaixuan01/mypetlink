@@ -691,7 +691,7 @@ function OwnerRuntimeView({
       <AppLayout>
         <PageHeader
           eyebrow="Pet moments"
-          title={`${pet.name}'s memories`}
+          title={`${pet.name}'s Moments`}
           description="Save photos, short videos, milestones, funny moments, and life notes for this pet."
         />
         <PetSwitcher activePetId={pet.id} pets={pets} section="moments" />
@@ -705,7 +705,7 @@ function OwnerRuntimeView({
       <AppLayout>
         <PageHeader
           eyebrow="Pet moments"
-          title={`${pet.name}'s memories`}
+          title={`${pet.name}'s Moments`}
           description="Save photos, short videos, milestones, funny moments, and life notes for this pet."
         />
         <PetSwitcher activePetId={pet.id} pets={pets} section="moments" />
@@ -720,7 +720,7 @@ function OwnerRuntimeView({
         <PageHeader
           eyebrow="Life timeline"
           title={`${pet.name}'s story`}
-          description="A gentle timeline of milestones, memories, care days, and everyday notes."
+          description="A gentle timeline of milestones, Moments, care days, and everyday notes."
         />
         <PetTimeline pet={pet} initialMoments={moments} />
       </AppLayout>

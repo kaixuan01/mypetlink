@@ -162,7 +162,7 @@ export function TagActivationFlow({
               icon="qr"
               fullWidth
             >
-              Preview Public Profile
+              Preview Share Profile
             </CTAButton>
             <CTAButton
               href={tagEntryPath(tagCode, source)}

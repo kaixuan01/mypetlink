@@ -304,10 +304,10 @@ export function PublicSharePetProfile({
       <PublicProfileStatusCard
         message={
           loadError ||
-          "We could not find a public MyPetLink profile for this link."
+          "We could not find a MyPetLink Share Profile for this link."
         }
         title={
-          loadError ? "Profile temporarily unavailable" : "Pet profile not found"
+          loadError ? "Profile temporarily unavailable" : "Share Profile not found"
         }
       />
     );
@@ -548,7 +548,7 @@ export function PublicSharePetProfile({
               className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6"
               style={{ color: theme.colors.mutedText }}
             >
-              Memories and public details can still be viewed, but emergency
+              Moments and public details can still be viewed, but emergency
               finder actions are turned off.
             </p>
           </section>
@@ -721,8 +721,13 @@ function PublicProfileStatusCard({
           <Link href="/" className="flex items-center">
             <BrandLogo className="h-9 w-auto max-w-[160px]" priority />
           </Link>
+          {/*
+            The page a visitor was trying to open, named the same way the card
+            below names it. "Pet profile" is the umbrella and would have sat
+            directly above "Share Profile not found", contradicting it.
+          */}
           <span className="text-xs font-bold uppercase text-pet-muted">
-            Pet profile
+            Share Profile
           </span>
         </div>
       </header>
@@ -1061,5 +1066,5 @@ function getPublicProfileErrorMessage(error: unknown) {
     return "We could not reach MyPetLink right now. Please try again.";
   }
 
-  return "We could not load this public profile right now. Please try again.";
+  return "We could not load this Share Profile right now. Please try again.";
 }

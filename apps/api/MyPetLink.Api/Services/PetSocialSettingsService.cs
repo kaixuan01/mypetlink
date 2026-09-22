@@ -235,8 +235,8 @@ public sealed class PetSocialSettingsService : SkeletonService, IPetSocialSettin
     private static string EnableRefusal(IReadOnlyCollection<string> missing)
     {
         return missing.Contains("lifecycle")
-            ? "Only an active pet can join MyPetLink Social."
-            : "Turn on this pet's Public Profile before adding them to MyPetLink Social.";
+            ? "Only an active pet can join Community."
+            : "Turn on this pet's Share Profile before adding them to Community.";
     }
 
     // ---- mapping --------------------------------------------------------

@@ -117,7 +117,10 @@ type EditPetLoadState = "checking" | "ready" | "not-found" | "error";
 const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "basic", label: "Basic Info", mobileLabel: "Info" },
   { id: "appearance", label: "Appearance", mobileLabel: "Style" },
-  { id: "public", label: "Sharing & Privacy", mobileLabel: "Sharing" },
+  // Named after the thing it manages. "Sharing & Privacy" now titles the
+  // Overview card that summarises all three audiences, and two screens with
+  // one name is exactly the confusion that card exists to remove.
+  { id: "public", label: "Share Profile", mobileLabel: "Share" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
 ];
 
@@ -1090,7 +1093,7 @@ export function PetProfileForm({
             Manage {form.name || currentPet.name}&apos;s content
           </p>
           <p className="-mt-1 text-xs leading-5 text-pet-muted">
-            Records and memories are managed on their own pages. Add life
+            Records and Moments are managed on their own pages. Add life
             events such as Adoption Day as a Moment.
           </p>
           <div
@@ -1141,7 +1144,7 @@ export function PetProfileForm({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                View Public Profile
+                View Share Profile
               </CTAButton>
             ) : null}
             {safetyProfilesOwnerUiEnabled ? (

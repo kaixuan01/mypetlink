@@ -6,7 +6,7 @@ This document is the reference for the sharing surfaces only. It does not
 change any route, destination, or backend behaviour — the three public pages
 keep the meanings defined in `AGENTS.md`.
 
-Owners are the main audience, but a visitor looking at a Public Share Profile
+Owners are the main audience, but a visitor looking at a Share Profile
 shares the pet through the same dialog. Where the two differ, it is said so
 below.
 
@@ -19,16 +19,16 @@ point. Every surface opens the same dialog, so sharing is learned once:
 | --- | --- |
 | Dashboard pet card | `DashboardClient.tsx` — the primary **Share** action, beside **View** |
 | Pet detail hero | `PetDetailHeader.tsx` — the primary **Share** action, beside **Edit** |
-| Public Share Profile, viewed by its owner | `PublicProfileOwnerControls.tsx` |
-| Public Share Profile, viewed by anyone else | `PublicProfileOwnerControls.tsx` — **Share profile**, beside **Copy Link** |
+| Share Profile, viewed by its owner | `PublicProfileOwnerControls.tsx` |
+| Share Profile, viewed by anyone else | `PublicProfileOwnerControls.tsx` — **Share profile**, beside **Copy Link** |
 
 Do not add a second, competing share control to any of these surfaces, and do
 not open the device share sheet straight from a Share button. If a new surface
 needs sharing, render `ShareCenter` there.
 
-The **Sharing & Safety** section of the Pet Overview is not a share entry
-point. It reports on each profile and offers link management — copy, QR, open —
-through `PublicLinkActions`, and deliberately has no Share button of its own.
+The **Sharing & Privacy** card on the Pet Overview is not a share entry
+point and not a settings screen. It reports on each profile and links out, and
+deliberately has no Share button and no switch of its own.
 
 ### Who may share what
 
@@ -53,8 +53,8 @@ The first level answers "I want to share my pet" and stops at four choices:
    hero of the dialog: a richer tile carrying the pet's photo, because it is
    the everyday way owners share a pet. The three rows under it are
    deliberately quieter.
-2. **Copy Profile Link** — the Public Share Profile address.
-3. **Show Profile QR** — the Public Share Profile QR. Named "Profile" because
+2. **Copy Profile Link** — the Share Profile address.
+3. **Show Profile QR** — the Share Profile QR. Named "Profile" because
    MyPetLink also has a Safety QR; the two must never read as the same thing.
 4. **More sharing options** — its supporting line depends on what is actually
    available: "Other apps, downloads and safety sharing." when the Safety
@@ -73,7 +73,7 @@ Everything rarer sits one level down, under **More sharing options**:
 - **Share with another app** — the phone or browser's own sharing options. This
   is the only route to them, and it is hidden where the browser has none, so
   that panel degrades to the copy and download choices rather than breaking.
-- Download Public Profile QR, Open Public Profile.
+- Download Share Profile QR, Open Share Profile.
 - A separate **Safety Profile** block — copy link, show QR, open page — labelled
   "For someone who finds {Pet}." This keeps the finder-facing page distinct from
   the profile an owner shares with friends, without giving it equal weight in
@@ -96,7 +96,7 @@ The 1080x1350 portrait card has one canonical composition, and it is owner
 approved. It carries, top to bottom: the large hero photo in its rounded frame,
 the **circular pet portrait** overlapping below it, the MyPetLink lockup, the
 pet's name, one line of metadata, the "Meet {Pet} on MyPetLink" tagline, the
-Public Profile QR, the scan instruction, and mypetlink.com.my. **The hero photo
+Share Profile QR, the scan instruction, and mypetlink.com.my. **The hero photo
 and the circular portrait are both deliberate. Neither is redundant, and
 neither may be removed.**
 
@@ -114,7 +114,7 @@ Three refinements are worth knowing about:
 
 ### Theme awareness
 
-The Share Card follows the pet's selected Public Profile theme through
+The Share Card follows the pet's selected Share Profile theme through
 `ShareCardPalette` - **one layout, a bounded allowlisted palette**. There is no
 renderer or template per theme, and no owner-supplied colour ever reaches the
 canvas.
@@ -145,32 +145,49 @@ the Open Graph version alone when only the portrait cards change.
 The dialog always reopens on the first level, is named on every panel, traps
 focus, closes on Escape, and returns focus to the control that opened it.
 
-## Pet Overview: Sharing & Safety
+## Pet Overview: Sharing & Privacy
 
-The Pet Overview has one **Sharing & Safety** section. Inside it the two
-profiles are **equal siblings** — side by side on desktop, stacked on mobile —
-built from the same `ProfileSubcard` so neither can drift into looking like the
-more important half:
+The Pet Overview has one **Sharing & Privacy** card. It holds one
+`ProfileSubcard` row per audience, in a single stacked column at every width, so
+that no row can drift into looking like the more important one:
 
-| | Public Profile | Safety Profile |
-| --- | --- | --- |
-| Status | Public / Private | Safety Profile Active / Contact Update Needed / Safety Profile Off |
-| Description | one line | one line |
-| Metadata | — | `General area · {area}` |
-| Action | Share (opens the Share Center) | Show Safety QR |
-| Link | View profile → | View profile → |
+| | Share Profile | Safety Profile | Community |
+| --- | --- | --- | --- |
+| Status | On / Off | Safety Profile Active / Contact Update Needed / Safety Profile Off | Not in Community / In Community · Hidden from discovery / In Community · Discoverable |
+| Description | one line | one line | one line |
+| Seen by | anyone sent the link | whoever finds the pet | who can reach the pet through Community |
+| Metadata | — | `General area · {area}` | — |
+| Action | — | Show Safety QR | — |
+| Notice | — | contact warning, when incomplete | why the pet cannot join yet, when blocked |
+| Manage | Edit Pet -> Share Profile | Edit Pet -> Contact & Safety | Community -> Edit Profile |
+| Link | View Share Profile → | View Safety Profile → | View Community Profile → |
 
-Rules that keep the two halves balanced:
+Rules that keep the card honest:
 
-- One action and one quiet link per side. **No Copy Link here** — copying
-  belongs to the Share Center, and repeating it made the safety half heavier.
+- **Every row says who, not just whether.** A status word alone ("On") does not
+  tell an owner which strangers that means, so each row carries a plain
+  "Seen by" line. Status is never signalled by colour alone.
+- **Read only.** Each setting has exactly one authoritative control elsewhere;
+  the Manage link goes there. Adding a switch here would create two places to
+  change one thing.
+- **No link to a page nobody can open.** The View link disappears when the Share
+  Profile is off. When the Safety Profile is off, the QR button, the View link
+  and the general area all disappear with it: a QR code for a page that shows a
+  finder nothing is worse than no QR at all.
+- **No guessing.** The Community row is derived from two authenticated reads.
+  When one fails it shows *Status temporarily unavailable* with no audience
+  line, rather than claiming a pet is out of Community when it may not be. It
+  disappears only when Community is switched off for the build or there is no
+  connection to ask - a missing feature and missing data are not the same
+  thing.
 - The general area is a line of metadata, never a filled panel with its own
   label.
 - The contact warning is a compact inline notice, not a full card.
 
 **Lost Mode** is the same `LostModeControl` in its `compact` variant, rendered
-as one full-width row *below* both subcards. It belongs to safety conceptually,
-but nesting it inside the Safety subcard made that column tower over the other.
+as one full-width row *below* the profile rows. It belongs to safety
+conceptually, but nesting it inside the Safety row made that row tower over the
+others.
 All of its rules, confirmations, and API behaviour are unchanged.
 
 Urgent styling belongs to an urgent state. While Lost Mode is **off** the row is
@@ -192,7 +209,7 @@ than sharing.
 
 These are two different things and should stay that way.
 
-- **Plain profile share** - the owner sends the Public Profile URL, and the
+- **Plain profile share** - the owner sends the Share Profile URL, and the
   receiving platform renders its own preview from our Open Graph metadata and
   the 1200x630 OG image.
 - **Share Pet Card** - the owner sends the 1080x1350 JPEG with a short caption

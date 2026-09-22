@@ -107,7 +107,7 @@ export function SmartTagShowcase() {
                     className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
                     href={marketingRoutes.smartPetTags}
                   >
-                    About the Smart Tag
+                    Learn About Smart Tags
                     <Icon aria-hidden="true" className="h-4 w-4 -rotate-90" name="chevron" />
                   </a>
                 </>

@@ -172,8 +172,8 @@ export function AdminPetProfileDetailDrawer({
 
               <section aria-labelledby="pet-public-heading">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-black text-slate-900" id="pet-public-heading">Public Share Profile</h3>
-                  {publicPath ? <a className={actionClass} href={publicPath} rel="noopener noreferrer" target="_blank">Open Public Share Profile</a> : null}
+                  <h3 className="text-sm font-black text-slate-900" id="pet-public-heading">Share Profile</h3>
+                  {publicPath ? <a className={actionClass} href={publicPath} rel="noopener noreferrer" target="_blank">Open Share Profile</a> : null}
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <AdminDetailItem label="Status" value={routeStatus(pet.publicProfileAccessible, pet.publicProfileSetupIssue)} />
@@ -214,7 +214,7 @@ export function AdminPetProfileDetailDrawer({
                   <Badge tone={pet.isSampleEligible ? "mint" : "soft"}>{pet.isSampleEligible ? "Approved" : "Not approved"}</Badge>
                 </div>
                 {eligibilityError ? <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700" role="alert">{eligibilityError} <Link className="underline" href={adminRoutes.sampleExperience}>Open Sample Experience settings</Link></p> : null}
-                {!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active") ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Approval requires an active pet with both its Public Share Profile and Safety Profile available.</p> : null}
+                {!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active") ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Approval requires an active pet with both its Share Profile and Safety Profile available.</p> : null}
                 {canManage ? <button className="mt-3 min-h-10 rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={eligibilityBusy || (!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active"))} onClick={changeSampleEligibility} type="button">{eligibilityBusy ? "Saving…" : pet.isSampleEligible ? "Remove approval" : "Approve for Sample Experience"}</button> : null}
               </section>
 

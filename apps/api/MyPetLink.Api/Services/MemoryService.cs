@@ -78,7 +78,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         if (pet.LifecycleStatus == PetLifecycleStatus.Archived)
         {
-            throw InvalidState("Archived pets must be restored before adding new memories.");
+            throw InvalidState("Archived pets must be restored before adding new Moments.");
         }
 
         ValidateCreateRequest(request);
@@ -152,7 +152,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         if (memory.ArchivedAt.HasValue)
         {
-            throw InvalidState("Archived memories cannot be updated.");
+            throw InvalidState("Archived Moments cannot be updated.");
         }
 
         ValidateUpdateRequest(request);
@@ -320,7 +320,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         }
 
         var memory = await query.SingleOrDefaultAsync(cancellationToken);
-        return memory ?? throw NotFound("Memory was not found.");
+        return memory ?? throw NotFound("Moment was not found.");
     }
 
     /// <summary>
@@ -465,7 +465,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         CancellationToken cancellationToken)
     {
         var maxPrivateMemories = user.OwnerProfile?.Plan.Limit?.MaxPrivateMemoriesPerPet
-            ?? throw ServerConfig("plan_limit_not_configured", "The memory plan limit is not configured.");
+            ?? throw ServerConfig("plan_limit_not_configured", "The Moment plan limit is not configured.");
 
         var privateMemoryCount = await _dbContext.PetMemories.CountAsync(
             memory =>
@@ -480,7 +480,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             throw new ApiException(
                 StatusCodes.Status422UnprocessableEntity,
                 "plan_limit_reached",
-                $"Your current plan keeps up to {maxPrivateMemories} private memories per pet. "
+                $"Your current plan keeps up to {maxPrivateMemories} private Moments per pet. "
                 + "Sharing a moment publicly does not use this allowance.");
         }
     }

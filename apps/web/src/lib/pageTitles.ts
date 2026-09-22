@@ -3,7 +3,7 @@ import { siteConfig } from "@/config/site";
 export const loadingTitle = "Loading";
 export const genericNotFoundTitle = "Page not found";
 export const petNotFoundTitle = "Pet not found";
-export const publicProfileNotFoundTitle = "Pet profile not found";
+export const publicProfileNotFoundTitle = "Share Profile not found";
 export const qrSafetyNotFoundTitle = "Safety Profile not found";
 export const tagNotFoundTitle = "Tag not found";
 export const orderNotFoundTitle = "Order not found";
@@ -59,7 +59,7 @@ export function ownerPetPageTitle(
     case "records":
       return `${petName} Care Records`;
     case "moments":
-      return `${petName} Memories`;
+      return `${petName} Moments`;
     case "moment-new":
       return `Add a moment for ${petName}`;
     case "timeline":
@@ -77,7 +77,7 @@ export function ownerPetPageTitle(
 }
 
 export function publicPetProfileDocumentTitle(petName: string) {
-  return `${petName} | ${siteConfig.productName} Pet Profile`;
+  return `${petName} | ${siteConfig.productName} Share Profile`;
 }
 
 export function qrSafetyPageTitle(petName: string) {

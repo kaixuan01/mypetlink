@@ -2,6 +2,15 @@
 
 Planning draft for building the future backend after the documentation is approved.
 
+> **Historical planning document.** It describes what was intended at the time,
+> not necessarily what shipped. For current concepts, terminology and route
+> semantics follow
+> [`../architecture/product-model.md`](../architecture/product-model.md); for
+> current behaviour, follow the code. Terminology here predates the canonical
+> model — in particular it says "QR Safety Page", which is now explicitly
+> forbidden; the page is the **Safety Profile**.
+
+
 Implementation status: the .NET 8 API lives in `apps/api/MyPetLink.Api`. As of 2026-07-03 the `InitialCreate` EF Core migration exists and is validated against SQL Server LocalDB, `dotnet-ef` is pinned as a repo-local tool (`.config/dotnet-tools.json`), and the API runs locally with Swagger and `/api/v1/health`. Auth, owner profile, pets, public profile, QR Safety, care records, memories, the owner Smart Tags + Orders slice, and the Admin Portal APIs are implemented. Real payment gateway, real shipping integration, real file storage, Premium subscription, GPS, and production deployment remain planned later.
 
 ## Phase 1 Release Readiness (stabilization audit, 2026-07-04)

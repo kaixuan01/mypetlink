@@ -66,5 +66,5 @@ it("does not repeat Archived as a second Safety Profile badge", () => {
 
   expect(screen.getByText("Archived")).toBeTruthy();
   expect(screen.queryByText("Archived Profile")).toBeNull();
-  expect(screen.getByText("Memories and records stay saved.")).toBeTruthy();
+  expect(screen.getByText("Moments and records stay saved.")).toBeTruthy();
 });

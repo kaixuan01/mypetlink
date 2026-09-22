@@ -170,7 +170,7 @@ export function SocialNotificationsView() {
             here.
           </p>
           <div className="mt-5">
-            <CTAButton href={socialRoutes.explore}>Explore pets</CTAButton>
+            <CTAButton href={socialRoutes.explore}>Explore</CTAButton>
           </div>
         </div>
       ) : null}

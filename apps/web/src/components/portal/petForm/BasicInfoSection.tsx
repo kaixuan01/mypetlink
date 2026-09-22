@@ -100,7 +100,7 @@ export function BasicInfoSection({
             {form.species === "Other" ? (
               <TextInput
                 error={errors.customSpecies}
-                helper="This is what people will see on the Public Profile and Safety Profile."
+                helper="This is what people will see on the Share Profile and Safety Profile."
                 id="edit-pet-custom-species"
                 label="Enter pet type"
                 maxLength={60}

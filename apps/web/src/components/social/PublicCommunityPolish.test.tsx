@@ -89,7 +89,8 @@ describe("the public brand", () => {
     expect(social).toContain("socialRoutes.explore");
     expect(social).toContain("socialRoutes.search");
     expect(social).toContain("Sign in");
-    expect(social).toContain("Get started");
+    // The shared profile-creation control rather than its own wording.
+    expect(social).toContain("CreateProfileCTA");
   });
 
   it("does not hand the anonymous header to a signed-in owner", () => {

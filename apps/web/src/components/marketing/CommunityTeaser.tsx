@@ -34,8 +34,20 @@ export function CommunityTeaser() {
           title="Meet the MyPetLink community."
         />
         <p className="-mt-2 max-w-xl text-base leading-7 text-pet-muted">
-          Discover pets, families and the everyday Moments that make them
-          special.
+          Follow the pet households you care about and see the Moments they
+          share.
+        </p>
+        {/*
+          Said outright, because the cards below show pets and a visitor would
+          otherwise assume each pet has its own account. Community Profiles
+          belong to the household, and no pet is in Community unless its owner
+          puts it there.
+        */}
+        <p className="mt-3 max-w-xl text-sm leading-6 text-pet-muted">
+          You follow a household rather than an individual pet account. Their
+          pets and Moments appear together on their Community Profile, and
+          taking part is always optional — profiles and Safety Profiles work
+          whether or not you join.
         </p>
 
         <ul

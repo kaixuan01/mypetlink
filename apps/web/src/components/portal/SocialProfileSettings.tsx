@@ -99,7 +99,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
         setLoadError(
           isApiClientError(error)
             ? error.message
-            : "We couldn't load your social profile. Please try again in a moment."
+            : "We couldn't load your Community Profile. Please try again in a moment."
         );
       } finally {
         if (active) {
@@ -146,9 +146,9 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
 
   const socialEnableHelperText =
     missingPrerequisite === "handle"
-      ? "Choose and save a handle before turning on your social profile."
+      ? "Choose and save a handle before turning on your Community Profile."
       : missingPrerequisite === "displayName"
-        ? "Add a display name before turning on your social profile."
+        ? "Add a display name before turning on your Community Profile."
         : "Other owners can see your profile and the Moments you share publicly.";
   const cooldownUntil = profile.handleChangeAvailableAt
     ? new Date(profile.handleChangeAvailableAt)
@@ -287,7 +287,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
 
         setFieldErrors({});
         setSaveMessage(
-          "Your social profile was changed somewhere else, so we've reloaded it. "
+          "Your Community Profile was changed somewhere else, so we've reloaded it. "
             + "Check it over and try again."
         );
         return;
@@ -353,11 +353,11 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
     return (
       <FormSection
         id="social-profile"
-        title="Profile"
-        description="Set up the name other pet owners see on MyPetLink."
+        title="Community Profile"
+        description="Set up the name other pet owners see in Community."
       >
         <p className="text-sm font-semibold text-pet-muted">
-          Sign in to set up your social profile.
+          Sign in to set up your Community Profile.
         </p>
       </FormSection>
     );
@@ -367,7 +367,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
     <div className="grid gap-5">
     <FormSection
       id="social-profile"
-      title="Profile"
+      title="Community Profile"
       description="The name and picture other pet owners see when you share Moments."
     >
       <div className="grid gap-5">
@@ -598,7 +598,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
               ? `Many owners use something like "${displayNameSuggestion}".`
               : "Shown above your Moments. A household name works well."
           }
-          label="Display name"
+          label="Community name"
         >
           <input
             className="min-h-12 w-full min-w-0 rounded-2xl border border-pet-border bg-white px-4 text-sm font-semibold text-pet-ink"
@@ -654,7 +654,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             disabled={!loaded || saving || !canToggleSocial}
             helperText={socialEnableHelperText}
             id="social-enabled-switch"
-            label="Turn on my social profile"
+            label="Turn on my Community Profile"
             onChange={(checked) => void saveProfile({ isSocialEnabled: checked })}
           />
 
@@ -668,7 +668,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
                 : // Kept, not erased — but nothing is discoverable while the
                   // profile itself is off, and a switch showing blue with no
                   // explanation would claim otherwise.
-                  "This preference will apply when your social profile is turned on."
+                  "This preference will apply when your Community Profile is turned on."
             }
             id="social-discoverable-switch"
             label="Show me in search and browsing"
@@ -682,7 +682,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             helperText={
               profile.isSocialEnabled
                 ? "Turn this off and nobody new can follow you."
-                : "This preference will apply when your social profile is turned on."
+                : "This preference will apply when your Community Profile is turned on."
             }
             id="social-allow-followers-switch"
             label="Let other owners follow me"
@@ -694,7 +694,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
     <FormSection
       id="social-pets"
       title="Pets"
-      description="Choose which of your pets appear alongside you in the community."
+      description="Choose which of your pets appear alongside you in Community."
     >
       <PetSocialSettingsList ownerSocialEnabled={profile.isSocialEnabled} />
     </FormSection>
@@ -707,7 +707,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             onClick={() => void saveProfile()}
             type="button"
           >
-            {saving ? "Saving…" : "Save social profile"}
+            {saving ? "Saving…" : "Save Community Profile"}
           </CTAButton>
           {saveMessage ? (
             <span className="text-sm font-bold text-pet-muted">{saveMessage}</span>

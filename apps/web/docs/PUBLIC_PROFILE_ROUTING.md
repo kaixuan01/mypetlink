@@ -2,7 +2,7 @@
 
 > Read [`AI_AGENT_REFERENCE.md`](./AI_AGENT_REFERENCE.md) first. This document
 > covers the **public, unauthenticated** routes: scanning a tag, activating a
-> tag, and the shareable public profile. Owner portal routing is in
+> tag, and the Share Profile. Owner portal routing is in
 > [`OWNER_PORTAL_FLOW.md`](./OWNER_PORTAL_FLOW.md).
 
 ---
@@ -12,24 +12,61 @@
 | Route                        | Purpose                          | Lookup key            |
 | ---------------------------- | -------------------------------- | --------------------- |
 | `/q/{safetyCode}`            | Pet-level Safety Profile for finders | `safetyCode`       |
-| `/t/{tagCode}`               | A physical tag was scanned/tapped; also the customer activation entry point | `tagCode`             |
-| `/activate/{tagCode}`        | Compatibility redirect back to `/t/{tagCode}` | `tagCode`             |
-| `/p/{slug}-{publicCode}`     | Share a pet's public profile     | `publicCode`          |
+| `/q/{tagCode}`               | **Current** physical tag QR entry, and the activation entry point | `tagCode` |
+| `/n/{tagCode}`               | Physical tag NFC entry. Never offers first-time activation | `tagCode` |
+| `/t/{tagCode}`               | **Legacy** printed-tag entry, retained for already-issued tags | `tagCode` |
+| `/activate/{tagCode}`        | Compatibility redirect to `/q/{tagCode}` | `tagCode`             |
+| `/p/{slug}-{publicCode}`     | Share Profile                    | `publicCode`          |
 
-Pet-level Safety Profile links use **`/q/{safetyCode}`**. Physical QR codes and NFC chips point at **`/t/{tagCode}`**; active tags open the same Safety Profile, while inactive tags show an inactive tag page. Tag activation is also completed from `/t/{tagCode}` after the owner scans/taps the physical tag.
+Pet-level Safety Profile links use **`/q/{safetyCode}`**. Newly produced physical
+QR codes point at **`/q/{tagCode}`** and NFC chips at **`/n/{tagCode}`**; active
+tags open the same Safety Profile — the same content and the same privacy rules
+a finder gets from `/q/{safetyCode}` directly, the Share Profile bridge included
+— while inactive tags show an inactive tag page.
+Activation is completed from **`/q/{tagCode}`** after the owner scans the printed
+QR. `/t/{tagCode}` is retained because tags carrying it have already been printed
+— it still resolves and still supports activation, and must not be removed.
+
+`/q` resolves a pet Safety Profile first and a tag second: one route, two kinds
+of code, Safety Profile taking precedence.
 
 Build these URLs with the helpers in `src/lib/routes.ts` (`qrSafetyPath`,
-`tagPath`, `publicProfilePath`). Never hand-write them.
+`tagQrPath`, `tagNfcPath`, `tagPath`, `activatePath`, `publicProfilePath`).
+Never hand-write them.
+
+> Terminology and how these surfaces relate:
+> [`product-model.md`](../../../docs/architecture/product-model.md) is canonical.
+> `/p/` is the **Share Profile**; "Pet Profile" is the umbrella concept, not this
+> page. The owner portal names it the same way — "View Share Profile",
+> "Share Profile enabled" — so there is one name to search for.
 
 ---
 
-## 2. `/t/{tagCode}` â€” the finder state machine
+## 2. The tag finder state machine (`/q/{tagCode}`, `/n/`, legacy `/t/`)
+
+### Which path is authoritative
+
+**The API is.** `resolveFinderState` in `src/services/tagService.ts` branches on
+`canUseApi()`:
+
+| Path | When | Source of truth |
+| --- | --- | --- |
+| **Production / authoritative** | `NEXT_PUBLIC_API_BASE_URL` is configured | `GET /api/v1/public/tags/{tagCode}` (with `/qr`, `/nfc`, or no suffix for legacy `/t/`), served by **`TagScanService`** against **SQL Server**. The Safety Profile it embeds is the same projection `QrSafetyService` returns for `/q/{safetyCode}`, and its Share Profile link comes from `ShareProfileBridge` |
+| **Fallback / demo** | no API base URL configured | the `localStorage` tag store described below |
+
+A tag's status, its bound pet, and every privacy decision are made **server
+side**. The fallback exists so the app runs offline and in tests; it is never
+the product's behaviour. Do not design or change tag rules against it alone -
+see the hard rules in `AGENTS.md`.
+
+### The state machine (both paths produce the same states)
 
 `src/app/t/[tagCode]/page.tsx` is a static-export server page
 (`dynamicParams = false`, params from `staticTagCodeParams()`). It computes the
 initial `FinderResult` at build time via `getFinderState(tagCode)` and passes it
 to **`TagFinderView`** (client), which **re-fetches `getFinderState` on mount**
-so runtime (`localStorage`) data wins.
+so runtime data wins - from the API in production, from `localStorage` on the
+fallback path.
 
 `getFinderState` (`src/services/tagService.ts`) returns one of four states:
 
@@ -42,9 +79,9 @@ so runtime (`localStorage`) data wins.
 | `active`     | Has a `petId`, status not disabled                         | Shared **Safety Profile** (`QrSafetyPageView`)            |
 
 Why "not found" is a rendered state, not `notFound()`: with static export there
-is no server at runtime. A tag that exists only in `localStorage` was never
+is no Next.js server at runtime. A tag created after the last build was never
 pre-rendered, so relying on Next's `notFound()` would 404 a valid tag. The state
-machine handles every case client-side instead.
+machine resolves every case on the client instead, from the API.
 
 The unassigned activation prompt uses the exact product copy:
 
@@ -57,21 +94,22 @@ A finder scanning an **active** tag must see the Safety Profile directly.
 
 ---
 
-## 3. `/t/{tagCode}` â€” activation flow
+## 3. Activation flow (from `/q/{tagCode}`; legacy `/t/{tagCode}` still works)
 
 `src/app/t/[tagCode]/page.tsx` renders **`TagActivationFlow`** directly for
 `unassigned` and `pending` scan states. The flow keeps the TagCode on the
 Physical Tag Scan Page the whole time and never forces a re-scan or an early
 dashboard redirect. `src/app/activate/[tagCode]/page.tsx` exists only as a
-compatibility redirect back to `/t/{tagCode}`. Render precedence:
+compatibility redirect to `/q/{tagCode}`. Render precedence:
 
-1. **Success** (just activated) â†’ "Activated" screen with: Preview Public
-   Profile, View Tag Scan Page, Go to Dashboard.
+1. **Success** (just activated) â†’ "Activated" screen with: View Share Profile,
+   View Tag Scan Page, Go to Dashboard.
 2. **Already active** â†’ cannot re-activate; offer to view the profile.
 3. **Inactive** (Disabled/Lost/Replaced/Archived) â†’ safe "cannot activate" message.
 4. **Not found** â†’ branded not-found.
-5. **Not signed in** â†’ sign-in card. Signing in happens **inline**
-   (`loginMockOwner()` then stay on the page) so the TagCode is preserved.
+5. **Not signed in** â†’ sign-in card. Signing in happens **inline** so the
+   TagCode is preserved (Google sign-in against the API; `loginMockOwner()` on
+   the fallback path).
 6. **Signed in, assigned portal tag** â†’ matching owner sees **Activate this tag for {petName}** with no pet selector; wrong account sees a safe linked-to-another-account message.
 7. **Signed in, unassigned retail tag** â†’ **pet selection**: pick an existing pet
    (avatar + name) or "Create a new pet profile instead"
@@ -86,7 +124,7 @@ binding and status do.
 
 ---
 
-## 4. `/p/{slug}-{publicCode}` â€” shareable public profile
+## 4. `/p/{slug}-{publicCode}` â€” the Share Profile
 
 `src/app/p/[slug]/page.tsx` is the warm, shareable profile (distinct from the
 finder safety page). It is **looked up by `publicCode`, never by slug**:
@@ -105,7 +143,7 @@ finder safety page). It is **looked up by `publicCode`, never by slug**:
 > (`/p/{slug}-{publicCode}`) is the **friendly, IG-style** page an owner shares
 > with friends, family, and pet communities. It is **NOT** the emergency finder
 > page. The finder/emergency experience lives on the Safety Profile
-> (`/q/{safetyCode}`); active physical tag scans (`/t/{tagCode}`) render that same view. Never mix
+> (`/q/{safetyCode}`); active physical tag scans (`/q/{tagCode}`, `/n/{tagCode}`, legacy `/t/{tagCode}`) render that same view. Never mix
 > them. A previous version wrongly made the share page finder-first â€” do not
 > reintroduce that.
 
@@ -139,7 +177,7 @@ not mark the pet as missing.
 (`isOwnerAuthenticated()`, checked on mount), a small bar appears above the tabs:
 **"Viewing as public"** + **Copy Link** + **Back to Edit** (`ownerRoutes.petEdit`).
 Normal public visitors never see this owner tooling â€” they only get the compact
-Share button. Owner-portal "View / Preview Public Profile" buttons link here with
+Share button. Owner-portal "View Share Profile" buttons link here with
 `target="_blank"` so the portal stays open behind the preview.
 
 Keep it clean: minimal badges, plenty of whitespace, one strong primary action
@@ -159,10 +197,10 @@ slug in the URL is cosmetic.
 Keep them distinct.
 
 > **Deprecated:** `/p/{petSlug}` alone (e.g. `/p/milo`) must never be displayed,
-> copied, or navigated to. Every public profile link is `/p/{petSlug}-{publicCode}`.
+> copied, or navigated to. Every Share Profile link is `/p/{petSlug}-{publicCode}`.
 > Build it with `publicProfilePath(slug, publicCode)` (or `pet.publicProfilePath`),
 > never by concatenating the slug by itself. The Safety Profile is the separate
-> pet-level route `/q/{safetyCode}`; physical tags use `/t/{tagCode}` as scan
+> pet-level route `/q/{safetyCode}`; physical tags use `/q/{tagCode}` (QR), `/n/{tagCode}` (NFC) or legacy `/t/{tagCode}` as scan
 > entry points.
 
 ---

@@ -61,7 +61,7 @@ const faqs = [
   {
     question: "Will my full address be public?",
     answer:
-      "No. The public profile is designed to show only safe details such as a general area.",
+      "No. The Share Profile is designed to show only safe details such as a general area.",
   },
   {
     question: "Can Free users get finder contact?",
@@ -71,7 +71,7 @@ const faqs = [
   {
     question: "Can I create a pet profile without buying a tag?",
     answer:
-      "Yes. Every owner can start with a free Public Share Profile and Safety Profile. The physical QR + NFC Smart Tag is an optional one-time add-on.",
+      "Yes. Every owner can start with a free Share Profile and Safety Profile. The physical QR + NFC Smart Tag is an optional one-time add-on.",
   },
   {
     question: "Is MyPetLink available for pets in Malaysia?",
@@ -132,7 +132,7 @@ export default function Home() {
               <p className="mt-1 text-2xl font-black text-pet-ink">RM0</p>
               <p className="mt-3 text-sm leading-6 text-pet-muted">
                 Up to {freePlanLimits.maxPets} pet profiles, each with{" "}
-                {freePlanLimits.maxMemoriesPerPet} pet memories, a Safety
+                {freePlanLimits.maxMemoriesPerPet} Moments, a Safety
                 Profile, and a downloadable QR code.
               </p>
             </article>

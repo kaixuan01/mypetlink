@@ -2,6 +2,25 @@
 
 This is the **MyPetLink monorepo**. Read this file before making changes anywhere in the repository.
 
+## Product model — read this first
+
+[`docs/architecture/product-model.md`](docs/architecture/product-model.md) is the
+**canonical reference** for MyPetLink's concepts, terminology, route semantics
+and the relationships between Pet Profile, Share Profile, Safety Profile,
+Community Profile, Smart Tags and Moments.
+
+When product terminology, route semantics or profile relationships are unclear,
+follow that document. **Do not infer behaviour from legacy route names, old
+screenshots, historical phase documents or backend entity names.**
+
+- **Current code remains the behavioural source of truth.** Where the code and
+  that document disagree, the code is what ships — fix the document, or change
+  the code deliberately.
+- **The product-model document defines the intended terminology and
+  architecture.** A stale historical document does not override it.
+
+The rules below are the operational ones. They do not repeat the product model.
+
 ## Layout
 
 - The frontend app lives in **`apps/web`** (Next.js App Router, TypeScript, Tailwind CSS, static export). Before working on it, read `apps/web/AGENTS.md` and `apps/web/docs/AI_AGENT_REFERENCE.md`.
@@ -38,10 +57,22 @@ before touching anything social.
    Never seed a social name or handle from an account name, a Google profile,
    an email local part, or the finder-facing name. Handle suggestions may come
    from pet names only.
+
+   **One anonymous payload must never name two of them.** The Share Profile
+   response omits `ownerDisplayName` whenever it carries `sharedBy`
+   (`PublicProfileService.ResolveAnonymousOwnerDisplayName`). Enforce this in the
+   projection, never only in a component.
 2. **Social is opt-in and starts off** — for owners and for pets, existing rows
    and new ones. `PetPublicProfiles.IsPublicProfileEnabled` means "I will share
    this link"; it never implies social participation. That is why
    `PetSocialProfiles` is a separate table.
+
+   **The dependency runs one way only.** Community participation for a pet
+   requires an enabled Share Profile; a Share Profile must never require
+   Community. Nothing that depends on the Share Profile may test a social switch
+   instead — including the Safety Profile's link to it
+   (`ShareProfileBridge.ResolveSlug`). An owner with Share ON, Safety ON and
+   Community OFF must have every one of those surfaces working.
 3. **`PetMemories.AuthorUserId` is immutable.** It records who wrote the Moment.
    Pet ownership transfer never rewrites it.
 4. **A multi-pet Moment consumes one allowance**, against the primary
@@ -54,7 +85,11 @@ before touching anything social.
 6. **The actor is always the JWT subject.** No social endpoint accepts a user
    id, owner id or actor id from a client.
 7. **Smart Tag scanning stays Safety Profile first.** `/q`, `/n` and `/t` must
-   never route to a social surface.
+   never route to a social surface. They must also never produce a *different*
+   Safety Profile: a tag is an access method, so once an eligible tag resolves
+   to a pet the finder-facing content and privacy rules match direct
+   `/q/{safetyCode}` access exactly, Share Profile bridge included. One rule,
+   `ShareProfileBridge`, answers that for every entry point.
 8. **A general area is never an address.** Every surface that accepts one uses
    `GeneralAreaRules`. Do not add a second validation path, and do not
    introduce any automatic or precise location.
@@ -143,29 +178,42 @@ duplicate full email layouts inside individual templates.
 
 ### User-facing terms for our routes
 
-Refer to the three public pages by name in copy, not by their path:
+Canonical terminology, and the debt still owed on it, live in
+[`docs/architecture/product-model.md`](docs/architecture/product-model.md).
+The short version — refer to the public pages by name in copy, not by their path:
 
-- `/p/:petSlug` → **Public Share Profile** (or "Public Profile" / "Share Profile")
+- `/p/:petSlug` → **Share Profile** (legal copy may use the fuller "Public Share Profile"). **Pet Profile** is the umbrella concept — the whole pet record — and is not the name of this page.
 - `/q/:safetyCode` → **Safety Profile** — the finder-facing safety page. QR codes, NFC taps, and direct links are *access methods* to this one profile, so never call it "QR Safety Page", "QR Safety Profile", or "QR Profile". Use "QR" / "NFC" wording only for the specific access technology or physical tag capability (e.g. "Download QR Code", "Tap NFC Tag", "QR + NFC Smart Tag").
+- `/u/:handle` → **Community Profile** — the owner's public identity in Community.
 - `/t/:tagCode` → **Physical Tag Scan Page** (or "Physical Tag QR" / "Tag Scan Page")
 
-Do not lump these together as a generic "QR Profile" — they are three distinct pages.
+Do not lump these together as a generic "QR Profile" — they are distinct pages.
+
+**Moment** is the user-facing word for a `PetMemory`. Do not introduce new
+"Memory"/"Memories" copy; the existing occurrences are tracked debt.
 
 Safety Profile status labels are: **Safety Profile Active**, **Contact Update Needed**, and **Safety Profile Off** (derived in `apps/web/src/lib/safetyProfile.ts`). Never present a linked Smart Tag as part of that status — tag linkage has its own labels (e.g. "No Smart Tag Linked", "Smart Tag Linked").
 
 ## Route conventions
 
+Full map and semantics: [`docs/architecture/product-model.md`](docs/architecture/product-model.md).
+
 - Safety Profile: `/q/:safetyCode`
-- Physical Tag Scan Link and tag activation entry point: `/t/:tagCode`
-- Public Share Profile: `/p/:petSlug` (slug ends with the pet's public code)
+- Smart Tag entry: `/q/:tagCode` (QR), `/n/:tagCode` (NFC), `/t/:tagCode` (legacy printed tags)
+- Share Profile: `/p/:petSlug` (slug ends with the pet's public code)
+- Community Profile: `/u/:handle`
 - Owner Portal routes currently live in the same Next.js app (`/dashboard`, `/pets`, `/tags`, `/orders`, `/settings`, ...).
 - The Admin Portal UI lives under `/admin` in `apps/web`, unless the project is split later.
 
 Route strings are centralized in `apps/web/src/lib/routes.ts` — never hardcode route strings in pages or components.
 
-Physical tag activation must be started from the Physical Tag Scan Page (`/t/:tagCode`) after the owner scans/taps the physical tag. Owner Portal tag/order pages may offer View Tag Scan Page and Copy Tag Link, but must not show direct Activate Tag actions.
+Physical tag activation must be started by scanning or tapping the tag, and runs
+from the **current QR entry, `/q/:tagCode`** (`activatePath()`); `/activate/:tagCode`
+redirects there. `/t/:tagCode` is retained for already-issued printed tags and must
+not be removed. NFC never offers activation — an unactivated tag tapped over NFC is
+told to scan the QR code first. Owner Portal tag/order pages may offer View Tag Scan
+Page and Copy Tag Link, but must not show direct Activate Tag actions.
 
 ## Future work (planned, not started)
 
-- The backend API is planned for `apps/api` (C# .NET 8 Web API, SQL Server, EF Core) but must not be generated until explicitly requested.
-- Real auth, payments, subscriptions, and GPS are all out of scope until explicitly requested.
+- Premium, payments, subscriptions, and GPS Safety are all out of scope until explicitly requested.

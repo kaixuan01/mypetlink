@@ -6,9 +6,9 @@ const portalBenefits: Array<{
   icon: IconName;
   label: string;
 }> = [
-  { icon: "heart", label: "Share Public Profiles" },
+  { icon: "heart", label: "Share your pet's profile" },
   { icon: "record", label: "Manage care records" },
-  { icon: "heart", label: "Save pet memories" },
+  { icon: "heart", label: "Save Moments" },
   { icon: "tag", label: "Smart Tag add-ons — Coming Soon" },
 ];
 
@@ -25,7 +25,7 @@ export function OwnerLoginExperience() {
             Welcome back
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-pet-muted sm:text-base sm:leading-7">
-            Sign in to manage your pet profiles, care records, memories, and
+            Sign in to manage your pet profiles, care records, Moments, and
             safety pages.
           </p>
         </div>

@@ -97,7 +97,7 @@ export function SocialFeedView() {
           className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
           href={socialRoutes.explore}
         >
-          Explore pets
+          Explore
         </Link>
       </header>
 
@@ -196,7 +196,7 @@ function FeedOnboarding({ hasOwnMoments }: { hasOwnMoments: boolean }) {
         </p>
         <div className="mt-3">
           <CTAButton href={socialRoutes.explore} variant="secondary">
-            Explore pets
+            Explore
           </CTAButton>
         </div>
       </section>
@@ -228,7 +228,7 @@ function FeedOnboarding({ hasOwnMoments }: { hasOwnMoments: boolean }) {
         that leads to "add a pet first" is a worse welcome than no button.
       */}
       <div className="mt-5">
-        <CTAButton href={socialRoutes.explore}>Explore pets</CTAButton>
+        <CTAButton href={socialRoutes.explore}>Explore</CTAButton>
       </div>
     </div>
   );

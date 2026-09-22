@@ -44,10 +44,10 @@ function resolved(value: PetSocialSettings) {
   return { data: value, meta: { requestId: "test", source: "api" as const } };
 }
 
-/** The "Show … on MyPetLink Social" switch for a row. */
+/** The "Show … in Community" switch for a row. */
 function socialSwitch(row: HTMLElement) {
   return within(row).getByRole("switch", {
-    name: /on MyPetLink Social/i,
+    name: /in Community/i,
   }) as HTMLButtonElement | HTMLInputElement;
 }
 
@@ -183,7 +183,7 @@ describe("PetSocialSettingsList", () => {
 
     expect(socialSwitch(row).hasAttribute("disabled")).toBe(true);
     expect(
-      within(row).getByText(/Turn on Mochi's Public Profile first/)
+      within(row).getByText(/Turn on Mochi's Share Profile before adding/)
     ).toBeTruthy();
     expect(mocks.updatePetSocialSettings).not.toHaveBeenCalled();
   });
@@ -208,7 +208,7 @@ describe("PetSocialSettingsList", () => {
     expect(socialSwitch(row).hasAttribute("disabled")).toBe(true);
     expect(discoverySwitch(row).hasAttribute("disabled")).toBe(true);
     expect(screen.getByTestId("pet-social-master-off").textContent).toContain(
-      "Turn on your social profile above"
+      "Turn on your Community Profile above"
     );
   });
 
@@ -317,13 +317,13 @@ describe("PetSocialSettingsList", () => {
     await screen.findAllByTestId("pet-social-row");
 
     // Two pets, four switches, four distinct accessible names. A screen reader
-    // moving control to control must never meet "Show on MyPetLink Social"
+    // moving control to control must never meet "Show in Community"
     // twice with no way to tell which pet it means.
     expect(
-      screen.getByRole("switch", { name: /Show Mochi on MyPetLink Social/i })
+      screen.getByRole("switch", { name: /Show Mochi in Community/i })
     ).toBeTruthy();
     expect(
-      screen.getByRole("switch", { name: /Show Coco on MyPetLink Social/i })
+      screen.getByRole("switch", { name: /Show Coco in Community/i })
     ).toBeTruthy();
     expect(
       screen.getByRole("switch", { name: /Let people find Mochi when browsing/i })

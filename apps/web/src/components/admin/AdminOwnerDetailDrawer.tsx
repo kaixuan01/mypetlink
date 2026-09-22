@@ -203,16 +203,16 @@ export function AdminOwnerDetailDrawer({
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <AdminDetailItem label="Active pets" value={`${owner.activePetCount} / ${owner.maxPets || "—"}`} />
                   <AdminDetailItem label="All pet profiles" value={String(owner.petCount)} />
-                  <AdminDetailItem label="Memories" value={String(owner.memoryCount)} />
-                  <AdminDetailItem label="Highest memories on one pet" value={`${detail.highestMemoriesOnPet}${owner.maxMemoriesPerPet ? ` / ${owner.maxMemoriesPerPet}` : ""}`} />
+                  <AdminDetailItem label="Moments" value={String(owner.memoryCount)} />
+                  <AdminDetailItem label="Highest Moments on one pet" value={`${detail.highestMemoriesOnPet}${owner.maxMemoriesPerPet ? ` / ${owner.maxMemoriesPerPet}` : ""}`} />
                 </div>
                 {owner.petUsageNearLimit || detail.memoryUsageNearLimit ? (
                   <p className="mt-2 text-sm font-bold text-amber-800">
                     {owner.petUsageNearLimit && detail.memoryUsageNearLimit
-                      ? "Pet and memory usage are near the current plan limits."
+                      ? "Pet and Moment usage are near the current plan limits."
                       : owner.petUsageNearLimit
                         ? "Pet usage is near the current plan limit."
-                        : "Memory usage is near the current plan limit."}
+                        : "Moment usage is near the current plan limit."}
                   </p>
                 ) : null}
               </section>

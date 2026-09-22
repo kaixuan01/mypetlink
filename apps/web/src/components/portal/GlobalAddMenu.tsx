@@ -495,7 +495,7 @@ function buildActions({
       "Log a vaccine, vet visit, or note",
       "record"
     ),
-    getPetAction("moment", "Add Moment", "Save a photo or memory", "heart"),
+    getPetAction("moment", "Add Moment", "Save a photo or Moment", "heart"),
   ];
 }
 

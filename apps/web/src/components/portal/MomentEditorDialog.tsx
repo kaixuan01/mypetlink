@@ -37,6 +37,20 @@ const momentCategories: MomentType[] = [
 
 type OwnerMomentVisibility = Exclude<MomentVisibility, "Family Only">;
 
+/**
+ * Who actually sees a Moment.
+ *
+ * "Anyone with the link" was wrong, and wrong in the direction that matters:
+ * it is the standard phrase for unlisted, so an owner read it as "nobody finds
+ * this unless I send it". A Public Moment appears on the pet's Share Profile,
+ * on the household's Community Profile, on its own page, in the feed of
+ * everyone who follows them, and — once the household and the pet are
+ * discoverable — in Explore, where strangers browse.
+ *
+ * One switch drives all of that: `showOnPublicProfile` is derived from this
+ * value, it is not a second choice. So the label has to name the widest
+ * audience, not the narrowest.
+ */
 const audienceOptions: Array<{
   value: OwnerMomentVisibility;
   label: string;
@@ -49,8 +63,9 @@ const audienceOptions: Array<{
   },
   {
     value: "Public",
-    label: "Anyone with the link",
-    description: "Allow this Moment to appear on your pet's shared profile.",
+    label: "Shared publicly",
+    description:
+      "Appears on your pet's Share Profile and your Community Profile, and may appear in Community feeds or Explore when your profile and pet are discoverable.",
   },
 ];
 
@@ -220,7 +235,7 @@ export function MomentEditorDialog({
 
   const dialogTitle =
     dialogTitleOverride ??
-    (mode === "create" ? `Add a moment for ${petName}` : "Update this memory");
+    (mode === "create" ? `Add a Moment for ${petName}` : "Update this Moment");
   const formId = `moment-editor-${mode}-form`;
   const primaryLabel =
     submitLabel ?? (mode === "create" ? "Add Moment" : "Save Changes");
@@ -231,7 +246,7 @@ export function MomentEditorDialog({
       closeLabel="Close moment editor"
       description={
         dialogDescription ??
-        "Add the details once, then choose where this memory appears."
+        "Add the details once, then choose where this Moment appears."
       }
       eyebrow={dialogTitleOverride ? undefined : mode === "create" ? "Add Moment" : "Edit Moment"}
       maxWidthClassName={maxWidthClassName}

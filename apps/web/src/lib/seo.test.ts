@@ -142,7 +142,7 @@ describe("SEO route policy", () => {
     for (const metadata of [unavailable, archived]) {
       expect(robotsPolicy(metadata).index).toBe(false);
       expect(metadata.title).toEqual({
-        absolute: "Pet Profile Unavailable | MyPetLink",
+        absolute: "Share Profile Unavailable | MyPetLink",
       });
       expect(JSON.stringify(metadata)).not.toContain(samplePet.name);
     }
@@ -155,7 +155,7 @@ describe("SEO route policy", () => {
     const serialized = JSON.stringify(metadata);
 
     expect(metadata.title).toEqual({
-      absolute: "Pet Profile Unavailable | MyPetLink",
+      absolute: "Share Profile Unavailable | MyPetLink",
     });
     expect(robotsPolicy(metadata).index).toBe(false);
     expect(serialized).not.toContain("private-pet-not-public");
@@ -191,11 +191,11 @@ describe("public profile social metadata", () => {
 
     expect(metadata.title).toEqual({ absolute: "Meet Topu | MyPetLink" });
     expect(metadata.description).toBe(
-      "View Topu's public profile, memories, and important safety information."
+      "View Topu's Share Profile, Moments, and important safety information."
     );
     expect(openGraph.title).toBe("Meet Topu | MyPetLink");
     expect(openGraph.description).toBe(
-      "View Topu's public profile, memories, and important safety information."
+      "View Topu's Share Profile, Moments, and important safety information."
     );
     expect(openGraph.url).toBe("https://mypetlink.com.my/p/topu-pnpr4ipnr6ppelnsn");
     expect(image?.url).toMatch(
@@ -209,7 +209,7 @@ describe("public profile social metadata", () => {
     expect(twitter.card).toBe("summary_large_image");
     expect(twitter.title).toBe("Meet Topu | MyPetLink");
     expect(twitter.description).toBe(
-      "View Topu's public profile, memories, and important safety information."
+      "View Topu's Share Profile, Moments, and important safety information."
     );
     expect(twitter.images?.[0]).toEqual({
       url: image?.url,

@@ -290,7 +290,7 @@ export async function deletePetMoment(momentId: string) {
 export function getFriendlyMomentErrorMessage(error: unknown) {
   if (isApiClientError(error)) {
     if (error.code === "plan_limit_reached") {
-      return "You've reached the Free memory limit for this pet. Existing memories stay safe and Premium albums are coming soon.";
+      return "You've reached the Free Moment limit for this pet. Existing Moments stay safe and Premium albums are coming soon.";
     }
 
     if (error.code === "validation_failed" && error.details) {

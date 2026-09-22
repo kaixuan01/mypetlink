@@ -122,11 +122,11 @@ function PetStatus({ pet }: { pet: NonNullable<AdminSampleExperience["selectedPe
       </div>
       <dl className="grid gap-2 text-sm sm:grid-cols-3">
         <Status label="Lifecycle" value={pet.lifecycle} good={pet.lifecycle === "Active"} />
-        <Status label="Public Share Profile" value={pet.publicProfileAvailable ? "Available" : "Unavailable"} good={pet.publicProfileAvailable} />
+        <Status label="Share Profile" value={pet.publicProfileAvailable ? "Available" : "Unavailable"} good={pet.publicProfileAvailable} />
         <Status label="Safety Profile" value={pet.safetyProfileAvailable ? "Available" : "Unavailable"} good={pet.safetyProfileAvailable} />
       </dl>
       <div className="flex flex-wrap gap-2">
-        {publicPath && pet.publicProfileAvailable ? <a className={previewClass} href={publicPath} rel="noopener noreferrer" target="_blank">Preview Public Profile</a> : null}
+        {publicPath && pet.publicProfileAvailable ? <a className={previewClass} href={publicPath} rel="noopener noreferrer" target="_blank">Preview Share Profile</a> : null}
         {safetyPath && pet.safetyProfileAvailable ? <a className={previewClass} href={safetyPath} rel="noopener noreferrer" target="_blank">Preview Safety Profile</a> : null}
       </div>
       {publicPath ? <p className="break-all text-xs font-semibold text-slate-500">{toAbsoluteUrl(publicPath)}</p> : null}

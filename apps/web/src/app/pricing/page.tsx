@@ -37,7 +37,13 @@ const smartTagFeatures = [
   "No subscription required",
 ];
 
-const gpsFeatures = ["Live GPS location", "Safe-zone alerts", "Battery reminders"];
+// Planned, not shipped. The name carries that so the list cannot be moved
+// under a product that exists without the rename making it obvious.
+const gpsSafetyPlannedFeatures = [
+  "Live GPS location",
+  "Safe-zone alerts",
+  "Battery reminders",
+];
 
 export default function PricingPage() {
   return (
@@ -62,7 +68,7 @@ export default function PricingPage() {
                   price={freePlan.price}
                   note={freePlan.description}
                   features={freePlan.features}
-                  action={<CreateProfileCTA fullWidth>Start Free Profile</CreateProfileCTA>}
+                  action={<CreateProfileCTA fullWidth />}
                 />
                 <PricingCard
                   badge="Coming Soon"
@@ -99,7 +105,7 @@ export default function PricingPage() {
                       Live location and safe-zone features are planned for a future MyPetLink product.
                     </p>
                   </div>
-                  <FeatureList className="sm:min-w-56" features={gpsFeatures} />
+                  <FeatureList className="sm:min-w-56" features={gpsSafetyPlannedFeatures} />
                 </div>
               </article>
             </PricingSection>
@@ -211,7 +217,7 @@ function SmartTagAction({ status }: { status: string }) {
   if (status === "Available now") {
     return (
       <CTAButton fullWidth href={ownerRoutes.tagOrder()}>
-        Order a Smart Tag
+        Get a Smart Tag
       </CTAButton>
     );
   }

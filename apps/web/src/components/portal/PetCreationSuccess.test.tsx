@@ -31,7 +31,7 @@ describe("PetCreationSuccess", () => {
     expect(primary.getAttribute("target")).toBeNull();
 
     const publicProfile = screen.getByRole("link", {
-      name: "View public profile",
+      name: "View Share Profile",
     });
     expect(publicProfile.getAttribute("href")).toBe("/p/milo-public");
     expect(publicProfile.getAttribute("target")).toBe("_blank");
@@ -58,7 +58,7 @@ describe("PetCreationSuccess", () => {
     expect(
       screen.getByRole("link", { name: "Go to Milo's page" }).getAttribute("href")
     ).toBe("/pets/private-pet");
-    expect(screen.queryByRole("link", { name: "View public profile" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "View Share Profile" })).toBeNull();
     expect(screen.queryByText(/First Moment/)).toBeNull();
     expect(container.querySelectorAll(".bg-pet-teal")).toHaveLength(1);
   });

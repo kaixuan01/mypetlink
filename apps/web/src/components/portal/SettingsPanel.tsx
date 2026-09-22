@@ -213,7 +213,7 @@ export function SettingsPanel() {
           data-testid="owner-settings-contact-grid"
         >
           <TextField
-            label="Owner display name"
+            label="Name finders see"
             onChange={(value) => updateField("ownerDisplayName", value)}
             placeholder="e.g. Sarah Tan"
             value={settings.ownerDisplayName}
@@ -244,8 +244,8 @@ export function SettingsPanel() {
           />
         </div>
         <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
-          Your full address is not shown on public profiles. Use a general area
-          so finders know where your pet is usually from.
+          Your full address is not shown on your Share Profile or Safety Profile.
+          Use a general area so finders know where your pet is usually from.
         </p>
       </FormSection>
 

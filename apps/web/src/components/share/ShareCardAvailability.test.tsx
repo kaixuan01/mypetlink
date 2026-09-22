@@ -169,7 +169,7 @@ describe("Share Pet Card availability", () => {
     expect(screen.queryByRole("button", { name: "Adoption Day" })).toBeNull();
   });
 
-  it("is withheld while the pet's public profile is switched off", async () => {
+  it("is withheld while the pet's Share Profile is switched off", async () => {
     const pet = eligiblePet({ publicProfileEnabled: false });
     mocks.getPets.mockResolvedValue({ data: [pet] });
 

@@ -84,7 +84,7 @@ describe("PetProfileForm creation activation", () => {
       await screen.findByRole("heading", { name: "Milo is on MyPetLink" })
     ).toBe(document.activeElement);
     expect(screen.getByRole("link", { name: "Go to Milo's page" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "View public profile" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View Share Profile" })).toBeTruthy();
     expect(screen.queryByText(/First Moment/)).toBeNull();
     expect(screen.queryByText(/photo couldn't be uploaded/)).toBeNull();
     expect(mocks.trackEvent).toHaveBeenCalledWith(AnalyticsEvent.PetCreated, {
@@ -235,7 +235,7 @@ describe("PetProfileForm creation activation", () => {
     expect(screen.queryByRole("radiogroup", { name: "Gender" })).toBeNull();
     expect(screen.queryByLabelText("Color")).toBeNull();
     expect(
-      screen.queryByRole("tab", { name: /Sharing & Privacy/ })
+      screen.queryByRole("tab", { name: /Share Profile/ })
     ).toBeNull();
     expect(
       screen.queryByRole("tab", { name: /Contact & Safety/ })

@@ -22,7 +22,7 @@ describe("MomentMediaField limits", () => {
     render(<MomentMediaField items={items} onChange={vi.fn()} />);
 
     expect(screen.getByText(`${MAX_MOMENT_MEDIA}/${MAX_MOMENT_MEDIA} media added`)).toBeTruthy();
-    expect(screen.getByText(`You've reached the ${MAX_MOMENT_MEDIA} media limit for this memory.`)).toBeTruthy();
+    expect(screen.getByText(`You've reached the ${MAX_MOMENT_MEDIA} media limit for this Moment.`)).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add photo" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Add video" }) as HTMLButtonElement).disabled).toBe(true);
   });

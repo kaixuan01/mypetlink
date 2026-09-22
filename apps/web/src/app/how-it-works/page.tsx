@@ -19,7 +19,7 @@ const steps: { icon: IconName; title: string; description: string }[] = [
     icon: "paw",
     title: "Create a free pet profile",
     description:
-      "Add your cat, dog, or other pet, then keep their identity, care notes, and memories together.",
+      "Add your cat, dog, or other pet, then keep their identity, care notes, and Moments together.",
   },
   {
     icon: "shield",
@@ -31,7 +31,7 @@ const steps: { icon: IconName; title: string; description: string }[] = [
     icon: "heart",
     title: "Share the friendly profile",
     description:
-      "Send the Public Share Profile to family, friends, and pet communities—no physical tag purchase required.",
+      "Send the Share Profile to family, friends, and pet communities—no physical tag purchase required.",
   },
   {
     icon: "qr",
@@ -54,7 +54,7 @@ export default function HowItWorksPage() {
         <div className="mx-auto max-w-6xl">
           <PageHeader
             eyebrow="How it works"
-            title="From pet profile to a safer way home"
+            title="From Pet Profile to a safer way home"
             description="MyPetLink separates everyday sharing from finder contact, so each page has one clear purpose."
           />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -81,12 +81,12 @@ export default function HowItWorksPage() {
             A scan or NFC tap opens a web page. It does not track your pet or reveal a live GPS location. The finder sees only the contact and safety details the owner chose to make public.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <CreateProfileCTA>Create Free Pet Profile</CreateProfileCTA>
+            <CreateProfileCTA />
             <CTAButton href={marketingRoutes.samplePublicProfile} variant="secondary">
-              View Sample Profile
+              View Sample Share Profile
             </CTAButton>
             <CTAButton href={marketingRoutes.smartPetTags} variant="outline">
-              About the Smart Tag
+              Learn About Smart Tags
             </CTAButton>
           </div>
         </div>

@@ -100,9 +100,9 @@ export function PetCard({
   const memorial = "memorial" in pet ? pet.memorial : undefined;
   const description = isMemorial
     ? memorial?.memorialMessage ||
-      "Memories, records, and timeline stay saved here."
+      "Moments, records, and timeline stay saved here."
     : isArchived
-      ? "Memories and records stay saved."
+      ? "Moments and records stay saved."
       : pet.bio.trim() ||
         (pet.personalityTags.length
           ? pet.personalityTags.slice(0, 3).join(" · ")
@@ -232,7 +232,7 @@ export function PetCard({
               rel="noopener noreferrer"
               fullWidth
             >
-              {isMemorial ? "Memorial Profile" : "Public Profile"}
+              {isMemorial ? "Memorial Profile" : "Share Profile"}
             </CTAButton>
           ) : (
             <CTAButton
@@ -240,7 +240,7 @@ export function PetCard({
               variant="secondary"
               fullWidth
             >
-              {isMemorial ? "Manage Public Profile" : "Enable Profile"}
+              {isMemorial ? "Manage Share Profile" : "Enable Share Profile"}
             </CTAButton>
           )
         ) : null}

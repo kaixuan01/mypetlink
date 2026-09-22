@@ -15,8 +15,8 @@ export function CommunityProfileSettingsLink() {
   return (
     <FormSection
       id="social-profile"
-      title="Community & Social"
-      description="Manage how your profile and pets appear in the MyPetLink community."
+      title="Community"
+      description="Manage how you and your pets appear in Community."
     >
       <Link
         className="inline-flex min-h-12 items-center gap-2 rounded-full border border-pet-border bg-white px-5 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"

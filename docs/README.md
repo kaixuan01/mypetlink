@@ -10,6 +10,7 @@ profitability report are described in
 
 ## Start Here
 
+- [`architecture/product-model.md`](architecture/product-model.md) — **canonical** product model: what each concept is, what it is called, which route serves it, and how they depend on one another. When terminology or route semantics are unclear, follow this.
 - [`launch/SOFT_LAUNCH_READINESS.md`](launch/SOFT_LAUNCH_READINESS.md) — current launch verdict, findings, and evidence
 - [`launch/SOFT_LAUNCH_SCOPE.md`](launch/SOFT_LAUNCH_SCOPE.md) — what ships at soft launch and what is deferred
 - [`launch/CODEX_FIX_BACKLOG.md`](launch/CODEX_FIX_BACKLOG.md) — implementation-ready work items and batch order

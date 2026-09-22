@@ -59,7 +59,7 @@ export default function TermsPage() {
           <LegalSection id="acceptance" number={1} title="Acceptance of Terms">
             <p>
               By using MyPetLink, creating a pet profile, accessing the owner
-              portal, ordering a tag, opening a public profile, or scanning a QR
+              portal, ordering a tag, opening a Share Profile, or scanning a QR
               or NFC tag, you agree to these Terms. If you do not agree, please
               do not use MyPetLink.
             </p>
@@ -84,7 +84,7 @@ export default function TermsPage() {
             <LegalBulletList
               items={[
                 "You are responsible for keeping your account, pet, and contact information accurate.",
-                "You should only upload or publish information, photos, notes, and memories that you have the right to share.",
+                "You should only upload or publish information, photos, notes, and Moments that you have the right to share.",
                 "You must keep your login details safe and tell us if you believe your account has been misused.",
                 "You should update your WhatsApp or phone details if they change, especially when finder contact is enabled.",
                 "You are responsible for managing what is public and what stays private on your pet profile and Safety Profile.",
@@ -95,11 +95,11 @@ export default function TermsPage() {
           <LegalSection
             id="public-pages"
             number={4}
-            title="Public Share Profiles and Safety Profiles"
+            title="Share Profiles and Safety Profiles"
           >
             <LegalBulletList
               items={[
-                "Public Share Profiles and Safety Profiles may be visible to anyone with the link, QR code, or NFC tag.",
+                "Share Profiles and Safety Profiles are publicly shared pages: they may be visible to anyone with the link, QR code, or NFC tag.",
                 "Owners choose what details to show publicly through profile and safety settings.",
                 "Do not publish sensitive information such as a full home address, private notes, identity details, or anything you are not comfortable sharing.",
                 "Safety Profiles are designed for finder-friendly contact, not full owner disclosure.",
@@ -169,8 +169,8 @@ export default function TermsPage() {
 
           <LegalSection id="user-content" number={9} title="User Content">
             <p>
-              User content may include pet names, photos, memories, care
-              records, notes, public profile text, and safety notes.
+              User content may include pet names, photos, Moments, care
+              records, notes, Share Profile text, and safety notes.
             </p>
             <LegalBulletList
               items={[

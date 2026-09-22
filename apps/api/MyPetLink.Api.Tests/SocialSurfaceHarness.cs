@@ -46,6 +46,13 @@ internal sealed class SocialSurfaceHarness : IDisposable
         Feed = new SocialFeedService(db, cards);
         Discovery = new SocialDiscoveryService(db, r2, cards);
         PublicProfiles = new PublicSocialProfileService(db, r2, cards);
+
+        // The two surfaces that must stay independent of Social while sharing
+        // its seeded world: a pet's Share Profile and its Safety Profile. They
+        // live here rather than in a second harness precisely so a test can
+        // assert "Community off, both still work" against the same rows.
+        PetShareProfiles = new PublicProfileService(db, r2);
+        QrSafety = new QrSafetyService(db, r2);
         Notifications = new OwnerNotificationService(db, r2);
         Graph = new SocialGraphService(db, r2, Notifications);
         Likes = new MomentLikeService(db, Notifications);
@@ -62,6 +69,12 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public SocialDiscoveryService Discovery { get; }
 
     public PublicSocialProfileService PublicProfiles { get; }
+
+    /// <summary>A pet's Share Profile at <c>/p/{slug}-{publicCode}</c>.</summary>
+    public PublicProfileService PetShareProfiles { get; }
+
+    /// <summary>A pet's Safety Profile at <c>/q/{safetyCode}</c>.</summary>
+    public QrSafetyService QrSafety { get; }
 
     public SocialGraphService Graph { get; }
 
@@ -199,6 +212,32 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public async Task FollowAsync(Guid followerId, string handle)
     {
         await Graph.FollowAsync(followerId, handle);
+    }
+
+    /// <summary>
+    /// Whether this pet's Share Profile is switched on — the owner's own
+    /// "I will share this link" choice, and nothing to do with Community.
+    /// </summary>
+    public async Task SetShareProfileEnabledAsync(Guid petId, bool enabled)
+    {
+        var profile = await Db.PetPublicProfiles.SingleAsync(item => item.PetId == petId);
+        profile.IsPublicProfileEnabled = enabled;
+        await Db.SaveChangesAsync();
+    }
+
+    /// <summary>Whether an owner name may appear on this pet's public surfaces.</summary>
+    public async Task SetShowOwnerNameAsync(Guid petId, bool show)
+    {
+        var profile = await Db.PetPublicProfiles.SingleAsync(item => item.PetId == petId);
+        profile.ShowOwnerName = show;
+        await Db.SaveChangesAsync();
+    }
+
+    public async Task SetPetLifecycleAsync(Guid petId, PetLifecycleStatus status)
+    {
+        var pet = await Db.Pets.SingleAsync(item => item.Id == petId);
+        pet.LifecycleStatus = status;
+        await Db.SaveChangesAsync();
     }
 
     public async Task SetOwnerDiscoverableAsync(Guid userId, bool discoverable)

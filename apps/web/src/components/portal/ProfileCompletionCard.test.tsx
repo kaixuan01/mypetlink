@@ -197,7 +197,7 @@ describe("ProfileCompletionCard", () => {
         pet={pet}
       />
     );
-    const link = screen.getByRole("link", { name: "View Public Profile" });
+    const link = screen.getByRole("link", { name: "View Share Profile" });
     expect(link.getAttribute("href")).toBe("/p/milo-k7q2");
     expect(link.getAttribute("target")).toBe("_blank");
   });
@@ -211,6 +211,6 @@ describe("ProfileCompletionCard", () => {
       publicProfilesEnabled: false,
     });
     render(<ProfileCompletionCard completion={result} pet={pet} />);
-    expect(screen.queryByRole("link", { name: "View Public Profile" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "View Share Profile" })).toBeNull();
   });
 });

@@ -504,8 +504,8 @@ export function PetMomentsManager({
             </p>
             {archivedPet ? (
               <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-                Archived pet profiles keep existing memories safe, but new
-                memories can be added after the profile is restored.
+                Archived pet profiles keep existing Moments safe, but new
+                Moments can be added after the profile is restored.
               </p>
             ) : !memoryLimit.canCreate ? (
               <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
@@ -547,16 +547,16 @@ export function PetMomentsManager({
         {loading ? (
           <div className="brand-card rounded-[1.75rem] p-6">
             <p className="text-sm font-semibold text-pet-muted">
-              Loading pet memories...
+              Loading Moments...
             </p>
           </div>
         ) : loadError ? (
           <section className="brand-card rounded-[1.75rem] p-6">
             <p className="text-sm font-bold uppercase text-pet-teal">
-              Could not load memories
+              Could not load Moments
             </p>
             <h2 className="mt-2 text-2xl font-black text-pet-ink">
-              {pet.name}&apos;s memories are temporarily unavailable.
+              {pet.name}&apos;s Moments are temporarily unavailable.
             </h2>
             <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
               {loadError}
@@ -630,17 +630,17 @@ export function PetMomentsManager({
       />
 
       <ConfirmDialog
-        confirmLabel="Delete memory"
+        confirmLabel="Delete Moment"
         destructive
         message={
           deleteTarget
-            ? `Delete this memory from ${pet.name}'s profile? This action cannot be undone.`
+            ? `Delete this Moment from ${pet.name}'s profile? This action cannot be undone.`
             : ""
         }
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         open={Boolean(deleteTarget)}
-        title="Delete memory?"
+        title="Delete Moment?"
       />
     </>
   );
