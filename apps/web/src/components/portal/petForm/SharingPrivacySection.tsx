@@ -28,8 +28,8 @@ export function SharingPrivacySection({
 }) {
   return (
         <FormSection
-          title="Sharing & Privacy"
-          description="Share your pet's Share Profile, photos, Moments, and life timeline with friends and family."
+          title="Share Profile"
+          description="The page you share with friends and family. Anyone you send the link to can see what you choose to show here."
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet?.lifecycleStatus === "Memorial" ? (

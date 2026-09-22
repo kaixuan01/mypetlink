@@ -97,7 +97,7 @@ export function ContactSafetySection({
   return (
         <FormSection
           title="Contact & Safety"
-          description="Help finders contact you if your pet is lost. Your full address is never shown."
+          description="What whoever finds your pet sees on the Safety Profile, and how they reach you. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet ? (

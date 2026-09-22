@@ -163,6 +163,34 @@ terminology stage.
 | Anyone in Community | Participating households, their participating pets, and public Moments | `/u/{handle}`, `/explore`, `/search`, `/moments/{id}` |
 | A follower | The above, plus their feed | `/feed` |
 
+### Where the owner changes each one
+
+Each audience is governed by exactly **one** authoritative control. The pet
+Overview tab summarises all three in a read-only **Sharing & Privacy** card and
+links out; it never duplicates a switch.
+
+| Audience | Authoritative control | Component |
+| --- | --- | --- |
+| Someone given a link | Edit Pet -> **Share Profile** | `petForm/SharingPrivacySection.tsx` |
+| A finder | Edit Pet -> **Contact & Safety** | `petForm/ContactSafetySection.tsx` |
+| Anyone in Community | **Community -> Edit Profile** | `PetSocialSettingsList.tsx`, `OwnerSocialProfileForm` |
+
+Two consequences worth stating, because both have been got wrong before:
+
+- **A summary may not become a second switch.** If the same setting can be
+  changed in two places, the two will eventually disagree, and an owner cannot
+  tell which one a stranger is actually seeing. Summaries state and link.
+- **A summary may not guess.** Community participation is derived from two
+  authenticated reads (`/api/v1/social/me/pets` and `/api/v1/social/me/profile`).
+  When either is unavailable the Community row is omitted entirely rather than
+  asserting "Not in Community" - a wrong reassurance about who can see a pet is
+  the one error that matters. See `src/lib/communityParticipation.ts`.
+
+Discoverability is derived from **both** the pet's `isDiscoverable` and the
+household's, because `SocialDiscoveryService` requires both. A pet whose own
+switch is on inside a hidden household is described as *in Community, hidden
+from discovery* - never as discoverable.
+
 ---
 
 ## Route map

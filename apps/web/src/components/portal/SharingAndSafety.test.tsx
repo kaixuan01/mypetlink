@@ -1,26 +1,40 @@
 // @vitest-environment jsdom
 
 /**
- * Layout contract for the Sharing & Safety section: the two profiles are equal
- * siblings, and Lost Mode sits beside them rather than inside the safety half.
- * An earlier version gave Safety three buttons and a highlighted metadata block
- * while Public Profile had a single row, which made the finder-facing half look
- * like the important one.
+ * The Sharing & Privacy summary: one place to understand three audiences.
+ *
+ * A pet is seen by three different groups — people the owner sent a link to,
+ * whoever finds the pet, and people in Community — and the owner could
+ * previously only see two of them here. Whether a pet was in Community was
+ * only discoverable by leaving the pet, opening the Community profile editor
+ * and scrolling to a list of pets.
+ *
+ * So every row now answers the same three questions: is it on, WHO CAN SEE IT,
+ * and where do I change it. What the card must never become is a second place
+ * to change any of them — there is one authoritative control per setting and
+ * these tests pin that down.
  */
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import type { Pet } from "@/types";
+import type { PetSocialSettings } from "@/services/petSocialSettingsService";
 
 const mocks = vi.hoisted(() => ({
   getPetById: vi.fn(),
   getPetMoments: vi.fn(),
   getPetRecords: vi.fn(),
   updatePetLostMode: vi.fn(),
+  getPetSocialSettings: vi.fn(),
+  getOwnerSocialProfile: vi.fn(),
+  apiConfigured: false,
 }));
 
-vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => false }));
+vi.mock("@/services/apiConfig", () => ({
+  isApiConfigured: () => mocks.apiConfigured,
+  canUseApi: () => mocks.apiConfigured,
+}));
 vi.mock("@/lib/features", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/features")>();
   return {
@@ -28,6 +42,7 @@ vi.mock("@/lib/features", async (importOriginal) => {
     publicProfilesEnabled: true,
     safetyProfilesOwnerUiEnabled: true,
     smartTagsEnabled: true,
+    socialEnabled: true,
   };
 });
 vi.mock("@/services/petService", async (importOriginal) => {
@@ -44,6 +59,12 @@ vi.mock("@/services/momentService", () => ({
 vi.mock("@/services/recordService", () => ({
   getPetRecords: (...args: unknown[]) => mocks.getPetRecords(...args),
 }));
+vi.mock("@/services/petSocialSettingsService", () => ({
+  getPetSocialSettings: () => mocks.getPetSocialSettings(),
+}));
+vi.mock("@/services/ownerSocialService", () => ({
+  getOwnerSocialProfile: () => mocks.getOwnerSocialProfile(),
+}));
 
 const { PetManagementTabs } = await import("./PetManagementTabs");
 
@@ -55,16 +76,63 @@ function renderOverview(pet: Pet) {
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 }
 
-function subcardFor(name: string) {
-  return screen.getByRole("group", { name: `${name} overview` });
+function row(name: string) {
+  return screen.getByRole("group", { name: `${name} status` });
+}
+
+/** The Community reads, arranged into one of the states an owner can be in. */
+function community({
+  ownerSocialEnabled = true,
+  ownerDiscoverable = true,
+  isSocialEnabled = true,
+  isDiscoverable = true,
+  missingRequirements = [] as string[],
+  handle = "tanfamily",
+  petId = mockPets[0].id,
+} = {}) {
+  const pet: PetSocialSettings = {
+    petId,
+    name: "Milo",
+    photoUrl: "",
+    photoThumbnailUrl: "",
+    isSocialEnabled,
+    isDiscoverable,
+    canEnableSocial: missingRequirements.length === 0,
+    missingRequirements,
+    rowVersion: "v1",
+  };
+
+  mocks.getPetSocialSettings.mockResolvedValue({
+    data: { ownerSocialEnabled, pets: [pet] },
+  });
+  mocks.getOwnerSocialProfile.mockResolvedValue({
+    data: {
+      handle,
+      displayName: "The Tan Family",
+      bio: "",
+      avatarMediaId: "",
+      avatarUrl: "",
+      avatarThumbnailUrl: "",
+      generalArea: "",
+      isSocialEnabled: ownerSocialEnabled,
+      isDiscoverable: ownerDiscoverable,
+      allowFollowers: true,
+      canEnableSocial: true,
+      missingRequirements: [],
+      handleChangeAvailableAt: "",
+      rowVersion: "v1",
+    },
+  });
 }
 
 beforeEach(() => {
   const pet = activePet();
+  mocks.apiConfigured = false;
   mocks.getPetById.mockResolvedValue({ data: pet });
   mocks.getPetMoments.mockResolvedValue({ data: [] });
   mocks.getPetRecords.mockResolvedValue({ data: [] });
   mocks.updatePetLostMode.mockResolvedValue({ data: pet });
+  community();
 });
 
 afterEach(() => {
@@ -72,81 +140,262 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("Sharing & Safety layout", () => {
-  it("keeps Privacy absent when Public Profiles, Safety Profiles, and Smart Tags are enabled", async () => {
+describe("Share Profile row", () => {
+  it("names its audience, not just its state", async () => {
     renderOverview(activePet());
-    await screen.findByText("Sharing & Safety");
+    await screen.findByText("Sharing & Privacy");
 
-    expect(screen.queryByRole("tab", { name: "Privacy" })).toBeNull();
-    expect(screen.queryByText("Public profile visibility")).toBeNull();
-    expect(screen.queryByText("Safety Profile visibility")).toBeNull();
-    expect(screen.queryByText(/Public profile is (on|off)/i)).toBeNull();
-    expect(within(subcardFor("Share Profile")).getByText("Shared")).toBeTruthy();
+    const share = row("Share Profile");
+    expect(within(share).getByText("On")).toBeTruthy();
+    expect(within(share).getByText(/Anyone you send the link to/)).toBeTruthy();
   });
 
-  it("gives both profiles a status, description, management action, and view link", async () => {
-    const pet = activePet();
-    renderOverview(pet);
-    await screen.findByText("Sharing & Safety");
-
-    const publicCard = subcardFor("Share Profile");
-    const safetyCard = subcardFor("Safety Profile");
-    expect(publicCard).toBeTruthy();
-    expect(safetyCard).toBeTruthy();
-
-    expect(within(publicCard!).queryByRole("button")).toBeNull();
-    expect(
-      within(publicCard!).queryByRole("link", { name: "Manage sharing & safety" })
-    ).toBeNull();
-    expect(within(publicCard!).getByRole("link", { name: "View profile" })).toBeTruthy();
-    expect(within(publicCard!).getByText("Shared")).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: "Manage sharing & safety" })
-    ).toBeTruthy();
-
-    expect(safetyCard!.querySelectorAll("button")).toHaveLength(1);
-    expect(within(safetyCard!).getByRole("link", { name: "View profile" })).toBeTruthy();
-    expect(
-      safetyCard!.querySelector("button")?.getAttribute("aria-label")
-    ).toBe(`Show ${pet.name}'s Safety Profile QR code`);
-  });
-
-  it("keeps both profile links pointing at their own page", async () => {
-    const pet = activePet();
-    renderOverview(pet);
-    await screen.findByText("Sharing & Safety");
-
-    expect(
-      within(subcardFor("Share Profile"))
-        .getByRole("link", { name: "View profile" })
-        .getAttribute("href")
-    ).toContain(pet.publicProfilePath);
-    expect(
-      within(subcardFor("Safety Profile"))
-        .getByRole("link", { name: "View profile" })
-        .getAttribute("href")
-    ).toBe(pet.qrSafetyPath);
-  });
-
-  it("routes sharing and safety settings to their current Edit Pet tabs", async () => {
-    const pet = activePet({ hasUsableSafetyContact: false });
+  it("says nobody sees it while the link is switched off", async () => {
+    const pet = activePet({ publicProfileEnabled: false });
     mocks.getPetById.mockResolvedValue({ data: pet });
     renderOverview(pet);
-    await screen.findByText("Sharing & Safety");
+    await screen.findByText("Sharing & Privacy");
+
+    const share = row("Share Profile");
+    expect(within(share).getByText("Off")).toBeTruthy();
+    expect(within(share).getByText(/Nobody/)).toBeTruthy();
+  });
+
+  it("offers no View action for a page nobody can open", async () => {
+    const pet = activePet({ publicProfileEnabled: false });
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    renderOverview(pet);
+    await screen.findByText("Sharing & Privacy");
 
     expect(
-      screen.getByRole("link", { name: "Manage sharing & safety" }).getAttribute(
-        "href"
-      )
-    ).toBe(`/pets/${pet.id}/edit?tab=public`);
+      within(row("Share Profile")).queryByRole("link", { name: /View Share Profile/ })
+    ).toBeNull();
+  });
+
+  it("sends Manage to the one screen that owns the switch", async () => {
+    const pet = activePet();
+    renderOverview(pet);
+    await screen.findByText("Sharing & Privacy");
+
     expect(
-      screen.getByRole("link", { name: /Update contact/ }).getAttribute("href")
+      within(row("Share Profile"))
+        .getByRole("link", { name: "Manage Share Profile" })
+        .getAttribute("href")
+    ).toBe(`/pets/${pet.id}/edit?tab=public`);
+  });
+});
+
+describe("Safety Profile row", () => {
+  it("names the people who would actually open it", async () => {
+    const pet = activePet();
+    renderOverview(pet);
+    await screen.findByText("Sharing & Privacy");
+
+    expect(
+      within(row("Safety Profile")).getByText(
+        new RegExp(`Whoever finds ${pet.name}`)
+      )
+    ).toBeTruthy();
+  });
+
+  it("says nobody sees it while the Safety Profile is off", async () => {
+    const pet = activePet({ qrSafetyEnabled: false });
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    renderOverview(pet);
+    await screen.findByText("Sharing & Privacy");
+
+    const safety = row("Safety Profile");
+    expect(within(safety).getByText("Safety Profile Off")).toBeTruthy();
+    expect(within(safety).getByText(/Nobody/)).toBeTruthy();
+  });
+
+  it("offers no QR, no view link and no finder details while it is off", async () => {
+    // A printable QR for a page that shows a finder nothing is a trap, and the
+    // general area is a finder-facing detail. Neither may sit under "Nobody".
+    const pet = activePet({ qrSafetyEnabled: false });
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    renderOverview(pet);
+    await screen.findByText("Sharing & Privacy");
+
+    const safety = row("Safety Profile");
+    expect(
+      within(safety).queryByRole("link", { name: /View Safety Profile/ })
+    ).toBeNull();
+    expect(
+      within(safety).queryByRole("button", { name: /QR code/ })
+    ).toBeNull();
+    expect(within(safety).queryByText(/General area ·/)).toBeNull();
+    // The one way back is still there.
+    expect(
+      within(safety).getByRole("link", { name: "Manage finder information" })
+    ).toBeTruthy();
+  });
+
+  it("keeps the QR and view link while the Safety Profile is on", async () => {
+    renderOverview(activePet());
+    await screen.findByText("Sharing & Privacy");
+
+    const safety = row("Safety Profile");
+    expect(
+      within(safety).getByRole("link", { name: /View Safety Profile/ })
+    ).toBeTruthy();
+    expect(
+      within(safety).getByRole("button", { name: /QR code/ })
+    ).toBeTruthy();
+  });
+
+  it("sends Manage to Contact & Safety, where finder details live", async () => {
+    const pet = activePet();
+    renderOverview(pet);
+    await screen.findByText("Sharing & Privacy");
+
+    expect(
+      within(row("Safety Profile"))
+        .getByRole("link", { name: "Manage finder information" })
+        .getAttribute("href")
     ).toBe(`/pets/${pet.id}/edit?tab=contact`);
+  });
+});
+
+describe("Community row", () => {
+  beforeEach(() => {
+    mocks.apiConfigured = true;
+  });
+
+  it("is browsable only when the pet AND the household are discoverable", async () => {
+    community({ isDiscoverable: true, ownerDiscoverable: true });
+    renderOverview(activePet());
+
+    const status = await screen.findByText("In Community · Discoverable");
+    expect(status).toBeTruthy();
+    expect(
+      within(row("Community")).getByText(/People browsing MyPetLink Community/)
+    ).toBeTruthy();
+  });
+
+  it("does not claim browsable when the household is hidden from discovery", async () => {
+    // Explore requires both switches. Reading the pet's alone would tell an
+    // owner their pet is findable when it is not.
+    community({ isDiscoverable: true, ownerDiscoverable: false });
+    renderOverview(activePet());
+
+    await screen.findByText("In Community · Hidden from discovery");
+    expect(screen.queryByText(/People browsing MyPetLink Community/)).toBeNull();
+    expect(
+      within(row("Community")).getByText(/visit your Community Profile or follow you/)
+    ).toBeTruthy();
+  });
+
+  it("does not claim browsable when the pet itself is hidden", async () => {
+    community({ isDiscoverable: false, ownerDiscoverable: true });
+    renderOverview(activePet());
+
+    await screen.findByText("In Community · Hidden from discovery");
+  });
+
+  it("says a pet is out when the pet has not joined", async () => {
+    community({ isSocialEnabled: false });
+    renderOverview(activePet());
+
+    await screen.findByText("Not in Community");
+    expect(
+      within(row("Community")).getByText(/does not appear in Community/)
+    ).toBeTruthy();
+  });
+
+  it("blames the household, not the pet, when the household has not joined", async () => {
+    community({ ownerSocialEnabled: false, isSocialEnabled: false });
+    renderOverview(activePet());
+
+    await screen.findByText("Not in Community");
+    expect(
+      within(row("Community")).getByText(/household has not joined Community/)
+    ).toBeTruthy();
+  });
+
+  it("explains the Share Profile prerequisite instead of failing silently", async () => {
+    community({
+      isSocialEnabled: false,
+      missingRequirements: ["publicProfile"],
+    });
+    renderOverview(activePet());
+
+    const reason = await screen.findByTestId("community-blocked-reason");
+    expect(reason.textContent).toMatch(/Turn on .*Share Profile before adding/);
+  });
+
+  it("sends Manage to the Community editor, which owns the switches", async () => {
+    community();
+    renderOverview(activePet());
+
+    await screen.findByText("In Community · Discoverable");
+    expect(
+      within(row("Community"))
+        .getByRole("link", { name: "Manage Community" })
+        .getAttribute("href")
+    ).toBe("/community/profile/edit");
+  });
+
+  it("links View to the household's own page, never to a pet Community page", async () => {
+    community({ handle: "tanfamily" });
+    renderOverview(activePet());
+
+    await screen.findByText("In Community · Discoverable");
+    const view = within(row("Community")).getByRole("link", {
+      name: "View Community Profile",
+    });
+
+    expect(view.getAttribute("href")).toBe("/u/tanfamily");
+  });
+
+  it("offers no View action when the household has no page yet", async () => {
+    community({ handle: "" });
+    renderOverview(activePet());
+
+    await screen.findByText("In Community · Discoverable");
+    expect(
+      within(row("Community")).queryByRole("link", { name: /View Community Profile/ })
+    ).toBeNull();
+  });
+
+  it("says nothing at all when Community could not be read", async () => {
+    // No connection: the honest outcome of not knowing is silence, not a
+    // confident "Not in Community".
+    mocks.apiConfigured = false;
+    renderOverview(activePet());
+    await screen.findByText("Sharing & Privacy");
+
+    expect(screen.queryByRole("group", { name: "Community status" })).toBeNull();
+  });
+
+  it("survives a failed Community read without taking the pet page down", async () => {
+    mocks.getPetSocialSettings.mockRejectedValue(new Error("offline"));
+    renderOverview(activePet());
+    await screen.findByText("Sharing & Privacy");
+
+    expect(screen.getByRole("group", { name: "Share Profile status" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Community status" })).toBeNull();
+  });
+});
+
+describe("the summary stays a summary", () => {
+  it("offers no editable switch for any of the three", async () => {
+    mocks.apiConfigured = true;
+    community();
+    renderOverview(activePet());
+    await screen.findByText("In Community · Discoverable");
+
+    const card = screen.getByRole("group", { name: "Sharing and privacy" });
+
+    // One authoritative control per setting, and none of them is here. The
+    // only controls in this card are the Safety QR dialog trigger and links.
+    expect(within(card).queryAllByRole("switch")).toHaveLength(0);
+    expect(within(card).queryAllByRole("checkbox")).toHaveLength(0);
   });
 
   it("does not repeat Copy Link, which belongs to the Share Center", async () => {
     renderOverview(activePet());
-    await screen.findByText("Sharing & Safety");
+    await screen.findByText("Sharing & Privacy");
 
     expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
     expect(
@@ -158,28 +407,26 @@ describe("Sharing & Safety layout", () => {
     const pet = activePet({ contactOverride: { useOwnerDefaults: false } });
     mocks.getPetById.mockResolvedValue({ data: pet });
     renderOverview(pet);
-    await screen.findByText("Sharing & Safety");
+    await screen.findByText("Sharing & Privacy");
 
     const meta = screen.getByText(/^General area ·/);
     expect(meta.tagName).toBe("P");
-    expect(subcardFor("Safety Profile")!.contains(meta)).toBe(true);
-    // The old treatment was a filled panel with its own uppercase label.
-    expect(screen.queryByText("General area")).toBeNull();
+    expect(row("Safety Profile").contains(meta)).toBe(true);
   });
 
-  it("places Lost Mode beside the two profiles, not inside the safety one", async () => {
+  it("places Lost Mode beside the rows, not inside the safety one", async () => {
     renderOverview(activePet());
-    await screen.findByText("Sharing & Safety");
+    await screen.findByText("Sharing & Privacy");
 
     const lostHeading = screen.getByRole("heading", { name: "Lost Mode" });
-    expect(subcardFor("Safety Profile")!.contains(lostHeading)).toBe(false);
-    expect(subcardFor("Share Profile")!.contains(lostHeading)).toBe(false);
+    expect(row("Safety Profile").contains(lostHeading)).toBe(false);
+    expect(row("Share Profile").contains(lostHeading)).toBe(false);
   });
 
   it("keeps the resting Lost Mode quiet, with no urgent styling", async () => {
     const pet = activePet();
     renderOverview(pet);
-    await screen.findByText("Sharing & Safety");
+    await screen.findByText("Sharing & Privacy");
 
     const turnOn = screen.getByRole("button", { name: "Turn on Lost Mode" });
     expect(turnOn.className).not.toMatch(/coral/);

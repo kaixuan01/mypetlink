@@ -183,7 +183,7 @@ describe("PetSocialSettingsList", () => {
 
     expect(socialSwitch(row).hasAttribute("disabled")).toBe(true);
     expect(
-      within(row).getByText(/Turn on Mochi's Share Profile first/)
+      within(row).getByText(/Turn on Mochi's Share Profile before adding/)
     ).toBeTruthy();
     expect(mocks.updatePetSocialSettings).not.toHaveBeenCalled();
   });

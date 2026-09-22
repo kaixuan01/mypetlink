@@ -73,7 +73,7 @@ function activePet(): Pet {
 
 async function openSharingPrivacy() {
   fireEvent.click(
-    await screen.findByRole("tab", { name: /Sharing & Privacy/ })
+    await screen.findByRole("tab", { name: /Share Profile/ })
   );
 }
 
@@ -292,20 +292,19 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
   });
 
-  it("keeps the public tab id while presenting Sharing & Privacy", async () => {
+  it("keeps the public tab id while presenting Share Profile", async () => {
     window.history.replaceState({}, "", `/pets/${pet.id}/edit?tab=public`);
     render(<PetProfileForm initialPet={pet} mode="edit" />);
 
     const sharingTab = await screen.findByRole("tab", {
-      name: /Sharing & Privacy/,
+      name: /Share Profile/,
     });
     await waitFor(() => expect(sharingTab.getAttribute("aria-selected")).toBe("true"));
     expect(
-      screen.getByRole("heading", { name: "Sharing & Privacy" })
+      screen.getByRole("heading", { name: "Share Profile" })
     ).toBeTruthy();
-    expect(
-      screen.queryByRole("tab", { name: "Share Profile" })
-    ).toBeNull();
+    // The tab and the section it opens now share one name; the stored id
+    // stays "public" so existing links and redirects keep working.
     expect(window.location.search).toBe("?tab=public");
   });
 
@@ -587,7 +586,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(directTabs.map((tab) => tab.textContent)).toEqual([
       "InfoBasic Info",
       "StyleAppearance",
-      "SharingSharing & Privacy",
+      "ShareShare Profile",
       "SafetyContact & Safety",
     ]);
     expect(tabList.parentElement?.parentElement?.className).toContain(
@@ -958,7 +957,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
   });
 
-  it("keeps Memorial validation on Sharing & Privacy for Memorial pets", async () => {
+  it("keeps Memorial validation on Share Profile for Memorial pets", async () => {
     pet = {
       ...pet,
       lifecycleStatus: "Memorial",
@@ -1290,7 +1289,7 @@ describe("PetProfileForm lifecycle workflow", () => {
 
   it("shows one complete versioned share link only on the Public Profile tab", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await screen.findByRole("tab", { name: /Sharing & Privacy/ });
+    await screen.findByRole("tab", { name: /Share Profile/ });
 
     expect(
       screen.queryByRole("textbox", { name: "Share profile link" })
@@ -1306,7 +1305,7 @@ describe("PetProfileForm lifecycle workflow", () => {
       screen.queryByRole("textbox", { name: "Share profile link" })
     ).toBeNull();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Sharing & Privacy/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Share Profile/ }));
     const displayedUrls = screen.getAllByRole("textbox", {
       name: "Share profile link",
     });
@@ -1371,7 +1370,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /Manage Care Records/ })).toBeTruthy();
 
-    for (const tabName of [/Appearance/, /Sharing & Privacy/, /Contact & Safety/]) {
+    for (const tabName of [/Appearance/, /Share Profile/, /Contact & Safety/]) {
       fireEvent.click(screen.getByRole("tab", { name: tabName }));
       expect(screen.queryByText(`Manage ${pet.name}'s content`)).toBeNull();
       expect(

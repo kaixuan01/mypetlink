@@ -117,7 +117,10 @@ type EditPetLoadState = "checking" | "ready" | "not-found" | "error";
 const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "basic", label: "Basic Info", mobileLabel: "Info" },
   { id: "appearance", label: "Appearance", mobileLabel: "Style" },
-  { id: "public", label: "Sharing & Privacy", mobileLabel: "Sharing" },
+  // Named after the thing it manages. "Sharing & Privacy" now titles the
+  // Overview card that summarises all three audiences, and two screens with
+  // one name is exactly the confusion that card exists to remove.
+  { id: "public", label: "Share Profile", mobileLabel: "Share" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
 ];
 

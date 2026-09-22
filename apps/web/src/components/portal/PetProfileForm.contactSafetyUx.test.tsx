@@ -70,8 +70,8 @@ function activePet(): Pet {
 async function openTab(name: RegExp) {
   fireEvent.click(await screen.findByRole("tab", { name }));
   await screen.findByRole("heading", {
-    name: name.source.includes("Sharing")
-      ? "Sharing & Privacy"
+    name: name.source.includes("Share")
+      ? "Share Profile"
       : "Contact & Safety",
   });
 }
@@ -112,7 +112,7 @@ describe("PetProfileForm Sharing and Contact mobile UX", () => {
 
   it("keeps Sharing controls as one switch and the existing checkboxes", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openTab(/Sharing & Privacy/);
+    await openTab(/Share Profile/);
 
     const publicProfile = screen.getByRole("switch", {
       name: "Share Profile enabled",

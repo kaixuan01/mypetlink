@@ -114,7 +114,7 @@ status) plus **`PetManagementTabs`** (client) with five tabs:
 
 | Tab        | Content                                                                 |
 | ---------- | ----------------------------------------------------------------------- |
-| Overview   | Public profile status + share link, smart tag status, emergency note, contact privacy summary, recent records, recent moments |
+| Overview   | **Sharing & Privacy** (Share Profile, Safety Profile, Community), smart tag status, emergency note, recent records, recent moments |
 | Records    | `RecordsManager` for this pet                                            |
 | Moments    | `PetMomentsManager` (memories + life timeline)                           |
 | Smart Tag  | `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report tag lost/archive/restore/order replacement) |
@@ -137,6 +137,42 @@ The pet hub and edit form use the shared responsive `SegmentedTabs` component.
 It measures the available tab row width and keeps the row to one line by moving
 overflow tabs into a **More** menu; do not replace this with horizontal scrolling
 or fixed mobile-only tab limits.
+
+### Sharing & Privacy is a summary, not a second set of switches
+
+The Overview tab opens with one **Sharing & Privacy** card that answers the
+same three questions for each audience a pet can have:
+
+| Row             | Audience                                              | Where it is changed                      |
+| --------------- | ----------------------------------------------------- | ---------------------------------------- |
+| Share Profile   | anyone the owner sends the link to                     | Edit Pet -> **Share Profile**            |
+| Safety Profile  | whoever finds the pet and scans a tag or opens a link  | Edit Pet -> **Contact & Safety**         |
+| Community       | people who visit the Community Profile, plus browsers when both the pet and the household are discoverable | **Community -> Edit Profile** |
+
+Every row shows a status, a plain-language "Seen by" line, and a **Manage**
+link out to the one screen that owns the setting. **Nothing in the card is
+editable.** Each of these settings has exactly one authoritative control, and
+duplicating a switch here would let an owner change the same thing in two
+places and disagree with themselves about which one won.
+
+Two rules the card must keep:
+
+- **No link to a page nobody can open.** When the Share Profile is off, the
+  View link disappears. When the Safety Profile is off, the QR button, the View
+  link and the finder-facing general area all disappear too - handing out a QR
+  code for a page that shows a finder nothing is worse than showing no QR.
+- **Silence when the answer is unknown.** The Community row is derived from two
+  authenticated reads. When Community is switched off for the build, the owner
+  is offline, or either read fails, the row is not rendered at all. It never
+  guesses "Not in Community", because an owner who is in Community would then
+  be told the opposite.
+
+The Community status itself lives in `src/lib/communityParticipation.ts`
+(`derivePetCommunityStatus`) and is read through
+`src/components/portal/usePetCommunityStatus.ts`. Discoverability needs **both**
+the pet's switch and the household's, which is why a pet-level
+`isDiscoverable` alone is never described as discoverable. See
+`docs/architecture/product-model.md`.
 
 ### Edit page is also tabbed
 

@@ -251,15 +251,20 @@ without pet selection.
    wrongly made the share page finder-first; do not reintroduce that.
 10. **Do not recreate a separate owner QR Safety management page.**
     `/pets/{id}/qr` is a legacy compatibility route that redirects back to the
-    pet overview. Owners manage the Public Share Profile, Safety Profile, and
-    Physical Smart Tag link from `/pets/{id}`. The Public Share Profile and the
-    Safety Profile now share one **Sharing & Safety** section, which also holds
-    Lost Mode. Safety and contact settings live in
-    `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
-    tab and `/tags`.
+    pet overview. Owners manage the Share Profile, Safety Profile, and
+    Physical Smart Tag link from `/pets/{id}`. The Overview tab opens with one
+    read-only **Sharing & Privacy** card covering the Share Profile, the Safety
+    Profile and Community: each row gives a status, who can see it, and a
+    **Manage** link to the single screen that owns that setting. **Do not put a
+    switch in that card** - Share Profile flags live in
+    `Edit Pet -> Share Profile`, finder contact settings in
+    `Edit Pet -> Contact & Safety`, and Community participation and
+    discoverability in **Community -> Edit Profile**. Lost Mode is a separate
+    control on the same tab. Tag management lives in the hub **Smart Tag** tab
+    and `/tags`.
     **Sharing has exactly one entry point:** `ShareCenter`
     (`src/components/share/ShareCenter.tsx`). The Dashboard pet card, the pet
-    detail hero, the Sharing & Safety section, and the owner bar on `/p/` all
+    detail hero, the Sharing & Privacy card, and the owner bar on `/p/` all
     open the same dialog. Do not add a competing Copy/QR/Share Card row beside
     it. See
     [`docs/architecture/owner-sharing-experience.md`](../../../docs/architecture/owner-sharing-experience.md).

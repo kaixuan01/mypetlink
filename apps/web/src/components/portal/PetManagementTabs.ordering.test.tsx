@@ -104,7 +104,7 @@ describe("Pet Overview completion ordering", () => {
     )!;
     const moments = screen.getByRole("heading", { name: "Moments" });
     const care = screen.getByRole("heading", { name: "Recent care records" });
-    const sharing = screen.getByRole("heading", { name: "Sharing & Safety" });
+    const sharing = screen.getByRole("heading", { name: "Share Profile" });
 
     expectBefore(completion, moments);
     expectBefore(moments, care);
@@ -115,7 +115,7 @@ describe("Pet Overview completion ordering", () => {
     const pet = completePet();
     const { container } = renderOverview(pet, true);
 
-    await screen.findByRole("heading", { name: "Sharing & Safety" });
+    await screen.findByRole("heading", { name: "Share Profile" });
     expect(
       container.querySelector('[data-profile-completion="full"]')
     ).toBeNull();
@@ -123,7 +123,7 @@ describe("Pet Overview completion ordering", () => {
 
     const moments = screen.getByRole("heading", { name: "Moments" });
     const care = screen.getByRole("heading", { name: "Recent care records" });
-    const sharing = screen.getByRole("heading", { name: "Sharing & Safety" });
+    const sharing = screen.getByRole("heading", { name: "Share Profile" });
     expectBefore(moments, care);
     expectBefore(care, sharing);
   });

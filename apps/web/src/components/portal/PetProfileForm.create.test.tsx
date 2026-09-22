@@ -235,7 +235,7 @@ describe("PetProfileForm creation activation", () => {
     expect(screen.queryByRole("radiogroup", { name: "Gender" })).toBeNull();
     expect(screen.queryByLabelText("Color")).toBeNull();
     expect(
-      screen.queryByRole("tab", { name: /Sharing & Privacy/ })
+      screen.queryByRole("tab", { name: /Share Profile/ })
     ).toBeNull();
     expect(
       screen.queryByRole("tab", { name: /Contact & Safety/ })

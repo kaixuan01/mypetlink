@@ -78,29 +78,30 @@ it("keeps one Public Profile source of truth and hides unreleased owner tools", 
     />
   );
 
-  await screen.findByText("Sharing & Safety");
+  await screen.findByText("Sharing & Privacy");
 
   expect(screen.queryByRole("tab", { name: "Privacy" })).toBeNull();
   expect(screen.queryByText("Public profile visibility")).toBeNull();
   expect(screen.queryByText("Safety Profile visibility")).toBeNull();
   const publicProfile = screen.getByRole("group", {
-    name: "Share Profile overview",
+    name: "Share Profile status",
   });
   expect(screen.getAllByRole("heading", { name: "Share Profile" })).toHaveLength(1);
-  expect(within(publicProfile).getByText("Shared")).toBeTruthy();
+  expect(within(publicProfile).getByText("On")).toBeTruthy();
   expect(
-    within(publicProfile).getByText("Anyone with the link can view this page.")
+    within(publicProfile).getByText(/Anyone you send the link to/)
   ).toBeTruthy();
-  expect(
-    within(publicProfile).queryByText(/^(On|Off|Public|Private)$/)
-  ).toBeNull();
+  // "Public" and "Private" say nothing about WHO; the row answers that in
+  // words, and its badge is the plain state.
+  expect(within(publicProfile).queryByText(/^(Public|Private)$/)).toBeNull();
   expect(screen.queryByText(/Public profile is (on|off)/i)).toBeNull();
   expect(
-    screen.getByRole("link", { name: "Manage sharing" }).getAttribute("href")
+    screen.getByRole("link", { name: "Manage Share Profile" }).getAttribute("href")
   ).toBe(`/pets/${pet.id}/edit?tab=public`);
 
-  expect(within(publicProfile).getAllByRole("link")).toHaveLength(1);
-  expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(1);
+  // Exactly two: where to change it, and where to look at it.
+  expect(within(publicProfile).getAllByRole("link")).toHaveLength(2);
+  expect(screen.getAllByRole("link", { name: /View (Share|Safety) Profile/ })).toHaveLength(1);
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
@@ -111,12 +112,12 @@ it("keeps one Public Profile source of truth and hides unreleased owner tools", 
   expect(screen.queryByText("Edit Public Profile Settings")).toBeNull();
   expect(screen.queryByText("Edit Safety Settings")).toBeNull();
 
-  const publicView = screen.getByRole("link", { name: /View profile/ });
+  const publicView = screen.getByRole("link", { name: /View (Share|Safety) Profile/ });
   expect(publicView.getAttribute("target")).toBe("_blank");
   expect(publicView.getAttribute("rel")).toBe("noopener noreferrer");
 
   const profilesGrid = screen.getByRole("group", {
-    name: "Sharing and safety profiles",
+    name: "Sharing and privacy",
   });
   expect(profilesGrid.className).not.toContain("lg:grid-cols-2");
 });
@@ -129,17 +130,17 @@ it("does not expose public actions when the pet profile is private", async () =>
   );
 
   const publicProfile = await screen.findByRole("group", {
-    name: "Share Profile overview",
+    name: "Share Profile status",
   });
-  expect(within(publicProfile).getByText("Not shared")).toBeTruthy();
-  expect(within(publicProfile).getByText(/This profile is not shared/)).toBeTruthy();
+  expect(within(publicProfile).getByText("Off")).toBeTruthy();
+  expect(within(publicProfile).getByText(/Nobody/)).toBeTruthy();
   expect(
-    screen.getByRole("link", { name: "Manage sharing" }).getAttribute("href")
+    screen.getByRole("link", { name: "Manage Share Profile" }).getAttribute("href")
   ).toBe(`/pets/${pet.id}/edit?tab=public`);
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();
-  expect(screen.queryByRole("link", { name: /View profile/ })).toBeNull();
+  expect(screen.queryByRole("link", { name: /View (Share|Safety) Profile/ })).toBeNull();
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
@@ -148,13 +149,18 @@ it("leaves Share Center ownership outside the Overview subcard", async () => {
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 
   const publicProfile = await screen.findByRole("group", {
-    name: "Share Profile overview",
+    name: "Share Profile status",
   });
-  expect(within(publicProfile).getByRole("link", { name: "View profile" })).toBeTruthy();
-  expect(within(publicProfile).queryByRole("link", { name: "Manage sharing" })).toBeNull();
-  expect(screen.getByRole("link", { name: "Manage sharing" })).toBeTruthy();
+  expect(within(publicProfile).getByRole("link", { name: "View Share Profile" })).toBeTruthy();
+  // The row owns its own Manage link, so the reader is never sent hunting
+  // for a single card-level control that governs three different things.
+  expect(within(publicProfile).getByRole("link", { name: "Manage Share Profile" })).toBeTruthy();
+  // Share Center still owns sharing itself: no share sheet, copy, QR or
+  // Share Card is duplicated into this summary.
   expect(within(publicProfile).queryByRole("button")).toBeNull();
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
 it("opens the care-record create flow while View all keeps the list state", async () => {

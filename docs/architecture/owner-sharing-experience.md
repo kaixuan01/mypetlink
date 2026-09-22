@@ -26,9 +26,9 @@ Do not add a second, competing share control to any of these surfaces, and do
 not open the device share sheet straight from a Share button. If a new surface
 needs sharing, render `ShareCenter` there.
 
-The **Sharing & Safety** section of the Pet Overview is not a share entry
-point. It reports on each profile and offers link management — copy, QR, open —
-through `PublicLinkActions`, and deliberately has no Share button of its own.
+The **Sharing & Privacy** card on the Pet Overview is not a share entry
+point and not a settings screen. It reports on each profile and links out, and
+deliberately has no Share button and no switch of its own.
 
 ### Who may share what
 
@@ -145,32 +145,46 @@ the Open Graph version alone when only the portrait cards change.
 The dialog always reopens on the first level, is named on every panel, traps
 focus, closes on Escape, and returns focus to the control that opened it.
 
-## Pet Overview: Sharing & Safety
+## Pet Overview: Sharing & Privacy
 
-The Pet Overview has one **Sharing & Safety** section. Inside it the two
-profiles are **equal siblings** — side by side on desktop, stacked on mobile —
-built from the same `ProfileSubcard` so neither can drift into looking like the
-more important half:
+The Pet Overview has one **Sharing & Privacy** card. It holds one
+`ProfileSubcard` row per audience, in a single stacked column at every width, so
+that no row can drift into looking like the more important one:
 
-| | Public Profile | Safety Profile |
-| --- | --- | --- |
-| Status | Public / Private | Safety Profile Active / Contact Update Needed / Safety Profile Off |
-| Description | one line | one line |
-| Metadata | — | `General area · {area}` |
-| Action | Share (opens the Share Center) | Show Safety QR |
-| Link | View profile → | View profile → |
+| | Share Profile | Safety Profile | Community |
+| --- | --- | --- | --- |
+| Status | On / Off | Safety Profile Active / Contact Update Needed / Safety Profile Off | Not in Community / In Community · Hidden from discovery / In Community · Discoverable |
+| Description | one line | one line | one line |
+| Seen by | anyone sent the link | whoever finds the pet | who can reach the pet through Community |
+| Metadata | — | `General area · {area}` | — |
+| Action | — | Show Safety QR | — |
+| Notice | — | contact warning, when incomplete | why the pet cannot join yet, when blocked |
+| Manage | Edit Pet -> Share Profile | Edit Pet -> Contact & Safety | Community -> Edit Profile |
+| Link | View Share Profile → | View Safety Profile → | View Community Profile → |
 
-Rules that keep the two halves balanced:
+Rules that keep the card honest:
 
-- One action and one quiet link per side. **No Copy Link here** — copying
-  belongs to the Share Center, and repeating it made the safety half heavier.
+- **Every row says who, not just whether.** A status word alone ("On") does not
+  tell an owner which strangers that means, so each row carries a plain
+  "Seen by" line. Status is never signalled by colour alone.
+- **Read only.** Each setting has exactly one authoritative control elsewhere;
+  the Manage link goes there. Adding a switch here would create two places to
+  change one thing.
+- **No link to a page nobody can open.** The View link disappears when the Share
+  Profile is off. When the Safety Profile is off, the QR button, the View link
+  and the general area all disappear with it: a QR code for a page that shows a
+  finder nothing is worse than no QR at all.
+- **No guessing.** The Community row is derived from two authenticated reads and
+  is omitted entirely when either is unavailable, rather than claiming a pet is
+  out of Community when it may not be.
 - The general area is a line of metadata, never a filled panel with its own
   label.
 - The contact warning is a compact inline notice, not a full card.
 
 **Lost Mode** is the same `LostModeControl` in its `compact` variant, rendered
-as one full-width row *below* both subcards. It belongs to safety conceptually,
-but nesting it inside the Safety subcard made that column tower over the other.
+as one full-width row *below* the profile rows. It belongs to safety
+conceptually, but nesting it inside the Safety row made that row tower over the
+others.
 All of its rules, confirmations, and API behaviour are unchanged.
 
 Urgent styling belongs to an urgent state. While Lost Mode is **off** the row is
