@@ -70,6 +70,34 @@ describe("visitor shell with Community on", () => {
     expect(screen.getByTestId("social-header-explore")).toBeTruthy();
     expect(screen.getByTestId("social-header-search")).toBeTruthy();
   });
+
+  it("keeps the brand and authentication actions in bounded responsive columns", async () => {
+    await renderShell(true);
+
+    const row = screen.getByTestId("social-header-row");
+    const actions = screen.getByTestId("social-header-actions");
+    const brand = screen.getByRole("link", { name: "MyPetLink home" });
+    const compactBrand = brand.querySelector('img[src="/logo-mark.svg"]');
+    const fullBrand = brand.querySelector('img[src="/logo-horizontal.svg"]');
+    const createProfile = screen.getByRole("button", {
+      name: /create free pet profile/i,
+    });
+
+    expect(row.className).toContain("grid-cols-[minmax(0,1fr)_auto]");
+    expect(actions.className).toContain("shrink-0");
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
+
+    expect(compactBrand?.className).toContain("md:hidden");
+    expect(fullBrand?.className).toContain("hidden");
+    expect(fullBrand?.className).toContain("md:block");
+
+    expect(createProfile.className).toContain("w-12");
+    expect(createProfile.className).toContain("md:w-auto");
+    expect(createProfile.querySelector("span")?.className).toContain("sr-only");
+    expect(createProfile.querySelector("span")?.className).toContain(
+      "md:not-sr-only"
+    );
+  });
 });
 
 describe("visitor shell with Community off", () => {
