@@ -248,6 +248,10 @@ describe("Explore keeps its own data and its own telemetry", () => {
   });
 
   it("holds a placeholder shaped like the cards that follow it", () => {
-    expect(explore).toContain('aria-busy="true" className="mt-5 grid gap-4"');
+    // The placeholder used to be two bare `bg-white` rectangles on a cream
+    // page, which is a screen of apparently blank document rather than a
+    // loading state. It is now the Moment card's own skeleton.
+    expect(explore).toContain("<MomentStreamSkeleton");
+    expect(explore).not.toContain('animate-pulse rounded-[1.5rem] bg-white');
   });
 });

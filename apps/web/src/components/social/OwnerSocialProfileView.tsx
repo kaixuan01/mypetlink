@@ -65,6 +65,12 @@ export function OwnerSocialProfileView({
   // actions and the empty states differ.
   const isOwnProfile = audience === "own";
   const [state, setState] = useState<LoadState>("loading");
+  /** Bumped by Retry; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setState("loading");
+    setAttempt((current) => current + 1);
+  }, []);
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -123,7 +129,7 @@ export function OwnerSocialProfileView({
     return () => {
       active = false;
     };
-  }, [handle]);
+  }, [handle, attempt]);
 
   // Kept separate from the profile load on purpose. The relationship is the
   // only part of this page that depends on who is looking, and a profile that
@@ -175,7 +181,17 @@ export function OwnerSocialProfileView({
             ? "The link may have changed, or the profile may not be shared right now."
             : "Please try again in a moment."}
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {/*
+            Retry only where retrying can help. A not-found will not change
+            because somebody pressed a button, so that case keeps the single
+            way out it already had.
+          */}
+          {state === "error" ? (
+            <CTAButton onClick={retry} type="button" variant="secondary">
+              Try again
+            </CTAButton>
+          ) : null}
           <CTAButton href="/">Go to MyPetLink</CTAButton>
         </div>
       </div>

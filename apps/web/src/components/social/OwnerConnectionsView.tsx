@@ -7,6 +7,7 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialAccountList } from "@/components/social/SocialAccountList";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
+import { AccountRowSkeleton } from "@/components/social/SocialSkeletons";
 import {
   ownerFollowersPath,
   ownerFollowingPath,
@@ -53,6 +54,12 @@ export function OwnerConnectionsView({
   relation,
 }: OwnerConnectionsViewProps) {
   const [state, setState] = useState<LoadState>("loading");
+  /** Bumped by Retry; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setState("loading");
+    setAttempt((current) => current + 1);
+  }, []);
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -97,7 +104,7 @@ export function OwnerConnectionsView({
     return () => {
       active = false;
     };
-  }, [handle, relation]);
+  }, [handle, relation, attempt]);
 
   // Counts are a separate, non-blocking read: a list that loads but whose
   // counts do not should still show the list.
@@ -154,8 +161,8 @@ export function OwnerConnectionsView({
         <span className="sr-only">Loading</span>
         <div className="h-6 w-40 animate-pulse rounded-full bg-pet-apricot" />
         <div className="mt-6 space-y-2">
-          <div className="h-16 animate-pulse rounded-[1.5rem] bg-white" />
-          <div className="h-16 animate-pulse rounded-[1.5rem] bg-white" />
+          <AccountRowSkeleton />
+          <AccountRowSkeleton />
         </div>
       </div>
     );
@@ -180,7 +187,17 @@ export function OwnerConnectionsView({
             ? "The link may have changed, or the profile may not be shared right now."
             : "Please try again in a moment."}
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {/*
+            Retry only where retrying can help. A not-found will not change
+            because somebody pressed a button, so that case keeps the single
+            way out it already had.
+          */}
+          {state === "error" ? (
+            <CTAButton onClick={retry} type="button" variant="secondary">
+              Try again
+            </CTAButton>
+          ) : null}
           <CTAButton href="/">Go to MyPetLink</CTAButton>
         </div>
       </div>

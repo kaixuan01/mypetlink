@@ -9,9 +9,10 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  PublicMomentListItem,
-  PublicMomentMedia,
+import {
+  PublicProfileUnavailableError,
+  type PublicMomentListItem,
+  type PublicMomentMedia,
 } from "@/services/publicSocialService";
 
 const mocks = vi.hoisted(() => ({
@@ -336,7 +337,11 @@ describe("Moment detail", () => {
   });
 
   it("says plainly when a Moment cannot be opened", async () => {
-    mocks.getPublicMoment.mockRejectedValue(new Error("unavailable"));
+    // The server's own verdict: deleted, unshared, or blocked all arrive as
+    // not-found, and all three must render this one page.
+    mocks.getPublicMoment.mockRejectedValue(
+      new PublicProfileUnavailableError("not-found")
+    );
 
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
@@ -348,6 +353,36 @@ describe("Moment detail", () => {
     // read identically, or the page becomes a way to ask.
     expect(unavailable.textContent).not.toMatch(/blocked|private|deleted/i);
     expect(screen.queryByTestId("moment-detail")).toBeNull();
+  });
+
+  it("does not blame the family when the request simply failed", async () => {
+    // A dropped connection is not evidence about anybody's sharing choice.
+    // Reporting it as "the family may not be sharing it right now" invents a
+    // reason, and hides the one thing that would actually help: try again.
+    mocks.getPublicMoment.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    const failed = await screen.findByTestId("moment-load-failed");
+
+    expect(failed.textContent).toMatch(/couldn.t load this Moment/i);
+    expect(failed.textContent).not.toMatch(/sharing it right now|available/i);
+    expect(screen.queryByTestId("moment-unavailable")).toBeNull();
+    expect(
+      within(failed).getByRole("button", { name: "Try again" })
+    ).toBeTruthy();
+  });
+
+  it("retries the Moment when the visitor asks", async () => {
+    mocks.getPublicMoment.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    const failed = await screen.findByTestId("moment-load-failed");
+    fireEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+
+    // The second call resolves from the default mock set up in beforeEach.
+    await screen.findByTestId("moment-detail");
   });
 
   it("gives a visitor a way into the product rather than owner navigation", async () => {

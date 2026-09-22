@@ -27,13 +27,17 @@ import { toViewerMedia } from "@/lib/socialMomentMedia";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getPublicMoment,
+  PublicProfileUnavailableError,
   type PublicMomentListItem,
 } from "@/services/publicSocialService";
 
 type Phase =
   | { state: "loading" }
   | { state: "ready"; moment: PublicMomentListItem }
-  | { state: "unavailable" };
+  /** The Moment is gone, or was never shared. Retrying cannot change that. */
+  | { state: "unavailable" }
+  /** We could not ask. Says so, and offers to ask again. */
+  | { state: "error" };
 
 /**
  * One Moment, on its own page.
@@ -60,6 +64,13 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
   const router = useRouter();
   const signedIn = useSignedIn();
   const [phase, setPhase] = useState<Phase>({ state: "loading" });
+  /** Bumped by Retry; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setPhase({ state: "loading" });
+    setAttempt((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -68,16 +79,25 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
       .then((moment) => {
         if (active) setPhase({ state: "ready", moment });
       })
-      .catch(() => {
-        // Every reason a Moment cannot be opened reads the same to a visitor.
-        // The server does not distinguish them either.
-        if (active) setPhase({ state: "unavailable" });
+      .catch((error: unknown) => {
+        if (!active) return;
+
+        // The two are not the same and must not read the same. Only a
+        // not-found means the Moment is genuinely unavailable; a dropped
+        // request means we do not know, and saying "the family may not be
+        // sharing it right now" would invent a reason from nothing.
+        setPhase(
+          error instanceof PublicProfileUnavailableError &&
+            error.reason === "not-found"
+            ? { state: "unavailable" }
+            : { state: "error" }
+        );
       });
 
     return () => {
       active = false;
     };
-  }, [momentId]);
+  }, [momentId, attempt]);
 
   const onLikeChange = useCallback(
     (_id: string, state: { likeCount: number; viewerHasLiked: boolean }) => {
@@ -97,6 +117,7 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
 
         {phase.state === "loading" ? <MomentSkeleton /> : null}
         {phase.state === "unavailable" ? <MomentUnavailable /> : null}
+        {phase.state === "error" ? <MomentLoadFailed onRetry={retry} /> : null}
         {phase.state === "ready" ? (
           <MomentArticle
             moment={phase.moment}
@@ -257,6 +278,33 @@ function MomentSkeleton() {
         <span className="h-3 w-1/3 rounded-full bg-pet-border/60" />
       </div>
       <span className="sr-only">Loading this Moment</span>
+    </div>
+  );
+}
+
+/**
+ * We could not reach the server. No claim about the Moment itself, because we
+ * do not have one.
+ */
+function MomentLoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="mt-3 rounded-[1.75rem] border border-pet-border bg-white p-6 text-center"
+      data-testid="moment-load-failed"
+    >
+      <h1 className="text-base font-black text-pet-ink">
+        We couldn&rsquo;t load this Moment
+      </h1>
+      <p className="mt-1 text-sm font-semibold text-pet-muted">
+        Check your connection and try again.
+      </p>
+      <button
+        className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-pet-teal px-5 text-sm font-extrabold text-pet-teal transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+        onClick={onRetry}
+        type="button"
+      >
+        Try again
+      </button>
     </div>
   );
 }
