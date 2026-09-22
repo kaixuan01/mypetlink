@@ -98,7 +98,10 @@ The **finder-first** experience, whose only job is to help a lost pet get home.
   See *Reading order* below.
 
 Smart Tags resolve into this same Safety Profile. A Smart Tag is an access
-method, **not another profile**.
+method, **not another profile** — and it must never produce a different or
+reduced one. Once an eligible tag resolves to a pet, the finder-facing content
+and privacy rules are identical to direct access, the Share Profile bridge
+included. See *Entry-point parity*.
 
 ### Community Profile
 
@@ -243,7 +246,7 @@ The reverse dependency does not exist, and must not be reintroduced:
 
 - The Safety Profile's link to the Share Profile ("View Share Profile") depends
   only on the Share Profile being switched on and the pet's lifecycle still
-  serving that page. `QrSafetyService.ResolveShareProfileSlug`.
+  serving that page, on every entry point. `ShareProfileBridge.ResolveSlug`.
   It previously also required the pet and household to be in Community, which
   silently withheld the link from every owner who had not joined Community.
 - Discoverability is not a condition of that link either. A finder scanned the
@@ -261,14 +264,33 @@ Community: OFF
 …and have `/p/...`, `/q/...` and the Safety → Share bridge all work. A Smart Tag
 must open the Safety Profile regardless of Community participation.
 
-### Known asymmetry
+### Entry-point parity
 
-A **direct** Safety Profile (`/q/{safetyCode}`) carries the Share Profile link.
-A **Smart Tag scan** (`/q/{tagCode}`, `/n/`, `/t/`) resolves the same Safety
-Profile but does not — `TagScanService.BuildSafetyProfile` leaves
-`PublicProfileSlug` null. This is current behaviour, not a decision this
-document is defending; it is recorded so nobody reads the difference as
-intentional privacy design.
+**A Smart Tag never produces a different or reduced Safety Profile.** Once an
+eligible tag resolves to a pet, the finder-facing content and every privacy rule
+are the same as for a finder who opened `/q/{safetyCode}` directly — the Share
+Profile bridge included.
+
+```text
+Safety Profile
+├── direct access: /q/{safetyCode}
+└── Smart Tag access
+    ├── QR:     /q/{tagCode}
+    ├── NFC:    /n/{tagCode}
+    └── legacy: /t/{tagCode}
+```
+
+`ShareProfileBridge.ResolveSlug` is the single rule, and both `QrSafetyService`
+and `TagScanService` ask it. It did not used to be: the rule lived in
+`QrSafetyService` alone, and `TagScanService` simply stopped constructing the
+response one argument early. `PublicSafetyPageResponse.PublicProfileSlug` is now
+a required parameter with no default, so a new construction site has to answer
+the question rather than inherit an answer.
+
+A tag that may not expose finder information exposes no Share Profile either.
+Unclaimed, pending, lost, disabled, replaced and archived tags, and tags on a
+deleted, archived or memorial pet, are all refused before the Safety Profile is
+built — the Share Profile existing changes none of that.
 
 ---
 
@@ -432,7 +454,7 @@ are **not** licence to keep writing them in new code.
 | Safety Profile status | `apps/web/src/lib/safetyProfile.ts` |
 | Visibility fail-closed baseline | `apps/web/src/lib/petVisibility.ts` |
 | Anonymous Share Profile projection | `PublicProfileService` |
-| Safety → Share bridge | `QrSafetyService.ResolveShareProfileSlug` |
+| Safety → Share bridge, every entry point | `ShareProfileBridge.ResolveSlug` |
 | Community participation prerequisites | `PetSocialSettingsService` |
 | Community identity never seeded | `OwnerSocialProfileFactory` |
 | Sellable tag capability | `TagCatalogSellability`, `lib/tagCapabilities.ts` |

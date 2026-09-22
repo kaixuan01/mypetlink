@@ -86,7 +86,12 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
                 ProfileTheme: pet.ProfileTheme,
                 Allergies: PetDtoMapper.ParseAllergies(pet.AllergiesJson),
                 ShowFoundLocationAction: false,
-                Contact: null);
+                Contact: null,
+                // A memorial pet is not Active, so the shared rule would return
+                // null anyway. Said explicitly because this branch builds the
+                // response by hand: the memorial page offers its own memorial
+                // link through the public profile, not the finder bridge.
+                PublicProfileSlug: null);
         }
 
         var phone = safetySetting.ShowPhone ? PetDtoMapper.ResolvePhone(pet) : null;
@@ -128,44 +133,9 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             PetDtoMapper.ParseAllergies(pet.AllergiesJson),
             safetySetting.ShowFoundLocationAction,
             contact,
-            ResolveShareProfileSlug(pet));
-    }
-
-    /// <summary>
-    /// Whether this finder may be offered the pet's Share Profile, and where it
-    /// is.
-    ///
-    /// Two conditions, and only two: the owner has switched the Share Profile on,
-    /// and the pet's lifecycle still serves that page. Both are conditions of the
-    /// Share Profile itself, which is the point — the bridge exists to say "this
-    /// page is available", so it must ask the page, not something else.
-    ///
-    /// <b>Community participation is deliberately NOT among them.</b> It used to
-    /// be: the bridge additionally required the pet and its household to be in
-    /// Community, which meant an owner who switched their Share Profile on and
-    /// stayed out of Community silently got no link to their own page — the
-    /// default state for every existing account. That inverted the product rule
-    /// that a share link never implies social participation, by making social
-    /// participation a precondition for a share link. See
-    /// docs/architecture/product-model.md.
-    ///
-    /// Discoverability is not among them either, and for a separate reason: a
-    /// finder reached this by scanning the animal in front of them, which is the
-    /// opposite of discovery. Treating it as discovery would quietly turn
-    /// IsDiscoverable into a private-profile switch.
-    ///
-    /// This is now a pure function of data already loaded, so the finder page
-    /// makes one query fewer than it did.
-    /// </summary>
-    private static string? ResolveShareProfileSlug(Pet pet)
-    {
-        if (pet.PublicProfile is not { IsPublicProfileEnabled: true }
-            || pet.LifecycleStatus != PetLifecycleStatus.Active)
-        {
-            return null;
-        }
-
-        return PetDtoMapper.ResolvePublicSlug(pet);
+            // The same rule every Safety Profile entry point uses, including a
+            // Smart Tag scan. See ShareProfileBridge.
+            ShareProfileBridge.ResolveSlug(pet));
     }
 
     public async Task<PublicFinderSocialResponse> GetSocialBySafetyCodeAsync(

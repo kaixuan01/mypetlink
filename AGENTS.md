@@ -71,8 +71,8 @@ before touching anything social.
    requires an enabled Share Profile; a Share Profile must never require
    Community. Nothing that depends on the Share Profile may test a social switch
    instead — including the Safety Profile's link to it
-   (`QrSafetyService.ResolveShareProfileSlug`). An owner with Share ON, Safety
-   ON and Community OFF must have every one of those surfaces working.
+   (`ShareProfileBridge.ResolveSlug`). An owner with Share ON, Safety ON and
+   Community OFF must have every one of those surfaces working.
 3. **`PetMemories.AuthorUserId` is immutable.** It records who wrote the Moment.
    Pet ownership transfer never rewrites it.
 4. **A multi-pet Moment consumes one allowance**, against the primary
@@ -85,7 +85,11 @@ before touching anything social.
 6. **The actor is always the JWT subject.** No social endpoint accepts a user
    id, owner id or actor id from a client.
 7. **Smart Tag scanning stays Safety Profile first.** `/q`, `/n` and `/t` must
-   never route to a social surface.
+   never route to a social surface. They must also never produce a *different*
+   Safety Profile: a tag is an access method, so once an eligible tag resolves
+   to a pet the finder-facing content and privacy rules match direct
+   `/q/{safetyCode}` access exactly, Share Profile bridge included. One rule,
+   `ShareProfileBridge`, answers that for every entry point.
 8. **A general area is never an address.** Every surface that accepts one uses
    `GeneralAreaRules`. Do not add a second validation path, and do not
    introduce any automatic or precise location.

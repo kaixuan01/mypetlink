@@ -311,7 +311,12 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             pet.ProfileTheme,
             PetDtoMapper.ParseAllergies(pet.AllergiesJson),
             safetySetting.ShowFoundLocationAction,
-            contact);
+            contact,
+            // A Smart Tag is an access method, not a different profile. This is
+            // only reached for an active tag on an active pet whose Safety
+            // Profile is on, so the Share Profile question is decided exactly as
+            // it is for a finder who opened /q/{safetyCode} directly.
+            ShareProfileBridge.ResolveSlug(pet));
     }
 
     private static void ValidateCoordinate(decimal? value, string field, decimal min, decimal max)

@@ -180,11 +180,17 @@ public sealed record PublicSafetyPageResponse(
     /// Community identity: somebody scanned an animal, and routing them straight
     /// into a person's Community profile is not what they came for.
     ///
-    /// Populated on the direct Safety Profile route only. A Smart Tag scan
-    /// resolves the same Safety Profile but leaves this null today — see
-    /// TagScanService.BuildSafetyProfile.
+    /// Every entry point to the Safety Profile answers this the same way, and
+    /// they all answer it through <see cref="ShareProfileBridge"/>.
+    ///
+    /// <b>Deliberately required, with no default.</b> It was optional, and the
+    /// tag scan path simply stopped constructing the response one argument
+    /// early — so the same pet offered the link to a finder who opened
+    /// <c>/q/{safetyCode}</c> and withheld it from one who scanned the collar,
+    /// and nothing failed to compile. A new construction site must now answer
+    /// the question rather than inherit an answer.
     /// </summary>
-    string? PublicProfileSlug = null);
+    string? PublicProfileSlug);
 
 public sealed record QrSafetyPageResponse(
     string SafetyCode,

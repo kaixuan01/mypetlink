@@ -586,7 +586,8 @@ only on the Share Profile being switched on and the pet's lifecycle still
 serving that page — not on discoverability, and *not on Community
 participation*. It briefly required both social switches, which silently
 withheld an owner's own share link from every household that had not joined
-Community. See `QrSafetyService.ResolveShareProfileSlug` and
+Community, and it answers the same way whether the finder opened
+`/q/{safetyCode}` or scanned a tag. See `ShareProfileBridge.ResolveSlug` and
 [`product-model.md`](product-model.md).
 
 **Counts are computed, never stored.** Followers, following and likes are

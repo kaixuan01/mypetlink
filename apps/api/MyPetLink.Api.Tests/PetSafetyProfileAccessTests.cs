@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -239,6 +240,199 @@ public sealed class PetSafetyProfileAccessTests
             PublicProfileEnabled: publicProfileEnabled);
     }
 
+    // ---- Entry-point parity -------------------------------------------
+    //
+    // A Smart Tag is an access method, not a different profile. Once an active
+    // tag resolves to a pet, a finder must get the same Safety Profile they
+    // would get by opening /q/{safetyCode} directly — including whether the
+    // pet's Share Profile is offered.
+    //
+    // It did not hold: the bridge rule lived in QrSafetyService only, and
+    // TagScanService stopped building the response one argument early. Because
+    // PublicProfileSlug was an optional parameter, nothing failed to compile.
+
+    /// <summary>Every entry point, asked the same question.</summary>
+    private static async Task<string?[]> BridgeFromEveryEntryPointAsync(Harness harness)
+    {
+        var direct = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
+        var qr = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Qr, ScanContext);
+        var nfc = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Nfc, ScanContext);
+        var legacy = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Legacy, ScanContext);
+
+        foreach (var scan in new[] { qr, nfc, legacy })
+        {
+            Assert.Equal("active", scan.State);
+        }
+
+        return
+        [
+            direct.PublicProfileSlug,
+            Assert.IsType<PublicSafetyPageResponse>(qr.Profile).PublicProfileSlug,
+            Assert.IsType<PublicSafetyPageResponse>(nfc.Profile).PublicProfileSlug,
+            Assert.IsType<PublicSafetyPageResponse>(legacy.Profile).PublicProfileSlug
+        ];
+    }
+
+    /// <summary>Case A — Share Profile on, Community off.</summary>
+    [Fact]
+    public async Task ShareOnCommunityOff_EveryEntryPointOffersTheBridge()
+    {
+        using var harness = await Harness.CreateAsync(includePrivacySurfaceData: true);
+        harness.Db.ChangeTracker.Clear();
+
+        var slugs = await BridgeFromEveryEntryPointAsync(harness);
+
+        Assert.All(slugs, slug => Assert.Equal("topu-pub123", slug));
+    }
+
+    /// <summary>Case B — Share Profile off. No bridge from anywhere.</summary>
+    [Fact]
+    public async Task ShareOff_NoEntryPointOffersTheBridge()
+    {
+        using var harness = await Harness.CreateAsync(includePrivacySurfaceData: true);
+        await harness.Pets.UpdateAsync(OwnerId, PetId, UpdateFlags(publicProfileEnabled: false));
+        harness.Db.ChangeTracker.Clear();
+
+        var slugs = await BridgeFromEveryEntryPointAsync(harness);
+
+        Assert.All(slugs, Assert.Null);
+    }
+
+    /// <summary>Case C — Share Profile on, Community on. Unchanged.</summary>
+    [Fact]
+    public async Task ShareOnCommunityOn_EveryEntryPointOffersTheBridge()
+    {
+        using var harness = await Harness.CreateAsync(
+            includePrivacySurfaceData: true, communityEnabled: true);
+        harness.Db.ChangeTracker.Clear();
+
+        var slugs = await BridgeFromEveryEntryPointAsync(harness);
+
+        Assert.All(slugs, slug => Assert.Equal("topu-pub123", slug));
+    }
+
+    /// <summary>
+    /// Case D — the pet's lifecycle no longer serves the Share Profile.
+    ///
+    /// The tag path refuses the whole Safety Profile for a memorial pet rather
+    /// than serving one without a bridge, and the direct path serves its own
+    /// memorial response. Neither offers the Share Profile, which is the rule
+    /// being asserted; the difference in how they say no is existing behaviour.
+    /// </summary>
+    [Fact]
+    public async Task MemorialPet_OffersNoBridgeFromAnyEntryPoint()
+    {
+        using var harness = await Harness.CreateAsync(includePrivacySurfaceData: true);
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Id == PetId);
+        pet.LifecycleStatus = PetLifecycleStatus.Memorial;
+        await harness.Db.SaveChangesAsync();
+        harness.Db.ChangeTracker.Clear();
+
+        var direct = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
+        Assert.Equal("Memorial", direct.State);
+        Assert.Null(direct.PublicProfileSlug);
+        Assert.Null(direct.Contact);
+
+        foreach (var source in new[] { TagScanSource.Qr, TagScanSource.Nfc, TagScanSource.Legacy })
+        {
+            var scan = await harness.TagScans.ResolveAsync(
+                "MPL-PRIVACY-01", source, ScanContext);
+
+            Assert.Equal("inactive", scan.State);
+            Assert.Null(scan.Profile);
+        }
+    }
+
+    /// <summary>
+    /// Case E — a tag that may not expose finder information exposes no Share
+    /// Profile either, however shareable the pet is.
+    /// </summary>
+    [Theory]
+    [InlineData(SmartTagStatus.Lost)]
+    [InlineData(SmartTagStatus.Disabled)]
+    [InlineData(SmartTagStatus.Replaced)]
+    [InlineData(SmartTagStatus.Archived)]
+    [InlineData(SmartTagStatus.Unclaimed)]
+    [InlineData(SmartTagStatus.Pending)]
+    public async Task IneligibleTag_LeaksNeitherContactNorShareProfile(SmartTagStatus status)
+    {
+        using var harness = await Harness.CreateAsync(includePrivacySurfaceData: true);
+        var tag = await harness.Db.SmartTags.SingleAsync(item => item.TagCode == "MPL-PRIVACY-01");
+        tag.Status = status;
+        await harness.Db.SaveChangesAsync();
+        harness.Db.ChangeTracker.Clear();
+
+        foreach (var source in new[] { TagScanSource.Qr, TagScanSource.Nfc, TagScanSource.Legacy })
+        {
+            var scan = await harness.TagScans.ResolveAsync(
+                "MPL-PRIVACY-01", source, ScanContext);
+
+            Assert.NotEqual("active", scan.State);
+            Assert.Null(scan.Profile);
+        }
+
+        // The pet's own Safety Profile is unaffected by its tag's status.
+        var direct = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
+        Assert.Equal("topu-pub123", direct.PublicProfileSlug);
+    }
+
+    /// <summary>
+    /// A disabled Safety Profile stays disabled on every entry point, and the
+    /// Share Profile being on does not reopen it.
+    /// </summary>
+    [Fact]
+    public async Task SafetyProfileOff_IsRefusedOnEveryEntryPoint()
+    {
+        using var harness = await Harness.CreateAsync(includePrivacySurfaceData: true);
+        await harness.Pets.UpdateAsync(OwnerId, PetId, UpdateFlags(qrSafetyEnabled: false));
+        harness.Db.ChangeTracker.Clear();
+
+        await Assert.ThrowsAsync<ApiException>(
+            () => harness.QrSafety.GetBySafetyCodeAsync("safe-topu"));
+
+        foreach (var source in new[] { TagScanSource.Qr, TagScanSource.Nfc, TagScanSource.Legacy })
+        {
+            var scan = await harness.TagScans.ResolveAsync(
+                "MPL-PRIVACY-01", source, ScanContext);
+
+            Assert.Equal("inactive", scan.State);
+            Assert.Null(scan.Profile);
+        }
+    }
+
+    /// <summary>
+    /// The bridge carries a path and nothing else. Adding it to the tag path
+    /// must not have brought the household's Community identity onto a finder
+    /// page.
+    /// </summary>
+    [Fact]
+    public async Task TheBridgeCarriesNoCommunityIdentity()
+    {
+        using var harness = await Harness.CreateAsync(
+            includePrivacySurfaceData: true, showOwnerName: true, communityEnabled: true);
+        harness.Db.ChangeTracker.Clear();
+
+        var direct = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
+        var qr = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Qr, ScanContext);
+        var tagProfile = Assert.IsType<PublicSafetyPageResponse>(qr.Profile);
+
+        foreach (var profile in new[] { direct, tagProfile })
+        {
+            Assert.Equal("topu-pub123", profile.PublicProfileSlug);
+
+            // The finder identity is what a Safety Profile carries; the
+            // Community identity is what it must not.
+            Assert.Equal("Pet contact owner", profile.Contact?.OwnerDisplayName);
+            var serialized = JsonSerializer.Serialize(profile);
+            Assert.DoesNotContain("topuhousehold", serialized, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("The Topu Household", serialized, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     private sealed class Harness : IDisposable
     {
         private Harness(MyPetLinkDbContext db)
@@ -264,7 +458,8 @@ public sealed class PetSafetyProfileAccessTests
             bool showPhone = false,
             bool showOwnerName = false,
             bool includePrivacySurfaceData = false,
-            bool includePublicProfile = true)
+            bool includePublicProfile = true,
+            bool communityEnabled = false)
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -300,7 +495,20 @@ public sealed class PetSafetyProfileAccessTests
                     OwnerDisplayName = "Owner",
                     DefaultGeneralArea = "Petaling Jaya",
                     Plan = plan
-                }
+                },
+                SocialProfile = communityEnabled
+                    ? new OwnerSocialProfile
+                    {
+                        UserId = OwnerId,
+                        Handle = "topuhousehold",
+                        NormalizedHandle = "topuhousehold",
+                        DisplayName = "The Topu Household",
+                        NormalizedDisplayName = "the topu household",
+                        IsSocialEnabled = true,
+                        IsDiscoverable = true,
+                        AllowFollowers = true
+                    }
+                    : null
             };
             var pet = new Pet
             {
@@ -330,6 +538,15 @@ public sealed class PetSafetyProfileAccessTests
                         SlugSnapshot = "topu-pub123",
                         IsPublicProfileEnabled = true,
                         ShowOwnerName = showOwnerName
+                    }
+                    : null,
+                SocialProfile = communityEnabled
+                    ? new PetSocialProfile
+                    {
+                        PetId = PetId,
+                        IsSocialEnabled = true,
+                        IsDiscoverable = true,
+                        ConsentedByUserId = OwnerId
                     }
                     : null,
                 SafetySetting = new PetSafetySetting

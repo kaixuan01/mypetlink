@@ -20,7 +20,9 @@
 
 Pet-level Safety Profile links use **`/q/{safetyCode}`**. Newly produced physical
 QR codes point at **`/q/{tagCode}`** and NFC chips at **`/n/{tagCode}`**; active
-tags open the same Safety Profile, while inactive tags show an inactive tag page.
+tags open the same Safety Profile — the same content and the same privacy rules
+a finder gets from `/q/{safetyCode}` directly, the Share Profile bridge included
+— while inactive tags show an inactive tag page.
 Activation is completed from **`/q/{tagCode}`** after the owner scans the printed
 QR. `/t/{tagCode}` is retained because tags carrying it have already been printed
 — it still resolves and still supports activation, and must not be removed.
