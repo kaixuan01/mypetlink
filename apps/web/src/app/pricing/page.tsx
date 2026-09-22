@@ -37,7 +37,13 @@ const smartTagFeatures = [
   "No subscription required",
 ];
 
-const gpsFeatures = ["Live GPS location", "Safe-zone alerts", "Battery reminders"];
+// Planned, not shipped. The name carries that so the list cannot be moved
+// under a product that exists without the rename making it obvious.
+const gpsSafetyPlannedFeatures = [
+  "Live GPS location",
+  "Safe-zone alerts",
+  "Battery reminders",
+];
 
 export default function PricingPage() {
   return (
@@ -99,7 +105,7 @@ export default function PricingPage() {
                       Live location and safe-zone features are planned for a future MyPetLink product.
                     </p>
                   </div>
-                  <FeatureList className="sm:min-w-56" features={gpsFeatures} />
+                  <FeatureList className="sm:min-w-56" features={gpsSafetyPlannedFeatures} />
                 </div>
               </article>
             </PricingSection>

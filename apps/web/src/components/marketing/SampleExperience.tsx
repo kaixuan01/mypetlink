@@ -104,7 +104,7 @@ export function SampleExperience() {
               href={publicPath}
               icon="heart"
             >
-              View Share Profile
+              View Sample Share Profile
             </CTAButton>
           </CardBody>
         </article>
@@ -225,7 +225,7 @@ export function SampleExperience() {
                 icon="shield"
                 variant="coral"
               >
-                Open the live Safety Profile sample
+                View Sample Safety Profile
               </CTAButton>
             </div>
           </div>

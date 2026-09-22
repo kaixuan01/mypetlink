@@ -182,7 +182,7 @@ export function PublicLayout({
             <FooterColumn
               links={[
                 { href: marketingRoutes.howItWorks, label: "How It Works" },
-                { href: marketingRoutes.sample, label: "Sample Profile" },
+                { href: marketingRoutes.sample, label: "Sample Profiles" },
                 { href: `${marketingRoutes.home}#faq`, label: "FAQ" },
                 { href: `mailto:${siteConfig.supportEmail}`, label: "Contact support" },
               ]}

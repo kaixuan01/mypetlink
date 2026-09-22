@@ -54,7 +54,7 @@ export default function HowItWorksPage() {
         <div className="mx-auto max-w-6xl">
           <PageHeader
             eyebrow="How it works"
-            title="From pet profile to a safer way home"
+            title="From Pet Profile to a safer way home"
             description="MyPetLink separates everyday sharing from finder contact, so each page has one clear purpose."
           />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -83,7 +83,7 @@ export default function HowItWorksPage() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <CreateProfileCTA />
             <CTAButton href={marketingRoutes.samplePublicProfile} variant="secondary">
-              View Sample Profile
+              View Sample Share Profile
             </CTAButton>
             <CTAButton href={marketingRoutes.smartPetTags} variant="outline">
               Learn About Smart Tags

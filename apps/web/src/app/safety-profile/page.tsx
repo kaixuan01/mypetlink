@@ -32,7 +32,7 @@ const finderSteps: { icon: IconName; title: string; description: string }[] = [
     icon: "qr",
     title: "They scan or tap",
     description:
-      "A QR code on the tag opens with any phone camera, and an NFC tap works without one. Both open the same page, and the finder installs nothing.",
+      "A QR code — on a Smart Tag, or one you printed yourself — opens with any phone camera, and an NFC tap works without one. Both open the same page, and the finder installs nothing.",
   },
   {
     icon: "shield",

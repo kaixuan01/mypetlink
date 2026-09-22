@@ -400,6 +400,6 @@ describe("the landing page as a whole", () => {
 
     expect(hero).not.toContain("Explore Community");
     expect(hero).not.toContain("socialRoutes");
-    expect(hero).toContain("See a sample profile");
+    expect(hero).toContain("See a sample Share Profile");
   });
 });

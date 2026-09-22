@@ -43,7 +43,7 @@ export default function PetProfileGuidePage() {
           <PageHeader
             eyebrow="Pet profiles"
             title="One home for your pet's story, care, and safety"
-            description="Start with a free profile for a cat, dog, or other pet in Malaysia. A physical tag is optional."
+            description="Your Pet Profile is everything MyPetLink keeps about one pet — their story, their care, and the two pages other people see. Free to start, and a Smart Tag is optional."
             action={<CreateProfileCTA />}
           />
           <div className="grid gap-4 md:grid-cols-3">
@@ -65,10 +65,10 @@ export default function PetProfileGuidePage() {
           <article className="rounded-[1.75rem] border border-pet-border p-6">
             <h2 className="text-xl font-black text-pet-ink">Share Profile</h2>
             <p className="mt-3 text-sm leading-6 text-pet-muted">
-              A warm page for friends, family, and pet communities. It focuses on your pet&apos;s identity, personality, Moments, and owner-approved details.
+              A warm page for friends and family, or anyone else you send the link to. It focuses on your pet&apos;s identity, personality, Moments, and owner-approved details.
             </p>
             <CTAButton className="mt-5" href={marketingRoutes.samplePublicProfile} variant="secondary">
-              View Sample Profile
+              View Sample Share Profile
             </CTAButton>
           </article>
           <article className="rounded-[1.75rem] border border-pet-border p-6">

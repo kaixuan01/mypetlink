@@ -64,12 +64,12 @@ describe("product navigation", () => {
   it("keeps the sample reachable without making it a product", () => {
     // Hero secondary action, product-page demo CTA and a footer Support link —
     // not a fifth entry in the Product menu.
-    expect(productNav.some((item) => item.label === "Sample Profile")).toBe(false);
+    expect(productNav.some((item) => item.label.startsWith("Sample"))).toBe(false);
     expect(read("components/layouts/PublicLayout.tsx")).toContain(
-      'label: "Sample Profile"'
+      'label: "Sample Profiles"'
     );
     expect(read("components/marketing/LandingHero.tsx")).toContain(
-      "See a sample profile"
+      "See a sample Share Profile"
     );
   });
 });
@@ -141,7 +141,7 @@ describe("public terminology", () => {
     const sample = read("app/sample/page.tsx");
 
     expect(sample).not.toContain("two real situations");
-    expect(sample).toContain("See how Public Share and Safety Profiles work");
+    expect(sample).toContain("See how Share Profiles and Safety Profiles work");
   });
 });
 

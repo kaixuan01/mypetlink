@@ -7,8 +7,8 @@ import { createMarketingMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.sample,
-  title: "Sample Public and Safety Profiles | MyPetLink",
-  description: "Explore sample Public Share and Safety Profiles to see everyday pet sharing and finder contact in action.",
+  title: "Sample Share Profile and Safety Profile | MyPetLink",
+  description: "See a sample Share Profile and a sample Safety Profile side by side: everyday pet sharing, and how a finder contacts an owner.",
 });
 
 export default function SamplePage() {
@@ -23,9 +23,9 @@ export default function SamplePage() {
             about a page whose whole job is trust.
           */}
           <PageHeader
-            description="A worked example of both pages a pet gets: the profile an owner shares, and the Safety Profile a finder opens to contact them."
+            description="A worked example of both pages a Pet Profile publishes: the one an owner shares, and the one a finder opens to contact them."
             eyebrow="Sample experience"
-            title="See how Public Share and Safety Profiles work"
+            title="See how Share Profiles and Safety Profiles work"
           />
           <SampleExperience />
         </div>

@@ -132,8 +132,10 @@ describe("SampleExperience sample destinations", () => {
       name: "Open Princess Buttercup the Third's sample Safety Profile",
     });
 
-    expect(publicLink.textContent).toContain("View Share Profile");
-    expect(safetyLink.textContent).toContain("Safety Profile sample");
+    // Each button names the page it opens: a visitor choosing between the
+     // two should not have to read the card to know which is which.
+    expect(publicLink.textContent).toContain("View Sample Share Profile");
+    expect(safetyLink.textContent).toContain("View Sample Safety Profile");
     expect(publicLink.getAttribute("href")).toBe(
       publicProfilePath(configuredPet.pet.publicSlug, configuredPet.pet.publicCode)
     );

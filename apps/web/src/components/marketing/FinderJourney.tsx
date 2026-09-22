@@ -29,8 +29,8 @@ const steps: JourneyStep[] = [
   },
   {
     icon: "tag",
-    title: "They see the tag",
-    detail: "A QR code on your pet's collar tag.",
+    title: "They see the QR code",
+    detail: "On a Smart Tag, or on one you downloaded and printed.",
   },
   {
     icon: "qr",
@@ -142,7 +142,7 @@ export function FinderJourney() {
               className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
               href={marketingRoutes.sampleSafetyProfile}
             >
-              See a real Safety Profile
+              See a sample Safety Profile
               <Icon aria-hidden="true" className="h-4 w-4 -rotate-90" name="chevron" />
             </a>
           </div>

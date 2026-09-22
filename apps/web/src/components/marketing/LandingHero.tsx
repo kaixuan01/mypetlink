@@ -13,8 +13,8 @@ import { marketingRoutes } from "@/lib/routes";
  *
  * Two rules shape the copy here. The outcome comes before the mechanism, so
  * the headline says what an owner gets rather than introducing our mascot. And
- * every promise is one the Free plan already keeps today: a profile, a Safety
- * Profile, and a QR an owner can download. The physical Smart Tag is named
+ * every promise is one the Free plan already keeps today: a Pet Profile, both
+ * of its pages, and a QR an owner can download. The physical Smart Tag is named
  * only as what it is right now — an add-on that is not on sale yet — so nobody
  * reads this section as an offer to buy one.
  */
@@ -49,8 +49,9 @@ export function LandingHero() {
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-7 text-pet-muted sm:text-lg sm:leading-8">
-            Create a free pet profile with a Safety Profile that helps whoever
-            finds your pet reach you — with no app to install on their phone.
+            One free Pet Profile gives your pet two pages: a Share Profile for
+            the people you choose, and a Safety Profile that helps whoever
+            finds them reach you.
           </p>
 
           <div className="mt-7 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
@@ -61,7 +62,7 @@ export function LandingHero() {
               className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
               href={marketingRoutes.samplePublicProfile}
             >
-              See a sample profile
+              See a sample Share Profile
               <Icon aria-hidden="true" className="h-4 w-4 -rotate-90" name="chevron" />
             </a>
           </div>

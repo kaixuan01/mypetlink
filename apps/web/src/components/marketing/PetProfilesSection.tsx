@@ -67,11 +67,12 @@ export function PetProfilesSection() {
             Pet profiles
           </p>
           <h2 className="mt-2 text-2xl font-black leading-tight text-pet-ink sm:text-4xl">
-            Every pet gets two pages.
+            One Pet Profile, two public pages.
           </h2>
           <p className="mt-3 text-sm leading-6 text-pet-muted sm:text-base sm:leading-7">
-            One to show off, one to bring them home. You decide what each one
-            shows.
+            Your Pet Profile holds everything about your pet. Two pages inside
+            it go out to other people — one to show them off, one to bring them
+            home — and you decide what each one shows.
           </p>
         </div>
 
@@ -137,7 +138,7 @@ export function PetProfilesSection() {
         */}
         <div className="mt-8 rounded-[1.5rem] border border-pet-border bg-white/70 p-5 sm:p-6">
           <h3 className="text-base font-black text-pet-ink">
-            And the details you need on hand.
+            Also in your Pet Profile.
           </h3>
           <ul className="mt-3 grid gap-2 text-sm text-pet-muted sm:grid-cols-3">
             {careDetails.map((detail) => (
@@ -158,7 +159,7 @@ export function PetProfilesSection() {
             className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"
             href={marketingRoutes.samplePublicProfile}
           >
-            View Sample Profile
+            View Sample Share Profile
             <Icon aria-hidden="true" className="h-4 w-4 -rotate-90" name="chevron" />
           </a>
         </div>

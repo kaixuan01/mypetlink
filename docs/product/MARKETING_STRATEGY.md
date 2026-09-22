@@ -9,29 +9,37 @@
 
 ## 1. Core promise
 
-**A safer way home for your pet.** Every pet can start with a free public
-profile and pet-level Safety Profile so a finder can contact the owner quickly.
-The QR + NFC Smart Tag is an optional one-time add-on for owners who want extra
-safety on a collar.
+**A safer way home for your pet.** Every pet starts with a free **Pet
+Profile** — the umbrella record that holds their story, their care, and the two
+pages other people see: a **Share Profile** for the people the owner chooses,
+and a **Safety Profile** so a finder can contact the owner quickly. The
+QR + NFC Smart Tag is an optional one-time add-on for owners who want that
+Safety Profile on a collar.
+
+**Pet Profile is never the name of a page.** It is what a visitor is invited to
+create; `/p/` is the Share Profile. See
+[`product-model.md`](../architecture/product-model.md).
 
 ---
 
-## 2. Two public surfaces, two audiences
+## 2. Two public pet surfaces, two audiences
 
 These are **different pages with different jobs**. Never blur them in product,
-copy, or campaigns.
+copy, or campaigns. A third public page, the owner's **Community Profile**
+(`/u/{handle}`), belongs to the household rather than to a pet — see §7.
 
 | Surface | Route | Audience | Emotional job | Primary action |
 | ------- | ----- | -------- | ------------- | -------------- |
-| **Public Share Profile** | `/p/{petSlug}-{publicCode}` | Friends, family, social media, pet communities | Pride, delight, community | **Share** |
+| **Share Profile** | `/p/{petSlug}-{publicCode}` | Friends, family, and anyone the owner sends the link to | Pride, delight, community | **Share** |
 | **Safety Profile** | `/q/{safetyCode}`, or an active tag at `/q/{tagCode}` / `/n/{tagCode}` / legacy `/t/{tagCode}` | A stranger who opened a pet QR page or scanned a physical tag on a found pet | Urgency, trust, "help me get home" | **I found this pet — Contact Owner** |
 
 - The **Share Profile** is the IG-style page an owner *chooses* to send. It is
-  warm and clean: photo, name, bio, public memories, timeline, care badges. It
+  warm and clean: photo, name, bio, public Moments, timeline, care badges. It
   is **not** emergency-first. Its only finder behaviour is a **Lost Mode** banner
   when pet-level `lostModeEnabled` is on.
 - The **Safety Profile** is the page a finder *lands on* from a pet-level QR
-  link (`/q/{safetyCode}`) or an active physical tag (`/t/{tagCode}`). It is
+  link (`/q/{safetyCode}`) or an active physical tag (`/q/{tagCode}` by QR,
+  `/n/{tagCode}` by NFC, `/t/{tagCode}` for already-issued printed tags). It is
   finder-first: big contact CTA, WhatsApp/Call/Send Found Location, emergency
   and safety notes, minimal lifestyle content.
 
@@ -51,10 +59,17 @@ content that slows a finder down.
 
 ---
 
-## 4. The smart tag is the hook
+## 4. The Smart Tag is the accessory, not the product
 
-The free pet profile is the base product. Optional physical smart tags add a
-printed QR code or QR + NFC tap surface to the same pet safety content. Retail
+The free Pet Profile is the product a visitor is asked to create; the tag is an
+optional way to carry one of its pages. Public marketing must never make the
+purchase the first step — the primary CTA everywhere is
+**Create Free Pet Profile**, and `/smart-pet-tags` says outright that a tag is
+not needed.
+
+The **QR + NFC Smart Tag is the only physical tag we sell**; the QR-only
+"QR Pet Tag" is discontinued and must not appear in any campaign. A tag adds a
+scan-and-tap surface to the same Safety Profile the pet already has. Retail
 packaging, QR, NFC, and owner UI all show the same TagCode (see
 `SMART_TAG_PRODUCT_STRATEGY.md`). Campaigns should make the scan-to-reunite
 story concrete: scan or tap → safety page → contact owner. Never market an
@@ -68,7 +83,10 @@ Owners manage everything from the portal hub (`/pets/{petId}`) and a tabbed edit
 form. Owner-facing "View / Preview" buttons open the real public pages in a new
 tab so owners can see exactly what a friend or finder sees. The marketing claim
 ("you control what's public") is backed by the per-field `visibility` flags split
-across **Public Profile** and **Contact & Safety** settings.
+across the **Share Profile** and **Contact & Safety** edit tabs. The pet
+Overview summarises all three audiences read-only in one **Sharing & Privacy**
+card; see
+[`owner-sharing-experience.md`](../architecture/owner-sharing-experience.md).
 
 ---
 
@@ -76,9 +94,18 @@ across **Public Profile** and **Contact & Safety** settings.
 
 1. Keep the two surfaces distinct in every asset, mockup, and landing page.
 2. Lead the share story with *Share*; lead the tag story with *reunite*.
-3. Use real route formats (`/p/{slug}-{publicCode}`, `/t/{tagCode}`), never the
-   deprecated `/p/{slug}` alone or old short tokens.
+3. Use real route formats (`/p/{slug}-{publicCode}`, `/q/{safetyCode}`,
+   `/q/{tagCode}`), never the deprecated `/p/{slug}` alone or old short tokens.
+   `/t/{tagCode}` is retained for already-issued printed tags only.
 4. Privacy is a feature, not fine print — owners approve what's public.
+5. **Community is a household, not a pet account.** People follow a household's
+   Community Profile; participating pets and Moments appear on it. It is
+   opt-in, off by default, and promoted publicly only while
+   `NEXT_PUBLIC_SOCIAL_ENABLED` is on. Never imply a Share Profile or a Safety
+   Profile depends on it — the dependency runs the other way.
+6. **Never imply tracking.** No live GPS, geofencing, safe zones or continuous
+   location. GPS Safety is a separate, unbuilt product and is only ever
+   described as planned.
 
 ---
 
@@ -123,10 +150,10 @@ at the close, because a page with seven buttons has no primary action at all.
    details. This absorbed the old "core features" section.
 4. **Community** — a window, not a feed: three illustrative cards and a link to
    Explore. Rendered only when `socialEnabled`. Anchor `#community`.
-5. **Smart Tag** — the one optional one-time add-on (RM39.90). Scanning and
+7. **Smart Tag** — the one optional one-time add-on (RM39.90). Scanning and
    tapping are two ways into the same Safety Profile, never two products.
    Anchor `#smart-tags`.
-6. **Pricing preview** — short: Free Profile and the Smart Tag, with Premium and
+8. **Pricing preview** — short: Free Profile and the Smart Tag, with Premium and
    GPS named in one muted line. Status comes from configuration, never a
    hand-written promise. Do not duplicate the full pricing page here.
 7. **Where to buy** — renders only once a tag can actually be bought.
