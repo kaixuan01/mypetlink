@@ -61,11 +61,13 @@ Do **not** repoint `AdminEmail` at one of the plain seeded owners
 `AdminRole.Admin` to whatever address it is given, so that would silently
 promote a fixture that other tests rely on being an ordinary owner.
 
-After signing in, navigate to the Community route directly. The Development
-login lives only on `/admin/login` and resolves an Admin destination; the owner
-login at `/login` offers Google only, so `/login?redirect=/feed` cannot use it.
-The redirect parameter itself works normally — signing out and reopening
-`/feed` lands on `/login?redirect=%2Ffeed` as usual.
+The same **Development sign in** action is also shown separately beneath Google
+on `/login` while the local frontend gate is enabled. This lets browser QA
+exercise the real owner-login redirect path, including
+`/login?redirect=/feed`, without changing Google sign-in or writing a session
+directly. Google remains the primary real-user method, and production builds
+never render the development action because the existing environment gate is
+unchanged.
 
 ## Seed and session behavior
 

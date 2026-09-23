@@ -166,6 +166,7 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
 describe("own profile versus visitor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/u/tanfamily");
     mocks.smartTagsEnabled = true;
     mocks.getPublicOwnerProfile.mockResolvedValue(profile);
     mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));
@@ -246,6 +247,7 @@ describe("own profile versus visitor", () => {
 describe("OwnerSocialProfileView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/u/tanfamily");
     mocks.smartTagsEnabled = true;
     mocks.getPublicOwnerProfile.mockResolvedValue(profile);
     mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));

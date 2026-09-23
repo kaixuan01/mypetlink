@@ -1,14 +1,28 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   loginMockOwner,
+  loginAsDevelopmentAdmin,
   loginWithGoogleIdToken,
 } from "@/services/authService";
-import { getGoogleClientId, isApiConfigured } from "@/services/apiConfig";
+import {
+  getGoogleClientId,
+  isApiConfigured,
+  isDevelopmentAdminLoginEnabled,
+} from "@/services/apiConfig";
 import { isApiClientError } from "@/services/apiClient";
-import { resolveOwnerPostLoginPath } from "@/lib/authRedirect";
+import {
+  isCommunityPostLoginPath,
+  resolveOwnerPostLoginPath,
+} from "@/lib/authRedirect";
 
 declare global {
   interface Window {
@@ -62,11 +76,17 @@ export function LoginPanel() {
   const router = useRouter();
   const apiMode = isApiConfigured();
   const googleClientId = getGoogleClientId();
+  const developmentLoginEnabled = isDevelopmentAdminLoginEnabled();
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const errorRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [googleReady, setGoogleReady] = useState(!apiMode);
+  const requestedDestination = useSyncExternalStore(
+    subscribeToLoginLocation,
+    getRequestedRedirect,
+    getServerRequestedRedirect
+  );
 
   useLayoutEffect(() => {
     if (error) {
@@ -171,6 +191,24 @@ export function LoginPanel() {
     navigateAfterLogin(router);
   }
 
+  async function handleDevelopmentLogin() {
+    setSigningIn(true);
+    setError("");
+
+    try {
+      await loginAsDevelopmentAdmin();
+      navigateAfterLogin(router);
+    } catch {
+      setError(
+        "Development sign in is not available. Check the local setup and try again."
+      );
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  const returningToCommunity = isCommunityPostLoginPath(requestedDestination);
+
   return (
     <section
       aria-labelledby="owner-sign-in-title"
@@ -180,8 +218,19 @@ export function LoginPanel() {
         Continue with Google
       </h2>
       <p className="mt-2 min-w-0 break-words text-sm leading-6 text-pet-muted">
-        Use your Google account to securely open your owner portal.
+        Use your Google account to securely continue with MyPetLink.
       </p>
+
+      {returningToCommunity ? (
+        <p
+          className="mt-3 rounded-2xl bg-[#e8f3ff] p-3.5 text-sm font-semibold leading-6 text-pet-ink"
+          data-testid="community-login-context"
+        >
+          Sign in to continue in Community. You&rsquo;ll return to the page you
+          were viewing. Follow, Like, and Block still require your deliberate
+          confirmation after sign-in.
+        </p>
+      ) : null}
 
       <div
         aria-busy={signingIn}
@@ -228,6 +277,23 @@ export function LoginPanel() {
         )}
       </div>
 
+      {developmentLoginEnabled ? (
+        <div className="mt-4 border-t border-pet-border pt-4">
+          <p className="text-center text-[11px] font-black uppercase tracking-wide text-pet-muted">
+            Development only
+          </p>
+          <button
+            className="mt-2 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-extrabold text-amber-950 transition hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="owner-development-login"
+            disabled={signingIn}
+            onClick={() => void handleDevelopmentLogin()}
+            type="button"
+          >
+            Development sign in
+          </button>
+        </div>
+      ) : null}
+
       {error ? (
         <div
           className="mt-3 min-w-0 break-words rounded-2xl border border-[#ffd5cf] bg-[#fff1ee] p-3.5 text-sm font-bold leading-6 text-[#a63c2e]"
@@ -248,9 +314,25 @@ export function LoginPanel() {
 }
 
 function navigateAfterLogin(router: ReturnType<typeof useRouter>) {
+  router.replace(resolveOwnerPostLoginPath(getRequestedRedirect()));
+}
+
+function getRequestedRedirect() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   const params = new URLSearchParams(window.location.search);
-  const redirect = params.get("redirect") ?? params.get("next");
-  router.replace(resolveOwnerPostLoginPath(redirect));
+  return params.get("redirect") ?? params.get("next");
+}
+
+function getServerRequestedRedirect() {
+  return null;
+}
+
+function subscribeToLoginLocation(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
 }
 
 function getLoginErrorMessage(error: unknown) {

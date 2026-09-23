@@ -107,6 +107,7 @@ async function advance(ms: number) {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/dashboard");
   vi.useFakeTimers();
   resetOwnerSessionVerificationForTests();
   mocks.replace.mockReset();
@@ -280,6 +281,18 @@ describe("AuthGuard failure handling", () => {
     );
     expect(mocks.getCurrentOwnerSession).not.toHaveBeenCalled();
     expect(mocks.enterOwnerPortal).not.toHaveBeenCalled();
+  });
+
+  it("preserves the complete Community route when redirecting to login", async () => {
+    window.history.replaceState({}, "", "/feed?view=following#latest");
+    mocks.isOwnerAuthenticated.mockReturnValue(false);
+
+    renderGuard();
+    await flushMicrotasks();
+
+    expect(mocks.replace).toHaveBeenCalledWith(
+      "/login?redirect=%2Ffeed%3Fview%3Dfollowing%23latest"
+    );
   });
 });
 

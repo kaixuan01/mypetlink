@@ -5,7 +5,10 @@ import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { trackEvent, type AnalyticsSocialSource } from "@/lib/analytics";
-import { ownerLoginPath } from "@/lib/authRedirect";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 import { isApiClientError } from "@/services/apiClient";
 import { likeMoment, unlikeMoment } from "@/services/momentLikeService";
 
@@ -21,6 +24,8 @@ type LikeButtonProps = {
   /** Which screen this heart is on. Categorical; never which Moment. */
   analyticsSource?: AnalyticsSocialSource;
   className?: string;
+  /** Test seam; production falls back to a normal same-origin login navigation. */
+  onAuthenticationRequired?: (loginPath: string) => void;
 };
 
 /**
@@ -42,6 +47,7 @@ export function LikeButton({
   onChange,
   analyticsSource = "direct",
   className = "",
+  onAuthenticationRequired = navigateToLogin,
 }: LikeButtonProps) {
   const pathname = usePathname();
   const [pending, setPending] = useState(false);
@@ -81,6 +87,14 @@ export function LikeButton({
       });
     } catch (caught) {
       onChange(previous);
+
+      if (isApiClientError(caught) && caught.status === 401) {
+        onAuthenticationRequired(
+          ownerLoginPath(getCurrentLocalDestination(pathname || "/"))
+        );
+        return;
+      }
+
       setFailure({
         momentId,
         message: isApiClientError(caught)
@@ -90,7 +104,16 @@ export function LikeButton({
     } finally {
       setPending(false);
     }
-  }, [analyticsSource, likeCount, momentId, onChange, pending, viewerHasLiked]);
+  }, [
+    analyticsSource,
+    likeCount,
+    momentId,
+    onAuthenticationRequired,
+    onChange,
+    pathname,
+    pending,
+    viewerHasLiked,
+  ]);
 
   const countLabel = likeCount === 1 ? "1 like" : `${likeCount} likes`;
 
@@ -100,7 +123,9 @@ export function LikeButton({
         aria-label={`Sign in to like ${momentTitle}. ${countLabel}.`}
         className={`${baseClass} ${className}`}
         data-testid="like-button-signin"
-        href={ownerLoginPath(pathname || "/")}
+        href={ownerLoginPath(
+          getCurrentLocalDestination(pathname || "/")
+        )}
       >
         <Icon aria-hidden="true" className="h-4 w-4" name="heart" />
         <span className="tabular-nums">{likeCount}</span>
@@ -154,3 +179,7 @@ export function LikeButton({
 
 const baseClass =
   "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 py-1 text-sm font-bold text-pet-muted transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-60";
+
+function navigateToLogin(path: string) {
+  window.location.assign(path);
+}

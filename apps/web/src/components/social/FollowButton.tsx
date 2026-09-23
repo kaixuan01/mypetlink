@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { trackEvent, type AnalyticsSocialSource } from "@/lib/analytics";
-import { ownerLoginPath } from "@/lib/authRedirect";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 import { ownerSocialProfilePath } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import {
@@ -25,6 +28,8 @@ type FollowButtonProps = {
   /** Which screen this control is on. Categorical; never which household. */
   analyticsSource?: AnalyticsSocialSource;
   className?: string;
+  /** Test seam; production falls back to a normal same-origin login navigation. */
+  onAuthenticationRequired?: (loginPath: string) => void;
 };
 
 /**
@@ -48,6 +53,7 @@ export function FollowButton({
   emphasis = "solid",
   analyticsSource = "direct",
   className = "",
+  onAuthenticationRequired = navigateToLogin,
 }: FollowButtonProps) {
   const notFollowingClass =
     emphasis === "subtle" ? subtleFollowClass : followClass;
@@ -90,6 +96,16 @@ export function FollowButton({
       });
     } catch (caught) {
       onChange(previous);
+
+      if (isApiClientError(caught) && caught.status === 401) {
+        onAuthenticationRequired(
+          ownerLoginPath(
+            getCurrentLocalDestination(ownerSocialProfilePath(handle))
+          )
+        );
+        return;
+      }
+
       setFailure({
         handle,
         message: isApiClientError(caught)
@@ -99,7 +115,14 @@ export function FollowButton({
     } finally {
       setPending(false);
     }
-  }, [analyticsSource, handle, onChange, pending, relationship]);
+  }, [
+    analyticsSource,
+    handle,
+    onAuthenticationRequired,
+    onChange,
+    pending,
+    relationship,
+  ]);
 
   if (relationship.isSelf) {
     return null;
@@ -114,7 +137,9 @@ export function FollowButton({
         aria-label={`Sign in to follow ${displayName}`}
         className={`${baseClass} max-w-full ${notFollowingClass} ${className}`}
         data-testid="follow-button-signin"
-        href={ownerLoginPath(ownerSocialProfilePath(handle))}
+        href={ownerLoginPath(
+          getCurrentLocalDestination(ownerSocialProfilePath(handle))
+        )}
       >
         <span className="min-w-0 truncate">Follow</span>
       </Link>
@@ -179,3 +204,7 @@ const subtleFollowClass =
   "border-pet-teal bg-white text-pet-teal hover:bg-[#e8f3ff]";
 const followingClass =
   "border-pet-border bg-white text-pet-ink hover:bg-pet-cream";
+
+function navigateToLogin(path: string) {
+  window.location.assign(path);
+}

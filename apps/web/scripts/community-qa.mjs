@@ -12,10 +12,10 @@
  * reuses the Edge/Chrome discovery the marketing capture scripts established
  * rather than downloading a browser.
  *
- * **Authentication.** It signs in through the product's own UI — the
- * Development login button on `/admin/login` — so the session is created by the
- * app, stored by the app, and identical to one a Google sign-in produces. This
- * script never mints, reads, or writes a token itself. See
+ * **Authentication.** It signs in through the product's own `/login` UI and
+ * its separately-labelled, development-only sign-in button, so the session is
+ * created by the app, stored by the app, and identical to one a Google sign-in
+ * produces. This script never mints, reads, or writes a token itself. See
  * docs/testing/development-admin-login.md, including why the account is
  * `admin.dev@mypetlink.local` and why its admin role is irrelevant to Community.
  *
@@ -139,16 +139,19 @@ async function requireServers() {
  * Deliberately the UI path rather than a direct call to the endpoint: it proves
  * the affordance works, and it leaves the session entirely in the app's hands.
  */
-async function signIn(browser) {
+async function signIn(browser, returnTo = "/feed") {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
 
-  await page.goto(`${WEB}/admin/login`, { waitUntil: "domcontentloaded" });
+  await page.goto(
+    `${WEB}/login?redirect=${encodeURIComponent(returnTo)}`,
+    { waitUntil: "domcontentloaded" }
+  );
 
-  const devLogin = page.getByRole("button", { name: "Development login" });
+  const devLogin = page.getByTestId("owner-development-login");
   if ((await devLogin.count()) === 0) {
     throw new Error(
-      "The Development login button is not rendered. Set NEXT_PUBLIC_DEV_AUTH_ENABLED=true in apps/web/.env.local and restart the web server."
+      "The owner Development sign in button is not rendered. Set NEXT_PUBLIC_DEV_AUTH_ENABLED=true in apps/web/.env.local and restart the web server."
     );
   }
 
@@ -156,6 +159,10 @@ async function signIn(browser) {
   await page.waitForFunction(
     (key) => Boolean(window.localStorage.getItem(key)),
     SESSION_KEY,
+    { timeout: 20000 }
+  );
+  await page.waitForURL(
+    (url) => `${url.pathname}${url.search}${url.hash}` === returnTo,
     { timeout: 20000 }
   );
 
@@ -419,11 +426,442 @@ async function cleanupBlockQaRelationship(page, state) {
   state.followCreated = false;
 }
 
-async function verifySharePaths(browser, momentRoute) {
+function currentDestination(page) {
+  const url = new URL(page.url());
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function expectedLoginPath(returnTo) {
+  return `/login?redirect=${encodeURIComponent(returnTo)}`;
+}
+
+async function assertLoginTarget(page, returnTo) {
+  await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 });
+  const url = new URL(page.url());
+  assert(
+    url.searchParams.get("redirect") === returnTo,
+    `Login preserved ${url.searchParams.get("redirect")}, expected ${returnTo}.`
+  );
+  await page.getByTestId("community-login-context").waitFor();
+}
+
+async function completeDevelopmentSignIn(page, returnTo) {
+  const signIn = page.getByTestId("owner-development-login");
+  await signIn.waitFor();
+  await signIn.click();
+  await page.waitForFunction(
+    (key) => Boolean(window.localStorage.getItem(key)),
+    SESSION_KEY,
+    { timeout: 20000 }
+  );
+  await page.waitForURL(
+    (url) => `${url.pathname}${url.search}${url.hash}` === returnTo,
+    { timeout: 20000 }
+  );
+  assert(
+    !currentDestination(page).startsWith("/pets") &&
+      currentDestination(page) !== "/dashboard",
+    `Sign-in lost Community context at ${currentDestination(page)}.`
+  );
+}
+
+async function openAnonymousPage(browser, path, viewport = { width: 390, height: 844 }) {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  await visit(page, path);
+  assert(!(await isAuthenticated(page)), `${path} unexpectedly started signed in.`);
+  return { context, page };
+}
+
+async function discoverAnonymousMoment(browser) {
+  const { context, page } = await openAnonymousPage(browser, "/explore?source=c5");
+
+  try {
+    const card = page
+      .locator(
+        '[data-testid="social-moment-card"], [data-testid="social-moment-tile"]'
+      )
+      .first();
+    await card.waitFor();
+    const likeLabel =
+      (await card.getByTestId("like-button-signin").getAttribute("aria-label")) ??
+      "";
+    const title = /^Sign in to like (.+)\. \d+ likes?\.$/.exec(likeLabel)?.[1];
+    const route = await card.locator('a[href^="/moments/"]').first().getAttribute("href");
+    assert(title && route, "Explore did not expose a public Moment for C5 QA.");
+    return { route, title };
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyAnonymousFollow(browser) {
+  const returnTo = `/u/${BLOCK_QA.handle}?source=c5-follow`;
+  const { context, page } = await openAnonymousPage(browser, returnTo);
+  let followWrites = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname.endsWith(`/${BLOCK_QA.handle}/follow`)
+    ) {
+      followWrites += 1;
+    }
+  });
+
+  try {
+    const gate = page.getByTestId("follow-button-signin");
+    await gate.waitFor();
+    assert(
+      (await gate.getAttribute("aria-label")) ===
+        `Sign in to follow ${BLOCK_QA.displayName}`,
+      "Anonymous Follow did not identify its sign-in requirement."
+    );
+    assert(
+      (await gate.getAttribute("href")) === expectedLoginPath(returnTo),
+      "Anonymous Follow did not preserve its full origin route."
+    );
+
+    await gate.click();
+    await assertLoginTarget(page, returnTo);
+
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => `${url.pathname}${url.search}` === returnTo);
+    await page.getByTestId("follow-button-signin").waitFor();
+    assert(!(await isAuthenticated(page)), "Browser Back left a half-authenticated session.");
+
+    await page.getByTestId("follow-button-signin").click();
+    await assertLoginTarget(page, returnTo);
+    await completeDevelopmentSignIn(page, returnTo);
+    await page.getByTestId("follow-button").waitFor();
+    assert(
+      (await page.getByTestId("follow-button").getAttribute("data-following")) ===
+        "false",
+      "Follow ran automatically after login."
+    );
+    assert(followWrites === 0, `Follow wrote ${followWrites} time(s) during login.`);
+
+    return { backReturned: true, returnTo };
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyAnonymousLike(browser, sourceRoute, title) {
+  const { context, page } = await openAnonymousPage(browser, sourceRoute);
+  let likeWrites = 0;
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "POST" && pathname.endsWith("/like")) {
+      likeWrites += 1;
+    }
+  });
+
+  try {
+    const gate = page.getByRole("link", {
+      name: new RegExp(`^Sign in to like ${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`),
+    });
+    await gate.first().waitFor();
+    assert(
+      (await gate.first().getAttribute("href")) === expectedLoginPath(sourceRoute),
+      `Anonymous Like did not preserve ${sourceRoute}.`
+    );
+    await gate.first().click();
+    await assertLoginTarget(page, sourceRoute);
+    await completeDevelopmentSignIn(page, sourceRoute);
+
+    const activeLike = page.getByRole("button", {
+      name: new RegExp(`^Like ${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`),
+    });
+    await activeLike.first().waitFor();
+    assert(likeWrites === 0, `Like wrote ${likeWrites} time(s) during login.`);
+    return sourceRoute;
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyAnonymousBlock(browser) {
+  const returnTo = `/u/${BLOCK_QA.handle}?source=c5-block`;
+  const { context, page } = await openAnonymousPage(browser, returnTo);
+  let blockWrites = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname.endsWith(`/${BLOCK_QA.handle}/block`)
+    ) {
+      blockWrites += 1;
+    }
+  });
+
+  try {
+    await page.getByTestId("owner-profile-menu-trigger").click();
+    const gate = page.getByTestId("owner-profile-block-signin");
+    await gate.waitFor();
+    assert(
+      (await gate.getAttribute("href")) === expectedLoginPath(returnTo),
+      "Anonymous Block did not preserve its profile route."
+    );
+    assert(
+      (await page.getByRole("dialog").count()) === 0,
+      "Anonymous Block opened destructive confirmation before sign-in."
+    );
+
+    await gate.click();
+    await assertLoginTarget(page, returnTo);
+    await completeDevelopmentSignIn(page, returnTo);
+    assert(
+      (await page.getByRole("dialog").count()) === 0,
+      "Block confirmation incorrectly survived login."
+    );
+
+    await page.getByTestId("owner-profile-menu-trigger").click();
+    await page.getByRole("menuitem", { name: `Block @${BLOCK_QA.handle}` }).click();
+    const dialog = page.getByRole("dialog", {
+      name: `Block ${BLOCK_QA.displayName}?`,
+    });
+    await dialog.waitFor();
+    assert(blockWrites === 0, "Block executed before fresh confirmation.");
+    await dialog.getByRole("button", { name: "Keep as is" }).click();
+    assert(blockWrites === 0, "Cancelling the fresh Block confirmation wrote data.");
+
+    return { confirmationRequiredAgain: true, returnTo };
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyProtectedRouteReturns(browser) {
+  const protectedRoutes = [
+    "/feed?source=c5",
+    "/notifications?source=c5",
+    "/community/profile?source=c5",
+    "/community/profile/edit?source=c5",
+  ];
+
+  for (const [index, returnTo] of protectedRoutes.entries()) {
+    const { context, page } = await openAnonymousPage(browser, returnTo);
+    try {
+      await assertLoginTarget(page, returnTo);
+      await completeDevelopmentSignIn(page, returnTo);
+      assert(currentDestination(page) === returnTo, `${returnTo} was not restored.`);
+
+      if (index === protectedRoutes.length - 1) {
+        await mkdir(dirname(SESSION_FILE), { recursive: true });
+        await context.storageState({ path: SESSION_FILE });
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  return protectedRoutes;
+}
+
+async function verifyUnsafeRedirects(browser) {
+  const unsafe = [
+    "https://example.com",
+    "//example.com",
+    "javascript:alert(1)",
+    "https%3A%2F%2Fexample.com%2Ffeed",
+  ];
+
+  for (const redirect of unsafe) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    try {
+      await page.goto(
+        `${WEB}/login?redirect=${encodeURIComponent(redirect)}`,
+        { waitUntil: "domcontentloaded" }
+      );
+      await page.getByTestId("owner-development-login").click();
+      await page.waitForURL((url) => url.pathname === "/dashboard", {
+        timeout: 20000,
+      });
+      assert(new URL(page.url()).origin === new URL(WEB).origin, "Login left MyPetLink.");
+    } finally {
+      await context.close();
+    }
+  }
+
+  return unsafe;
+}
+
+async function fulfillExpiredSession(route) {
+  await route.fulfill({
+    body: JSON.stringify({
+      error: { code: "token_expired", message: "Authentication is required." },
+    }),
+    contentType: "application/json",
+    status: 401,
+  });
+}
+
+async function verifySessionExpiry(browser, momentRoute, momentTitle) {
+  const inlineContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const inlinePage = await inlineContext.newPage();
+  let likeAttempts = 0;
+
+  try {
+    await inlinePage.goto(
+      `${WEB}${expectedLoginPath(momentRoute)}`,
+      { waitUntil: "domcontentloaded" }
+    );
+    await completeDevelopmentSignIn(inlinePage, momentRoute);
+    await inlinePage.getByRole("button", {
+      name: new RegExp(`^Like ${momentTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`),
+    }).waitFor();
+    await inlinePage.route("**/api/v1/auth/refresh", fulfillExpiredSession);
+    await inlinePage.route("**/api/v1/social/moments/*/like", async (route) => {
+      likeAttempts += 1;
+      await fulfillExpiredSession(route);
+    });
+    await inlinePage.getByRole("button", {
+      name: new RegExp(`^Like ${momentTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`),
+    }).click();
+    await assertLoginTarget(inlinePage, momentRoute);
+    assert(likeAttempts === 1, `Expired Like attempted ${likeAttempts} writes.`);
+  } finally {
+    await inlineContext.close();
+  }
+
+  const routeContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const routePage = await routeContext.newPage();
+  const returnTo = "/feed?source=c5-expired";
+  try {
+    await routePage.goto(`${WEB}${expectedLoginPath(returnTo)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await completeDevelopmentSignIn(routePage, returnTo);
+    await routePage.route("**/api/v1/auth/refresh", fulfillExpiredSession);
+    await routePage.route("**/api/v1/auth/me", fulfillExpiredSession);
+    await routePage.reload({ waitUntil: "domcontentloaded" });
+    await assertLoginTarget(routePage, returnTo);
+  } finally {
+    await routeContext.close();
+  }
+
+  return { inlineWriteAttempts: likeAttempts, protectedRoute: returnTo };
+}
+
+async function verifyPublicAnonymousRoutes(browser, profileRoute, momentRoute) {
+  const routes = [
+    "/explore",
+    "/search?q=pet",
+    profileRoute,
+    momentRoute,
+  ];
+  const { context, page } = await openAnonymousPage(browser, routes[0]);
+
+  try {
+    for (const route of routes) {
+      await visit(page, route);
+      assert(
+        new URL(page.url()).pathname !== "/login",
+        `${route} incorrectly required login.`
+      );
+      assert(!(await isAuthenticated(page)), `${route} created a session.`);
+    }
+  } finally {
+    await context.close();
+  }
+
+  return routes;
+}
+
+async function verifyC5AnonymousFlows(browser) {
+  const moment = await discoverAnonymousMoment(browser);
+  const publicRoutes = await verifyPublicAnonymousRoutes(
+    browser,
+    `/u/${BLOCK_QA.handle}`,
+    moment.route
+  );
+  const anonymousShare = await verifySharePaths(browser, moment.route, null);
+  const follow = await verifyAnonymousFollow(browser);
+  const exploreLike = await verifyAnonymousLike(
+    browser,
+    "/explore?source=c5-like",
+    moment.title
+  );
+  const detailLike = await verifyAnonymousLike(browser, moment.route, moment.title);
+  const block = await verifyAnonymousBlock(browser);
+  const unsafeRedirects = await verifyUnsafeRedirects(browser);
+  const expiry = await verifySessionExpiry(browser, moment.route, moment.title);
+  const protectedRoutes = await verifyProtectedRouteReturns(browser);
+
+  return {
+    anonymousShare,
+    block,
+    detailLike,
+    expiry,
+    exploreLike,
+    follow,
+    moment,
+    protectedRoutes,
+    publicRoutes,
+    unsafeRedirects,
+  };
+}
+
+async function verifyAnonymousResponsive(browser) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const results = [];
+
+  try {
+    for (const { w, h } of VIEWPORTS) {
+      await page.setViewportSize({ width: w, height: h });
+      const returnTo = `/u/${BLOCK_QA.handle}?source=c5-responsive`;
+      await visit(page, returnTo);
+
+      const profileOverflow = await overflowReport(page);
+      const profileOverlap = await headerOverlap(page);
+      await page.getByTestId("owner-profile-menu-trigger").click();
+      assert(
+        (await page.getByRole("dialog").count()) === 0,
+        `${w}x${h}: signed-out Block opened confirmation.`
+      );
+      await page.getByTestId("owner-profile-block-signin").click();
+      await assertLoginTarget(page, returnTo);
+
+      const [loginOverflow, loginButton] = await Promise.all([
+        overflowReport(page),
+        page.getByTestId("owner-development-login").boundingBox(),
+      ]);
+      assert(loginButton, `${w}x${h}: login CTA was not visible.`);
+      const loginFits =
+        loginButton.x >= -1 && loginButton.x + loginButton.width <= w + 1;
+
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await page.waitForURL((url) => `${url.pathname}${url.search}` === returnTo);
+      await page.getByTestId("owner-profile-menu-trigger").waitFor();
+      const returnedOverflow = await overflowReport(page);
+      const cleanReturn =
+        (await page.getByRole("dialog").count()) === 0 &&
+        !(await isAuthenticated(page)) &&
+        new URL(page.url()).pathname === `/u/${BLOCK_QA.handle}`;
+
+      const notes = [];
+      if (profileOverflow.scrolls) notes.push("profile overflow");
+      if (profileOverlap) notes.push(profileOverlap);
+      if (loginOverflow.scrolls) notes.push("login overflow");
+      if (!loginFits) notes.push("login CTA outside viewport");
+      if (returnedOverflow.scrolls) notes.push("return overflow");
+      if (!cleanReturn) notes.push("Back did not restore a clean visitor profile");
+
+      results.push({ h, notes, w });
+    }
+  } finally {
+    await context.close();
+  }
+
+  return results;
+}
+
+async function verifySharePaths(browser, momentRoute, storageState = SESSION_FILE) {
   const expectedUrl = new URL(momentRoute, WEB).href;
 
   const nativeContext = await browser.newContext({
-    storageState: SESSION_FILE,
+    ...(storageState ? { storageState } : {}),
     viewport: { width: 390, height: 844 },
   });
   await nativeContext.addInitScript(() => {
@@ -464,7 +902,7 @@ async function verifySharePaths(browser, momentRoute) {
   }
 
   const fallbackContext = await browser.newContext({
-    storageState: SESSION_FILE,
+    ...(storageState ? { storageState } : {}),
     viewport: { width: 390, height: 844 },
   });
   await fallbackContext.grantPermissions(["clipboard-read", "clipboard-write"], {
@@ -673,11 +1111,24 @@ async function main() {
   const browser = await chromium.launch({ executablePath, headless });
 
   try {
+    process.stdout.write("C5 anonymous-to-login verification\n");
+    const c5 = await verifyC5AnonymousFlows(browser);
+    process.stdout.write(
+      `  OK    Follow -> ${c5.follow.returnTo}; Back clean=${c5.follow.backReturned}; no auto-follow\n` +
+        `  OK    Like -> ${c5.exploreLike} and ${c5.detailLike}; no auto-like\n` +
+        `  OK    Block -> ${c5.block.returnTo}; fresh confirmation=${c5.block.confirmationRequiredAgain}; no auto-block\n` +
+        `  OK    Anonymous Share -> ${c5.anonymousShare.native.url}; ${c5.anonymousShare.fallback.feedback}\n` +
+        `  OK    Protected returns -> ${c5.protectedRoutes.join(", ")}\n` +
+        `  OK    Public browsing -> ${c5.publicRoutes.join(", ")}\n` +
+        `  OK    Unsafe redirects rejected -> ${c5.unsafeRedirects.length}\n` +
+        `  OK    Session expiry -> ${c5.expiry.protectedRoute}; inline writes=${c5.expiry.inlineWriteAttempts}\n\n`
+    );
+
     if (!(await exists(SESSION_FILE))) {
       process.stdout.write("Signing in through the Development login...\n");
       await signIn(browser);
     } else {
-      process.stdout.write("Reusing the saved signed-in state.\n");
+      process.stdout.write("Using the signed-in state produced by the C5 return flow.\n");
     }
 
     const context = await browser.newContext({
@@ -731,6 +1182,17 @@ async function main() {
     }
 
     if (wantResponsive) {
+      process.stdout.write("\nResponsive sweep (anonymous login and Back)\n");
+      const anonymousResults = await verifyAnonymousResponsive(browser);
+      for (const { w, h, notes } of anonymousResults) {
+        if (notes.length > 0) failures += notes.length;
+        process.stdout.write(
+          notes.length === 0
+            ? `  OK    ${w}x${h}\n`
+            : `  NOTE  ${w}x${h}: ${notes.join("; ")}\n`
+        );
+      }
+
       process.stdout.write("\nResponsive sweep (authenticated)\n");
       const sweepRoutes = routes.filter((route) => route.path);
 

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OwnerRelationship } from "@/services/socialGraphService";
 
 const mocks = vi.hoisted(() => ({
   followOwner: vi.fn(),
   unfollowOwner: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("@/services/socialGraphService", async () => {
@@ -23,6 +24,10 @@ vi.mock("@/services/socialGraphService", async () => {
 
 import { FollowButton } from "@/components/social/FollowButton";
 import { ApiClientError } from "@/services/apiClient";
+
+beforeEach(() => {
+  window.history.replaceState({}, "", "/u/tanfamily?source=followers");
+});
 
 const base: OwnerRelationship = {
   isSelf: false,
@@ -44,6 +49,7 @@ function renderButton(
     <FollowButton
       displayName="The Tan Family"
       handle="tanfamily"
+      onAuthenticationRequired={mocks.push}
       onChange={onChange}
       relationship={{ ...base, ...relationship }}
       signedIn={"signedIn" in options ? options.signedIn! : true}
@@ -173,8 +179,28 @@ describe("FollowButton", () => {
     renderButton({}, { signedIn: false });
     const link = screen.getByTestId("follow-button-signin");
 
-    expect(link.getAttribute("href")).toBe("/login?redirect=%2Fu%2Ftanfamily");
+    expect(link.getAttribute("href")).toBe(
+      "/login?redirect=%2Fu%2Ftanfamily%3Fsource%3Dfollowers"
+    );
     expect(screen.queryByTestId("follow-button")).toBeNull();
+  });
+
+  it("returns an expired session through login without replaying Follow", async () => {
+    mocks.followOwner.mockRejectedValue(
+      new ApiClientError(401, "unauthorized", "Authentication is required.")
+    );
+
+    const { onChange } = renderButton();
+    fireEvent.click(followButton());
+
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(
+        "/login?redirect=%2Fu%2Ftanfamily%3Fsource%3Dfollowers"
+      )
+    );
+    expect(onChange).toHaveBeenLastCalledWith(base);
+    expect(screen.queryByTestId("follow-button-error")).toBeNull();
+    expect(mocks.followOwner).toHaveBeenCalledOnce();
   });
 
   it("offers a signed-out visitor nothing when follows are closed", () => {

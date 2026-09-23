@@ -8,7 +8,10 @@ import {
   CreateProfileCTA,
   PRIMARY_CTA_LABEL,
 } from "@/components/marketing/CreateProfileCTA";
-import { ownerLoginPath } from "@/lib/authRedirect";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 import { socialEnabled } from "@/lib/features";
 import { ownerRoutes, socialRoutes } from "@/lib/routes";
 import { useSignedIn } from "@/lib/useSignedIn";
@@ -150,7 +153,9 @@ function PublicSocialHeader() {
             // The current page, so signing in returns the visitor to what they
             // were reading. The fallback is the owner dashboard rather than
             // Explore: a post-login destination must exist in both flag states.
-            href={ownerLoginPath(pathname || ownerRoutes.dashboard)}
+            href={ownerLoginPath(
+              getCurrentLocalDestination(pathname || ownerRoutes.dashboard)
+            )}
           >
             Sign in
           </Link>

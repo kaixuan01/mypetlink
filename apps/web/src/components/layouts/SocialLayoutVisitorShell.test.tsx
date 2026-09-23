@@ -54,6 +54,7 @@ async function renderShell(socialEnabled: boolean) {
 
 beforeEach(() => {
   mocks.signedIn = false;
+  window.history.replaceState({}, "", "/p/mochi-pub123?source=shared");
 });
 
 afterEach(() => {
@@ -142,7 +143,9 @@ describe("visitor shell with Community off", () => {
 
     const href = screen.getByRole("link", { name: "Sign in" }).getAttribute("href");
 
-    expect(href).toBe(`/login?redirect=${encodeURIComponent("/p/mochi-pub123")}`);
+    expect(href).toBe(
+      `/login?redirect=${encodeURIComponent("/p/mochi-pub123?source=shared")}`
+    );
   });
 });
 
