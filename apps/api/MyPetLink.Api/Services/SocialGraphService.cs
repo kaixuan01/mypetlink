@@ -184,6 +184,19 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
 
         _dbContext.OwnerFollows.RemoveRange(follows);
 
+        // Blocking removes the relationship in both directions, so any unread
+        // "started following you" activity for those exact edges must leave in
+        // the same transaction. Otherwise it is only hidden while the block is
+        // active and resurfaces after Unblock, describing a follow that no
+        // longer exists. Read activity remains history, matching Unfollow.
+        foreach (var follow in follows)
+        {
+            await _notifications.StageFollowNotificationWithdrawal(
+                follow.FollowerUserId,
+                follow.FollowedUserId,
+                cancellationToken);
+        }
+
         try
         {
             // One SaveChanges: the block and the removals land together or not
