@@ -31,6 +31,42 @@ NEXT_PUBLIC_DEV_AUTH_ENABLED=true
 
 Start the API with `ASPNETCORE_ENVIRONMENT=Development`, then run the Next.js development server. Open the intended Admin URL, such as `http://localhost:3000/admin/tag-products`. The guard redirects to Admin Login; choose **Development login**. The original Admin URL is preserved and opened after the API confirms the existing Admin policy.
 
+## Using the same session for Community QA
+
+The session this login creates is an **ordinary owner session** — the same
+`Users` row, `OwnerProfiles` row, JWT and refresh chain any Google sign-in
+produces. Nothing about it is admin-only, so it is also how you reach the
+signed-in Community surfaces (`/feed`, `/notifications`, `/community/profile`,
+`/community/profile/edit`) that otherwise need a real Google account.
+
+Point `DevAuth:AdminEmail` at **`admin.dev@mypetlink.local`**. The development
+social seeder already gives that account a Community history, so the signed-in
+surfaces have something to show:
+
+| | |
+| --- | --- |
+| Handle | `@devadminhouse` |
+| Pets | 3, two of them in Community |
+| Following | 3 households, whose public Moments fill `/feed` |
+| Discoverable | off, so its own pets stay out of Explore |
+| Notifications | none — `/notifications` shows its empty state |
+
+**Its admin role does not affect Community testing.** No social service and no
+part of the Community shell branches on `AdminUsers`; the admin surfaces live
+in their own layout under `/admin`. A Community page renders identically for
+this account and for a plain owner.
+
+Do **not** repoint `AdminEmail` at one of the plain seeded owners
+(`social.a@mypetlink.local` and friends) to get richer data. The seeder grants
+`AdminRole.Admin` to whatever address it is given, so that would silently
+promote a fixture that other tests rely on being an ordinary owner.
+
+After signing in, navigate to the Community route directly. The Development
+login lives only on `/admin/login` and resolves an Admin destination; the owner
+login at `/login` offers Google only, so `/login?redirect=/feed` cannot use it.
+The redirect parameter itself works normally — signing out and reopening
+`/feed` lands on `/login?redirect=%2Ffeed` as usual.
+
 ## Seed and session behavior
 
 - Seeding runs only when the API environment is Development and `DevAuth:Enabled` is true.
@@ -48,4 +84,10 @@ Delete saved state whenever the local database or signing key changes. A fresh l
 
 ## Disable it
 
-Remove the three `DevAuth` user-secrets (or set `DevAuth:Enabled` to `false`) and remove `NEXT_PUBLIC_DEV_AUTH_ENABLED` from `.env.local`. Restart both processes. With the API flag disabled, the route is not registered; with a production frontend build, the Development login action is not rendered even if the public flag was accidentally supplied.
+Remove the three `DevAuth` user-secrets (or set `DevAuth:Enabled` to `false`) and remove `NEXT_PUBLIC_DEV_AUTH_ENABLED` from `.env.local`. Restart both processes.
+
+The backend switch is the one that matters. With `DevAuth:Enabled=false` the
+route is not registered and returns `404` even while the frontend flag is still
+`true` — the public flag can hide or show a button, never create a session. In a
+production frontend build the action is not rendered at all, because the gate
+compiles against `NODE_ENV`, even if the public flag was accidentally supplied.
