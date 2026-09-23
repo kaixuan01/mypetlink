@@ -3,10 +3,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ signedIn: false as boolean | null }));
+const mocks = vi.hoisted(() => ({
+  pathname: "/p/mochi-pub123",
+  signedIn: false as boolean | null,
+}));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/p/mochi-pub123",
+  usePathname: () => mocks.pathname,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
@@ -53,6 +56,7 @@ async function renderShell(socialEnabled: boolean) {
 }
 
 beforeEach(() => {
+  mocks.pathname = "/p/mochi-pub123";
   mocks.signedIn = false;
   window.history.replaceState({}, "", "/p/mochi-pub123?source=shared");
 });
@@ -72,6 +76,19 @@ describe("visitor shell with Community on", () => {
     expect(screen.getByTestId("social-header-search")).toBeTruthy();
   });
 
+  it("marks the visible public navigation destination as current", async () => {
+    mocks.pathname = "/explore";
+    window.history.replaceState({}, "", "/explore");
+    await renderShell(true);
+
+    expect(
+      screen.getByTestId("social-header-explore").getAttribute("aria-current")
+    ).toBe("page");
+    expect(
+      screen.getByTestId("social-header-search").getAttribute("aria-current")
+    ).toBeNull();
+  });
+
   it("keeps the brand and authentication actions in bounded responsive columns", async () => {
     await renderShell(true);
 
@@ -86,7 +103,9 @@ describe("visitor shell with Community on", () => {
 
     expect(row.className).toContain("grid-cols-[minmax(0,1fr)_auto]");
     expect(actions.className).toContain("shrink-0");
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByTestId("social-header-sign-in")).toBe(
+      screen.getByRole("link", { name: "Sign in" })
+    );
 
     expect(compactBrand?.className).toContain("md:hidden");
     expect(fullBrand?.className).toContain("hidden");

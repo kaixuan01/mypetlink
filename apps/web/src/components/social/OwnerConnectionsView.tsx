@@ -12,6 +12,7 @@ import {
   ownerFollowersPath,
   ownerFollowingPath,
   ownerSocialProfilePath,
+  socialRoutes,
 } from "@/lib/routes";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -198,7 +199,7 @@ export function OwnerConnectionsView({
               Try again
             </CTAButton>
           ) : null}
-          <CTAButton href="/">Go to MyPetLink</CTAButton>
+          <CTAButton href={socialRoutes.explore}>Explore Community</CTAButton>
         </div>
       </div>
     );
@@ -209,7 +210,8 @@ export function OwnerConnectionsView({
   return (
     <div className="mx-auto w-full max-w-2xl pt-6">
       <Link
-        className="inline-flex items-center gap-1.5 text-sm font-bold text-pet-muted transition hover:text-pet-ink"
+        aria-label={`Back to ${profile.displayName}'s profile`}
+        className="-ml-3 inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-pet-muted transition hover:bg-white hover:text-pet-ink"
         href={ownerSocialProfilePath(profile.handle)}
       >
         <Icon aria-hidden="true" className="h-4 w-4 rotate-180" name="chevron" />

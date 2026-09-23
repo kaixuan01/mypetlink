@@ -59,6 +59,16 @@ function normalise(pathname: string) {
 export function getMobilePageTitle(pathname: string): string {
   const path = normalise(pathname);
 
+  const communityProfile = /^\/u\/[^/]+(?:\/(followers|following))?$/.exec(
+    path
+  );
+
+  if (communityProfile) {
+    if (communityProfile[1] === "followers") return "Followers";
+    if (communityProfile[1] === "following") return "Following";
+    return "Community profile";
+  }
+
   // A pet's own pages name their section; the pet's name belongs to the page,
   // which has room for it, not to a bar four words wide.
   const petSection = /^\/pets\/[^/]+(?:\/([^/]+))?/.exec(path);

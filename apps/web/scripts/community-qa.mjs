@@ -298,16 +298,23 @@ async function resolveRoutes(page) {
   });
 
   return [
-    { name: "feed", path: "/feed" },
-    { name: "explore", path: "/explore" },
-    { name: "community profile", path: "/community/profile" },
-    { name: "community profile edit", path: "/community/profile/edit" },
-    { name: "notifications", path: "/notifications" },
+    { active: "Home", name: "feed", path: "/feed" },
+    { active: "Explore", name: "explore", path: "/explore" },
+    { active: "Explore", name: "search", path: "/search?q=pet" },
+    { active: "My profile", name: "community profile", path: "/community/profile" },
+    { active: "My profile", name: "community profile edit", path: "/community/profile/edit" },
+    { active: "Activity", name: "notifications", path: "/notifications" },
     handle
-      ? { name: "public profile", path: `/u/${handle}` }
+      ? { active: null, name: "public profile", path: `/u/${handle}` }
       : { name: "public profile", path: null, skip: "no handle on the signed-in profile" },
+    handle
+      ? { active: null, name: "followers", path: `/u/${handle}/followers` }
+      : { name: "followers", path: null, skip: "no handle on the signed-in profile" },
+    handle
+      ? { active: null, name: "following", path: `/u/${handle}/following` }
+      : { name: "following", path: null, skip: "no handle on the signed-in profile" },
     momentId
-      ? { name: "moment detail", path: `/moments/${momentId}` }
+      ? { active: null, name: "moment detail", path: `/moments/${momentId}` }
       : { name: "moment detail", path: null, skip: "no Moment link in the feed" },
   ];
 }
@@ -857,6 +864,273 @@ async function verifyAnonymousResponsive(browser) {
   return results;
 }
 
+/** Only elements that are actually painted count as chrome at this viewport. */
+async function visibleElementSummary(page, selector) {
+  return page.locator(selector).evaluateAll((elements) =>
+    elements
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
+      })
+      .map((element) => ({
+        href: element instanceof HTMLAnchorElement ? element.getAttribute("href") : null,
+        label:
+          element.getAttribute("aria-label") ||
+          (element.textContent || "").trim().replace(/\s+/g, " "),
+      }))
+  );
+}
+
+/**
+ * The route-derived shell contract. This intentionally checks structure and
+ * accessibility state rather than pixels: Playwright can measure layout, but
+ * the durable promise is one mode, one primary nav and one truthful active
+ * item at every breakpoint.
+ */
+async function authenticatedShellNotes(page, route, width) {
+  const notes = [];
+  const [communityNavs, ownerNavs, switches, headings] = await Promise.all([
+    visibleElementSummary(page, 'nav[aria-label="Community"]'),
+    visibleElementSummary(page, 'nav[aria-label="My Pets"]'),
+    visibleElementSummary(
+      page,
+      '[data-testid="social-mode-switch"], [data-testid="mode-switch"]'
+    ),
+    visibleElementSummary(page, "main h1"),
+  ]);
+
+  if (communityNavs.length !== 1) {
+    notes.push(`expected one Community nav, found ${communityNavs.length}`);
+  }
+  if (ownerNavs.length !== 0) {
+    notes.push(`My Pets nav was visible (${ownerNavs.length})`);
+  }
+  if (switches.length !== 1 || switches[0]?.href !== "/dashboard") {
+    notes.push(
+      `mode switch was ${JSON.stringify(switches)} instead of one /dashboard link`
+    );
+  }
+  if (headings.length === 0) notes.push("no visible page heading");
+
+  const current = await visibleElementSummary(
+    page,
+    'nav[aria-label="Community"] [aria-current="page"]'
+  );
+  const currentLabels = current.map(({ label }) => label.replace(/, \d+ unread$/, ""));
+  if (route.active === null && current.length !== 0) {
+    notes.push(`unexpected active item ${currentLabels.join(", ")}`);
+  } else if (
+    route.active &&
+    (current.length !== 1 || currentLabels[0] !== route.active)
+  ) {
+    notes.push(
+      `active item was ${currentLabels.join(", ") || "none"}, expected ${route.active}`
+    );
+  }
+
+  const bottomNavs = await visibleElementSummary(
+    page,
+    '[data-testid="mobile-bottom-nav"]'
+  );
+  if (width < 1024 && bottomNavs.length !== 1) {
+    notes.push(`expected one mobile bottom nav, found ${bottomNavs.length}`);
+  }
+  if (width >= 1024 && bottomNavs.length !== 0) {
+    notes.push("mobile bottom nav remained visible on desktop");
+  }
+
+  if (width < 1024 && bottomNavs.length === 1) {
+    const clearance = await page.evaluate(() => {
+      const main = document.querySelector("main");
+      const nav = document.querySelector('[data-testid="mobile-bottom-nav"]');
+      if (!main || !nav) return null;
+      return {
+        navHeight: nav.getBoundingClientRect().height,
+        paddingBottom: Number.parseFloat(window.getComputedStyle(main).paddingBottom),
+      };
+    });
+    if (
+      !clearance ||
+      !Number.isFinite(clearance.paddingBottom) ||
+      clearance.paddingBottom < clearance.navHeight
+    ) {
+      notes.push(`main content did not reserve the mobile nav height (${JSON.stringify(clearance)})`);
+    }
+  }
+
+  if (width >= 1024) {
+    const brands = await visibleElementSummary(
+      page,
+      'a[aria-label="MyPetLink Community home"]'
+    );
+    if (brands.length !== 1 || brands[0]?.href !== "/feed") {
+      notes.push(`desktop Community brand was ${JSON.stringify(brands)}`);
+    }
+  }
+
+  return notes;
+}
+
+async function verifyAnonymousShellResponsive(browser, momentRoute) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const results = [];
+  const routes = [
+    { active: "Explore", name: "explore", path: "/explore" },
+    { active: "Search MyPetLink", name: "search", path: "/search?q=pet" },
+    { active: null, name: "public profile", path: `/u/${BLOCK_QA.handle}` },
+    { active: null, name: "moment detail", path: momentRoute },
+  ];
+
+  try {
+    for (const { w, h } of VIEWPORTS) {
+      await page.setViewportSize({ width: w, height: h });
+      const notes = [];
+
+      for (const route of routes) {
+        await visit(page, route.path);
+        const [overflow, overlap, small, publicHeaders, signIns, communityNavs, ownerNavs] =
+          await Promise.all([
+            overflowReport(page),
+            headerOverlap(page),
+            smallTargets(page),
+            visibleElementSummary(page, '[data-testid="social-header-public"]'),
+            visibleElementSummary(page, '[data-testid="social-header-sign-in"]'),
+            visibleElementSummary(page, 'nav[aria-label="Community"]'),
+            visibleElementSummary(page, 'nav[aria-label="My Pets"]'),
+          ]);
+
+        if (overflow.scrolls) notes.push(`${route.name}: horizontal overflow`);
+        if (overlap) notes.push(`${route.name}: ${overlap}`);
+        if (small.length > 0) {
+          notes.push(`${route.name}: small targets ${small.join("; ")}`);
+        }
+        if (publicHeaders.length !== 1) notes.push(`${route.name}: public header missing`);
+        if (signIns.length !== 1) notes.push(`${route.name}: Sign in missing`);
+        if (communityNavs.length + ownerNavs.length !== 0) {
+          notes.push(`${route.name}: authenticated navigation was visible`);
+        }
+        if (await isAuthenticated(page)) notes.push(`${route.name}: session created`);
+
+        const visibleCurrent = await visibleElementSummary(
+          page,
+          '[data-testid="social-header-public"] [aria-current="page"]'
+        );
+        const activeLinkIsExpectedToShow =
+          (route.name === "explore" && w >= 380) ||
+          (route.name === "search" && w >= 640);
+        if (
+          activeLinkIsExpectedToShow &&
+          (visibleCurrent.length !== 1 || visibleCurrent[0]?.label !== route.active)
+        ) {
+          notes.push(`${route.name}: public active state was not exposed`);
+        }
+        if (!activeLinkIsExpectedToShow && visibleCurrent.length !== 0) {
+          notes.push(`${route.name}: unexpected public active state`);
+        }
+      }
+
+      results.push({ h, notes, w });
+    }
+  } finally {
+    await context.close();
+  }
+
+  return results;
+}
+
+async function firstVisible(page, selector) {
+  const locator = page.locator(selector);
+  for (let index = 0; index < (await locator.count()); index += 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible()) return candidate;
+  }
+  return null;
+}
+
+async function verifyModeTransitions(browser) {
+  const results = [];
+
+  for (const viewport of [
+    { label: "mobile", width: 390, height: 844 },
+    { label: "desktop", width: 1280, height: 900 },
+  ]) {
+    const context = await browser.newContext({
+      storageState: SESSION_FILE,
+      viewport: { width: viewport.width, height: viewport.height },
+    });
+    const page = await context.newPage();
+
+    try {
+      await visit(page, "/dashboard");
+      const toCommunity = await firstVisible(
+        page,
+        '[data-testid="social-mode-switch"], [data-testid="mode-switch"]'
+      );
+      assert(toCommunity, `${viewport.label}: Community mode switch was not visible.`);
+      assert(
+        (await toCommunity.getAttribute("href")) === "/feed",
+        `${viewport.label}: Community mode switch did not target /feed.`
+      );
+      await toCommunity.click();
+      await page.waitForURL((url) => url.pathname === "/feed");
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await page.waitForURL((url) => url.pathname === "/dashboard");
+
+      await visit(page, "/feed");
+      const toPets = await firstVisible(
+        page,
+        '[data-testid="social-mode-switch"], [data-testid="mode-switch"]'
+      );
+      assert(toPets, `${viewport.label}: My Pets mode switch was not visible.`);
+      assert(
+        (await toPets.getAttribute("href")) === "/dashboard",
+        `${viewport.label}: My Pets mode switch did not target /dashboard.`
+      );
+      await toPets.click();
+      await page.waitForURL((url) => url.pathname === "/dashboard");
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await page.waitForURL((url) => url.pathname === "/feed");
+
+      results.push(viewport.label);
+    } finally {
+      await context.close();
+    }
+  }
+
+  return results;
+}
+
+async function verifyDirectMomentExit(browser, momentRoute) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+
+  try {
+    await visit(page, momentRoute);
+    await page.getByTestId("moment-detail").waitFor();
+    const exit = page.locator('main a[href^="/u/"]').filter({ hasText: /^Back to / }).first();
+    await exit.waitFor();
+    const href = await exit.getAttribute("href");
+    assert(/^\/u\/[^/]+$/.test(href || ""), `Direct Moment exit was ${href}.`);
+    await exit.click();
+    await page.waitForURL((url) => url.pathname === href);
+    await page.getByTestId("social-header-public").waitFor();
+    assert(
+      (await visibleElementSummary(page, '[data-testid="social-header-public"]')).length === 1,
+      "Direct Moment exit left the public Community shell."
+    );
+    return href;
+  } finally {
+    await context.close();
+  }
+}
+
 async function verifySharePaths(browser, momentRoute, storageState = SESSION_FILE) {
   const expectedUrl = new URL(momentRoute, WEB).href;
 
@@ -1148,6 +1422,14 @@ async function main() {
     const momentRoute = routes.find((route) => route.name === "moment detail")?.path;
     assert(momentRoute, "A Moment detail route is required for Share QA.");
 
+    process.stdout.write("C6 navigation shell verification\n");
+    const modeTransitions = await verifyModeTransitions(browser);
+    const directMomentExit = await verifyDirectMomentExit(browser, momentRoute);
+    process.stdout.write(
+      `  OK    Owner ↔ Community transitions (${modeTransitions.join(", ")})\n` +
+        `  OK    Direct Moment exit -> ${directMomentExit}\n\n`
+    );
+
     process.stdout.write("C4 interaction verification\n");
     const share = await verifySharePaths(browser, momentRoute);
     process.stdout.write(
@@ -1193,6 +1475,20 @@ async function main() {
         );
       }
 
+      process.stdout.write("\nResponsive sweep (anonymous Community shell)\n");
+      const anonymousShellResults = await verifyAnonymousShellResponsive(
+        browser,
+        momentRoute
+      );
+      for (const { w, h, notes } of anonymousShellResults) {
+        if (notes.length > 0) failures += notes.length;
+        process.stdout.write(
+          notes.length === 0
+            ? `  OK    ${w}x${h}\n`
+            : `  NOTE  ${w}x${h}\n${notes.map((note) => `          ${note}`).join("\n")}\n`
+        );
+      }
+
       process.stdout.write("\nResponsive sweep (authenticated)\n");
       const sweepRoutes = routes.filter((route) => route.path);
 
@@ -1217,6 +1513,8 @@ async function main() {
           if (overlap) notes.push(`${route.name}: ${overlap}`);
           if (small.length > 0) notes.push(`${route.name}: small targets ${small.join("; ")}`);
           if (!stillIn) notes.push(`${route.name}: SESSION LOST`);
+          const shellNotes = await authenticatedShellNotes(page, route, w);
+          notes.push(...shellNotes.map((note) => `${route.name}: ${note}`));
         }
 
         if (notes.length > 0) failures += notes.length;

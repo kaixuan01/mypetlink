@@ -17,8 +17,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getPublicMoment: vi.fn(),
-  back: vi.fn(),
-  push: vi.fn(),
   // A visitor who followed a shared link: the case a Moment page exists for,
   // and the one that must not depend on a session.
   signedIn: { current: false as boolean | null },
@@ -26,7 +24,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/moments/moment-1",
-  useRouter: () => ({ back: mocks.back, push: mocks.push, replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("@/lib/useSignedIn", () => ({ useSignedIn: () => mocks.signedIn.current }));
@@ -212,27 +210,17 @@ describe("Moment detail", () => {
     expect(document.querySelector('img[src$=".mp4"]')).toBeNull();
   });
 
-  it("goes back the way the browser would, without inventing its own history", async () => {
+  it("uses a deterministic Community route instead of guessing from browser history", async () => {
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
     await screen.findByTestId("moment-detail");
 
-    const back = screen.queryByRole("button", { name: "Back" });
-
-    if (back) {
-      fireEvent.click(back);
-      expect(mocks.back).toHaveBeenCalledTimes(1);
-    } else {
-      // No history to go back to — a shared link opened cold. It offers a real
-      // destination rather than a control that would do nothing.
-      expect(
-        screen.getByRole("link", { name: /explore mypetlink/i }).getAttribute("href")
-      ).toBe("/explore");
-    }
-
-    // Nothing here pushes, replaces or rewrites history, which is what keeps
-    // ordinary back behaviour ordinary.
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole("link", { name: "Back to The Tan Family" })
+        .getAttribute("href")
+    ).toBe("/u/tanfamily");
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
   });
 
   /**
@@ -322,18 +310,14 @@ describe("Moment detail", () => {
     expect(source).not.toContain("mobileNav={null}");
   });
 
-  it("always offers a Back action of its own", async () => {
+  it("always offers a route-aware way back of its own", async () => {
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
     await screen.findByTestId("moment-detail");
 
-    // Either a real Back, or — when the page was opened cold from a shared
-    // link and there is no history — a real destination. Never nothing, and
-    // never only the browser's own gesture.
-    const back = screen.queryByRole("button", { name: "Back" });
-    const wayIn = screen.queryByRole("link", { name: /explore mypetlink/i });
-
-    expect(back ?? wayIn).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Back to The Tan Family" })
+    ).toBeTruthy();
   });
 
   it("says plainly when a Moment cannot be opened", async () => {

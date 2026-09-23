@@ -385,6 +385,9 @@ describe("OwnerSocialProfileView", () => {
     await waitFor(() =>
       expect(screen.getByText(/this profile isn't available/i)).toBeTruthy()
     );
+    expect(
+      screen.getByRole("link", { name: "Explore Community" }).getAttribute("href")
+    ).toBe("/explore");
   });
 
   it("links the follower and following counts to their lists", async () => {

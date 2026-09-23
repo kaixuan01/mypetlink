@@ -192,7 +192,7 @@ export function OwnerSocialProfileView({
               Try again
             </CTAButton>
           ) : null}
-          <CTAButton href="/">Go to MyPetLink</CTAButton>
+          <CTAButton href={socialRoutes.explore}>Explore Community</CTAButton>
         </div>
       </div>
     );

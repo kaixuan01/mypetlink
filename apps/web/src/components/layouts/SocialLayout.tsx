@@ -132,7 +132,14 @@ function PublicSocialHeader() {
           {socialEnabled ? (
             <>
               <Link
-                className="hidden min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream min-[380px]:inline-flex"
+                aria-current={
+                  pathname === socialRoutes.explore ? "page" : undefined
+                }
+                className={`hidden min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold transition min-[380px]:inline-flex ${
+                  pathname === socialRoutes.explore
+                    ? "bg-pet-cream text-pet-teal"
+                    : "text-pet-ink hover:bg-pet-cream"
+                }`}
                 data-testid="social-header-explore"
                 href={socialRoutes.explore}
               >
@@ -140,7 +147,14 @@ function PublicSocialHeader() {
               </Link>
               <Link
                 aria-label="Search MyPetLink"
-                className="hidden min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream sm:inline-flex"
+                aria-current={
+                  pathname === socialRoutes.search ? "page" : undefined
+                }
+                className={`hidden min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold transition sm:inline-flex ${
+                  pathname === socialRoutes.search
+                    ? "bg-pet-cream text-pet-teal"
+                    : "text-pet-ink hover:bg-pet-cream"
+                }`}
                 data-testid="social-header-search"
                 href={socialRoutes.search}
               >
@@ -150,6 +164,7 @@ function PublicSocialHeader() {
           ) : null}
           <Link
             className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            data-testid="social-header-sign-in"
             // The current page, so signing in returns the visitor to what they
             // were reading. The fallback is the owner dashboard rather than
             // Explore: a post-login destination must exist in both flag states.

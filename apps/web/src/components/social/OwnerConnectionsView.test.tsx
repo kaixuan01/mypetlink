@@ -187,6 +187,9 @@ describe("OwnerConnectionsView", () => {
     render(<OwnerConnectionsView handle="tanfamily" relation="followers" />);
 
     expect(await screen.findByText("This profile isn't available")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Explore Community" }).getAttribute("href")
+    ).toBe("/explore");
     expect(screen.queryByTestId("social-account-list")).toBeNull();
   });
 
@@ -225,8 +228,11 @@ describe("OwnerConnectionsView", () => {
   it("links back to the household's profile", async () => {
     render(<OwnerConnectionsView handle="tanfamily" relation="following" />);
 
-    const back = await screen.findByRole("link", { name: /The Tan Family/ });
+    const back = await screen.findByRole("link", {
+      name: "Back to The Tan Family's profile",
+    });
 
     expect(back.getAttribute("href")).toBe("/u/tanfamily");
+    expect(back.className).toContain("min-h-10");
   });
 });
