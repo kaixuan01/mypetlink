@@ -268,8 +268,21 @@ export function SocialExploreView() {
               pose="wave"
               size={80}
             />
+            {/*
+              The page knows the filter and nothing else. It cannot see why the
+              list came back empty - a household may be undiscoverable, or the
+              viewer may already follow every one that is - and telling somebody
+              with no filter applied to "try another pet type" sends them to
+              change a control that was never involved. Naming the real reason
+              is also not an option: it would report how many households exist
+              and which of them this viewer already follows.
+
+              So: mention the filter only when there is one.
+            */}
             <p className="mt-3 text-sm font-bold text-pet-muted">
-              No pets to show here yet. Try another pet type.
+              {species === allSpeciesValue
+                ? "No suggestions right now."
+                : "No pets to show for this pet type. Try another one."}
             </p>
           </div>
         ) : (

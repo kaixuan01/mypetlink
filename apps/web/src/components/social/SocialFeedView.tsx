@@ -94,8 +94,13 @@ export function SocialFeedView() {
           called it Home; the page now agrees with it.
         */}
         <h1 className="text-2xl font-black text-pet-ink">Home</h1>
+        {/*
+          `py-1` for the 24px minimum target size. It sits on the baseline row
+          with the heading, so padding is what lifts the hit area without
+          nudging the text off that baseline.
+        */}
         <Link
-          className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
+          className="py-1 text-sm font-bold text-pet-teal transition hover:text-pet-ink"
           href={socialRoutes.explore}
         >
           Explore

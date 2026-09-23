@@ -248,11 +248,17 @@ export function OwnerSocialProfileView({
 
           <nav
             aria-label="Followers and following"
-            className="mt-3 flex flex-wrap gap-x-5 gap-y-1"
+            className="mt-3 flex flex-wrap items-center gap-x-5"
             data-testid="owner-profile-counts"
           >
+            {/*
+              `py-1` on each link, not a taller row: these measured 20px, under
+              the 24px minimum target size, and padding lifts the hit area
+              without moving the text. The same remedy `SocialPetCard` already
+              applies to its handle link.
+            */}
             <Link
-              className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+              className="py-1 text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
               href={ownerFollowersPath(profile.handle)}
             >
               <span className="font-black tabular-nums text-pet-ink">
@@ -261,7 +267,7 @@ export function OwnerSocialProfileView({
               {relationship.followerCount === 1 ? "follower" : "followers"}
             </Link>
             <Link
-              className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+              className="py-1 text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
               href={ownerFollowingPath(profile.handle)}
             >
               <span className="font-black tabular-nums text-pet-ink">
