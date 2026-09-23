@@ -14,6 +14,15 @@
 export const momentNotFoundTitle = "Moment not found";
 export const momentUnavailableTitle = "Moment unavailable";
 
+/**
+ * A `<meta>` the edge writes beside the title: `content` is the Moment's id and
+ * `data-title` the title it put in the tab. The page reads it while its own
+ * request is still in flight, so the tab keeps the Moment's name instead of
+ * showing the shell's "Loading" in between. Keyed by id so a stale tag can
+ * never name a different Moment.
+ */
+export const momentTitleMetaName = "mypetlink-moment";
+
 const fallbackMomentTitle = "A MyPetLink Moment";
 const maxMomentTitleLength = 70;
 

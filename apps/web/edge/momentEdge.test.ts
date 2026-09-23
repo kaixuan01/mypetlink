@@ -177,6 +177,14 @@ describe("buildMomentHead", () => {
     expect(head).toContain('content="summary"');
     expect(head).not.toContain("og:image");
   });
+  it("tells the page which Moment it named, so the page can keep that name while loading", () => {
+    const head = buildMomentHead({ ...moment, title: 'Beach "day"' });
+
+    expect(head).toContain(
+      `<meta name="mypetlink-moment" content="${momentId}" data-title="Beach &quot;day&quot;">`
+    );
+  });
+
   it("names the tab exactly as the browser will once the Moment has loaded", () => {
     // The page hydrates and titles itself from the same rule, so a long title
     // is shortened identically on both sides instead of changing after load.

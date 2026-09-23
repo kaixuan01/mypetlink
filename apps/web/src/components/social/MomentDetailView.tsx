@@ -18,6 +18,7 @@ import {
 } from "@/lib/momentPublishedTime";
 import {
   momentNotFoundTitle,
+  momentTitleMetaName,
   momentTitleText,
   momentUnavailableTitle,
 } from "@/lib/momentDocumentTitle";
@@ -98,9 +99,14 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
     };
   }, [momentId, attempt]);
 
-  // The page names itself once it knows what it is showing. Nothing is
-  // asserted while loading: in production the edge has already written the
-  // real title into the HTML, and a placeholder here would only replace it.
+  // What the edge already called this page, if it served it. Read once, on
+  // the first render, and only for this Moment's id.
+  const [edgeTitle] = useState(() => readEdgeMomentTitle(momentId));
+
+  // The page names itself once it knows what it is showing. While it is still
+  // asking, it holds the edge's title for this Moment — the shell's own
+  // metadata says "Loading", and Next commits that after hydration — and
+  // otherwise asserts nothing rather than a placeholder.
   useDocumentTitle(
     phase.state === "ready"
       ? formatPageTitle(momentTitleText(phase.moment.title))
@@ -108,7 +114,9 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
         ? formatPageTitle(momentNotFoundTitle)
         : phase.state === "error"
           ? formatPageTitle(momentUnavailableTitle)
-          : null
+          : edgeTitle
+            ? formatPageTitle(edgeTitle)
+            : null
   );
 
   const onLikeChange = useCallback(
@@ -142,6 +150,18 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
       </div>
     </SocialLayout>
   );
+}
+
+function readEdgeMomentTitle(momentId: string) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const tag = document.head.querySelector<HTMLMetaElement>(
+    `meta[name="${momentTitleMetaName}"]`
+  );
+
+  return tag?.content === momentId ? tag.dataset.title?.trim() || null : null;
 }
 
 /**

@@ -5,6 +5,7 @@ import {
 import { productionSiteOrigin } from "./publicProfileEdge";
 import {
   momentNotFoundTitle,
+  momentTitleMetaName,
   momentTitleText,
   momentUnavailableTitle,
 } from "../src/lib/momentDocumentTitle";
@@ -200,6 +201,7 @@ export function buildMomentHead(moment: EdgeMoment) {
 
   const tags = [
     `<title>${escapeHtml(title)} | MyPetLink</title>`,
+    `<meta name="${momentTitleMetaName}" content="${escapeHtml(moment.id)}" data-title="${escapeHtml(title)}">`,
     `<meta name="description" content="${escapeHtml(description)}">`,
     `<link rel="canonical" href="${escapeHtml(canonical)}">`,
     `<meta property="og:type" content="article">`,

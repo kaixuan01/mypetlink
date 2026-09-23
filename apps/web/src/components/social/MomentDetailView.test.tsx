@@ -460,6 +460,31 @@ describe("Moment detail tab title", () => {
     await waitFor(() => expect(document.title).toBe("Moment unavailable | MyPetLink"));
   });
 
+  it("holds the edge's title for this Moment while it loads, even over the shell's Loading", async () => {
+    document.head.innerHTML =
+      "<title>My Big Boss | MyPetLink</title>" +
+      `<meta name="mypetlink-moment" content="${momentIdForTitle}" data-title="My Big Boss">`;
+    mocks.getPublicMoment.mockImplementation(() => new Promise(() => {}));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    // Next commits the 404 shell's metadata after hydration.
+    document.head.querySelector("title")!.textContent = "Loading | MyPetLink";
+
+    await waitFor(() => expect(document.title).toBe("My Big Boss | MyPetLink"));
+  });
+
+  it("never borrows the edge's title for a different Moment", () => {
+    document.head.innerHTML =
+      "<title>Loading | MyPetLink</title>" +
+      '<meta name="mypetlink-moment" content="another-moment" data-title="Someone else">';
+    mocks.getPublicMoment.mockImplementation(() => new Promise(() => {}));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    expect(document.title).toBe("Loading | MyPetLink");
+  });
+
   it("leaves the title alone while the Moment is still loading", () => {
     // In production the edge has already named the page; a placeholder here
     // would replace the right title with a worse one.
