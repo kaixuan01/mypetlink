@@ -26,6 +26,14 @@
  *   node apps/web/scripts/community-qa.mjs
  *   node apps/web/scripts/community-qa.mjs --responsive
  *   node apps/web/scripts/community-qa.mjs --headed --fresh-session
+ *
+ * The interaction pass uses @quietpaws as a disposable relationship. The
+ * development seed deliberately leaves that household unfollowed by the QA
+ * account, and its discoverability switch is off. The runner follows it,
+ * proves Block removes the follow, then unblocks it. A finally block restores
+ * that unfollowed/unblocked baseline if an assertion fails after the first
+ * mutation. Search and Explore are expected to hide it throughout, which also
+ * proves the destructive pass never weakens its existing discovery privacy.
  */
 
 import { mkdir, rm, stat } from "node:fs/promises";
@@ -42,6 +50,12 @@ const API = process.env.QA_API_ORIGIN ?? "http://localhost:5281";
 
 /** The session key the app itself writes. Read only to assert it survives. */
 const SESSION_KEY = "mypetlink_api_auth_session";
+
+const BLOCK_QA = {
+  displayName: "Quiet Paws",
+  handle: "quietpaws",
+  momentTitle: "Morning song",
+};
 
 /**
  * Widths a signed-in owner actually uses, smallest first. 320 is the floor the
@@ -298,6 +312,358 @@ async function visit(page, path) {
   await page.waitForTimeout(1200);
 }
 
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function responsePath(response) {
+  return new URL(response.url()).pathname;
+}
+
+async function responseData(response) {
+  const payload = await response.json();
+  return payload?.data ?? payload;
+}
+
+async function loadBlockTarget(page) {
+  const relationshipResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      responsePath(response) ===
+        `/api/v1/social/owners/${BLOCK_QA.handle}/relationship` &&
+      response.status() === 200
+  );
+
+  await visit(page, `/u/${BLOCK_QA.handle}`);
+  await page.getByRole("heading", { name: BLOCK_QA.displayName }).waitFor();
+  return responseData(await relationshipResponse);
+}
+
+async function ownerSearchContains(page, handle) {
+  await visit(page, `/search?q=${encodeURIComponent(handle)}`);
+  await page.getByRole("button", { name: /Pet Parents/ }).click();
+  await Promise.race([
+    page.getByTestId("search-owners").waitFor(),
+    page.getByTestId("search-owners-empty").waitFor(),
+  ]);
+
+  return page.getByText(`@${handle}`, { exact: false }).count().then((count) => count > 0);
+}
+
+async function routeContains(page, path, text) {
+  await visit(page, path);
+  return page.getByText(text, { exact: false }).count().then((count) => count > 0);
+}
+
+async function clickProfileMenuAction(page, action) {
+  await page.getByTestId("owner-profile-menu-trigger").click();
+  await page.getByRole("menuitem", { name: action }).click();
+}
+
+async function confirmRelationshipAction(page, action, method, path) {
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === method &&
+      responsePath(response) === path
+  );
+  const dialog = page.getByRole("dialog", { name: new RegExp(`^${action} `) });
+  await dialog.getByRole("button", { name: action, exact: true }).click();
+  const response = await responsePromise;
+  assert(response.ok(), `${action} returned HTTP ${response.status()}.`);
+  return responseData(response);
+}
+
+async function cleanupBlockQaRelationship(page, state) {
+  if (!state.blockCreated && !state.followCreated) return;
+
+  await visit(page, `/u/${BLOCK_QA.handle}`);
+  await page.getByRole("heading", { name: BLOCK_QA.displayName }).waitFor();
+
+  if (state.blockCreated) {
+    await page.getByTestId("owner-profile-menu-trigger").click();
+    const unblock = page.getByRole("menuitem", {
+      name: `Unblock @${BLOCK_QA.handle}`,
+    });
+    if ((await unblock.count()) > 0) {
+      await unblock.click();
+      await confirmRelationshipAction(
+        page,
+        "Unblock",
+        "DELETE",
+        `/api/v1/social/owners/${BLOCK_QA.handle}/block`
+      );
+    } else {
+      await page.keyboard.press("Escape");
+    }
+    state.blockCreated = false;
+  }
+
+  // Blocking should already have removed the temporary follow. This is a
+  // recovery guard for a failed or interrupted assertion, not another product
+  // expectation.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1200);
+  const following = page.getByRole("button", {
+    name: new RegExp(`^Stop following ${BLOCK_QA.displayName}`),
+  });
+  if ((await following.count()) > 0) {
+    const unfollowResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        responsePath(response) ===
+          `/api/v1/social/owners/${BLOCK_QA.handle}/follow`
+    );
+    await following.click();
+    await unfollowResponse;
+  }
+  state.followCreated = false;
+}
+
+async function verifySharePaths(browser, momentRoute) {
+  const expectedUrl = new URL(momentRoute, WEB).href;
+
+  const nativeContext = await browser.newContext({
+    storageState: SESSION_FILE,
+    viewport: { width: 390, height: 844 },
+  });
+  await nativeContext.addInitScript(() => {
+    window.__communityQaShareCalls = [];
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async (data) => {
+        window.__communityQaShareCalls.push({
+          title: data?.title ?? null,
+          text: data?.text ?? null,
+          url: data?.url ?? null,
+        });
+      },
+    });
+  });
+
+  let nativeResult;
+  try {
+    const page = await nativeContext.newPage();
+    await visit(page, momentRoute);
+    await page.getByTestId("moment-detail").waitFor();
+    const title = (await page.getByTestId("moment-title").innerText()).trim();
+    const before = page.url();
+    await page.getByRole("button", { name: "Share", exact: true }).click();
+    await page.waitForFunction(() => window.__communityQaShareCalls?.length === 1);
+    const calls = await page.evaluate(() => window.__communityQaShareCalls);
+
+    assert(calls.length === 1, `Web Share ran ${calls.length} times instead of once.`);
+    assert(calls[0].url === expectedUrl, `Web Share used ${calls[0].url}, expected ${expectedUrl}.`);
+    assert(calls[0].title === title, `Web Share title was ${calls[0].title}, expected ${title}.`);
+    assert(calls[0].text === null, "Web Share unexpectedly added separate text.");
+    assert(page.url() === before, "Web Share navigated away from the Moment.");
+    assert(!new URL(page.url()).pathname.startsWith("/pets"), "Web Share entered the Owner Portal.");
+
+    nativeResult = { calls: calls.length, title, url: calls[0].url };
+  } finally {
+    await nativeContext.close();
+  }
+
+  const fallbackContext = await browser.newContext({
+    storageState: SESSION_FILE,
+    viewport: { width: 390, height: 844 },
+  });
+  await fallbackContext.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: new URL(WEB).origin,
+  });
+  await fallbackContext.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  let fallbackResult;
+  try {
+    const page = await fallbackContext.newPage();
+    await visit(page, momentRoute);
+    await page.getByTestId("moment-detail").waitFor();
+    const before = page.url();
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    await page.getByRole("button", { name: "Share", exact: true }).click();
+    const feedback = page.getByRole("status");
+    await feedback.waitFor();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+
+    assert(copied === expectedUrl, `Copy Link used ${copied}, expected ${expectedUrl}.`);
+    assert((await feedback.innerText()).trim() === "Link copied.", "Copy Link feedback was not “Link copied.”");
+    assert(page.url() === before, "Copy Link navigated away from the Moment.");
+    assert(!new URL(page.url()).pathname.startsWith("/pets"), "Copy Link entered the Owner Portal.");
+
+    fallbackResult = { feedback: "Link copied.", url: copied };
+  } finally {
+    await fallbackContext.close();
+  }
+
+  return { fallback: fallbackResult, native: nativeResult };
+}
+
+async function verifyBlockFlow(page, viewerHandle) {
+  const mutation = { blockCreated: false, followCreated: false };
+  let result;
+
+  try {
+    const baseline = await loadBlockTarget(page);
+    assert(!baseline.hasBlocked, `@${BLOCK_QA.handle} is already blocked; the disposable baseline is not clean.`);
+    assert(!baseline.isFollowing, `@${BLOCK_QA.handle} is already followed; refusing to alter an existing relationship.`);
+    assert(baseline.canFollow, `@${BLOCK_QA.handle} cannot be followed from the clean baseline.`);
+
+    assert(
+      !(await ownerSearchContains(page, BLOCK_QA.handle)),
+      "Search exposed the undiscoverable disposable target before Block."
+    );
+    assert(
+      !(await routeContains(page, "/explore", `@${BLOCK_QA.handle}`)),
+      "Explore exposed the undiscoverable disposable target before Block."
+    );
+
+    await loadBlockTarget(page);
+    const followResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        responsePath(response) ===
+          `/api/v1/social/owners/${BLOCK_QA.handle}/follow`
+    );
+    await page.getByRole("button", {
+      name: new RegExp(`^Follow ${BLOCK_QA.displayName}`),
+    }).click();
+    const followed = await responseData(await followResponse);
+    mutation.followCreated = true;
+    assert(followed.isFollowing, "The temporary Follow did not persist.");
+    assert(
+      followed.followerCount === baseline.followerCount + 1,
+      "The temporary Follow did not increment the follower count once."
+    );
+    await page.getByRole("button", {
+      name: new RegExp(`^Stop following ${BLOCK_QA.displayName}`),
+    }).waitFor();
+
+    assert(
+      await routeContains(page, "/feed", BLOCK_QA.momentTitle),
+      "The temporary Follow did not add the target Moment to Home."
+    );
+    assert(
+      await routeContains(page, `/u/${viewerHandle}/following`, `@${BLOCK_QA.handle}`),
+      "The temporary Follow did not appear in the viewer's Following list."
+    );
+
+    await loadBlockTarget(page);
+    await clickProfileMenuAction(page, `Block @${BLOCK_QA.handle}`);
+    const dialog = page.getByRole("dialog", {
+      name: `Block ${BLOCK_QA.displayName}?`,
+    });
+    await dialog.waitFor();
+    assert(
+      (await dialog.innerText()).includes("If either of you follows the other, that stops now."),
+      "Block confirmation did not explain the relationship consequence."
+    );
+    const blocked = await confirmRelationshipAction(
+      page,
+      "Block",
+      "POST",
+      `/api/v1/social/owners/${BLOCK_QA.handle}/block`
+    );
+    mutation.blockCreated = true;
+    mutation.followCreated = false;
+
+    assert(blocked.hasBlocked, "The server did not return the blocker-visible blocked state.");
+    assert(!blocked.isFollowing, "Block did not remove the temporary Follow.");
+    assert(!blocked.canFollow, "The blocked relationship still allowed Follow.");
+    assert(
+      blocked.followerCount === baseline.followerCount,
+      "Block did not restore the target's follower count after removing Follow."
+    );
+    assert(new URL(page.url()).pathname === `/u/${BLOCK_QA.handle}`, "Block changed the current Community route.");
+    assert(
+      (await page.getByRole("button", { name: new RegExp(`Follow ${BLOCK_QA.displayName}`) }).count()) === 0,
+      "Follow remained available in the blocked state."
+    );
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1200);
+    await page.getByTestId("owner-profile-menu-trigger").click();
+    await page.getByRole("menuitem", { name: `Unblock @${BLOCK_QA.handle}` }).waitFor();
+    await page.keyboard.press("Escape");
+
+    const profileAccessible =
+      (await page.getByRole("heading", { name: BLOCK_QA.displayName }).count()) === 1;
+    const searchHidden = !(await ownerSearchContains(page, BLOCK_QA.handle));
+    const exploreHidden = !(await routeContains(page, "/explore", `@${BLOCK_QA.handle}`));
+    const feedHidden = !(await routeContains(page, "/feed", BLOCK_QA.momentTitle));
+    const followingHidden = !(await routeContains(
+      page,
+      `/u/${viewerHandle}/following`,
+      `@${BLOCK_QA.handle}`
+    ));
+    const followerHidden = !(await routeContains(
+      page,
+      `/u/${BLOCK_QA.handle}/followers`,
+      `@${viewerHandle}`
+    ));
+
+    assert(profileAccessible, "The blocker could not reopen the public profile to reach Unblock.");
+    assert(searchHidden, "Search leaked the blocked household.");
+    assert(exploreHidden, "Explore leaked the blocked household.");
+    assert(feedHidden, "Home retained a Moment from the blocked household.");
+    assert(followingHidden && followerHidden, "A follower/following list retained the blocked relationship.");
+
+    await loadBlockTarget(page);
+    await clickProfileMenuAction(page, `Unblock @${BLOCK_QA.handle}`);
+    const unblocked = await confirmRelationshipAction(
+      page,
+      "Unblock",
+      "DELETE",
+      `/api/v1/social/owners/${BLOCK_QA.handle}/block`
+    );
+    mutation.blockCreated = false;
+
+    assert(!unblocked.hasBlocked, "Unblock did not clear the blocker-visible state.");
+    assert(!unblocked.isFollowing, "Unblock silently restored the removed Follow.");
+    assert(unblocked.canFollow, "Follow did not become available after Unblock.");
+    assert(new URL(page.url()).pathname === `/u/${BLOCK_QA.handle}`, "Unblock changed the current Community route.");
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1200);
+    await page.getByRole("button", {
+      name: new RegExp(`^Follow ${BLOCK_QA.displayName}`),
+    }).waitFor();
+    assert(
+      !(await ownerSearchContains(page, BLOCK_QA.handle)),
+      "Unblock incorrectly made an undiscoverable household searchable."
+    );
+    assert(
+      !(await routeContains(page, "/explore", `@${BLOCK_QA.handle}`)),
+      "Unblock incorrectly added an undiscoverable household to Explore."
+    );
+    assert(
+      !(await routeContains(page, "/feed", BLOCK_QA.momentTitle)),
+      "Unblock restored feed content without a new Follow."
+    );
+
+    result = {
+      baselineFollowerCount: baseline.followerCount,
+      blockedProfileAccessible: profileAccessible,
+      followRemovedByBlock: true,
+      privacy: {
+        exploreHidden,
+        feedHidden,
+        followerListsHidden: followingHidden && followerHidden,
+        searchHidden,
+      },
+      reloadPersisted: true,
+      requiresManualRefollow: !unblocked.isFollowing,
+    };
+  } finally {
+    await cleanupBlockQaRelationship(page, mutation);
+  }
+
+  return result;
+}
+
 async function main() {
   await requireServers();
 
@@ -327,6 +693,23 @@ async function main() {
     );
 
     let failures = 0;
+
+    const momentRoute = routes.find((route) => route.name === "moment detail")?.path;
+    assert(momentRoute, "A Moment detail route is required for Share QA.");
+
+    process.stdout.write("C4 interaction verification\n");
+    const share = await verifySharePaths(browser, momentRoute);
+    process.stdout.write(
+      `  OK    Web Share once -> ${share.native.url} (${share.native.title})\n` +
+        `  OK    Copy Link -> ${share.fallback.url}; ${share.fallback.feedback}\n`
+    );
+
+    const block = await verifyBlockFlow(page, "devadminhouse");
+    process.stdout.write(
+      `  OK    Block removed Follow; profile remained reachable=${block.blockedProfileAccessible}; reload persisted=${block.reloadPersisted}\n` +
+        `  OK    Privacy hid Search=${block.privacy.searchHidden}, Explore=${block.privacy.exploreHidden}, Home=${block.privacy.feedHidden}, connections=${block.privacy.followerListsHidden}\n` +
+        `  OK    Unblock restored relationship controls, preserved discovery privacy; manual re-follow required=${block.requiresManualRefollow}\n\n`
+    );
 
     process.stdout.write("Route reachability\n");
     for (const route of routes) {
