@@ -16,7 +16,14 @@ import {
   formatMomentPublishedLabel,
   momentPublishedDateTime,
 } from "@/lib/momentPublishedTime";
+import {
+  momentNotFoundTitle,
+  momentTitleText,
+  momentUnavailableTitle,
+} from "@/lib/momentDocumentTitle";
+import { formatPageTitle } from "@/lib/pageTitles";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getPublicMoment,
@@ -90,6 +97,19 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
       active = false;
     };
   }, [momentId, attempt]);
+
+  // The page names itself once it knows what it is showing. Nothing is
+  // asserted while loading: in production the edge has already written the
+  // real title into the HTML, and a placeholder here would only replace it.
+  useDocumentTitle(
+    phase.state === "ready"
+      ? formatPageTitle(momentTitleText(phase.moment.title))
+      : phase.state === "unavailable"
+        ? formatPageTitle(momentNotFoundTitle)
+        : phase.state === "error"
+          ? formatPageTitle(momentUnavailableTitle)
+          : null
+  );
 
   const onLikeChange = useCallback(
     (_id: string, state: { likeCount: number; viewerHasLiked: boolean }) => {

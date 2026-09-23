@@ -170,6 +170,16 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (state.status === "loading") {
+      // A Moment names itself (MomentDetailView). In production the edge has
+      // already written that name into the HTML; "Loading" here would replace
+      // it for the length of a request and then have to be replaced back.
+      if (
+        parseRuntimeRoute(window.location.pathname, window.location.search)
+          .kind === "moment"
+      ) {
+        return;
+      }
+
       setPageTitle(loadingTitle);
       return;
     }
@@ -216,9 +226,9 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
     }
 
     if (state.status === "moment") {
-      // The edge has already written the real title into the HTML; the view
-      // itself needs no second one.
-      setPageTitle("Moment");
+      // MomentDetailView owns this title: the Moment's own name once it has
+      // loaded, or its not-found or error title. Writing a generic one here
+      // raced it and could win.
       return;
     }
 

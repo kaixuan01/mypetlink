@@ -3,6 +3,11 @@ import {
   ownerHtmlHeaders,
 } from "./ownerProfileEdge";
 import { productionSiteOrigin } from "./publicProfileEdge";
+import {
+  momentNotFoundTitle,
+  momentTitleText,
+  momentUnavailableTitle,
+} from "../src/lib/momentDocumentTitle";
 
 /**
  * Serves `/moments/{momentId}` — one Moment on its own page.
@@ -182,7 +187,7 @@ function cleanText(value: string, maxLength: number) {
 }
 
 export function buildMomentHead(moment: EdgeMoment) {
-  const title = cleanText(moment.title, 70) || "A MyPetLink Moment";
+  const title = momentTitleText(moment.title);
   const pets =
     moment.petNames.length > 0 ? moment.petNames.slice(0, 3).join(", ") : "";
   const household = cleanText(moment.authorDisplayName ?? "", 60);
@@ -215,10 +220,12 @@ export function buildMomentHead(moment: EdgeMoment) {
 
 export function unavailableMomentResponse(state: "not-found" | "error") {
   const status = state === "not-found" ? 404 : 503;
+  const title =
+    state === "not-found" ? momentNotFoundTitle : momentUnavailableTitle;
   const body =
     `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<title>Moment unavailable | MyPetLink</title>` +
+    `<title>${title} | MyPetLink</title>` +
     `<meta name="robots" content="noindex">` +
     `</head><body><main><h1>This Moment isn't available</h1>` +
     `<p>It may have been taken down, or the family may not be sharing it right now.</p>` +

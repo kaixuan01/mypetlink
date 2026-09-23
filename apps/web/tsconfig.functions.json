@@ -13,7 +13,8 @@
     "edge/**/*.ts",
     "functions/**/*.ts",
     "functions/**/*.d.ts",
-    "src/data/publicSample.ts"
+    "src/data/publicSample.ts",
+    "src/lib/momentDocumentTitle.ts"
   ],
   "exclude": ["edge/**/*.test.ts"]
 }

@@ -82,6 +82,7 @@ export function SocialMomentCard({
           autoplayVideoWhenVisible
           caption={moment.caption ?? undefined}
           media={media}
+          openHref={momentPath(moment.id)}
           title={moment.title}
         />
       ) : (
@@ -110,22 +111,44 @@ export function SocialMomentCard({
           />
         </div>
 
-        {moment.media.length > 0 ? (
-          // A Moment with no media already shows its title in the frame above.
-          <h3 className="mt-1 text-sm font-black" data-testid="moment-title">
+        {/*
+          The words of the Moment open the Moment — the title and the caption
+          under it, not only the title. The title's link is stretched across
+          this block alone, so the block is one tap target with one accessible
+          name (the title) and one Tab stop. The heart sits outside the block
+          and keeps doing only what it says.
+        */}
+        <div className="relative" data-testid="moment-card-body">
+          {moment.media.length > 0 ? (
+            // A Moment with no media already shows its title in the frame above.
+            <h3 className="mt-1 text-sm font-black" data-testid="moment-title">
+              <Link
+                className="text-pet-ink transition after:absolute after:inset-0 after:content-[''] hover:text-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+                href={momentPath(moment.id)}
+              >
+                {moment.title}
+              </Link>
+            </h3>
+          ) : null}
+          {moment.caption ? (
+            <p className="mt-0.5 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
+              {moment.caption}
+            </p>
+          ) : null}
+          {moment.media.length === 0 && moment.caption ? (
+            // A text-only Moment's title link is the frame above, so the caption
+            // gets a pointer-only cover to the same page. It is empty and out of
+            // the tab order, so it adds no second name and no second stop, and
+            // the caption itself stays readable.
             <Link
-              className="text-pet-ink transition hover:text-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+              aria-hidden="true"
+              className="absolute inset-0"
+              data-testid="moment-card-body-open"
               href={momentPath(moment.id)}
-            >
-              {moment.title}
-            </Link>
-          </h3>
-        ) : null}
-        {moment.caption ? (
-          <p className="mt-0.5 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
-            {moment.caption}
-          </p>
-        ) : null}
+              tabIndex={-1}
+            />
+          ) : null}
+        </div>
       </div>
     </article>
   );

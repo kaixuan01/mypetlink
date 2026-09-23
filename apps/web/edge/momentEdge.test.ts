@@ -3,8 +3,10 @@ import {
   buildMomentHead,
   fetchMoment,
   isValidMomentId,
+  unavailableMomentResponse,
   type EdgeMoment,
 } from "./momentEdge";
+import { momentTitleText } from "../src/lib/momentDocumentTitle";
 
 /**
  * The edge half of `/moments/{momentId}`.
@@ -174,5 +176,30 @@ describe("buildMomentHead", () => {
 
     expect(head).toContain('content="summary"');
     expect(head).not.toContain("og:image");
+  });
+  it("names the tab exactly as the browser will once the Moment has loaded", () => {
+    // The page hydrates and titles itself from the same rule, so a long title
+    // is shortened identically on both sides instead of changing after load.
+    const long = `A very long afternoon ${"at the beach ".repeat(10)}`;
+    const head = buildMomentHead({ ...moment, title: long });
+
+    expect(head).toContain(`<title>${momentTitleText(long)} | MyPetLink</title>`);
+    expect(momentTitleText(long).length).toBeLessThanOrEqual(70);
+  });
+});
+
+describe("unavailableMomentResponse", () => {
+  it("says not found for a Moment the API will not serve", async () => {
+    const response = unavailableMomentResponse("not-found");
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain("<title>Moment not found | MyPetLink</title>");
+  });
+
+  it("does not claim a Moment is missing when the origin could not answer", async () => {
+    const response = unavailableMomentResponse("error");
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toContain("<title>Moment unavailable | MyPetLink</title>");
   });
 });
