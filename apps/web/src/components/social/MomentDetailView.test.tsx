@@ -394,3 +394,105 @@ describe("Moment detail", () => {
     ).toBe("true");
   });
 });
+
+describe("Moment detail tab title", () => {
+  const momentIdForTitle = "9c1f8a2e-1111-4a2b-8c3d-4e5f60718293";
+
+  beforeEach(() => {
+    // Every real Moment arrives through the exported 404 shell, whose own
+    // metadata title is "Loading".
+    document.head.innerHTML = "<title>Loading | MyPetLink</title>";
+  });
+
+  it("replaces Loading with the Moment's own title once it has loaded", async () => {
+    mocks.getPublicMoment.mockResolvedValue(moment({ title: "My Big Boss" }));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    await screen.findByTestId("moment-detail");
+    await waitFor(() => expect(document.title).toBe("My Big Boss | MyPetLink"));
+  });
+
+  it("keeps the Moment's title when the shell's Loading title is committed again", async () => {
+    // Next commits the shell's metadata into <head> after hydration — after
+    // this view's first effect. That was the bug: the tab went back to
+    // "Loading" beside a Moment that had finished loading.
+    mocks.getPublicMoment.mockResolvedValue(moment({ title: "My Big Boss" }));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+    await waitFor(() => expect(document.title).toBe("My Big Boss | MyPetLink"));
+
+    document.head.innerHTML = "<title>Loading | MyPetLink</title>";
+
+    await waitFor(() => expect(document.title).toBe("My Big Boss | MyPetLink"));
+  });
+
+  it("stops holding the title once the page has gone", async () => {
+    mocks.getPublicMoment.mockResolvedValue(moment({ title: "My Big Boss" }));
+
+    const view = render(<MomentDetailView momentId={momentIdForTitle} />);
+    await waitFor(() => expect(document.title).toBe("My Big Boss | MyPetLink"));
+
+    view.unmount();
+    document.title = "The Tan Family | MyPetLink";
+    await Promise.resolve();
+
+    expect(document.title).toBe("The Tan Family | MyPetLink");
+  });
+
+  it("says Moment not found for a Moment that cannot be shown", async () => {
+    mocks.getPublicMoment.mockRejectedValue(
+      new PublicProfileUnavailableError("not-found")
+    );
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    await screen.findByTestId("moment-unavailable");
+    await waitFor(() => expect(document.title).toBe("Moment not found | MyPetLink"));
+  });
+
+  it("does not call a failed request a missing Moment", async () => {
+    mocks.getPublicMoment.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    await screen.findByTestId("moment-load-failed");
+    await waitFor(() => expect(document.title).toBe("Moment unavailable | MyPetLink"));
+  });
+
+  it("holds the edge's title for this Moment while it loads, even over the shell's Loading", async () => {
+    document.head.innerHTML =
+      "<title>My Big Boss | MyPetLink</title>" +
+      `<meta name="mypetlink-moment" content="${momentIdForTitle}" data-title="My Big Boss">`;
+    mocks.getPublicMoment.mockImplementation(() => new Promise(() => {}));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    // Next commits the 404 shell's metadata after hydration.
+    document.head.querySelector("title")!.textContent = "Loading | MyPetLink";
+
+    await waitFor(() => expect(document.title).toBe("My Big Boss | MyPetLink"));
+  });
+
+  it("never borrows the edge's title for a different Moment", () => {
+    document.head.innerHTML =
+      "<title>Loading | MyPetLink</title>" +
+      '<meta name="mypetlink-moment" content="another-moment" data-title="Someone else">';
+    mocks.getPublicMoment.mockImplementation(() => new Promise(() => {}));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    expect(document.title).toBe("Loading | MyPetLink");
+  });
+
+  it("leaves the title alone while the Moment is still loading", () => {
+    // In production the edge has already named the page; a placeholder here
+    // would replace the right title with a worse one.
+    document.head.innerHTML = "<title>My Big Boss | MyPetLink</title>";
+    mocks.getPublicMoment.mockImplementation(() => new Promise(() => {}));
+
+    render(<MomentDetailView momentId={momentIdForTitle} />);
+
+    expect(document.title).toBe("My Big Boss | MyPetLink");
+  });
+});

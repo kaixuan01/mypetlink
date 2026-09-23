@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { MediaCounter } from "@/components/moments/MediaCounter";
 import { MomentImage } from "@/components/moments/MomentImage";
@@ -35,6 +36,18 @@ type MomentMediaCarouselProps = {
   date?: string;
   presentation?: "moment" | "timeline";
   theme?: PetProfileTheme;
+  /**
+   * Where tapping a photo goes, on a surface that is a preview of the Moment
+   * rather than the Moment itself — a card in a feed or Explore.
+   *
+   * Without it a photo opens the full-screen viewer, which is right on the
+   * Moment's own page. With it the photo opens the Moment, like the title
+   * beside it, and full screen stays one tap away on the Expand control. Every
+   * other control keeps its own job: the arrows and dots change the photo, a
+   * swipe changes the photo and never navigates, and a video's surface plays
+   * and pauses it.
+   */
+  openHref?: string;
 };
 
 type PointerOrigin = {
@@ -50,6 +63,7 @@ export function MomentMediaCarousel({
   date,
   presentation = "moment",
   theme,
+  openHref,
 }: MomentMediaCarouselProps) {
   const timelinePresentation = presentation === "timeline";
   const media = useMemo(() => sortedMedia(items ?? []), [items]);
@@ -193,6 +207,30 @@ export function MomentMediaCarousel({
               url={activeItem.url}
             />
           </div>
+        ) : activeUrl && openHref ? (
+          <Link
+            // Out of the tab order: the card's title is the keyboard route to
+            // the same page, and a second stop per card would double every
+            // Tab through a feed. It keeps a name for anyone who reaches it
+            // another way, and that name still describes the photo.
+            aria-label={`${activeItem.altText ?? `${title} photo`}. Open this Moment`}
+            className="absolute inset-0 block h-full w-full"
+            data-testid="moment-media-open"
+            draggable={false}
+            href={openHref}
+            // A mouse drag across a linked photo would otherwise start the
+            // browser's own link drag and swallow the swipe.
+            onDragStart={(event) => event.preventDefault()}
+            tabIndex={-1}
+          >
+            <MomentImage
+              alt={activeItem.altText ?? `${title} photo`}
+              className="h-full w-full object-contain"
+              decoding="async"
+              loading="lazy"
+              url={activeUrl}
+            />
+          </Link>
         ) : activeUrl ? (
           <button
             aria-label={`Open ${title} photo ${safeIndex + 1} of ${media.length}`}

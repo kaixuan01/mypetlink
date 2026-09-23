@@ -7,6 +7,10 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { FormDialog } from "@/components/ui/FormDialog";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
+import {
+  momentAdditionalPetOptions,
+  momentPrimaryPetOptions,
+} from "@/lib/momentSubjects";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import { createPetMoment } from "@/services/momentService";
@@ -69,8 +73,11 @@ export function CommunityMomentComposer({
         const owned = response.data ?? [];
         setPets(owned);
         // One pet is not a choice. Asking anyway would be a question with one
-        // answer standing between somebody and the thing they pressed.
-        setPrimaryPetId((current) => current ?? owned[0]?.id ?? null);
+        // answer standing between somebody and the thing they pressed. The
+        // default is the first pet a Moment can actually be written about.
+        setPrimaryPetId(
+          (current) => current ?? momentPrimaryPetOptions(owned)[0]?.id ?? null
+        );
       })
       .catch(() => {
         if (!active) return;
@@ -83,12 +90,22 @@ export function CommunityMomentComposer({
     };
   }, []);
 
+  /*
+    The same two rules the Owner Portal's Add Moment uses
+    (`lib/momentSubjects`), so a household sees the same choice from either
+    door: its own pets, less any archived one. Pets from households this owner
+    follows are never here — `getPets` returns only the owner's own.
+  */
+  const primaryOptions = useMemo(
+    () => momentPrimaryPetOptions(pets ?? []),
+    [pets]
+  );
   const primaryPet = useMemo(
-    () => pets?.find((pet) => pet.id === primaryPetId),
-    [pets, primaryPetId]
+    () => primaryOptions.find((pet) => pet.id === primaryPetId),
+    [primaryOptions, primaryPetId]
   );
   const otherPets = useMemo(
-    () => (pets ?? []).filter((pet) => pet.id !== primaryPetId),
+    () => momentAdditionalPetOptions(pets ?? [], primaryPetId),
     [pets, primaryPetId]
   );
 
@@ -150,7 +167,10 @@ export function CommunityMomentComposer({
     );
   }
 
-  if (pets.length === 0) {
+  if (primaryOptions.length === 0) {
+    // Every pet archived is a different situation from having none, and says so.
+    const onlyArchivedPets = !loadFailed && pets.length > 0;
+
     return (
       <FormDialog
         maxWidthClassName="sm:max-w-lg"
@@ -174,16 +194,22 @@ export function CommunityMomentComposer({
           <p className="mt-3 text-sm font-bold text-pet-ink">
             {loadFailed
               ? "We couldn't check your pets just now."
-              : "Add a pet before sharing your first Moment."}
+              : onlyArchivedPets
+                ? "Restore a pet before sharing a Moment."
+                : "Add a pet before sharing your first Moment."}
           </p>
           <p className="mx-auto mt-1 max-w-xs text-sm font-semibold leading-6 text-pet-muted">
             {loadFailed
               ? "Please try again in a moment."
-              : "Every Moment is about a pet, so there needs to be one first."}
+              : onlyArchivedPets
+                ? "Your pets are archived. Restore one from My Pets to share a Moment about them."
+                : "Every Moment is about a pet, so there needs to be one first."}
           </p>
           {loadFailed ? null : (
             <div className="mt-4">
-              <CTAButton href={ownerRoutes.petNew}>Add a pet</CTAButton>
+              <CTAButton href={onlyArchivedPets ? ownerRoutes.pets : ownerRoutes.petNew}>
+                {onlyArchivedPets ? "Go to My Pets" : "Add a pet"}
+              </CTAButton>
             </div>
           )}
         </div>
@@ -214,13 +240,17 @@ export function CommunityMomentComposer({
         maxWidthClassName="sm:max-w-3xl"
         mode="create"
         onDirtyChange={setDirty}
-        onPrimaryPetChange={pets.length > 1 ? setPrimaryPetId : undefined}
+        onPrimaryPetChange={
+          primaryOptions.length > 1 ? setPrimaryPetId : undefined
+        }
         onRequestClose={requestClose}
         onSubmit={handleSubmit}
         otherPets={otherPets}
         petName={primaryPet?.name ?? ""}
         primaryPet={primaryPet}
-        primaryPetOptions={pets.length > 1 ? pets : undefined}
+        primaryPetOptions={
+          primaryOptions.length > 1 ? primaryOptions : undefined
+        }
         submitLabel="Share Moment"
         submitting={submitting}
       />

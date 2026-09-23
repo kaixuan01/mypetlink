@@ -1,4 +1,4 @@
-import { apiRequest } from "@/services/apiClient";
+import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { getApiBaseUrl } from "@/services/apiConfig";
 
 /**
@@ -157,10 +157,24 @@ export async function getPublicMoment(
 ): Promise<PublicMomentListItem> {
   requireApi();
 
-  const response = await apiRequest<PublicMomentListItem>(
-    `/api/v1/public/moments/${encodeURIComponent(momentId)}`,
-    { auth: false }
-  );
+  let response: Awaited<ReturnType<typeof apiRequest<PublicMomentListItem>>>;
+
+  try {
+    response = await apiRequest<PublicMomentListItem>(
+      `/api/v1/public/moments/${encodeURIComponent(momentId)}`,
+      { auth: false }
+    );
+  } catch (error) {
+    // The API answers 404 for every Moment it will not show — missing,
+    // private, taken down, or behind a block — and deliberately says no more.
+    // That is "not available", not "something went wrong": the page must not
+    // offer Retry for an answer that retrying cannot change.
+    if (isApiClientError(error) && error.status === 404) {
+      throw new PublicProfileUnavailableError("not-found");
+    }
+
+    throw error;
+  }
 
   if (!response.data) {
     throw new PublicProfileUnavailableError("not-found");

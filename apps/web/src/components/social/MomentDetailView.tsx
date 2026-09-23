@@ -16,7 +16,15 @@ import {
   formatMomentPublishedLabel,
   momentPublishedDateTime,
 } from "@/lib/momentPublishedTime";
+import {
+  momentNotFoundTitle,
+  momentTitleMetaName,
+  momentTitleText,
+  momentUnavailableTitle,
+} from "@/lib/momentDocumentTitle";
+import { formatPageTitle } from "@/lib/pageTitles";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getPublicMoment,
@@ -91,6 +99,26 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
     };
   }, [momentId, attempt]);
 
+  // What the edge already called this page, if it served it. Read once, on
+  // the first render, and only for this Moment's id.
+  const [edgeTitle] = useState(() => readEdgeMomentTitle(momentId));
+
+  // The page names itself once it knows what it is showing. While it is still
+  // asking, it holds the edge's title for this Moment — the shell's own
+  // metadata says "Loading", and Next commits that after hydration — and
+  // otherwise asserts nothing rather than a placeholder.
+  useDocumentTitle(
+    phase.state === "ready"
+      ? formatPageTitle(momentTitleText(phase.moment.title))
+      : phase.state === "unavailable"
+        ? formatPageTitle(momentNotFoundTitle)
+        : phase.state === "error"
+          ? formatPageTitle(momentUnavailableTitle)
+          : edgeTitle
+            ? formatPageTitle(edgeTitle)
+            : null
+  );
+
   const onLikeChange = useCallback(
     (_id: string, state: { likeCount: number; viewerHasLiked: boolean }) => {
       setPhase((current) =>
@@ -122,6 +150,18 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
       </div>
     </SocialLayout>
   );
+}
+
+function readEdgeMomentTitle(momentId: string) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const tag = document.head.querySelector<HTMLMetaElement>(
+    `meta[name="${momentTitleMetaName}"]`
+  );
+
+  return tag?.content === momentId ? tag.dataset.title?.trim() || null : null;
 }
 
 /**
