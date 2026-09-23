@@ -421,6 +421,57 @@ public sealed class MomentAuthorshipAndSubjectsTests
     }
 
     [Fact]
+    public async Task AdditionalPets_AddedByAnEdit_MustAlsoBelongToTheAuthenticatedUser()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId,
+            MochiId,
+            Request(additionalPetIds: [CocoId]));
+
+        // Editing is the second door into the subject list, and following or
+        // knowing another household opens neither of them.
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Memories.UpdateAsync(
+                AliceId,
+                created.Id,
+                UpdateRequest(additionalPetIds: [CocoId, BobsPetId])));
+
+        Assert.Equal("pet_not_owned", error.Code);
+        Assert.Equal(403, error.StatusCode);
+
+        var subjects = await harness.Db.MomentPets
+            .Where(item => item.MomentId == created.Id)
+            .Select(item => item.PetId)
+            .ToListAsync();
+        Assert.Equal(2, subjects.Count);
+        Assert.Contains(MochiId, subjects);
+        Assert.Contains(CocoId, subjects);
+        Assert.DoesNotContain(BobsPetId, subjects);
+    }
+
+    [Fact]
+    public async Task AnEditThatDoesNotMentionSubjects_KeepsEveryAdditionalPet()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId,
+            MochiId,
+            Request(additionalPetIds: [CocoId, LuckyId]));
+
+        // A caption fix is not a decision about who was there.
+        var updated = await harness.Memories.UpdateAsync(
+            AliceId,
+            created.Id,
+            UpdateRequest(caption: "Second swim"));
+
+        Assert.Equal("Second swim", updated.Caption);
+        Assert.Equal(
+            new[] { CocoId, LuckyId }.OrderBy(id => id),
+            updated.AdditionalPetIds.OrderBy(id => id));
+    }
+
+    [Fact]
     public async Task PublishedAt_SurvivesBeingMadePrivateAgain()
     {
         using var harness = await Harness.CreateAsync();

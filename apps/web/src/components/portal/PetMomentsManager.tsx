@@ -15,9 +15,12 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { getMemoryLimitState } from "@/lib/planLimits";
-import { isActivePet, isArchivedPet } from "@/lib/petLifecycle";
+import { isArchivedPet } from "@/lib/petLifecycle";
 import { normalizeMomentVisibility } from "@/lib/momentVisibility";
-import { resolveMomentSubjects } from "@/lib/momentSubjects";
+import {
+  momentAdditionalPetOptions,
+  resolveMomentSubjects,
+} from "@/lib/momentSubjects";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPets } from "@/services/petService";
@@ -40,15 +43,22 @@ type PetMomentsManagerProps = {
 };
 
 /**
- * The owner's other pets, for the "who's in this Moment?" selector.
+ * The owner's own pets, for the "who's in this Moment?" selector and for naming
+ * the pets on each Moment card.
  *
  * Fetched here rather than threaded through every caller because the selector
  * is the only thing that needs them, and an owner has at most a handful. A
- * failure is silent: the Moment is then simply about its own pet, which is the
- * behaviour that existed before multi-pet Moments.
+ * failure is silent: the Moment is then simply about its own pet, and an edit
+ * leaves its saved subjects untouched (the editor only sends the list when it
+ * offered a choice).
+ *
+ * Unfiltered on purpose. Which of these a Moment may include is decided by
+ * `momentAdditionalPetOptions`, the same rule Community's composer uses; this
+ * list is also how a card names a memorial or archived pet that is already in
+ * one of its Moments.
  */
-function useOwnerOtherPets(currentPetId: string) {
-  const [otherPets, setOtherPets] = useState<PetListItem[]>([]);
+function useOwnerPets() {
+  const [ownerPets, setOwnerPets] = useState<PetListItem[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -57,14 +67,9 @@ function useOwnerOtherPets(currentPetId: string) {
       try {
         const response = await getPets();
         if (!active) return;
-        setOtherPets(
-          response.data.filter(
-            (candidate) =>
-              candidate.id !== currentPetId && isActivePet(candidate)
-          )
-        );
+        setOwnerPets(response.data ?? []);
       } catch {
-        if (active) setOtherPets([]);
+        if (active) setOwnerPets([]);
       }
     }
 
@@ -72,9 +77,9 @@ function useOwnerOtherPets(currentPetId: string) {
     return () => {
       active = false;
     };
-  }, [currentPetId]);
+  }, []);
 
-  return otherPets;
+  return ownerPets;
 }
 
 type MomentEditorState =
@@ -160,7 +165,11 @@ export function PetMomentsManager({
 }: PetMomentsManagerProps) {
   const apiMode = isApiConfigured();
   const archivedPet = isArchivedPet(pet);
-  const otherPets = useOwnerOtherPets(pet.id);
+  const ownerPets = useOwnerPets();
+  const siblingPets = useMemo(
+    () => ownerPets.filter((candidate) => candidate.id !== pet.id),
+    [ownerPets, pet.id]
+  );
   const [moments, setMoments] = useState<PetMoment[]>(
     apiMode ? [] : initialMoments
   );
@@ -580,7 +589,7 @@ export function PetMomentsManager({
                 subjectNames={resolveMomentSubjects(
                   moment.petId,
                   moment.additionalPetIds,
-                  [pet, ...otherPets]
+                  [pet, ...siblingPets]
                 ).map((subject) => subject.name)}
               />
             ))}
@@ -605,7 +614,11 @@ export function PetMomentsManager({
           onDirtyChange={setEditorDirty}
           onRequestClose={requestEditorClose}
           onSubmit={handleEditorSubmit}
-          otherPets={otherPets}
+          otherPets={momentAdditionalPetOptions(
+            siblingPets,
+            pet.id,
+            editor.mode === "edit" ? editor.moment.additionalPetIds : []
+          )}
           petName={pet.name}
           primaryPet={pet}
           submitting={isSubmitting}

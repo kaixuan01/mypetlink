@@ -227,8 +227,14 @@ export function MomentEditorDialog({
       // Sent only when a choice was actually offered. Omitting it leaves the
       // server's existing subjects alone; sending [] would clear them, which is
       // not what "this editor had no pet selector" means.
+      // The primary pet is never an extra: switching Community's "Pet" choice
+      // to one that was ticked below must not send it twice.
       ...(primaryPet && otherPets.length > 0
-        ? { additionalPetIds: form.additionalPetIds }
+        ? {
+            additionalPetIds: form.additionalPetIds.filter(
+              (petId) => petId !== primaryPet.id
+            ),
+          }
         : {}),
     });
   }

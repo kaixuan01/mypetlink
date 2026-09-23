@@ -3,6 +3,8 @@ import {
   describeMomentSubjects,
   formatMomentSubjects,
   resolveMomentSubjects,
+  momentAdditionalPetOptions,
+  momentPrimaryPetOptions,
 } from "@/lib/momentSubjects";
 
 const pets = [
@@ -81,5 +83,35 @@ describe("describeMomentSubjects", () => {
 
   it("is empty when there is nothing to describe", () => {
     expect(describeMomentSubjects([])).toBe("");
+  });
+});
+
+describe("which pets a Moment can be about", () => {
+  const pets = [
+    { id: "topu", lifecycleStatus: "Active" },
+    { id: "biscuit", lifecycleStatus: "Memorial" },
+    { id: "pebble", lifecycleStatus: "Archived" },
+    { id: "linko" },
+  ];
+
+  it("offers every own pet the server will start a Moment for", () => {
+    expect(momentPrimaryPetOptions(pets).map((pet) => pet.id)).toEqual([
+      "topu",
+      "biscuit",
+      "linko",
+    ]);
+  });
+
+  it("offers the other own pets as extras, never the primary or an archived one", () => {
+    expect(momentAdditionalPetOptions(pets, "topu").map((pet) => pet.id)).toEqual([
+      "biscuit",
+      "linko",
+    ]);
+  });
+
+  it("keeps an archived pet that is already in the Moment, so it can be seen and removed", () => {
+    expect(
+      momentAdditionalPetOptions(pets, "topu", ["pebble"]).map((pet) => pet.id)
+    ).toEqual(["biscuit", "pebble", "linko"]);
   });
 });

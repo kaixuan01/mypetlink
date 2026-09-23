@@ -299,3 +299,92 @@ describe("one Moment lifecycle, not two", () => {
     expect(editor).toContain("primaryPetOptions && onPrimaryPetChange");
   });
 });
+
+describe("the same pet rules as the Owner Portal", () => {
+  function lifecyclePet(
+    id: string,
+    name: string,
+    lifecycleStatus: "Active" | "Memorial" | "Archived"
+  ) {
+    return { ...pet(id, name), lifecycleStatus };
+  }
+
+  it("never offers an archived pet, and keeps a memorial one", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [
+        lifecyclePet("pet-old", "Pebble", "Archived"),
+        lifecyclePet("pet-1", "Topu", "Active"),
+        lifecyclePet("pet-2", "Biscuit", "Memorial"),
+      ],
+    });
+
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+
+    const select = (await screen.findByTestId(
+      "moment-primary-pet"
+    )) as HTMLSelectElement;
+
+    // The server will not start a Moment for an archived pet, so choosing one
+    // could only end in a refusal. The default is the first pet it will accept.
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      "Topu",
+      "Biscuit",
+    ]);
+    expect(select.value).toBe("pet-1");
+
+    const who = screen.getByRole("group", { name: /Who.s in this Moment/ });
+    expect(within(who).queryByText("Pebble")).toBeNull();
+    expect(within(who).getByRole("checkbox", { name: /Biscuit/ })).toBeTruthy();
+  });
+
+  it("says restore rather than add when every pet is archived", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [lifecyclePet("pet-old", "Pebble", "Archived")],
+    });
+
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+
+    const needsPet = await screen.findByTestId("composer-needs-pet");
+
+    expect(needsPet.textContent).toContain("Restore a pet before sharing a Moment.");
+    expect(
+      within(needsPet).getByRole("link", { name: "Go to My Pets" }).getAttribute("href")
+    ).toBe("/pets");
+  });
+
+  it("never sends the primary pet as one of its own extras", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [pet("pet-1", "Topu"), pet("pet-2", "Biscuit")],
+    });
+
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+
+    const select = (await screen.findByTestId(
+      "moment-primary-pet"
+    )) as HTMLSelectElement;
+
+    // Tick Biscuit as an extra, then make Biscuit the Moment's pet.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Biscuit/ }));
+    fireEvent.change(select, { target: { value: "pet-2" } });
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+
+    await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledOnce());
+    expect(mocks.createPetMoment.mock.calls[0][0]).toBe("pet-2");
+    expect(mocks.createPetMoment.mock.calls[0][1].additionalPetIds).toEqual([]);
+  });
+
+  it("offers only the owner's own pets, from the owner's own pet list", () => {
+    const composer = read("components/social/CommunityMomentComposer.tsx");
+
+    // A followed household's pets are not a source here. Following grants no
+    // right to put somebody else's pet in your Moment.
+    expect(composer).toContain('import { getPets } from "@/services/petService";');
+    expect(composer).not.toMatch(/socialGraphService|getSocialFeed|following/i);
+    expect(composer).toContain("momentPrimaryPetOptions");
+    expect(composer).toContain("momentAdditionalPetOptions");
+    expect(read("components/portal/PetMomentsManager.tsx")).toContain(
+      "momentAdditionalPetOptions"
+    );
+  });
+});
