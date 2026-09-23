@@ -4,8 +4,15 @@ import {
   fetchOwnerProfile,
   isValidOwnerHandle,
   resolveOwnerHandle,
+  unavailableOwnerResponse,
   type EdgeOwnerProfile,
 } from "./ownerProfileEdge";
+import {
+  ownerProfileNotFoundTitle,
+  ownerProfileTitleMetaName,
+  ownerProfileTitleText,
+  ownerProfileUnavailableTitle,
+} from "../src/lib/ownerProfileDocumentTitle";
 
 const env: MyPetLinkPagesEnv = {
   PUBLIC_API_BASE_URL: "https://api.test",
@@ -136,8 +143,22 @@ describe("buildOwnerProfileHead", () => {
   it("titles the preview with the household's social name", () => {
     const head = buildOwnerProfileHead(profile);
 
-    expect(head).toContain("<title>The Tan Family on MyPetLink</title>");
+    expect(head).toContain("<title>The Tan Family | MyPetLink</title>");
+    expect(head).toContain(
+      `<meta name="${ownerProfileTitleMetaName}" content="tanfamily" data-title="The Tan Family">`
+    );
+    expect(head).toContain('property="og:title" content="The Tan Family on MyPetLink"');
     expect(head).toContain('content="Two cats, one very patient sofa."');
+  });
+
+  it("uses exactly the browser's title rule for long display names", () => {
+    const displayName = `GBB Software Solutions ${"Malaysia ".repeat(10)}`;
+    const head = buildOwnerProfileHead({ ...profile, displayName });
+
+    expect(head).toContain(
+      `<title>${ownerProfileTitleText(displayName)} | MyPetLink</title>`
+    );
+    expect(ownerProfileTitleText(displayName).length).toBeLessThanOrEqual(70);
   });
 
   it("points the canonical URL at the lowercase handle", () => {
@@ -167,5 +188,25 @@ describe("buildOwnerProfileHead", () => {
     const head = buildOwnerProfileHead({ ...profile, avatarUrl: null });
 
     expect(head).not.toContain("og:image");
+  });
+});
+
+describe("unavailableOwnerResponse", () => {
+  it("uses one not-found title for every profile the public API withholds", async () => {
+    const response = unavailableOwnerResponse("not-found");
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain(
+      `<title>${ownerProfileNotFoundTitle} | MyPetLink</title>`
+    );
+  });
+
+  it("does not call an origin failure not found", async () => {
+    const response = unavailableOwnerResponse("error");
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toContain(
+      `<title>${ownerProfileUnavailableTitle} | MyPetLink</title>`
+    );
   });
 });

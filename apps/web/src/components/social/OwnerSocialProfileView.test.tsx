@@ -504,5 +504,100 @@ describe("OwnerSocialProfileView", () => {
     await waitFor(() =>
       expect(screen.getByText(/we couldn't load this profile/i)).toBeTruthy()
     );
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(document.title).toBe("Community Profile unavailable | MyPetLink");
+  });
+});
+
+describe("Community Profile tab title", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/u/tanfamily");
+    document.head.innerHTML = "<title>Loading | MyPetLink</title>";
+    mocks.getPublicOwnerProfile.mockResolvedValue(profile);
+    mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));
+    mocks.getOwnerRelationship.mockResolvedValue(relationship);
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.head.innerHTML = "";
+    window.localStorage.clear();
+  });
+
+  it("names a loaded profile from its chosen Community display name", async () => {
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await screen.findByText("The Tan Family");
+    await waitFor(() =>
+      expect(document.title).toBe("The Tan Family | MyPetLink")
+    );
+  });
+
+  it("uses one public title and presentation for every unavailable profile", async () => {
+    mocks.getPublicOwnerProfile.mockRejectedValue(
+      new PublicProfileUnavailableError("not-found")
+    );
+
+    render(<OwnerSocialProfileView handle="nobody" />);
+
+    await screen.findByText("This profile isn't available");
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    await waitFor(() =>
+      expect(document.title).toBe("Community Profile not found | MyPetLink")
+    );
+  });
+
+  it("restores its title when framework metadata is committed after hydration", async () => {
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+    await waitFor(() =>
+      expect(document.title).toBe("The Tan Family | MyPetLink")
+    );
+
+    document.head.innerHTML = "<title>Loading | MyPetLink</title>";
+
+    await waitFor(() =>
+      expect(document.title).toBe("The Tan Family | MyPetLink")
+    );
+  });
+
+  it("holds a matching edge title during a direct-load request", async () => {
+    document.head.innerHTML =
+      "<title>GBB Software Solutions | MyPetLink</title>" +
+      '<meta name="mypetlink-owner-profile" content="tanfamily" data-title="GBB Software Solutions">';
+    mocks.getPublicOwnerProfile.mockImplementation(() => new Promise(() => {}));
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+    document.head.querySelector("title")!.textContent = "Loading | MyPetLink";
+
+    await waitFor(() =>
+      expect(document.title).toBe("GBB Software Solutions | MyPetLink")
+    );
+  });
+
+  it("updates the title on client-side navigation without borrowing stale edge metadata", async () => {
+    document.head.innerHTML =
+      "<title>Previous Household | MyPetLink</title>" +
+      '<meta name="mypetlink-owner-profile" content="previous" data-title="Previous Household">';
+    mocks.getPublicOwnerProfile
+      .mockResolvedValueOnce({
+        ...profile,
+        handle: "previous",
+        displayName: "Previous Household",
+      })
+      .mockResolvedValueOnce(profile);
+
+    const view = render(<OwnerSocialProfileView handle="previous" />);
+    await waitFor(() =>
+      expect(document.title).toBe("Previous Household | MyPetLink")
+    );
+
+    window.history.replaceState({}, "", "/u/tanfamily");
+    view.rerender(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await screen.findByText("The Tan Family");
+    await waitFor(() =>
+      expect(document.title).toBe("The Tan Family | MyPetLink")
+    );
   });
 });

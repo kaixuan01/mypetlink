@@ -99,10 +99,23 @@ export async function getPublicOwnerProfile(
 ): Promise<PublicOwnerProfile> {
   requireApi();
 
-  const response = await apiRequest<PublicOwnerProfile>(
-    `/api/v1/public/owners/${encodeURIComponent(handle)}`,
-    { auth: false }
-  );
+  let response: Awaited<ReturnType<typeof apiRequest<PublicOwnerProfile>>>;
+
+  try {
+    response = await apiRequest<PublicOwnerProfile>(
+      `/api/v1/public/owners/${encodeURIComponent(handle)}`,
+      { auth: false }
+    );
+  } catch (error) {
+    // The public API intentionally gives one 404 for every profile it will not
+    // show. Missing, Community off and privacy-hidden must remain the same
+    // answer here; only a real transport/server failure earns Retry.
+    if (isApiClientError(error) && error.status === 404) {
+      throw new PublicProfileUnavailableError("not-found");
+    }
+
+    throw error;
+  }
 
   if (!response.data) {
     throw new PublicProfileUnavailableError("not-found");

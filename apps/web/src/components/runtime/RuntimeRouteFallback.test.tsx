@@ -376,6 +376,11 @@ vi.mock("@/components/social/OwnerConnectionsView", () => ({
 }));
 
 describe("social routes served through the 404 shell", () => {
+  afterEach(() => {
+    cleanup();
+    document.head.innerHTML = "";
+  });
+
   function at(path: string) {
     window.history.replaceState({}, "", path);
   }
@@ -388,6 +393,18 @@ describe("social routes served through the 404 shell", () => {
     expect((await screen.findByTestId("social-profile-view")).textContent).toBe(
       "tanfamily"
     );
+  });
+
+  it("does not replace the Community Profile title already supplied by the edge", async () => {
+    at("/u/tanfamily");
+    document.head.innerHTML =
+      "<title>The Tan Family | MyPetLink</title>" +
+      '<meta name="mypetlink-owner-profile" content="tanfamily" data-title="The Tan Family">';
+
+    render(<RuntimeRouteFallback>{null}</RuntimeRouteFallback>);
+
+    await screen.findByTestId("social-profile-view");
+    expect(document.title).toBe("The Tan Family | MyPetLink");
   });
 
   it("normalises the handle so one profile has one address", async () => {

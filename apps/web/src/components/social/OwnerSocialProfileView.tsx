@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
@@ -13,6 +13,13 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { trackEvent } from "@/lib/analytics";
 import {
+  ownerProfileNotFoundTitle,
+  ownerProfileTitleMetaName,
+  ownerProfileTitleText,
+  ownerProfileUnavailableTitle,
+} from "@/lib/ownerProfileDocumentTitle";
+import { formatPageTitle } from "@/lib/pageTitles";
+import {
   ownerFollowersPath,
   ownerFollowingPath,
   ownerRoutes,
@@ -20,6 +27,7 @@ import {
   socialRoutes,
 } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getOwnerRelationship,
@@ -75,6 +83,23 @@ export function OwnerSocialProfileView({
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
   const signedIn = useSignedIn();
+
+  // A direct production request may already carry the household name from the
+  // edge. Hold that exact title while the browser asks for the same profile,
+  // rather than letting the exported shell's metadata replace it with Loading.
+  const edgeTitle = useMemo(() => readEdgeOwnerProfileTitle(handle), [handle]);
+
+  useDocumentTitle(
+    state === "ready" && profile
+      ? formatPageTitle(ownerProfileTitleText(profile.displayName))
+      : state === "unavailable"
+        ? formatPageTitle(ownerProfileNotFoundTitle)
+        : state === "error"
+          ? formatPageTitle(ownerProfileUnavailableTitle)
+          : edgeTitle
+            ? formatPageTitle(edgeTitle)
+            : null
+  );
 
   // Moments page through the shared listing hook, the same one the pet profile,
   // the feed and Explore use. The profile itself is loaded separately below:
@@ -417,4 +442,18 @@ export function OwnerSocialProfileView({
       <CommunityBrandFooter signedIn={signedIn} />
     </div>
   );
+}
+
+function readEdgeOwnerProfileTitle(handle: string) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const tag = document.head.querySelector<HTMLMetaElement>(
+    `meta[name="${ownerProfileTitleMetaName}"]`
+  );
+
+  return tag?.content.toLowerCase() === handle.toLowerCase()
+    ? tag.dataset.title?.trim() || null
+    : null;
 }

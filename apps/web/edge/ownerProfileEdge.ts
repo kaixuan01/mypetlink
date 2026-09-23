@@ -1,6 +1,12 @@
 import {
   productionSiteOrigin,
 } from "./publicProfileEdge";
+import {
+  ownerProfileNotFoundTitle,
+  ownerProfileTitleMetaName,
+  ownerProfileTitleText,
+  ownerProfileUnavailableTitle,
+} from "../src/lib/ownerProfileDocumentTitle";
 
 /**
  * Serves `/u/{handle}` — an owner's public social profile.
@@ -238,8 +244,8 @@ function cleanText(value: string, maxLength: number) {
 }
 
 export function buildOwnerProfileHead(profile: EdgeOwnerProfile) {
-  const name = cleanText(profile.displayName, 60) || "A MyPetLink family";
-  const title = `${name} on MyPetLink`;
+  const name = ownerProfileTitleText(profile.displayName);
+  const socialTitle = `${name} on MyPetLink`;
   const petSummary =
     profile.petNames.length > 0
       ? `Pets: ${profile.petNames.slice(0, 3).join(", ")}`
@@ -249,11 +255,12 @@ export function buildOwnerProfileHead(profile: EdgeOwnerProfile) {
   const canonical = `${productionSiteOrigin}/u/${profile.handle.toLowerCase()}`;
 
   const tags = [
-    `<title>${escapeHtml(title)}</title>`,
+    `<title>${escapeHtml(name)} | MyPetLink</title>`,
+    `<meta name="${ownerProfileTitleMetaName}" content="${escapeHtml(profile.handle.toLowerCase())}" data-title="${escapeHtml(name)}">`,
     `<meta name="description" content="${escapeHtml(description)}">`,
     `<link rel="canonical" href="${escapeHtml(canonical)}">`,
     `<meta property="og:type" content="profile">`,
-    `<meta property="og:title" content="${escapeHtml(title)}">`,
+    `<meta property="og:title" content="${escapeHtml(socialTitle)}">`,
     `<meta property="og:description" content="${escapeHtml(description)}">`,
     `<meta property="og:url" content="${escapeHtml(canonical)}">`,
     `<meta name="twitter:card" content="summary">`,
@@ -279,9 +286,13 @@ export function ownerHtmlHeaders(source?: Headers) {
 
 export function unavailableOwnerResponse(state: "not-found" | "error") {
   const status = state === "not-found" ? 404 : 503;
+  const title =
+    state === "not-found"
+      ? ownerProfileNotFoundTitle
+      : ownerProfileUnavailableTitle;
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8">`
     + `<meta name="viewport" content="width=device-width, initial-scale=1">`
-    + `<title>Profile unavailable | MyPetLink</title>`
+    + `<title>${title} | MyPetLink</title>`
     + `<meta name="robots" content="noindex">`
     + `</head><body><main><h1>This profile isn't available</h1>`
     + `<p>The link may have changed, or the profile may not be shared right now.</p>`

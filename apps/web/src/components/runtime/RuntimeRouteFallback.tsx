@@ -170,13 +170,14 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (state.status === "loading") {
-      // A Moment names itself (MomentDetailView). In production the edge has
-      // already written that name into the HTML; "Loading" here would replace
-      // it for the length of a request and then have to be replaced back.
-      if (
-        parseRuntimeRoute(window.location.pathname, window.location.search)
-          .kind === "moment"
-      ) {
+      // Moment and Community Profile views name themselves. In production the
+      // edge has already written that name into the HTML; "Loading" here would
+      // replace it for the length of a request and then have to be replaced.
+      const routeKind = parseRuntimeRoute(
+        window.location.pathname,
+        window.location.search
+      ).kind;
+      if (routeKind === "moment" || routeKind === "social-profile") {
         return;
       }
 
@@ -232,9 +233,13 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (state.status === "social-profile" || state.status === "social-connections") {
-      // The view sets the real title once it knows whose profile this is; the
-      // edge has already rewritten it for anything that reads the HTML.
+    if (state.status === "social-profile") {
+      // OwnerSocialProfileView owns this title, including the edge title it
+      // holds while loading and the non-probing not-found title.
+      return;
+    }
+
+    if (state.status === "social-connections") {
       setPageTitle("Profile");
       return;
     }
