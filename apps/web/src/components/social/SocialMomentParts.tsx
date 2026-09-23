@@ -124,8 +124,15 @@ export function MomentByline({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
+      {/*
+        `py-0.5` lifts this to the 24px minimum target size. The byline is the
+        only route from a Moment to the household that shared it, and it
+        measured 20px on every card at every width. Padding rather than a
+        larger avatar or type: the byline must stay quieter than the pet above
+        it, which is the whole point of the card's hierarchy.
+      */}
       <Link
-        className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-pet-muted transition hover:text-pet-ink"
+        className="flex min-w-0 items-center gap-1.5 py-0.5 text-xs font-bold text-pet-muted transition hover:text-pet-ink"
         data-testid="moment-byline"
         href={ownerSocialProfilePath(author.handle)}
       >

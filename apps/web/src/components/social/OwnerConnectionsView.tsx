@@ -7,10 +7,12 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialAccountList } from "@/components/social/SocialAccountList";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
+import { AccountRowSkeleton } from "@/components/social/SocialSkeletons";
 import {
   ownerFollowersPath,
   ownerFollowingPath,
   ownerSocialProfilePath,
+  socialRoutes,
 } from "@/lib/routes";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -53,6 +55,12 @@ export function OwnerConnectionsView({
   relation,
 }: OwnerConnectionsViewProps) {
   const [state, setState] = useState<LoadState>("loading");
+  /** Bumped by Retry; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setState("loading");
+    setAttempt((current) => current + 1);
+  }, []);
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -97,7 +105,7 @@ export function OwnerConnectionsView({
     return () => {
       active = false;
     };
-  }, [handle, relation]);
+  }, [handle, relation, attempt]);
 
   // Counts are a separate, non-blocking read: a list that loads but whose
   // counts do not should still show the list.
@@ -154,8 +162,8 @@ export function OwnerConnectionsView({
         <span className="sr-only">Loading</span>
         <div className="h-6 w-40 animate-pulse rounded-full bg-pet-apricot" />
         <div className="mt-6 space-y-2">
-          <div className="h-16 animate-pulse rounded-[1.5rem] bg-white" />
-          <div className="h-16 animate-pulse rounded-[1.5rem] bg-white" />
+          <AccountRowSkeleton />
+          <AccountRowSkeleton />
         </div>
       </div>
     );
@@ -180,8 +188,18 @@ export function OwnerConnectionsView({
             ? "The link may have changed, or the profile may not be shared right now."
             : "Please try again in a moment."}
         </p>
-        <div className="mt-6">
-          <CTAButton href="/">Go to MyPetLink</CTAButton>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {/*
+            Retry only where retrying can help. A not-found will not change
+            because somebody pressed a button, so that case keeps the single
+            way out it already had.
+          */}
+          {state === "error" ? (
+            <CTAButton onClick={retry} type="button" variant="secondary">
+              Try again
+            </CTAButton>
+          ) : null}
+          <CTAButton href={socialRoutes.explore}>Explore Community</CTAButton>
         </div>
       </div>
     );
@@ -192,7 +210,8 @@ export function OwnerConnectionsView({
   return (
     <div className="mx-auto w-full max-w-2xl pt-6">
       <Link
-        className="inline-flex items-center gap-1.5 text-sm font-bold text-pet-muted transition hover:text-pet-ink"
+        aria-label={`Back to ${profile.displayName}'s profile`}
+        className="-ml-3 inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-pet-muted transition hover:bg-white hover:text-pet-ink"
         href={ownerSocialProfilePath(profile.handle)}
       >
         <Icon aria-hidden="true" className="h-4 w-4 rotate-180" name="chevron" />

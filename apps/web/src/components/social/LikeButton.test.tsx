@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   likeMoment: vi.fn(),
   unlikeMoment: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -20,6 +21,10 @@ vi.mock("@/services/momentLikeService", () => ({
 import { LikeButton } from "@/components/social/LikeButton";
 import { ApiClientError } from "@/services/apiClient";
 
+beforeEach(() => {
+  window.history.replaceState({}, "", "/u/tanfamily?tab=moments");
+});
+
 function renderButton(
   props: {
     likeCount?: number;
@@ -33,6 +38,7 @@ function renderButton(
       likeCount={props.likeCount ?? 3}
       momentId="moment-1"
       momentTitle="Beach day"
+      onAuthenticationRequired={mocks.push}
       onChange={onChange}
       signedIn={"signedIn" in props ? props.signedIn! : true}
       viewerHasLiked={props.viewerHasLiked ?? false}
@@ -136,8 +142,31 @@ describe("LikeButton", () => {
     renderButton({ signedIn: false });
     const link = screen.getByTestId("like-button-signin");
 
-    expect(link.getAttribute("href")).toBe("/login?redirect=%2Fu%2Ftanfamily");
+    expect(link.getAttribute("href")).toBe(
+      "/login?redirect=%2Fu%2Ftanfamily%3Ftab%3Dmoments"
+    );
     expect(screen.queryByTestId("like-button")).toBeNull();
+  });
+
+  it("returns an expired session through login without replaying Like", async () => {
+    mocks.likeMoment.mockRejectedValue(
+      new ApiClientError(401, "unauthorized", "Authentication is required.")
+    );
+
+    const { onChange } = renderButton();
+    fireEvent.click(likeButton());
+
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(
+        "/login?redirect=%2Fu%2Ftanfamily%3Ftab%3Dmoments"
+      )
+    );
+    expect(onChange).toHaveBeenLastCalledWith({
+      likeCount: 3,
+      viewerHasLiked: false,
+    });
+    expect(screen.queryByTestId("like-button-error")).toBeNull();
+    expect(mocks.likeMoment).toHaveBeenCalledOnce();
   });
 
   it("still shows a signed-out visitor the count", () => {

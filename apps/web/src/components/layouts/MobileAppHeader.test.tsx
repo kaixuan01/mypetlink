@@ -192,6 +192,9 @@ describe("what the compact header calls the page", () => {
     ["/search", "Search"],
     ["/notifications", "Activity"],
     ["/community/profile", "My profile"],
+    ["/u/tanfamily", "Community profile"],
+    ["/u/tanfamily/followers", "Followers"],
+    ["/u/tanfamily/following", "Following"],
   ])("names %s as %s", (pathname, title) => {
     mocks.pathname = pathname;
     render(<MobileAppHeader />);

@@ -15,6 +15,8 @@ import {
 } from "@/components/portal/OwnerHeaderActions";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
+  appModeHome,
+  appModeLabels,
   getAppMode,
   getModeSwitchHref,
   getModeSwitchLabel,
@@ -127,9 +129,9 @@ export function AppLayout({
             {collapsed ? (
             <div className="flex flex-col items-center gap-3">
               <Link
-                aria-label="MyPetLink home"
+                aria-label={`MyPetLink ${appModeLabels[mode]} home`}
                 className="grid place-items-center"
-                href="/"
+                href={appModeHome[mode]}
               >
                 <BrandLogo markOnly className="h-10 w-10" />
               </Link>
@@ -140,14 +142,18 @@ export function AppLayout({
             </div>
             ) : (
             <div className="flex items-center justify-between gap-2">
-              <Link href="/" className="flex min-w-0 items-center gap-3">
+              <Link
+                aria-label={`MyPetLink ${appModeLabels[mode]} home`}
+                className="flex min-w-0 items-center gap-3"
+                href={appModeHome[mode]}
+              >
                 <BrandLogo markOnly className="h-12 w-12 shrink-0" />
                 <span className="min-w-0">
                   <span className="block truncate text-lg font-black text-pet-ink">
                     MyPetLink
                   </span>
                   <span className="block truncate text-xs font-semibold text-pet-muted">
-                    Owner portal
+                    {appModeLabels[mode]}
                   </span>
                 </span>
               </Link>

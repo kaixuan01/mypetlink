@@ -146,6 +146,28 @@ describe("desktop navigation modes", () => {
     expect(link.getAttribute("href")).toBe("/dashboard");
   });
 
+  it("makes the desktop brand identify and return to the current mode", () => {
+    mocks.pathname = "/feed";
+    const { unmount } = render(<AppLayout>content</AppLayout>);
+
+    const communityHome = screen.getByRole("link", {
+      name: "MyPetLink Community home",
+    });
+    expect(communityHome.getAttribute("href")).toBe("/feed");
+    expect(communityHome.textContent).toContain("Community");
+    expect(communityHome.textContent).not.toContain("Owner portal");
+
+    unmount();
+    mocks.pathname = "/dashboard";
+    render(<AppLayout>content</AppLayout>);
+
+    const petsHome = screen.getByRole("link", {
+      name: "MyPetLink My Pets home",
+    });
+    expect(petsHome.getAttribute("href")).toBe("/dashboard");
+    expect(petsHome.textContent).toContain("My Pets");
+  });
+
   it("offers a switch to Community while in My Pets", () => {
     mocks.pathname = "/dashboard";
 

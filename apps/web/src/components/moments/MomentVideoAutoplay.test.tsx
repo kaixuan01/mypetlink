@@ -73,6 +73,10 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  Object.defineProperty(navigator, "connection", {
+    configurable: true,
+    value: undefined,
+  });
 });
 
 const clipOne = "https://media.test/one.mp4";
@@ -142,6 +146,34 @@ describe("a video that may start by itself", () => {
     // Two videos talking over each other is the failure mode this prevents.
     expect(played).toEqual([clipOne, clipTwo]);
     expect(paused).toContain(clipOne);
+  });
+
+  it("does not autoplay when reduced motion is requested", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({ matches: true })
+    );
+    render(<MomentVideoPlayer alt="Buddy swims" autoplayWhenVisible url={clipOne} />);
+
+    reveal(0, 0.9);
+
+    expect(played).toEqual([]);
+    // It remains a usable player: the preference suppresses automatic motion,
+    // not a choice to start the clip.
+    fireEvent.click(screen.getByRole("button", { name: /play buddy swims/i }));
+    expect(played).toEqual([clipOne]);
+  });
+
+  it("does not autoplay on a data-saver connection", () => {
+    Object.defineProperty(navigator, "connection", {
+      configurable: true,
+      value: { saveData: true },
+    });
+    render(<MomentVideoPlayer alt="Buddy swims" autoplayWhenVisible url={clipOne} />);
+
+    reveal(0, 0.9);
+
+    expect(played).toEqual([]);
   });
 });
 

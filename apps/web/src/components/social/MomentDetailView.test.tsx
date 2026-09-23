@@ -9,15 +9,14 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  PublicMomentListItem,
-  PublicMomentMedia,
+import {
+  PublicProfileUnavailableError,
+  type PublicMomentListItem,
+  type PublicMomentMedia,
 } from "@/services/publicSocialService";
 
 const mocks = vi.hoisted(() => ({
   getPublicMoment: vi.fn(),
-  back: vi.fn(),
-  push: vi.fn(),
   // A visitor who followed a shared link: the case a Moment page exists for,
   // and the one that must not depend on a session.
   signedIn: { current: false as boolean | null },
@@ -25,7 +24,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/moments/moment-1",
-  useRouter: () => ({ back: mocks.back, push: mocks.push, replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("@/lib/useSignedIn", () => ({ useSignedIn: () => mocks.signedIn.current }));
@@ -211,27 +210,17 @@ describe("Moment detail", () => {
     expect(document.querySelector('img[src$=".mp4"]')).toBeNull();
   });
 
-  it("goes back the way the browser would, without inventing its own history", async () => {
+  it("uses a deterministic Community route instead of guessing from browser history", async () => {
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
     await screen.findByTestId("moment-detail");
 
-    const back = screen.queryByRole("button", { name: "Back" });
-
-    if (back) {
-      fireEvent.click(back);
-      expect(mocks.back).toHaveBeenCalledTimes(1);
-    } else {
-      // No history to go back to — a shared link opened cold. It offers a real
-      // destination rather than a control that would do nothing.
-      expect(
-        screen.getByRole("link", { name: /explore mypetlink/i }).getAttribute("href")
-      ).toBe("/explore");
-    }
-
-    // Nothing here pushes, replaces or rewrites history, which is what keeps
-    // ordinary back behaviour ordinary.
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole("link", { name: "Back to The Tan Family" })
+        .getAttribute("href")
+    ).toBe("/u/tanfamily");
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
   });
 
   /**
@@ -321,22 +310,22 @@ describe("Moment detail", () => {
     expect(source).not.toContain("mobileNav={null}");
   });
 
-  it("always offers a Back action of its own", async () => {
+  it("always offers a route-aware way back of its own", async () => {
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
     await screen.findByTestId("moment-detail");
 
-    // Either a real Back, or — when the page was opened cold from a shared
-    // link and there is no history — a real destination. Never nothing, and
-    // never only the browser's own gesture.
-    const back = screen.queryByRole("button", { name: "Back" });
-    const wayIn = screen.queryByRole("link", { name: /explore mypetlink/i });
-
-    expect(back ?? wayIn).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Back to The Tan Family" })
+    ).toBeTruthy();
   });
 
   it("says plainly when a Moment cannot be opened", async () => {
-    mocks.getPublicMoment.mockRejectedValue(new Error("unavailable"));
+    // The server's own verdict: deleted, unshared, or blocked all arrive as
+    // not-found, and all three must render this one page.
+    mocks.getPublicMoment.mockRejectedValue(
+      new PublicProfileUnavailableError("not-found")
+    );
 
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
@@ -348,6 +337,36 @@ describe("Moment detail", () => {
     // read identically, or the page becomes a way to ask.
     expect(unavailable.textContent).not.toMatch(/blocked|private|deleted/i);
     expect(screen.queryByTestId("moment-detail")).toBeNull();
+  });
+
+  it("does not blame the family when the request simply failed", async () => {
+    // A dropped connection is not evidence about anybody's sharing choice.
+    // Reporting it as "the family may not be sharing it right now" invents a
+    // reason, and hides the one thing that would actually help: try again.
+    mocks.getPublicMoment.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    const failed = await screen.findByTestId("moment-load-failed");
+
+    expect(failed.textContent).toMatch(/couldn.t load this Moment/i);
+    expect(failed.textContent).not.toMatch(/sharing it right now|available/i);
+    expect(screen.queryByTestId("moment-unavailable")).toBeNull();
+    expect(
+      within(failed).getByRole("button", { name: "Try again" })
+    ).toBeTruthy();
+  });
+
+  it("retries the Moment when the visitor asks", async () => {
+    mocks.getPublicMoment.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
+
+    const failed = await screen.findByTestId("moment-load-failed");
+    fireEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+
+    // The second call resolves from the default mock set up in beforeEach.
+    await screen.findByTestId("moment-detail");
   });
 
   it("gives a visitor a way into the product rather than owner navigation", async () => {

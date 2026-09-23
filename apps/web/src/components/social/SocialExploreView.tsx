@@ -7,6 +7,10 @@ import { SocialMomentStream } from "@/components/social/SocialMomentStream";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { SocialSearchDialog } from "@/components/social/SocialSearchDialog";
 import {
+  MomentStreamSkeleton,
+  PetCardSkeleton,
+} from "@/components/social/SocialSkeletons";
+import {
   allSpeciesValue,
   SpeciesFilterSelect,
 } from "@/components/social/SpeciesFilterSelect";
@@ -42,8 +46,31 @@ export function SocialExploreView() {
   // back button to have an opinion about.
   const [searchOpen, setSearchOpen] = useState(false);
   const [options, setOptions] = useState<SocialSpeciesOption[]>([]);
-  const [pets, setPets] = useState<SocialPetCardModel[]>([]);
-  const [petsLoaded, setPetsLoaded] = useState(false);
+  /**
+   * Three outcomes, not two. A failed request used to set an empty list and
+   * mark it loaded, so the section said "No pets to show here yet. Try another
+   * pet type." - telling a visitor there are no pets, and sending them to
+   * change a filter that was never the problem.
+   *
+   * Keyed by the filter and the retry count together, and reset during render
+   * rather than from inside the effect: changing the species must clear a
+   * previous error immediately, and a previous species' pets must never show
+   * under a new heading while the next request is in flight.
+   */
+  const [petsAttempt, setPetsAttempt] = useState(0);
+  const petsKey = `${species}:${petsAttempt}`;
+  const [petsRequest, setPetsRequest] = useState<{
+    key: string;
+    state: "loading" | "ready" | "error";
+    pets: SocialPetCardModel[];
+  }>(() => ({ key: petsKey, state: "loading", pets: [] }));
+
+  if (petsRequest.key !== petsKey) {
+    setPetsRequest({ key: petsKey, state: "loading", pets: [] });
+  }
+
+  const pets = petsRequest.state === "ready" ? petsRequest.pets : [];
+  const petsState = petsRequest.state;
 
   useEffect(() => {
     trackEvent("social_explore_viewed", { source: "explore" });
@@ -72,19 +99,17 @@ export function SocialExploreView() {
     getSuggestedPets(species)
       .then((loaded) => {
         if (!active) return;
-        setPets(loaded);
-        setPetsLoaded(true);
+        setPetsRequest({ key: petsKey, state: "ready", pets: loaded });
       })
       .catch(() => {
         if (!active) return;
-        setPets([]);
-        setPetsLoaded(true);
+        setPetsRequest({ key: petsKey, state: "error", pets: [] });
       });
 
     return () => {
       active = false;
     };
-  }, [species]);
+  }, [species, petsKey]);
 
   const loadMoments = useCallback(
     (cursor?: string) => getExploreMoments(species, cursor),
@@ -105,13 +130,14 @@ export function SocialExploreView() {
   } = useMomentPages(loadMoments);
 
   const onFollowChange = useCallback((handle: string, isFollowing: boolean) => {
-    setPets((current) =>
-      current.map((pet) =>
+    setPetsRequest((current) => ({
+      ...current,
+      pets: current.pets.map((pet) =>
         pet.owner.handle === handle
           ? { ...pet, viewerFollowsOwner: isFollowing }
           : pet
-      )
-    );
+      ),
+    }));
   }, []);
 
   return (
@@ -186,7 +212,25 @@ export function SocialExploreView() {
           Follow a pet&rsquo;s family to see their Moments in your feed.
         </p>
 
-        {pets.length > 0 ? (
+        {petsState === "error" ? (
+          <div
+            className="mt-4 rounded-[1.75rem] border border-pet-border bg-white p-6 text-center"
+            data-testid="explore-pets-error"
+          >
+            <p className="text-sm font-bold text-pet-ink">
+              We couldn&rsquo;t load suggestions.
+            </p>
+            <div className="mt-4">
+              <CTAButton
+                onClick={() => setPetsAttempt((current) => current + 1)}
+                type="button"
+                variant="secondary"
+              >
+                Try again
+              </CTAButton>
+            </div>
+          </div>
+        ) : pets.length > 0 ? (
           /*
             Columns follow how many suggestions there actually are, capped at
             three. A lone suggestion laid into a three-column grid is a 333px
@@ -213,7 +257,7 @@ export function SocialExploreView() {
               </li>
             ))}
           </ul>
-        ) : petsLoaded ? (
+        ) : petsState === "ready" ? (
           <div
             className="mt-4 rounded-[1.75rem] border border-pet-border bg-white p-8 text-center"
             data-testid="explore-pets-empty"
@@ -224,20 +268,38 @@ export function SocialExploreView() {
               pose="wave"
               size={80}
             />
+            {/*
+              The page knows the filter and nothing else. It cannot see why the
+              list came back empty - a household may be undiscoverable, or the
+              viewer may already follow every one that is - and telling somebody
+              with no filter applied to "try another pet type" sends them to
+              change a control that was never involved. Naming the real reason
+              is also not an option: it would report how many households exist
+              and which of them this viewer already follows.
+
+              So: mention the filter only when there is one.
+            */}
             <p className="mt-3 text-sm font-bold text-pet-muted">
-              No pets to show here yet. Try another pet type.
+              {species === allSpeciesValue
+                ? "No suggestions right now."
+                : "No pets to show for this pet type. Try another one."}
             </p>
           </div>
         ) : (
-          // Row-shaped, like the cards that replace it, so the section does not
-          // collapse from three tall blocks into three short ones on arrival.
+          // The card's own shape, in the same column count, so arrival fills
+          // the row rather than resizing it.
           <div
             aria-busy="true"
             className="mt-4 grid grid-cols-1 gap-3 @2xl:grid-cols-2 @4xl:grid-cols-3"
+            data-testid="explore-pets-loading"
           >
-            <div className="h-36 animate-pulse rounded-[1.5rem] bg-white" />
-            <div className="hidden h-36 animate-pulse rounded-[1.5rem] bg-white @2xl:block" />
-            <div className="hidden h-36 animate-pulse rounded-[1.5rem] bg-white @4xl:block" />
+            <PetCardSkeleton />
+            <div className="hidden @2xl:block">
+              <PetCardSkeleton />
+            </div>
+            <div className="hidden @4xl:block">
+              <PetCardSkeleton />
+            </div>
           </div>
         )}
       </section>
@@ -271,12 +333,9 @@ export function SocialExploreView() {
             </div>
           </div>
         ) : state === "loading" ? (
-          // Same shape the real cards arrive in, so the page does not reflow
-          // when the data lands.
-          <div aria-busy="true" className="mt-5 grid gap-4">
-            <div className="h-[28rem] animate-pulse rounded-[1.5rem] bg-white" />
-            <div className="h-[28rem] animate-pulse rounded-[1.5rem] bg-white" />
-          </div>
+          // Two 448px white rectangles used to sit here on a cream page, which
+          // is most of a phone screen of apparently blank document.
+          <MomentStreamSkeleton className="mt-5" />
         ) : (
           moments.length === 0 ? (
             <div

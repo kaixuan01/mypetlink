@@ -28,7 +28,7 @@ export function SocialSearchView() {
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">Search</h1>
         <Link
-          className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
+          className="-mr-3 inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-teal transition hover:bg-white hover:text-pet-ink"
           href={socialRoutes.explore}
         >
           Explore

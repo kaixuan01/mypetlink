@@ -286,6 +286,12 @@ describe("one search implementation", () => {
     expect(page).toContain("Suspense");
   });
 
+  it("keeps the standalone page's Explore link comfortably tappable", () => {
+    const view = read("components/social/SocialSearchView.tsx");
+
+    expect(view).toContain("inline-flex min-h-10 items-center");
+  });
+
   it("is not a sixth place to go", () => {
     const navigation = read("lib/socialNavigation.ts");
 

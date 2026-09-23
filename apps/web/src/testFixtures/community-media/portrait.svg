@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="450" height="800" viewBox="0 0 450 800">
+  <rect width="450" height="800" fill="#f9d8be"/>
+  <rect x="55" y="70" width="340" height="410" rx="24" fill="#bde9ff" stroke="#ffffff" stroke-width="18"/>
+  <circle cx="340" cy="150" r="42" fill="#fff2a8"/>
+  <ellipse cx="225" cy="580" rx="105" ry="132" fill="#ffad73"/>
+  <circle cx="225" cy="415" r="84" fill="#ffbf8c"/>
+  <path d="M165 375l29-82 45 68M235 361l48-69 22 89" fill="#ffbf8c" stroke="#17315f" stroke-width="10" stroke-linejoin="round"/>
+  <circle cx="198" cy="413" r="8" fill="#17315f"/><circle cx="250" cy="413" r="8" fill="#17315f"/>
+  <path d="M207 447q18 15 36 0" fill="none" stroke="#17315f" stroke-width="8" stroke-linecap="round"/>
+  <text x="34" y="752" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#17315f">Portrait QA fixture</text>
+</svg>

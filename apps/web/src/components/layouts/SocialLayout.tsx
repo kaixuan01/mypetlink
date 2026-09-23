@@ -4,8 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PublicBrandLink } from "@/components/brand/PublicBrandLink";
-import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
-import { ownerLoginPath } from "@/lib/authRedirect";
+import {
+  CreateProfileCTA,
+  PRIMARY_CTA_LABEL,
+} from "@/components/marketing/CreateProfileCTA";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 import { socialEnabled } from "@/lib/features";
 import { ownerRoutes, socialRoutes } from "@/lib/routes";
 import { useSignedIn } from "@/lib/useSignedIn";
@@ -102,10 +108,16 @@ function PublicSocialHeader() {
       className="border-b border-pet-border bg-white/92 backdrop-blur"
       data-testid="social-header-public"
     >
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <PublicBrandLink compact priority />
+      <div
+        className="mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-3 min-[361px]:gap-3 sm:px-6"
+        data-testid="social-header-row"
+      >
+        <PublicBrandLink compact priority responsiveMark />
 
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div
+          className="flex shrink-0 items-center gap-0.5 min-[361px]:gap-1 sm:gap-2"
+          data-testid="social-header-actions"
+        >
           {/*
             Somewhere to go. A shared profile that offers only "sign in" is a
             microsite: the visitor either joins or leaves. Explore and Search are
@@ -120,7 +132,14 @@ function PublicSocialHeader() {
           {socialEnabled ? (
             <>
               <Link
-                className="hidden min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream min-[380px]:inline-flex"
+                aria-current={
+                  pathname === socialRoutes.explore ? "page" : undefined
+                }
+                className={`hidden min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold transition min-[380px]:inline-flex ${
+                  pathname === socialRoutes.explore
+                    ? "bg-pet-cream text-pet-teal"
+                    : "text-pet-ink hover:bg-pet-cream"
+                }`}
                 data-testid="social-header-explore"
                 href={socialRoutes.explore}
               >
@@ -128,7 +147,14 @@ function PublicSocialHeader() {
               </Link>
               <Link
                 aria-label="Search MyPetLink"
-                className="hidden min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream sm:inline-flex"
+                aria-current={
+                  pathname === socialRoutes.search ? "page" : undefined
+                }
+                className={`hidden min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold transition sm:inline-flex ${
+                  pathname === socialRoutes.search
+                    ? "bg-pet-cream text-pet-teal"
+                    : "text-pet-ink hover:bg-pet-cream"
+                }`}
                 data-testid="social-header-search"
                 href={socialRoutes.search}
               >
@@ -137,15 +163,20 @@ function PublicSocialHeader() {
             </>
           ) : null}
           <Link
-            className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            data-testid="social-header-sign-in"
             // The current page, so signing in returns the visitor to what they
             // were reading. The fallback is the owner dashboard rather than
             // Explore: a post-login destination must exist in both flag states.
-            href={ownerLoginPath(pathname || ownerRoutes.dashboard)}
+            href={ownerLoginPath(
+              getCurrentLocalDestination(pathname || ownerRoutes.dashboard)
+            )}
           >
             Sign in
           </Link>
-          <CreateProfileCTA />
+          <CreateProfileCTA className="w-12 shrink-0 gap-0 px-0 md:w-auto md:gap-2 md:px-5 md:whitespace-nowrap">
+            <span className="sr-only md:not-sr-only">{PRIMARY_CTA_LABEL}</span>
+          </CreateProfileCTA>
         </div>
       </div>
     </header>

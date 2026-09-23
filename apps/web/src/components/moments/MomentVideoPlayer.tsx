@@ -40,6 +40,19 @@ type ActivePlayback = {
 let activePlayback: ActivePlayback | null = null;
 const pauseFeedbackDurationMs = 500;
 
+/** Autoplay yields to explicit operating-system or connection preferences. */
+function shouldAvoidAutomaticPlayback() {
+  const reducedMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const connection = (
+    navigator as Navigator & { connection?: { saveData?: boolean } }
+  ).connection;
+
+  return reducedMotion || connection?.saveData === true;
+}
+
 export function pauseActiveMomentVideo() {
   const current = activePlayback;
   activePlayback = null;
@@ -173,6 +186,7 @@ export function MomentVideoPlayer({
         if (
           autoplayRef.current &&
           ratio >= autoplayVisibleRatio &&
+          !shouldAvoidAutomaticPlayback() &&
           !pausedByViewerRef.current &&
           videoRef.current?.paused
         ) {

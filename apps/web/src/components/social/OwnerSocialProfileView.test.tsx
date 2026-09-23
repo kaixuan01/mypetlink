@@ -166,6 +166,7 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
 describe("own profile versus visitor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/u/tanfamily");
     mocks.smartTagsEnabled = true;
     mocks.getPublicOwnerProfile.mockResolvedValue(profile);
     mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));
@@ -246,6 +247,7 @@ describe("own profile versus visitor", () => {
 describe("OwnerSocialProfileView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/u/tanfamily");
     mocks.smartTagsEnabled = true;
     mocks.getPublicOwnerProfile.mockResolvedValue(profile);
     mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));
@@ -383,6 +385,9 @@ describe("OwnerSocialProfileView", () => {
     await waitFor(() =>
       expect(screen.getByText(/this profile isn't available/i)).toBeTruthy()
     );
+    expect(
+      screen.getByRole("link", { name: "Explore Community" }).getAttribute("href")
+    ).toBe("/explore");
   });
 
   it("links the follower and following counts to their lists", async () => {

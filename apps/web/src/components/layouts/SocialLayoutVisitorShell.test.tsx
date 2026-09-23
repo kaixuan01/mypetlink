@@ -3,10 +3,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ signedIn: false as boolean | null }));
+const mocks = vi.hoisted(() => ({
+  pathname: "/p/mochi-pub123",
+  signedIn: false as boolean | null,
+}));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/p/mochi-pub123",
+  usePathname: () => mocks.pathname,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
@@ -53,7 +56,9 @@ async function renderShell(socialEnabled: boolean) {
 }
 
 beforeEach(() => {
+  mocks.pathname = "/p/mochi-pub123";
   mocks.signedIn = false;
+  window.history.replaceState({}, "", "/p/mochi-pub123?source=shared");
 });
 
 afterEach(() => {
@@ -69,6 +74,49 @@ describe("visitor shell with Community on", () => {
     expect(screen.getByTestId("social-header-public")).toBeTruthy();
     expect(screen.getByTestId("social-header-explore")).toBeTruthy();
     expect(screen.getByTestId("social-header-search")).toBeTruthy();
+  });
+
+  it("marks the visible public navigation destination as current", async () => {
+    mocks.pathname = "/explore";
+    window.history.replaceState({}, "", "/explore");
+    await renderShell(true);
+
+    expect(
+      screen.getByTestId("social-header-explore").getAttribute("aria-current")
+    ).toBe("page");
+    expect(
+      screen.getByTestId("social-header-search").getAttribute("aria-current")
+    ).toBeNull();
+  });
+
+  it("keeps the brand and authentication actions in bounded responsive columns", async () => {
+    await renderShell(true);
+
+    const row = screen.getByTestId("social-header-row");
+    const actions = screen.getByTestId("social-header-actions");
+    const brand = screen.getByRole("link", { name: "MyPetLink home" });
+    const compactBrand = brand.querySelector('img[src="/logo-mark.svg"]');
+    const fullBrand = brand.querySelector('img[src="/logo-horizontal.svg"]');
+    const createProfile = screen.getByRole("button", {
+      name: /create free pet profile/i,
+    });
+
+    expect(row.className).toContain("grid-cols-[minmax(0,1fr)_auto]");
+    expect(actions.className).toContain("shrink-0");
+    expect(screen.getByTestId("social-header-sign-in")).toBe(
+      screen.getByRole("link", { name: "Sign in" })
+    );
+
+    expect(compactBrand?.className).toContain("md:hidden");
+    expect(fullBrand?.className).toContain("hidden");
+    expect(fullBrand?.className).toContain("md:block");
+
+    expect(createProfile.className).toContain("w-12");
+    expect(createProfile.className).toContain("md:w-auto");
+    expect(createProfile.querySelector("span")?.className).toContain("sr-only");
+    expect(createProfile.querySelector("span")?.className).toContain(
+      "md:not-sr-only"
+    );
   });
 });
 
@@ -114,7 +162,9 @@ describe("visitor shell with Community off", () => {
 
     const href = screen.getByRole("link", { name: "Sign in" }).getAttribute("href");
 
-    expect(href).toBe(`/login?redirect=${encodeURIComponent("/p/mochi-pub123")}`);
+    expect(href).toBe(
+      `/login?redirect=${encodeURIComponent("/p/mochi-pub123?source=shared")}`
+    );
   });
 });
 

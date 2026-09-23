@@ -167,6 +167,21 @@ public sealed class SocialGraphTests
     }
 
     [Fact]
+    public async Task Blocking_WithdrawsUnreadActivityForEveryRemovedFollow()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.FollowAsync(AliceId, "limfamily");
+        await harness.Graph.FollowAsync(BobId, "tanfamily");
+
+        Assert.Equal(2, await harness.Db.OwnerNotifications.CountAsync());
+
+        await harness.Graph.BlockAsync(AliceId, "limfamily", "spam");
+
+        Assert.Empty(await harness.Db.OwnerFollows.ToListAsync());
+        Assert.Empty(await harness.Db.OwnerNotifications.ToListAsync());
+    }
+
+    [Fact]
     public async Task ABlockedAccount_CannotFollowTheBlocker()
     {
         using var harness = await Harness.CreateAsync();

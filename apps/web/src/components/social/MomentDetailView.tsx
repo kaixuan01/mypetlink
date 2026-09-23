@@ -1,14 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
@@ -17,7 +10,7 @@ import { MomentShareButton } from "@/components/social/MomentShareButton";
 import { SharedByIdentity } from "@/components/social/SharedByIdentity";
 import { MomentSubjects } from "@/components/social/SocialMomentParts";
 import { Icon } from "@/components/ui/Icon";
-import { socialRoutes } from "@/lib/routes";
+import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
 import {
   formatMomentPublishedExact,
   formatMomentPublishedLabel,
@@ -27,13 +20,17 @@ import { toViewerMedia } from "@/lib/socialMomentMedia";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getPublicMoment,
+  PublicProfileUnavailableError,
   type PublicMomentListItem,
 } from "@/services/publicSocialService";
 
 type Phase =
   | { state: "loading" }
   | { state: "ready"; moment: PublicMomentListItem }
-  | { state: "unavailable" };
+  /** The Moment is gone, or was never shared. Retrying cannot change that. */
+  | { state: "unavailable" }
+  /** We could not ask. Says so, and offers to ask again. */
+  | { state: "error" };
 
 /**
  * One Moment, on its own page.
@@ -48,18 +45,24 @@ type Phase =
  * Community chrome, and a visitor who followed a shared link gets a brand header
  * and a way in rather than owner navigation they cannot use. Nothing goes
  * full-screen and nothing is hidden, so there is no special back behaviour to
- * learn — and a Back control sits at the top for the common case of having
- * arrived from a grid. Browser back behaves normally because nothing here
- * touches history.
+ * learn. The page offers a deterministic link to the sharing household (or
+ * Explore while that identity is unavailable); the browser's own Back action
+ * still returns to the exact feed or grid somebody came from.
  *
  * The media is the shared carousel every other Moment surface uses, so swipe,
  * arrows, keyboard order, the full-screen lightbox and the rule that only one
  * video plays at a time are the same here as anywhere else.
  */
 export function MomentDetailView({ momentId }: { momentId: string }) {
-  const router = useRouter();
   const signedIn = useSignedIn();
   const [phase, setPhase] = useState<Phase>({ state: "loading" });
+  /** Bumped by Retry; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setPhase({ state: "loading" });
+    setAttempt((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -68,16 +71,25 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
       .then((moment) => {
         if (active) setPhase({ state: "ready", moment });
       })
-      .catch(() => {
-        // Every reason a Moment cannot be opened reads the same to a visitor.
-        // The server does not distinguish them either.
-        if (active) setPhase({ state: "unavailable" });
+      .catch((error: unknown) => {
+        if (!active) return;
+
+        // The two are not the same and must not read the same. Only a
+        // not-found means the Moment is genuinely unavailable; a dropped
+        // request means we do not know, and saying "the family may not be
+        // sharing it right now" would invent a reason from nothing.
+        setPhase(
+          error instanceof PublicProfileUnavailableError &&
+            error.reason === "not-found"
+            ? { state: "unavailable" }
+            : { state: "error" }
+        );
       });
 
     return () => {
       active = false;
     };
-  }, [momentId]);
+  }, [momentId, attempt]);
 
   const onLikeChange = useCallback(
     (_id: string, state: { likeCount: number; viewerHasLiked: boolean }) => {
@@ -93,10 +105,13 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
   return (
     <SocialLayout>
       <div className="mx-auto w-full max-w-2xl pb-4">
-        <BackControl onBack={() => router.back()} />
+        <BackControl
+          author={phase.state === "ready" ? phase.moment.author : null}
+        />
 
         {phase.state === "loading" ? <MomentSkeleton /> : null}
         {phase.state === "unavailable" ? <MomentUnavailable /> : null}
+        {phase.state === "error" ? <MomentLoadFailed onRetry={retry} /> : null}
         {phase.state === "ready" ? (
           <MomentArticle
             moment={phase.moment}
@@ -110,26 +125,22 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
 }
 
 /**
- * Back, and somewhere to go when there is no back.
+ * A truthful, deterministic way back into Community.
  *
- * A Moment opened from Explore should return to Explore with its scroll intact,
- * which is what history already does. A Moment opened from a shared link has no
- * history at all, and sending that visitor nowhere is how a shared link becomes
- * a dead end.
+ * `history.length` cannot tell a real in-app predecessor from the browser's
+ * initial `about:blank` entry. Treating it as one sent a directly opened shared
+ * Moment out of MyPetLink. The explicit control therefore names a real route;
+ * browser Back remains available for the exact feed or grid context.
  */
-function BackControl({ onBack }: { onBack: () => void }) {
-  // Read through a store rather than an effect: the static render has no
-  // history object at all, and the answer only ever changes from "no" to "yes".
-  const hasHistory = useSyncExternalStore(
-    subscribeToHistory,
-    getHasHistory,
-    getServerHasHistory
-  );
-
+function BackControl({
+  author,
+}: {
+  author: PublicMomentListItem["author"] | null;
+}) {
   const className =
-    "inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-extrabold text-pet-ink transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal";
+    "inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3 text-sm font-extrabold text-pet-ink transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal";
 
-  if (!hasHistory) {
+  if (!author) {
     return (
       <Link className={`-ml-3 ${className}`} href={socialRoutes.explore}>
         <Icon aria-hidden="true" className="h-4 w-4" name="search" />
@@ -139,10 +150,13 @@ function BackControl({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <button className={`-ml-3 ${className}`} onClick={onBack} type="button">
+    <Link
+      className={`-ml-3 ${className}`}
+      href={ownerSocialProfilePath(author.handle)}
+    >
       <BackIcon className="h-4 w-4" />
-      Back
-    </button>
+      <span className="min-w-0 truncate">Back to {author.displayName}</span>
+    </Link>
   );
 }
 
@@ -261,6 +275,33 @@ function MomentSkeleton() {
   );
 }
 
+/**
+ * We could not reach the server. No claim about the Moment itself, because we
+ * do not have one.
+ */
+function MomentLoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="mt-3 rounded-[1.75rem] border border-pet-border bg-white p-6 text-center"
+      data-testid="moment-load-failed"
+    >
+      <h1 className="text-base font-black text-pet-ink">
+        We couldn&rsquo;t load this Moment
+      </h1>
+      <p className="mt-1 text-sm font-semibold text-pet-muted">
+        Check your connection and try again.
+      </p>
+      <button
+        className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-pet-teal px-5 text-sm font-extrabold text-pet-teal transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+        onClick={onRetry}
+        type="button"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
 function MomentUnavailable() {
   return (
     <div
@@ -289,22 +330,6 @@ function MomentUnavailable() {
     </div>
   );
 }
-
-function subscribeToHistory() {
-  // Nothing to subscribe to: an entry is only ever added by navigating, which
-  // replaces this page anyway.
-  return () => {};
-}
-
-function getHasHistory() {
-  return window.history.length > 1;
-}
-
-/** A statically rendered page has no history; assume the shared-link case. */
-function getServerHasHistory() {
-  return false;
-}
-
 
 function BackIcon({ className = "" }: { className?: string }) {
   return (

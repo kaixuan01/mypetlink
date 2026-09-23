@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <rect width="800" height="450" fill="#8fd8f8"/>
+  <rect y="285" width="800" height="165" fill="#7bcf9b"/>
+  <circle cx="670" cy="90" r="48" fill="#fff2a8"/>
+  <ellipse cx="390" cy="285" rx="95" ry="62" fill="#ffad73"/>
+  <circle cx="455" cy="225" r="52" fill="#ffbf8c"/>
+  <path d="M421 190l16-48 27 39M465 181l35-36 5 52" fill="#ffbf8c" stroke="#17315f" stroke-width="8" stroke-linejoin="round"/>
+  <circle cx="440" cy="221" r="6" fill="#17315f"/><circle cx="472" cy="221" r="6" fill="#17315f"/>
+  <path d="M449 241q10 10 20 0" fill="none" stroke="#17315f" stroke-width="6" stroke-linecap="round"/>
+  <text x="28" y="54" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#17315f">Landscape QA fixture</text>
+</svg>

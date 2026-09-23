@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OwnerRelationship } from "@/services/socialGraphService";
 
 const mocks = vi.hoisted(() => ({
   blockOwner: vi.fn(),
   unblockOwner: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("@/services/socialGraphService", async () => {
@@ -23,6 +24,10 @@ vi.mock("@/services/socialGraphService", async () => {
 
 import { OwnerProfileMenu } from "@/components/social/OwnerProfileMenu";
 import { ApiClientError } from "@/services/apiClient";
+
+beforeEach(() => {
+  window.history.replaceState({}, "", "/u/tanfamily?source=shared");
+});
 
 const base: OwnerRelationship = {
   isSelf: false,
@@ -44,6 +49,7 @@ function renderMenu(
     <OwnerProfileMenu
       displayName="The Tan Family"
       handle="tanfamily"
+      onAuthenticationRequired={mocks.push}
       onChange={onChange}
       relationship={{ ...base, ...relationship }}
       signedIn={"signedIn" in options ? options.signedIn! : true}
@@ -150,10 +156,37 @@ describe("OwnerProfileMenu", () => {
     expect(mocks.blockOwner).not.toHaveBeenCalled();
   });
 
-  it("offers nothing to a signed-out visitor", () => {
+  it("offers a signed-out visitor a sign-in path without opening confirmation", () => {
     renderMenu({}, { signedIn: false });
+    openMenu();
 
-    expect(screen.queryByTestId("owner-profile-menu-trigger")).toBeNull();
+    const link = screen.getByTestId("owner-profile-block-signin");
+
+    expect(link.textContent).toBe("Sign in to block @tanfamily");
+    expect(link.getAttribute("href")).toBe(
+      "/login?redirect=%2Fu%2Ftanfamily%3Fsource%3Dshared"
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.blockOwner).not.toHaveBeenCalled();
+  });
+
+  it("returns an expired Block confirmation through login without retrying", async () => {
+    mocks.blockOwner.mockRejectedValue(
+      new ApiClientError(401, "unauthorized", "Authentication is required.")
+    );
+
+    renderMenu();
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem"));
+    fireEvent.click(screen.getByRole("button", { name: "Block" }));
+
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(
+        "/login?redirect=%2Fu%2Ftanfamily%3Fsource%3Dshared"
+      )
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.blockOwner).toHaveBeenCalledOnce();
   });
 
   it("offers nothing on your own profile", () => {

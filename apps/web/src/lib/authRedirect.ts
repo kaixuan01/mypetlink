@@ -61,6 +61,37 @@ export function ownerLoginPath(returnTo: string) {
   return `${authRoutes.ownerLogin}?redirect=${encodeURIComponent(destination)}`;
 }
 
+/**
+ * Whether a safe post-login destination belongs to Community.
+ *
+ * This is presentation context for the login page, never authorization and
+ * never a second redirect validator. Unsafe input first falls through the
+ * normal resolver, so an external URL can never make the login page promise a
+ * Community return that will not happen.
+ */
+export function isCommunityPostLoginPath(value: string | null | undefined) {
+  const destination = resolveOwnerPostLoginPath(value, "");
+
+  if (!destination) {
+    return false;
+  }
+
+  const pathname = new URL(destination, LOCAL_REDIRECT_ORIGIN).pathname;
+
+  return (
+    pathname === "/feed" ||
+    pathname === "/notifications" ||
+    pathname === "/explore" ||
+    pathname === "/search" ||
+    pathname === "/community/profile" ||
+    pathname.startsWith("/community/profile/") ||
+    pathname === "/moments" ||
+    pathname.startsWith("/moments/") ||
+    pathname === "/u" ||
+    pathname.startsWith("/u/")
+  );
+}
+
 export function getCurrentLocalDestination(fallback: string) {
   if (typeof window === "undefined") {
     return resolveOwnerPostLoginPath(fallback);

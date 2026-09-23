@@ -65,6 +65,12 @@ export function OwnerSocialProfileView({
   // actions and the empty states differ.
   const isOwnProfile = audience === "own";
   const [state, setState] = useState<LoadState>("loading");
+  /** Bumped by Retry; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setState("loading");
+    setAttempt((current) => current + 1);
+  }, []);
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -123,7 +129,7 @@ export function OwnerSocialProfileView({
     return () => {
       active = false;
     };
-  }, [handle]);
+  }, [handle, attempt]);
 
   // Kept separate from the profile load on purpose. The relationship is the
   // only part of this page that depends on who is looking, and a profile that
@@ -175,8 +181,18 @@ export function OwnerSocialProfileView({
             ? "The link may have changed, or the profile may not be shared right now."
             : "Please try again in a moment."}
         </p>
-        <div className="mt-6">
-          <CTAButton href="/">Go to MyPetLink</CTAButton>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {/*
+            Retry only where retrying can help. A not-found will not change
+            because somebody pressed a button, so that case keeps the single
+            way out it already had.
+          */}
+          {state === "error" ? (
+            <CTAButton onClick={retry} type="button" variant="secondary">
+              Try again
+            </CTAButton>
+          ) : null}
+          <CTAButton href={socialRoutes.explore}>Explore Community</CTAButton>
         </div>
       </div>
     );
@@ -232,11 +248,17 @@ export function OwnerSocialProfileView({
 
           <nav
             aria-label="Followers and following"
-            className="mt-3 flex flex-wrap gap-x-5 gap-y-1"
+            className="mt-3 flex flex-wrap items-center gap-x-5"
             data-testid="owner-profile-counts"
           >
+            {/*
+              `py-1` on each link, not a taller row: these measured 20px, under
+              the 24px minimum target size, and padding lifts the hit area
+              without moving the text. The same remedy `SocialPetCard` already
+              applies to its handle link.
+            */}
             <Link
-              className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+              className="py-1 text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
               href={ownerFollowersPath(profile.handle)}
             >
               <span className="font-black tabular-nums text-pet-ink">
@@ -245,7 +267,7 @@ export function OwnerSocialProfileView({
               {relationship.followerCount === 1 ? "follower" : "followers"}
             </Link>
             <Link
-              className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+              className="py-1 text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
               href={ownerFollowingPath(profile.handle)}
             >
               <span className="font-black tabular-nums text-pet-ink">

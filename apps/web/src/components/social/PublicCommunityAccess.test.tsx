@@ -74,6 +74,7 @@ function pet(name: string, handle: string): SocialPetCard {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/explore?source=c5");
   window.localStorage.clear();
   mocks.getSocialSpecies.mockResolvedValue(species);
   mocks.getSuggestedPets.mockResolvedValue([pet("Mochi", "tanfamily")]);
@@ -144,15 +145,15 @@ describe("discoverability is not marketing consent", () => {
 });
 
 describe("identity actions, for a visitor with no account", () => {
-  it("offers Follow as a sign-in that returns to the profile", async () => {
+  it("offers Follow as a sign-in that returns to the current Community surface", async () => {
     render(<SocialExploreView />);
 
     const signIn = (await screen.findAllByTestId("follow-button-signin"))[0];
     const href = signIn.getAttribute("href") ?? "";
 
-    // Sign in, then come back to the household you were looking at.
+    // Sign in, then come back to the discovery context being used.
     expect(href.startsWith("/login?redirect=")).toBe(true);
-    expect(decodeURIComponent(href)).toContain("/u/tanfamily");
+    expect(decodeURIComponent(href)).toContain("/explore?source=c5");
   });
 
   it("never follows or likes as a side effect of signing in", () => {

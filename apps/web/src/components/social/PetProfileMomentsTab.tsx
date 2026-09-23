@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { SocialMomentCard } from "@/components/social/SocialMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
+import { MomentCardSkeleton } from "@/components/social/SocialSkeletons";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import { getPublicPetMoments } from "@/services/publicSocialService";
@@ -52,8 +53,8 @@ export function PetProfileMomentsTab({
     return (
       <div aria-busy="true" className="grid gap-4" data-testid="pet-moments-loading">
         <span className="sr-only">Loading Moments</span>
-        <div className="h-64 animate-pulse rounded-[1.5rem] bg-white" />
-        <div className="h-64 animate-pulse rounded-[1.5rem] bg-white" />
+        <MomentCardSkeleton />
+        <MomentCardSkeleton />
       </div>
     );
   }

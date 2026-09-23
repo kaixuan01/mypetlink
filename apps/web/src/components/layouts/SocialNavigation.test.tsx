@@ -278,6 +278,7 @@ describe("switching between the two halves", () => {
 describe("the public social shell", () => {
   it("gives a visitor a way in and no owner navigation at all", async () => {
     mocks.pathname = "/explore";
+    window.history.replaceState({}, "", "/explore?species=Cat");
 
     render(
       <SocialLayout>
@@ -288,7 +289,7 @@ describe("the public social shell", () => {
     expect(screen.getByText("Explore body")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Sign in" }).getAttribute("href")
-    ).toBe("/login?redirect=%2Fexplore");
+    ).toBe("/login?redirect=%2Fexplore%3Fspecies%3DCat");
     expect(
       screen.getByRole("button", { name: /create free pet profile/i })
     ).toBeTruthy();

@@ -4,6 +4,8 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 type PublicBrandLinkProps = {
   /** Tighter sizing for a header that also carries a menu button. */
   compact?: boolean;
+  /** Use the existing brand mark until a full navigation row has room. */
+  responsiveMark?: boolean;
   priority?: boolean;
 };
 
@@ -25,6 +27,7 @@ type PublicBrandLinkProps = {
  */
 export function PublicBrandLink({
   compact = false,
+  responsiveMark = false,
   priority = false,
 }: PublicBrandLinkProps) {
   return (
@@ -33,7 +36,24 @@ export function PublicBrandLink({
       className="flex min-w-0 items-center"
       href="/"
     >
-      <BrandLogo className={publicBrandLogoClass(compact)} priority={priority} />
+      {responsiveMark ? (
+        <>
+          <BrandLogo
+            className="h-10 w-10 shrink-0 sm:h-11 sm:w-11 md:hidden"
+            markOnly
+            priority={priority}
+          />
+          <BrandLogo
+            className="hidden h-12 w-auto max-w-[205px] object-contain object-left md:block lg:h-14 lg:max-w-[235px]"
+            priority={priority}
+          />
+        </>
+      ) : (
+        <BrandLogo
+          className={publicBrandLogoClass(compact)}
+          priority={priority}
+        />
+      )}
     </Link>
   );
 }

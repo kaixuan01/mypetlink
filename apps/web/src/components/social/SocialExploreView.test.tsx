@@ -360,6 +360,70 @@ describe("SocialExploreView", () => {
     expect(await screen.findByTestId("explore-pets-empty")).toBeTruthy();
   });
 
+  it("does not blame a filter that is not applied", async () => {
+    // With no species chosen there is no "another pet type" to try. The list
+    // can be empty because every discoverable household is already followed,
+    // which the page cannot see and must not guess at - and must not report,
+    // since that would disclose how many households exist and which of them
+    // this viewer follows.
+    mocks.getSuggestedPets.mockResolvedValue([]);
+
+    render(<SocialExploreView />);
+
+    const empty = await screen.findByTestId("explore-pets-empty");
+
+    expect(empty.textContent).toContain("No suggestions right now.");
+    expect(empty.textContent).not.toMatch(/pet type/i);
+  });
+
+  it("names the filter only once one is applied", async () => {
+    mocks.getSuggestedPets.mockResolvedValue([]);
+
+    render(<SocialExploreView />);
+    await screen.findByTestId("explore-pets-empty");
+
+    fireEvent.click(screen.getByTestId("species-filter-trigger"));
+    fireEvent.click(await screen.findByRole("option", { name: /Dogs/ }));
+
+    await waitFor(() =>
+      expect(mocks.getSuggestedPets).toHaveBeenLastCalledWith("Dog")
+    );
+
+    const empty = await screen.findByTestId("explore-pets-empty");
+    expect(empty.textContent).toMatch(/pet type/i);
+  });
+
+  it("does not report a failed suggestion request as an empty filter", async () => {
+    // A failed request used to set an empty list and mark it loaded, so the
+    // section read "No pets to show here yet. Try another pet type." - which
+    // states there are no pets, and sends the reader to change a filter that
+    // was never the problem.
+    mocks.getSuggestedPets.mockRejectedValue(new Error("network"));
+
+    render(<SocialExploreView />);
+
+    const failed = await screen.findByTestId("explore-pets-error");
+
+    expect(failed.textContent).toMatch(/couldn.t load suggestions/i);
+    expect(screen.queryByTestId("explore-pets-empty")).toBeNull();
+    expect(
+      within(failed).getByRole("button", { name: "Try again" })
+    ).toBeTruthy();
+  });
+
+  it("retries the suggestions when the visitor asks", async () => {
+    mocks.getSuggestedPets.mockRejectedValueOnce(new Error("network"));
+
+    render(<SocialExploreView />);
+
+    const failed = await screen.findByTestId("explore-pets-error");
+    fireEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+
+    // Resolves from the default mock configured in beforeEach.
+    expect(await screen.findByTestId("explore-pets")).toBeTruthy();
+    expect(screen.queryByTestId("explore-pets-error")).toBeNull();
+  });
+
   it("still works when the species list cannot be read", async () => {
     mocks.getSocialSpecies.mockRejectedValue(new Error("network"));
 

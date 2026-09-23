@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { MediaCounter } from "@/components/moments/MediaCounter";
+import { MomentImage } from "@/components/moments/MomentImage";
 import {
   MomentVideoPlayer,
   pauseActiveMomentVideo,
@@ -257,12 +258,12 @@ export function MomentMediaViewer({
               />
             </div>
           ) : activeUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <MomentImage
               alt={activeItem.altText ?? title}
               className="max-h-[82dvh] max-w-[95vw] rounded-sm object-contain shadow-2xl sm:max-w-[calc(100vw-9rem)]"
+              fallbackClassName="min-h-72 w-full max-w-[95vw] rounded-lg shadow-2xl sm:max-w-[calc(100vw-9rem)]"
               onClick={(event) => event.stopPropagation()}
-              src={activeUrl}
+              url={activeUrl}
             />
           ) : (
             <div className="grid min-h-72 place-items-center px-8 text-center text-sm font-bold text-white/70">

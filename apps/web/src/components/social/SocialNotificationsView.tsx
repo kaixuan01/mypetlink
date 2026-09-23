@@ -7,6 +7,7 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { formatRelativeAge } from "@/lib/momentPublishedTime";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
+import { AccountRowSkeleton } from "@/components/social/SocialSkeletons";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
 import { momentPath, ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
 import { setUnreadActivityCount } from "@/lib/useUnreadActivity";
@@ -121,8 +122,8 @@ export function SocialNotificationsView() {
           <span className="sr-only">Loading your activity</span>
           {showSkeleton ? (
             <>
-              <div className="h-16 animate-pulse rounded-[1.25rem] bg-white" />
-              <div className="h-16 animate-pulse rounded-[1.25rem] bg-white" />
+              <AccountRowSkeleton />
+              <AccountRowSkeleton />
             </>
           ) : (
             <div className="h-16" />

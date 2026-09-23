@@ -6,6 +6,7 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SocialMomentStream } from "@/components/social/SocialMomentStream";
+import { MomentCardSkeleton } from "@/components/social/SocialSkeletons";
 import { trackEvent } from "@/lib/analytics";
 import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
@@ -93,8 +94,13 @@ export function SocialFeedView() {
           called it Home; the page now agrees with it.
         */}
         <h1 className="text-2xl font-black text-pet-ink">Home</h1>
+        {/*
+          `py-1` for the 24px minimum target size. It sits on the baseline row
+          with the heading, so padding is what lifts the hit area without
+          nudging the text off that baseline.
+        */}
         <Link
-          className="text-sm font-bold text-pet-teal transition hover:text-pet-ink"
+          className="py-1 text-sm font-bold text-pet-teal transition hover:text-pet-ink"
           href={socialRoutes.explore}
         >
           Explore
@@ -104,8 +110,8 @@ export function SocialFeedView() {
       {state === "loading" ? (
         <div aria-busy="true" className="mt-5 grid gap-4" data-testid="feed-loading">
           <span className="sr-only">Loading your feed</span>
-          <div className="h-72 animate-pulse rounded-[1.5rem] bg-white" />
-          <div className="h-72 animate-pulse rounded-[1.5rem] bg-white" />
+          <MomentCardSkeleton />
+          <MomentCardSkeleton />
         </div>
       ) : null}
 

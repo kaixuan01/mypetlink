@@ -15,6 +15,8 @@ const authMocks = vi.hoisted(() => ({
   apiMode: false,
   clientId: "",
   credentialCallback: null as null | ((response: { credential?: string }) => void),
+  developmentLoginEnabled: false,
+  loginAsDevelopmentAdmin: vi.fn(),
   loginMockOwner: vi.fn(),
   loginWithGoogleIdToken: vi.fn(),
   replace: vi.fn(),
@@ -30,10 +32,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/services/apiConfig", () => ({
   getGoogleClientId: () => authMocks.clientId,
   isApiConfigured: () => authMocks.apiMode,
+  isDevelopmentAdminLoginEnabled: () => authMocks.developmentLoginEnabled,
 }));
 
 vi.mock("@/services/authService", () => ({
   loginMockOwner: authMocks.loginMockOwner,
+  loginAsDevelopmentAdmin: authMocks.loginAsDevelopmentAdmin,
   loginWithGoogleIdToken: authMocks.loginWithGoogleIdToken,
 }));
 
@@ -67,8 +71,11 @@ describe("OwnerLoginExperience", () => {
     window.history.replaceState({}, "", "/login");
     authMocks.apiMode = false;
     authMocks.clientId = "";
+    authMocks.developmentLoginEnabled = false;
     authMocks.credentialCallback = null;
     authMocks.loginMockOwner.mockReset();
+    authMocks.loginAsDevelopmentAdmin.mockReset();
+    authMocks.loginAsDevelopmentAdmin.mockResolvedValue({});
     authMocks.loginWithGoogleIdToken.mockReset();
     authMocks.loginWithGoogleIdToken.mockResolvedValue({});
     authMocks.replace.mockReset();
@@ -130,6 +137,46 @@ describe("OwnerLoginExperience", () => {
     expect(authMocks.replace).toHaveBeenCalledWith(
       "/pets/owner-pet-id/edit?tab=photos"
     );
+  });
+
+  it("explains a Community return without promising to replay the action", () => {
+    window.history.replaceState(
+      {},
+      "",
+      `/login?redirect=${encodeURIComponent("/u/tanfamily?source=explore")}`
+    );
+    render(<OwnerLoginExperience />);
+
+    const context = screen.getByTestId("community-login-context");
+    expect(context.textContent).toContain("return to the page you were viewing");
+    expect(context.textContent).toContain(
+      "Follow, Like, and Block still require your deliberate confirmation"
+    );
+  });
+
+  it("keeps Development sign in separate, local-only, and on the safe return path", async () => {
+    authMocks.apiMode = true;
+    authMocks.developmentLoginEnabled = true;
+    window.history.replaceState(
+      {},
+      "",
+      `/login?redirect=${encodeURIComponent("/feed?source=c5")}`
+    );
+    render(<OwnerLoginExperience />);
+
+    expect(screen.getByRole("heading", { name: "Continue with Google" })).toBeTruthy();
+    fireEvent.click(screen.getByTestId("owner-development-login"));
+
+    await waitFor(() => {
+      expect(authMocks.loginAsDevelopmentAdmin).toHaveBeenCalledOnce();
+      expect(authMocks.replace).toHaveBeenCalledWith("/feed?source=c5");
+    });
+  });
+
+  it("does not render Development sign in without the development gate", () => {
+    render(<OwnerLoginExperience />);
+
+    expect(screen.queryByTestId("owner-development-login")).toBeNull();
   });
 
   it("rejects an external post-login redirect", () => {
