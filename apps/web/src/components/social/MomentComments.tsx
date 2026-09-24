@@ -19,6 +19,7 @@ import {
   takeCommentDraft,
 } from "@/lib/commentDraftRecovery";
 import { formatRelativeAge } from "@/lib/momentPublishedTime";
+import { useDismissableMenu } from "@/lib/useDismissableMenu";
 import {
   momentPath,
   ownerRoutes,
@@ -275,17 +276,20 @@ export function MomentComments({
     }
   }, [confirming, deleting, items, momentId, updateCount]);
 
+  const closeMenu = useCallback(() => setMenuId(null), []);
   const loginHref = ownerLoginPath(`${momentPath(momentId)}#comments`);
 
   return (
     <section
       aria-busy={state === "loading"}
+      aria-labelledby="comments-heading"
       className="brand-card mt-4 scroll-mt-24 rounded-[1.5rem] p-4 sm:p-5"
       id="comments"
       ref={sectionRef}
     >
       <h2
         className="text-lg font-black text-pet-ink outline-none"
+        id="comments-heading"
         ref={headingRef}
         tabIndex={-1}
       >
@@ -348,6 +352,7 @@ export function MomentComments({
                   key={comment.id}
                   menuOpen={menuId === comment.id}
                   now={loadedAt}
+                  onCloseMenu={closeMenu}
                   onConfirm={() => setConfirming(comment)}
                   onMenu={() =>
                     setMenuId((current) => (current === comment.id ? null : comment.id))
@@ -477,6 +482,7 @@ function CommentRow({
   menuOpen,
   deleteError,
   highlighted,
+  onCloseMenu,
   onMenu,
   onConfirm,
   setMenuTrigger,
@@ -486,11 +492,27 @@ function CommentRow({
   menuOpen: boolean;
   deleteError: boolean;
   highlighted: boolean;
+  onCloseMenu: () => void;
   onMenu: () => void;
   onConfirm: () => void;
   setMenuTrigger: (element: HTMLButtonElement | null) => void;
 }) {
   const action = comment.viewerDeleteAction === "remove" ? "Remove comment" : "Delete comment";
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuPanelId = `comment-actions-${comment.id}`;
+
+  // Escape returns focus to the trigger; a pointer elsewhere leaves it where
+  // the reader put it. Only one row's menu is open at a time (`menuId`).
+  useDismissableMenu({
+    menuRef,
+    onClose: (returnFocus) => {
+      onCloseMenu();
+      if (returnFocus) triggerRef.current?.focus();
+    },
+    open: menuOpen,
+    triggerRef,
+  });
 
   return (
     <li
@@ -507,8 +529,15 @@ function CommentRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
+            {/*
+              On touch screens the name's hit area grows to ~44px through a
+              pseudo-element, mostly upward into the gap between Comments, so
+              the row keeps its compact look and the first line of the body
+              stays tappable text.
+            */}
             <Link
-              className="font-black text-pet-ink hover:text-pet-teal"
+              className="relative font-black text-pet-ink hover:text-pet-teal pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:-top-3.5 pointer-coarse:after:-bottom-1.5 pointer-coarse:after:content-['']"
+              data-testid="comment-author-link"
               href={ownerSocialProfilePath(comment.author.handle)}
             >
               {comment.author.displayName}
@@ -524,17 +553,25 @@ function CommentRow({
           {comment.viewerDeleteAction ? (
             <div className="relative shrink-0">
               <button
+                aria-controls={menuOpen ? menuPanelId : undefined}
                 aria-expanded={menuOpen}
                 aria-label={`Comment actions for ${comment.author.displayName}`}
                 className="grid h-11 w-11 place-items-center rounded-full text-pet-muted hover:bg-pet-cream"
                 onClick={onMenu}
-                ref={setMenuTrigger}
+                ref={(element) => {
+                  triggerRef.current = element;
+                  setMenuTrigger(element);
+                }}
                 type="button"
               >
                 <Icon className="h-5 w-5" name="more" />
               </button>
               {menuOpen ? (
-                <div className="absolute right-0 z-20 min-w-40 rounded-xl border border-pet-border bg-white p-1 shadow-lg">
+                <div
+                  className="absolute right-0 z-20 min-w-40 rounded-xl border border-pet-border bg-white p-1 shadow-lg"
+                  id={menuPanelId}
+                  ref={menuRef}
+                >
                   <button
                     className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-black text-pet-coral hover:bg-pet-cream"
                     onClick={onConfirm}

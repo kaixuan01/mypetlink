@@ -221,6 +221,79 @@ describe("Moment Comments", () => {
     await screen.findByText("Second comment");
   });
 
+  describe("accessibility", () => {
+    it("names the Comments section by its heading", async () => {
+      render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
+      await screen.findByTestId("comment-list");
+
+      const region = screen.getByRole("region", { name: /Comments\s*·\s*2/ });
+      expect(region.id).toBe("comments");
+      expect(region.getAttribute("aria-labelledby")).toBe("comments-heading");
+      expect(document.getElementById("comments-heading")?.tagName).toBe("H2");
+    });
+
+    it("closes the action menu with Escape and returns focus to its trigger", async () => {
+      render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
+      const trigger = (await screen.findAllByRole("button", { name: /Comment actions/ }))[0];
+
+      fireEvent.click(trigger);
+      expect(trigger.getAttribute("aria-expanded")).toBe("true");
+      const panelId = trigger.getAttribute("aria-controls");
+      expect(panelId && document.getElementById(panelId)).toBeTruthy();
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+      expect(screen.queryByRole("button", { name: "Delete comment" })).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it("closes the action menu on a pointer outside it without stealing focus", async () => {
+      render(
+        <>
+          <button type="button">Elsewhere</button>
+          <MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />
+        </>
+      );
+      const trigger = (await screen.findAllByRole("button", { name: /Comment actions/ }))[0];
+      fireEvent.click(trigger);
+      const menuAction = screen.getByRole("button", { name: "Delete comment" });
+
+      fireEvent.pointerDown(menuAction);
+      expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+      const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+      elsewhere.focus();
+      fireEvent.pointerDown(elsewhere);
+      await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+      expect(document.activeElement).toBe(elsewhere);
+    });
+
+    it("keeps one menu open at a time and the action reachable by keyboard", async () => {
+      render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
+      const [first, second] = await screen.findAllByRole("button", { name: /Comment actions/ });
+
+      fireEvent.click(first);
+      fireEvent.click(second);
+      expect(first.getAttribute("aria-expanded")).toBe("false");
+      expect(second.getAttribute("aria-expanded")).toBe("true");
+      expect(screen.getAllByRole("button", { name: "Delete comment" })).toHaveLength(1);
+
+      const action = screen.getByRole("button", { name: "Delete comment" });
+      action.focus();
+      expect(document.activeElement).toBe(action);
+      fireEvent.click(action);
+      expect(await screen.findByRole("dialog", { name: "Delete your comment?" })).toBeTruthy();
+    });
+
+    it("gives the author link a touch-sized hit area without padding the row", async () => {
+      render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
+      const [link] = await screen.findAllByTestId("comment-author-link");
+
+      expect(link.className).toContain("pointer-coarse:after:absolute");
+      expect(link.className).not.toMatch(/(^|\s)(p|py|pt|pb)-/);
+    });
+  });
+
   describe("links to one Comment", () => {
     const linkedId = "0f8fad5b-d9cb-469f-a165-70867728950e";
     const scrolls: Element[] = [];
