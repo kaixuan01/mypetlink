@@ -52,12 +52,32 @@ export class MomentCommentError extends Error {
   }
 }
 
+const commentIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The Comment a `#comment-{id}` link points at, or null for any other hash.
+ */
+export function linkedCommentId(hash: string) {
+  const match = /^#comment-(.+)$/.exec(hash);
+  return match && commentIdPattern.test(match[1]) ? match[1] : null;
+}
+
+/**
+ * One page of a thread, newest first.
+ *
+ * `anchor` asks the first page to reach down to a linked Comment. The API
+ * honours it only for a Comment this viewer can already see within a bounded
+ * depth, and otherwise answers exactly as if it had not been sent.
+ */
 export async function getMomentComments(
   momentId: string,
-  cursor?: string
+  cursor?: string,
+  options: { anchor?: string | null } = {}
 ): Promise<MomentCommentPage> {
   const params = new URLSearchParams({ limit: "20" });
   if (cursor) params.set("cursor", cursor);
+  else if (options.anchor) params.set("anchor", options.anchor);
 
   try {
     const response = await apiRequest<MomentCommentPage>(

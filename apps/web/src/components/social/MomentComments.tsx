@@ -11,7 +11,15 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { ownerLoginPath } from "@/lib/authRedirect";
+import {
+  clearCommentDraft,
+  commentDraftStorage,
+  hasCommentDraft,
+  saveCommentDraft,
+  takeCommentDraft,
+} from "@/lib/commentDraftRecovery";
 import { formatRelativeAge } from "@/lib/momentPublishedTime";
+import { useDismissableMenu } from "@/lib/useDismissableMenu";
 import {
   momentPath,
   ownerRoutes,
@@ -21,10 +29,12 @@ import {
   createMomentComment,
   deleteMomentComment,
   getMomentComments,
+  linkedCommentId,
   MomentCommentError,
   type MomentComment,
   type MomentCommentViewer,
 } from "@/services/momentCommentService";
+import { readStoredAuthSession } from "@/services/authStorage";
 
 type LoadState = "loading" | "ready" | "error" | "unavailable";
 
@@ -37,6 +47,7 @@ export function MomentComments({
   initialCount: number;
   onCountChange: (count: number) => void;
 }) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -55,12 +66,15 @@ export function MomentComments({
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [draftKept, setDraftKept] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<MomentComment | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteErrorId, setDeleteErrorId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
 
   const updateCount = useCallback(
@@ -74,7 +88,13 @@ export function MomentComments({
   useEffect(() => {
     let active = true;
 
-    getMomentComments(momentId)
+    // A `#comment-{id}` link asks the first page to reach down to that
+    // Comment; the API bounds how far, and ignores anything this viewer
+    // cannot already see.
+    const anchor =
+      typeof window === "undefined" ? null : linkedCommentId(window.location.hash);
+
+    getMomentComments(momentId, undefined, { anchor })
       .then((page) => {
         if (!active) return;
         // The API pages from the newest end; the conversation reads forward.
@@ -83,6 +103,22 @@ export function MomentComments({
         setViewer(page.viewer);
         updateCount(page.commentCount);
         setLoadedAt(Date.now());
+        // A Comment interrupted by an ended session comes back only to the
+        // same account on the same Moment, and is never sent on its own.
+        const storage = commentDraftStorage();
+        if (page.viewer.canComment) {
+          const restored = takeCommentDraft(storage, {
+            momentId,
+            userId: readStoredAuthSession()?.user.id,
+          });
+          if (restored) {
+            setDraft(restored);
+            setDraftRestored(true);
+            setAnnouncement("Your unsent comment was restored.");
+          }
+        } else {
+          setDraftKept(hasCommentDraft(storage, momentId));
+        }
         setState("ready");
       })
       .catch((error: unknown) => {
@@ -102,13 +138,44 @@ export function MomentComments({
   useEffect(() => {
     if (state !== "ready" || typeof window === "undefined") return;
     const hash = window.location.hash;
-    if (!hash.startsWith("#comment-") || handledHashRef.current === hash) return;
-
-    const target = document.getElementById(hash.slice(1));
-    if (!target) return;
+    if (handledHashRef.current === hash) return;
+    const linked = linkedCommentId(hash);
+    if (!linked && hash !== "#comments") return;
     handledHashRef.current = hash;
-    requestAnimationFrame(() => target.scrollIntoView({ block: "center" }));
+
+    const target = linked ? document.getElementById(`comment-${linked}`) : null;
+    requestAnimationFrame(() => {
+      if (target) {
+        target.scrollIntoView({ block: "center" });
+        target.focus({ preventScroll: true });
+        setHighlightId(linked);
+      } else {
+        // The thread renders after the Moment, so the browser's own jump to
+        // the fragment has usually already missed. A Comment that is gone,
+        // hidden from this viewer or too old for a link to reach lands on
+        // the thread.
+        sectionRef.current?.scrollIntoView({ block: "start" });
+      }
+
+      // The fragment has done its job; take it off this history entry. A
+      // Moment page is served from the export's fallback shell, and when Back
+      // returns to it from another page the router re-enters it with a full
+      // load of the same URL. With a fragment still attached, the browser
+      // treats that load as an in-page jump instead, and the previous page
+      // stays on screen. Next copies its own history state across this call.
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`
+      );
+    });
   }, [items, state]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = window.setTimeout(() => setHighlightId(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
 
   const loadEarlier = useCallback(async () => {
     if (!nextCursor || loadMorePending) return;
@@ -135,6 +202,9 @@ export function MomentComments({
     if (posting || !draft.trim() || !viewer.canComment) return;
     setPosting(true);
     setComposerError(null);
+    // Read before posting: an ended session is cleared on the way to the
+    // error, and the draft must stay bound to the account that wrote it.
+    const authorUserId = readStoredAuthSession()?.user.id ?? null;
     try {
       const result = await createMomentComment(momentId, draft);
       setItems((current) =>
@@ -144,12 +214,23 @@ export function MomentComments({
       );
       updateCount(result.commentCount);
       setDraft("");
+      setDraftRestored(false);
+      clearCommentDraft(commentDraftStorage());
       setAnnouncement("Comment posted.");
       requestAnimationFrame(() => textareaRef.current?.focus());
     } catch (error) {
       if (error instanceof MomentCommentError) {
         setComposerError(error.message);
         if (error.reason === "session") {
+          if (authorUserId) {
+            setDraftKept(
+              saveCommentDraft(commentDraftStorage(), {
+                momentId,
+                userId: authorUserId,
+                body: draft,
+              })
+            );
+          }
           setViewer({ canComment: false, requirement: "signIn", identity: null });
         } else if (error.reason === "community-profile") {
           setViewer({
@@ -207,16 +288,20 @@ export function MomentComments({
     }
   }, [confirming, deleting, items, momentId, updateCount]);
 
+  const closeMenu = useCallback(() => setMenuId(null), []);
   const loginHref = ownerLoginPath(`${momentPath(momentId)}#comments`);
 
   return (
     <section
       aria-busy={state === "loading"}
-      className="brand-card mt-4 rounded-[1.5rem] p-4 sm:p-5"
+      aria-labelledby="comments-heading"
+      className="brand-card mt-4 scroll-mt-24 rounded-[1.5rem] p-4 sm:p-5"
       id="comments"
+      ref={sectionRef}
     >
       <h2
         className="text-lg font-black text-pet-ink outline-none"
+        id="comments-heading"
         ref={headingRef}
         tabIndex={-1}
       >
@@ -275,9 +360,11 @@ export function MomentComments({
                 <CommentRow
                   comment={comment}
                   deleteError={deleteErrorId === comment.id}
+                  highlighted={highlightId === comment.id}
                   key={comment.id}
                   menuOpen={menuId === comment.id}
                   now={loadedAt}
+                  onCloseMenu={closeMenu}
                   onConfirm={() => setConfirming(comment)}
                   onMenu={() =>
                     setMenuId((current) => (current === comment.id ? null : comment.id))
@@ -299,6 +386,11 @@ export function MomentComments({
                   <label className="text-sm font-black text-pet-ink" htmlFor="comment-body">
                     Add a comment
                   </label>
+                  {draftRestored ? (
+                    <p className="mt-1 text-sm font-semibold text-pet-muted">
+                      Your unsent comment is back. Press Send when you’re ready.
+                    </p>
+                  ) : null}
                   <textarea
                     aria-describedby="comment-help comment-error"
                     aria-invalid={Boolean(composerError)}
@@ -341,12 +433,19 @@ export function MomentComments({
                 Set up your Community profile to comment
               </Link>
             ) : (
-              <Link
-                className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal"
-                href={loginHref}
-              >
-                Sign in to comment
-              </Link>
+              <>
+                {draftKept ? (
+                  <p className="mb-3 text-sm font-semibold text-pet-muted">
+                    We’ve kept your comment. Sign in to finish posting it.
+                  </p>
+                ) : null}
+                <Link
+                  className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal"
+                  href={loginHref}
+                >
+                  Sign in to comment
+                </Link>
+              </>
             )}
           </div>
         </>
@@ -394,6 +493,8 @@ function CommentRow({
   now,
   menuOpen,
   deleteError,
+  highlighted,
+  onCloseMenu,
   onMenu,
   onConfirm,
   setMenuTrigger,
@@ -402,15 +503,37 @@ function CommentRow({
   now: number;
   menuOpen: boolean;
   deleteError: boolean;
+  highlighted: boolean;
+  onCloseMenu: () => void;
   onMenu: () => void;
   onConfirm: () => void;
   setMenuTrigger: (element: HTMLButtonElement | null) => void;
 }) {
   const action = comment.viewerDeleteAction === "remove" ? "Remove comment" : "Delete comment";
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuPanelId = `comment-actions-${comment.id}`;
+
+  // Escape returns focus to the trigger; a pointer elsewhere leaves it where
+  // the reader put it. Only one row's menu is open at a time (`menuId`).
+  useDismissableMenu({
+    menuRef,
+    onClose: (returnFocus) => {
+      onCloseMenu();
+      if (returnFocus) triggerRef.current?.focus();
+    },
+    open: menuOpen,
+    triggerRef,
+  });
 
   return (
     <li
-      className="flex scroll-mt-24 gap-3 outline-none"
+      className={`flex scroll-mt-24 gap-3 rounded-xl motion-safe:transition-[outline-color] ${
+        highlighted
+          ? "outline-2 outline-offset-4 outline-pet-teal"
+          : "outline-none"
+      }`}
+      data-highlighted={highlighted || undefined}
       id={`comment-${comment.id}`}
       tabIndex={-1}
     >
@@ -418,8 +541,15 @@ function CommentRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
+            {/*
+              On touch screens the name's hit area grows to ~44px through a
+              pseudo-element, mostly upward into the gap between Comments, so
+              the row keeps its compact look and the first line of the body
+              stays tappable text.
+            */}
             <Link
-              className="font-black text-pet-ink hover:text-pet-teal"
+              className="relative font-black text-pet-ink hover:text-pet-teal pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:-top-3.5 pointer-coarse:after:-bottom-1.5 pointer-coarse:after:content-['']"
+              data-testid="comment-author-link"
               href={ownerSocialProfilePath(comment.author.handle)}
             >
               {comment.author.displayName}
@@ -435,17 +565,25 @@ function CommentRow({
           {comment.viewerDeleteAction ? (
             <div className="relative shrink-0">
               <button
+                aria-controls={menuOpen ? menuPanelId : undefined}
                 aria-expanded={menuOpen}
                 aria-label={`Comment actions for ${comment.author.displayName}`}
                 className="grid h-11 w-11 place-items-center rounded-full text-pet-muted hover:bg-pet-cream"
                 onClick={onMenu}
-                ref={setMenuTrigger}
+                ref={(element) => {
+                  triggerRef.current = element;
+                  setMenuTrigger(element);
+                }}
                 type="button"
               >
                 <Icon className="h-5 w-5" name="more" />
               </button>
               {menuOpen ? (
-                <div className="absolute right-0 z-20 min-w-40 rounded-xl border border-pet-border bg-white p-1 shadow-lg">
+                <div
+                  className="absolute right-0 z-20 min-w-40 rounded-xl border border-pet-border bg-white p-1 shadow-lg"
+                  id={menuPanelId}
+                  ref={menuRef}
+                >
                   <button
                     className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-black text-pet-coral hover:bg-pet-cream"
                     onClick={onConfirm}

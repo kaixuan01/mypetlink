@@ -407,8 +407,11 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     /// <summary>
     /// The notifications this recipient may currently see.
     ///
-    /// Three things remove one: an actor who has left social, an actor whose
-    /// social identity is incomplete, and a block in either direction. The block
+    /// Four things remove one: an actor who has left social, an actor whose
+    /// social identity is incomplete, an actor whose account is not Active
+    /// (the same rule that takes their Community Profile, Moments and Comments
+    /// off Community), and a block in either direction. All four are read-time:
+    /// rows are never deleted for them, so reinstatement restores the history. The block
     /// case is the one that matters — activity must never become the back door
     /// that hands somebody a blocked account's handle and a link to their
     /// profile.
@@ -423,10 +426,13 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 item.RecipientUserId == recipientId
                 && item.ActorUserId != null
                 && item.ActorUser!.DeletedAt == null
+                && item.ActorUser.Status == UserStatus.Active
                 && item.ActorUser.SocialProfile != null
                 && item.ActorUser.SocialProfile.IsSocialEnabled
                 && item.ActorUser.SocialProfile.Handle != null
+                && item.ActorUser.SocialProfile.Handle != ""
                 && item.ActorUser.SocialProfile.DisplayName != null
+                && item.ActorUser.SocialProfile.DisplayName != ""
                 && item.Type != OwnerNotificationType.Unknown
                 && (item.Type == OwnerNotificationType.NewFollower
                     || item.Type == OwnerNotificationType.MomentLiked

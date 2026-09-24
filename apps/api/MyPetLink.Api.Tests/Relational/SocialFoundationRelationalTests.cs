@@ -1,6 +1,7 @@
 using MyPetLink.Api.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
@@ -586,6 +587,186 @@ public sealed class SocialFoundationRelationalTests
             Assert.Empty(await verify.OwnerNotifications
                 .Where(item => item.CommentId == commentId)
                 .ToListAsync());
+        }
+    }
+
+    [RelationalFact]
+    public async Task AnchoredCommentReadsFollowSqlServerOrderingAcrossTiedTimestamps()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            var start = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
+            for (var index = 0; index < 40; index += 1)
+            {
+                seed.MomentComments.Add(new MomentComment
+                {
+                    MomentId = moment.Id,
+                    AuthorUserId = BobId,
+                    Body = $"Comment {index}",
+                    // Ten Comments share one instant, so uniqueidentifier
+                    // ordering — not .NET Guid ordering — decides between them.
+                    CreatedAt = index is >= 5 and < 15 ? start : start.AddMinutes(index)
+                });
+            }
+
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        // The thread's true order, as the API pages it.
+        var order = new List<Guid>();
+        string? cursor = null;
+        do
+        {
+            await using var context = scope.NewContext();
+            var page = await NewCommentService(context).GetAsync(momentId, CarolId, cursor, 7);
+            order.AddRange(page.Items.Select(item => item.Id));
+            cursor = page.NextCursor;
+        }
+        while (cursor is not null);
+
+        Assert.Equal(40, order.Distinct().Count());
+
+        // Every anchor inside the tie, all deeper than the first page.
+        for (var depth = 25; depth < 35; depth += 1)
+        {
+            await using var context = scope.NewContext();
+            var service = NewCommentService(context);
+            var anchored = await service.GetAsync(momentId, CarolId, null, null, default, order[depth]);
+
+            Assert.Equal(order.Take(depth + 1), anchored.Items.Select(item => item.Id));
+            var rest = await service.GetAsync(momentId, CarolId, anchored.NextCursor, 30);
+            Assert.Equal(order.Skip(depth + 1), rest.Items.Select(item => item.Id));
+        }
+    }
+
+    /// <summary>
+    /// Deleting one Comment while the same author posts another on the same
+    /// Moment. Both orders are forced deterministically: one side is held in
+    /// SaveChanges until the other has committed (or a short timeout passes,
+    /// which is what happens when the two correctly serialize).
+    /// </summary>
+    [RelationalTheory]
+    [InlineData("delete")]
+    [InlineData("create")]
+    public async Task ConcurrentCommentCreateAndDeleteKeepOneAccurateActivityRow(string held)
+    {
+        var gate = new SaveGate(held);
+        await using var scope = await RelationalDatabase.CreateAsync(gate, enableRetryOnFailure: true);
+        Guid momentId;
+        Guid firstId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        firstId = await CommentAsync(scope, BobId, momentId, "First");
+
+        var deleting = Task.Run(async () =>
+        {
+            SaveGate.Current.Value = "delete";
+            await using var context = scope.NewContext();
+            await NewCommentService(context).DeleteAsync(BobId, momentId, firstId);
+            gate.Finished("delete");
+        });
+        var creating = Task.Run(async () =>
+        {
+            SaveGate.Current.Value = "create";
+            if (held == "delete")
+            {
+                await gate.WaitUntilHeldAsync();
+            }
+
+            await using var context = scope.NewContext();
+            var created = await NewCommentService(context).CreateAsync(
+                BobId, momentId, new CreateMomentCommentRequest("Second"));
+            gate.Finished("create");
+            return created.Comment.Id;
+        });
+
+        if (held == "create")
+        {
+            // Let the create reach SaveChanges first, then start the delete.
+            await gate.WaitUntilHeldAsync();
+        }
+
+        await Task.WhenAll(deleting, creating);
+        var secondId = await creating;
+
+        await using var verify = scope.NewContext();
+        var first = await verify.MomentComments.AsNoTracking().SingleAsync(item => item.Id == firstId);
+        Assert.Equal("", first.Body);
+        Assert.NotNull(first.DeletedAt);
+        Assert.Equal(BobId, first.DeletedByUserId);
+
+        var second = await verify.MomentComments.AsNoTracking().SingleAsync(item => item.Id == secondId);
+        Assert.Equal("Second", second.Body);
+        Assert.Null(second.DeletedAt);
+
+        var unread = await verify.OwnerNotifications.AsNoTracking()
+            .Where(item => item.RecipientUserId == AliceId
+                && item.ActorUserId == BobId
+                && item.MomentId == momentId
+                && item.Type == OwnerNotificationType.MomentCommented
+                && item.ReadAt == null)
+            .ToListAsync();
+        var row = Assert.Single(unread);
+        Assert.Equal(secondId, row.CommentId);
+
+        var notifications = new OwnerNotificationService(verify, Options.Create(new CloudflareR2Options()));
+        var page = await notifications.GetAsync(AliceId, null, null);
+        var summary = await notifications.GetUnreadSummaryAsync(AliceId);
+        Assert.Equal(page.Items.Count(item => !item.IsRead), summary.UnreadCount);
+        Assert.Equal(secondId, Assert.Single(page.Items).CommentId);
+    }
+
+    /// <summary>
+    /// Holds the first SaveChanges made under one named operation until the
+    /// other operation reports it has finished, or two seconds pass.
+    /// </summary>
+    private sealed class SaveGate(string held) : SaveChangesInterceptor
+    {
+        public static readonly AsyncLocal<string?> Current = new();
+
+        private readonly TaskCompletionSource _reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _otherFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _used;
+
+        public Task WaitUntilHeldAsync() => _reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        public void Finished(string operation)
+        {
+            if (operation != held)
+            {
+                _otherFinished.TrySetResult();
+            }
+        }
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Current.Value == held && Interlocked.Exchange(ref _used, 1) == 0)
+            {
+                _reached.TrySetResult();
+                await Task.WhenAny(_otherFinished.Task, Task.Delay(TimeSpan.FromSeconds(2), cancellationToken));
+            }
+
+            return result;
         }
     }
 

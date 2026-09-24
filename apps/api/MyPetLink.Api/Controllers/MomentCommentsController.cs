@@ -27,15 +27,19 @@ public sealed class MomentCommentsController : ApiControllerBase
         Guid momentId,
         [FromQuery] string? cursor,
         [FromQuery] int? limit,
+        [FromQuery] string? anchor,
         CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";
+        // A malformed anchor is ignored rather than refused, so a stale or
+        // hand-edited link still opens the thread.
         var response = await _comments.GetAsync(
             momentId,
             _currentUserService.Current.UserId,
             cursor,
             limit,
-            cancellationToken);
+            cancellationToken,
+            Guid.TryParse(anchor, out var anchorId) ? anchorId : null);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 

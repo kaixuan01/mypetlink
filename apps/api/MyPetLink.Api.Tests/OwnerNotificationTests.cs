@@ -515,4 +515,39 @@ public sealed class OwnerNotificationTests
         Assert.All(safetyAfter, setting => Assert.True(setting.QrSafetyEnabled));
         Assert.Empty(await harness.Db.TagScans.ToListAsync());
     }
+
+    [Fact]
+    public async Task AnActorWhoIsNoLongerActive_DisappearsFromActivityUntilReinstated()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        await harness.FollowAsync(Bob, "tanfamily");
+        await harness.Likes.LikeAsync(Bob, momentId);
+        await harness.Comments.CreateAsync(Bob, momentId, new CreateMomentCommentRequest("Hello"));
+
+        var before = await harness.Notifications.GetAsync(Alice, null, null);
+        Assert.Equal(
+            new[] { "MomentCommented", "MomentLiked", "NewFollower" },
+            before.Items.Select(item => item.Type).OrderBy(type => type));
+
+        foreach (var status in new[] { UserStatus.Suspended, UserStatus.Deleted, UserStatus.Invited })
+        {
+            (await harness.Db.Users.FindAsync(Bob))!.Status = status;
+            await harness.Db.SaveChangesAsync();
+
+            var hidden = await harness.Notifications.GetAsync(Alice, null, null);
+            Assert.Empty(hidden.Items);
+            Assert.Equal(0, hidden.UnreadCount);
+            Assert.Equal(0, (await harness.Notifications.GetUnreadSummaryAsync(Alice)).UnreadCount);
+        }
+
+        // Read-time only: the rows were never removed.
+        Assert.Equal(3, await harness.Db.OwnerNotifications.CountAsync(item => item.ActorUserId == Bob));
+
+        (await harness.Db.Users.FindAsync(Bob))!.Status = UserStatus.Active;
+        await harness.Db.SaveChangesAsync();
+        var restored = await harness.Notifications.GetAsync(Alice, null, null);
+        Assert.Equal(3, restored.Items.Count);
+        Assert.Equal(3, restored.UnreadCount);
+    }
 }

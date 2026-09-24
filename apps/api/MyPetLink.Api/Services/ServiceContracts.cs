@@ -151,9 +151,14 @@ public interface IMomentLikeService : ISkeletonService
 /// </summary>
 public interface IMomentCommentService : ISkeletonService
 {
+    /// <param name="anchorId">
+    /// A linked Comment to include in the first page when it is visible and
+    /// recent enough. Ignored with a cursor; never changes what is visible.
+    /// </param>
     Task<MomentCommentPageResponse> GetAsync(
         Guid momentId, Guid? viewerId, string? cursor, int? pageSize,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? anchorId = null);
 
     Task<CreateMomentCommentResponse> CreateAsync(
         Guid? currentUserId, Guid momentId, CreateMomentCommentRequest? request,

@@ -161,10 +161,7 @@ async function signIn(browser, returnTo = "/feed") {
     SESSION_KEY,
     { timeout: 20000 }
   );
-  await page.waitForURL(
-    (url) => `${url.pathname}${url.search}${url.hash}` === returnTo,
-    { timeout: 20000 }
-  );
+  await page.waitForURL((url) => isAtDestination(url, returnTo), { timeout: 20000 });
 
   await mkdir(dirname(SESSION_FILE), { recursive: true });
   await context.storageState({ path: SESSION_FILE });
@@ -438,6 +435,25 @@ function currentDestination(page) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+/**
+ * Whether the browser is at a return destination. A Moment's Comments
+ * fragment (`#comments`, `#comment-{id}`) is consumed once the thread lands
+ * — it is removed from the history entry on purpose — so the same Moment path
+ * without it is the same destination.
+ */
+function isAtDestination(url, returnTo) {
+  const current = `${url.pathname}${url.search}${url.hash}`;
+  if (current === returnTo) return true;
+  const [path, fragment] = returnTo.split("#");
+  return (
+    Boolean(fragment) &&
+    /^comment(s|-)/.test(fragment) &&
+    path.startsWith("/moments/") &&
+    `${url.pathname}${url.search}` === path &&
+    url.hash === ""
+  );
+}
+
 function expectedLoginPath(returnTo) {
   return `/login?redirect=${encodeURIComponent(returnTo)}`;
 }
@@ -461,10 +477,7 @@ async function completeDevelopmentSignIn(page, returnTo) {
     SESSION_KEY,
     { timeout: 20000 }
   );
-  await page.waitForURL(
-    (url) => `${url.pathname}${url.search}${url.hash}` === returnTo,
-    { timeout: 20000 }
-  );
+  await page.waitForURL((url) => isAtDestination(url, returnTo), { timeout: 20000 });
   assert(
     !currentDestination(page).startsWith("/pets") &&
       currentDestination(page) !== "/dashboard",
@@ -843,6 +856,81 @@ async function verifySessionExpiry(browser, momentRoute, momentTitle) {
   }
 
   return { inlineWriteAttempts: likeAttempts, protectedRoute: returnTo };
+}
+
+/**
+ * A Comment interrupted by an ended session survives the sign-in round trip:
+ * the POST and the token refresh are both answered 401, the draft is kept in
+ * the tab (never the URL), and after signing in again it is back in the
+ * composer without anything being sent.
+ */
+async function verifyCommentDraftRestore(browser, momentRoute) {
+  const returnTo = `${momentRoute}#comments`;
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  const draft = `Draft QA ${Date.now()} keep me 🐾`;
+  let commentPosts = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/comments")) {
+      commentPosts += 1;
+    }
+  });
+
+  try {
+    await page.goto(`${WEB}${expectedLoginPath(returnTo)}`, { waitUntil: "domcontentloaded" });
+    await completeDevelopmentSignIn(page, returnTo);
+    const composer = page.getByLabel("Add a comment");
+    await composer.waitFor();
+
+    const expire = async (route) => fulfillExpiredSession(route);
+    await page.route("**/api/v1/auth/refresh", expire);
+    await page.route("**/api/v1/social/moments/*/comments", expire);
+    await composer.fill(draft);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    const kept = page.getByText("We’ve kept your comment. Sign in to finish posting it.");
+    await kept.waitFor();
+    const gate = page.getByRole("link", { name: "Sign in to comment" });
+    assert((await gate.getAttribute("href")) === expectedLoginPath(returnTo),
+      "Expired Comment sign-in did not return to #comments.");
+    assert(!decodeURIComponent(page.url()).includes("keep me"), "Comment draft leaked into the URL.");
+    await page.unroute("**/api/v1/auth/refresh", expire);
+    await page.unroute("**/api/v1/social/moments/*/comments", expire);
+
+    await gate.click();
+    await assertLoginTarget(page, returnTo);
+    assert(!decodeURIComponent(page.url()).includes("keep me"), "Comment draft leaked into the login URL.");
+
+    // Back from the login page is an ordinary return, still signed out, with
+    // the draft still waiting rather than restored into an empty session.
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => isAtDestination(url, returnTo));
+    await page.getByRole("link", { name: "Sign in to comment" }).waitFor();
+    assert(!(await isAuthenticated(page)), "Browser Back left a half-authenticated session.");
+
+    await page.getByRole("link", { name: "Sign in to comment" }).click();
+    await assertLoginTarget(page, returnTo);
+    await completeDevelopmentSignIn(page, returnTo);
+    await composer.waitFor();
+    await page.waitForFunction(
+      (text) => document.querySelector("#comment-body")?.value === text,
+      draft,
+      { timeout: 20000 }
+    );
+    await page.getByText("Your unsent comment is back. Press Send when you’re ready.").waitFor();
+    await page.waitForTimeout(1500);
+    assert(commentPosts === 1, `Restoring the draft posted ${commentPosts - 1} extra time(s).`);
+    assert(
+      (await page.evaluate(() => window.sessionStorage.getItem("mypetlink_comment_draft_v1"))) === null,
+      "The restored draft was left behind in storage."
+    );
+
+    // Discard it: QA must not leave a real Comment behind.
+    await composer.fill("");
+    return { returnTo, extraPosts: commentPosts - 1 };
+  } finally {
+    await context.close();
+  }
 }
 
 async function verifyPublicAnonymousRoutes(browser, profileRoute, momentRoute) {
@@ -1665,21 +1753,35 @@ async function verifyCommentsResponsive(browser, momentRoute) {
     author,
     viewerDeleteAction: "remove",
   };
+  // Older than the first page: only an anchored read returns it.
+  const linked = {
+    id: "5f0c2d1e-7a3b-4c11-8d2e-000000000021",
+    body: "Linked older Comment",
+    createdAt: "2026-09-23T11:00:00.000Z",
+    author,
+    viewerDeleteAction: "delete",
+  };
   const results = [];
 
   for (const { w, h } of VIEWPORTS) {
+    const touch = w < 768;
     const context = await browser.newContext({
+      hasTouch: touch,
       storageState: SESSION_FILE,
       viewport: { width: w, height: h },
     });
     const page = await context.newPage();
+    const anchorsSent = [];
 
     try {
       await page.route(`**/api/v1/public/moments/${momentId}/comments**`, async (route) => {
         const url = new URL(route.request().url());
+        if (url.searchParams.has("anchor")) anchorsSent.push(url.searchParams.get("anchor"));
         const pageData = url.searchParams.has("cursor")
           ? { items: [older], nextCursor: null }
-          : { items: [...newest].reverse(), nextCursor: "older-page" };
+          : url.searchParams.get("anchor") === linked.id
+            ? { items: [...[...newest].reverse(), linked], nextCursor: "older-page" }
+            : { items: [...newest].reverse(), nextCursor: "older-page" };
         await route.fulfill({
           body: JSON.stringify({
             data: {
@@ -1712,12 +1814,77 @@ async function verifyCommentsResponsive(browser, momentRoute) {
         });
       });
 
+      // Deep link to a Comment older than the first page.
+      await visit(page, `${momentRoute}#comment-${linked.id}`);
+      const linkedRow = page.locator(`#comment-${linked.id}`);
+      await linkedRow.waitFor();
+      await page.waitForFunction(
+        (id) => document.getElementById(`comment-${id}`)?.dataset.highlighted === "true",
+        linked.id,
+        { timeout: 10000 }
+      );
+      assert(anchorsSent.includes(linked.id), `${w}x${h}: the deep link did not send its anchor.`);
+      const linkedState = await linkedRow.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          focused: document.activeElement === element,
+          inView: rect.top >= 0 && rect.bottom <= window.innerHeight,
+        };
+      });
+      assert(linkedState.inView, `${w}x${h}: the linked Comment was not scrolled into view.`);
+      assert(linkedState.focused, `${w}x${h}: the linked Comment was not focused.`);
+
+      await page.goto("about:blank");
       await visit(page, `${momentRoute}#comments`);
+      const region = page.getByRole("region", { name: /Comments\s*·\s*\d+/ });
+      await region.waitFor();
+      assert((await region.getAttribute("id")) === "comments",
+        `${w}x${h}: the Comments section is not named by its heading.`);
       await page.getByText("Earlier Comment").count();
       const showEarlier = page.getByRole("button", { name: "Show earlier comments" });
       await showEarlier.waitFor();
       await showEarlier.click();
       await page.getByText("Earlier Comment", { exact: true }).waitFor();
+
+      // The action menu: Escape returns focus, a pointer elsewhere does not.
+      const menuRow = page.locator("#comment-responsive-2");
+      const menuTrigger = menuRow.getByRole("button", { name: /Comment actions/ });
+      await menuTrigger.click();
+      await menuRow.getByRole("button", { name: "Delete comment", exact: true }).waitFor();
+      await page.keyboard.press("Escape");
+      await menuRow.getByRole("button", { name: "Delete comment", exact: true }).waitFor({ state: "detached" });
+      assert(await menuTrigger.evaluate((element) => element === document.activeElement),
+        `${w}x${h}: Escape did not return focus to the Comment menu trigger.`);
+      await menuTrigger.click();
+      await page.locator("#comments-heading").click();
+      await menuRow.getByRole("button", { name: "Delete comment", exact: true }).waitFor({ state: "detached" });
+      assert(await menuTrigger.evaluate((element) => element !== document.activeElement),
+        `${w}x${h}: an outside click pulled focus back to the menu trigger.`);
+
+      // The author link's hit area on touch layouts.
+      if (touch) {
+        const hit = await menuRow.getByTestId("comment-author-link").evaluate((link) => {
+          link.scrollIntoView({ block: "center", behavior: "instant" });
+          const rect = link.getBoundingClientRect();
+          const x = rect.left + Math.min(rect.width / 2, 20);
+          let height = 0;
+          for (let y = Math.floor(rect.top - 24); y <= Math.ceil(rect.bottom + 24); y += 1) {
+            if (document.elementFromPoint(x, y)?.closest("[data-testid='comment-author-link']") === link) {
+              height += 1;
+            }
+          }
+          return {
+            coarse: window.matchMedia("(pointer: coarse)").matches,
+            height,
+            textHeight: Math.round(rect.height),
+          };
+        });
+        assert(hit.coarse, `${w}x${h}: touch emulation did not report a coarse pointer.`);
+        assert(
+          hit.height >= 42,
+          `${w}x${h}: author link hit area is only ${hit.height}px tall (text ${hit.textHeight}px).`
+        );
+      }
 
       const row = page.locator("#comment-responsive-1");
       await row.getByRole("button", { name: /Comment actions/ }).click();
@@ -1741,8 +1908,34 @@ async function verifyCommentsResponsive(browser, momentRoute) {
       await page.getByText("450 / 500", { exact: true }).waitFor();
       await composer.press("Control+Enter");
       await page.getByText(`${"n".repeat(448)}🐾`, { exact: true }).waitFor();
-      assert(await composer.evaluate((element) => element === document.activeElement),
-        `${w}x${h}: posting did not keep focus in the Comment composer.`);
+      // The composer is disabled while posting and focus is put back on the
+      // next frame, so wait for it rather than sampling one instant.
+      const refocused = await page
+        .waitForFunction(() => document.activeElement?.id === "comment-body", null, { timeout: 2000 })
+        .then(() => true, () => false);
+      assert(refocused, `${w}x${h}: posting did not keep focus in the Comment composer.`);
+
+      // Scrolled as far down as a reader can go — the page and any scrolling
+      // container around the thread — the composer's Send clears any fixed
+      // bottom navigation.
+      const covered = await page.getByRole("button", { name: "Send", exact: true }).evaluate((send) => {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+        for (let node = send.parentElement; node; node = node.parentElement) {
+          const overflowY = getComputedStyle(node).overflowY;
+          if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
+            node.scrollTo({ top: node.scrollHeight, behavior: "instant" });
+          }
+        }
+        const sendRect = send.getBoundingClientRect();
+        const bars = [...document.querySelectorAll("body *")].filter((element) => {
+          if (getComputedStyle(element).position !== "fixed") return false;
+          const rect = element.getBoundingClientRect();
+          return rect.height > 0 && rect.height < 200 && rect.bottom >= window.innerHeight - 2;
+        });
+        const top = Math.min(window.innerHeight, ...bars.map((bar) => bar.getBoundingClientRect().top));
+        return sendRect.bottom > top + 1 ? { sendBottom: sendRect.bottom, barTop: top } : null;
+      });
+      assert(!covered, `${w}x${h}: bottom navigation covers the composer ${JSON.stringify(covered)}.`);
 
       await composer.scrollIntoViewIfNeeded();
       const [overflow, box] = await Promise.all([
@@ -1852,9 +2045,11 @@ async function main() {
       c5.moment.title
     );
     const commentBlock = await verifyCommentBlockFlow(browser, page);
+    const commentDraft = await verifyCommentDraftRestore(browser, c5.moment.route);
     process.stdout.write(
       `  OK    Create/reload/delete; card link=${commentCrud.cardLinked}; count=${commentCrud.countUpdated}\n` +
-        `  OK    Block hid Comment from pair and third viewer; unblock restored=${commentBlock.restored}\n\n`
+        `  OK    Block hid Comment from pair and third viewer; unblock restored=${commentBlock.restored}\n` +
+        `  OK    Expired-session draft restored after sign-in -> ${commentDraft.returnTo}; extra posts=${commentDraft.extraPosts}\n\n`
     );
 
     const block = await verifyBlockFlow(page, "devadminhouse");
@@ -1884,7 +2079,9 @@ async function main() {
     }
 
     if (wantResponsive) {
-      process.stdout.write("\nResponsive Comments matrix\n");
+      process.stdout.write(
+        "\nResponsive Comments matrix (older-Comment deep link, section name, menu Escape/outside click, touch targets, bottom navigation)\n"
+      );
       const commentViewports = await verifyCommentsResponsive(
         browser,
         c5.moment.route

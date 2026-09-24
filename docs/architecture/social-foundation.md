@@ -601,8 +601,10 @@ anywhere in Community (see §12).
 **Activity is in-app only.** `OwnerNotification` rows carry ids and never
 identity; the actor's handle, name and avatar resolve at read time from their
 current public profile, which is what stops a blocked or departed account
-keeping an identity alive in somebody else's list. No social email exists and
-none is planned for Phase 1.
+keeping an identity alive in somebody else's list. An actor whose account is
+not Active (suspended, deleted or invited) is hidden from Activity and the
+unread badge the same way — read-time only, so reinstatement restores the
+rows. No social email exists and none is planned for Phase 1.
 
 ## 12c. Phase 2A Moment Comments
 
@@ -620,7 +622,20 @@ secrecy control. Blocking stores no Comment changes, so unblocking restores an
 otherwise eligible row.
 
 Threads page from the newest end with a stable `(CreatedAt DESC, Id DESC)`
-cursor and render each returned page oldest-to-newest. Deletion is a scrubbed
+cursor and render each returned page oldest-to-newest. A `#comment-{id}` link
+(Activity uses one) sends that id as `anchor` with the first read: when the
+Comment passes the same `VisibleComments` rules and sits within the newest
+`MomentCommentService.AnchorWindow` (100) visible Comments, the first page is
+widened just enough to include it; otherwise the read is answered exactly as
+if no anchor had been sent, and the page lands on `#comments`. An anchor
+therefore never reveals whether a hidden or deleted Comment exists. Once the
+thread has used a `#comments` or `#comment-{id}` fragment to land, it removes the
+fragment from the current history entry, and the Moment page's own Comment
+control scrolls instead of adding one. Moment pages come from the export's
+fallback shell: on Back from a static page (Login, Explore, Home) the router
+re-enters them with a full load of the same URL, and a URL that still carries a
+fragment turns that load into an in-page jump, leaving the previous page on
+screen. Deletion is a scrubbed
 tombstone, not evidence retention: `Body = ''`, with `DeletedAt` and
 `DeletedByUserId` set together. The database constraint rejects an active empty
 body or an unscrubbed tombstone.
@@ -628,10 +643,12 @@ body or an unscrubbed tombstone.
 Repeated unread Comment activity from one actor on one Moment is coalesced to
 the latest active Comment. Deleting that Comment retargets the unread row to the
 actor's latest remaining Comment, or removes it. Read history carries no body
-preview. A transaction-scoped SQL Server application lock per actor/Moment pair
-makes the 60-second normalized duplicate guard and unread-activity coalescing
-deterministic under concurrent retries without permanently forbidding the same
-text.
+preview. A transaction-scoped SQL Server application lock per Comment-author/Moment
+pair makes the 60-second normalized duplicate guard and unread-activity
+coalescing deterministic under concurrent retries without permanently
+forbidding the same text. Delete and Remove take the same lock (keyed by the
+Comment's author, whoever acts), so retargeting or withdrawing that unread row
+can never race a concurrent create.
 
 ### Known limits at soft launch
 

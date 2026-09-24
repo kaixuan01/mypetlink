@@ -5,6 +5,7 @@ using MyPetLink.Api.Common;
 using MyPetLink.Api.Controllers;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Tests;
 
@@ -362,4 +363,113 @@ public sealed class MomentCommentTests
         await Assert.ThrowsAsync<ApiException>(() =>
             harness.PublicProfiles.GetMomentAsync(momentId, null));
     }
+
+    [Fact]
+    public async Task AnchoredReadLoadsDownToAnOlderVisibleComment()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        var ids = await SeedThreadAsync(harness, momentId, 45);
+        var anchor = ids[5]; // 40 newer Comments sit above it.
+
+        var page = await harness.Comments.GetAsync(momentId, Carol, null, 20, default, anchor);
+
+        Assert.Equal(40, page.Items.Count);
+        Assert.Equal(anchor, page.Items.Last().Id);
+        Assert.Equal(ids.AsEnumerable().Reverse().Take(40), page.Items.Select(item => item.Id));
+        Assert.NotNull(page.NextCursor);
+
+        var older = await harness.Comments.GetAsync(momentId, Carol, page.NextCursor, 20);
+        Assert.Equal(ids.Take(5).Reverse(), older.Items.Select(item => item.Id));
+        Assert.Null(older.NextCursor);
+    }
+
+    [Fact]
+    public async Task HiddenOrUnknownAnchorsAnswerExactlyLikeNoAnchor()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        var otherMomentId = await harness.AddMomentAsync(Alice, Mochi, "Other", 20);
+        var ids = await SeedThreadAsync(harness, momentId, 30);
+
+        var deleted = ids[2];
+        await harness.Comments.DeleteAsync(Bob, momentId, deleted);
+        var blockedPair = ids[3];
+        (await harness.Db.MomentComments.FindAsync(blockedPair))!.AuthorUserId = Carol;
+        await harness.Db.SaveChangesAsync();
+        await harness.Graph.BlockAsync(Alice, "carolpets", null);
+        var elsewhere = (await harness.Comments.CreateAsync(
+            Bob, otherMomentId, new CreateMomentCommentRequest("Elsewhere"))).Comment.Id;
+
+        var baseline = Shape(await harness.Comments.GetAsync(momentId, Dave, null, null));
+
+        foreach (var anchor in new[] { deleted, blockedPair, elsewhere, Guid.NewGuid() })
+        {
+            var anchored = Shape(await harness.Comments.GetAsync(momentId, Dave, null, null, default, anchor));
+            Assert.Equal(baseline, anchored);
+        }
+    }
+
+    [Fact]
+    public async Task AnchorsBeyondTheWindowOpenAtTheNormalFirstPage()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        var ids = await SeedThreadAsync(harness, momentId, MomentCommentService.AnchorWindow + 5);
+
+        var deepest = await harness.Comments.GetAsync(momentId, null, null, null, default, ids[0]);
+        Assert.Equal(MomentCommentService.PageSize, deepest.Items.Count);
+
+        // The last anchor that still fits: exactly AnchorWindow rows, no more.
+        var edge = ids[^MomentCommentService.AnchorWindow];
+        var widest = await harness.Comments.GetAsync(momentId, null, null, null, default, edge);
+        Assert.Equal(MomentCommentService.AnchorWindow, widest.Items.Count);
+        Assert.Equal(edge, widest.Items.Last().Id);
+    }
+
+    [Fact]
+    public async Task ACursorWinsOverAnAnchor()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        var ids = await SeedThreadAsync(harness, momentId, 45);
+        var first = await harness.Comments.GetAsync(momentId, null, null, 20);
+
+        var plain = Shape(await harness.Comments.GetAsync(momentId, null, first.NextCursor, 20));
+        var anchored = Shape(await harness.Comments.GetAsync(
+            momentId, null, first.NextCursor, 20, default, ids[0]));
+
+        Assert.Equal(plain, anchored);
+    }
+
+    /// <summary>Oldest first; each a minute apart, two sharing a timestamp.</summary>
+    private static async Task<List<Guid>> SeedThreadAsync(
+        SocialSurfaceHarness harness,
+        Guid momentId,
+        int count)
+    {
+        var start = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
+        var rows = Enumerable.Range(0, count)
+            .Select(index => new MomentComment
+            {
+                MomentId = momentId,
+                AuthorUserId = Bob,
+                Body = $"Comment {index}",
+                CreatedAt = start.AddMinutes(index == 1 ? 0 : index)
+            })
+            .ToList();
+        harness.Db.MomentComments.AddRange(rows);
+        await harness.Db.SaveChangesAsync();
+
+        // The thread's own order, so equal timestamps are resolved the way the
+        // API resolves them.
+        return rows
+            .OrderBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
+            .Select(row => row.Id)
+            .ToList();
+    }
+
+    private static string Shape(MomentCommentPageResponse page) =>
+        string.Join(",", page.Items.Select(item => item.Id)) + "|" + page.NextCursor + "|" + page.CommentCount;
 }
