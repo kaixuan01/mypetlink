@@ -20,7 +20,7 @@ import {
 type LoadState = "loading" | "ready" | "error";
 
 /**
- * Activity: who followed you, and who liked a Moment.
+ * Activity: who followed you, liked a Moment, or commented on one.
  *
  * Reading is per page, not per visit. Opening this screen marks the rows it
  * actually delivered — and each further page marks its own — rather than
@@ -167,8 +167,8 @@ export function SocialNotificationsView() {
           />
           <h2 className="mt-4 text-lg font-black text-pet-ink">Nothing new yet</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-            When pet parents follow you or like a Moment, you&rsquo;ll see it
-            here.
+            When pet parents follow you, like a Moment, or comment on one,
+            you&rsquo;ll see it here.
           </p>
           <div className="mt-5">
             <CTAButton href={socialRoutes.explore}>Explore</CTAButton>
@@ -212,8 +212,10 @@ function ActivityRow({
   // Moments had a page of their own; neither destination is a promise that the
   // content is still there, because both re-check on arrival.
   const destination =
-    item.type === "MomentLiked" && item.momentId
-      ? momentPath(item.momentId)
+    item.type === "MomentCommented" && item.momentId
+      ? `${momentPath(item.momentId)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`
+      : item.type === "MomentLiked" && item.momentId
+        ? momentPath(item.momentId)
       : item.type === "MomentLiked" && item.petPublicSlug
         ? `/p/${item.petPublicSlug}`
         : ownerSocialProfilePath(item.actor.handle);
@@ -222,13 +224,17 @@ function ActivityRow({
   const sentence =
     item.type === "NewFollower"
       ? `${item.actor.displayName} started following you.`
-      : subjects
+      : item.type === "MomentCommented"
+        ? `${item.actor.displayName} commented on your Moment.`
+        : subjects
         ? `${item.actor.displayName} liked your Moment of ${subjects}.`
         : `${item.actor.displayName} liked your Moment.`;
 
   // The link's accessible name says where it goes, not just what happened.
   const destinationLabel =
-    item.type === "MomentLiked" && item.momentId
+    item.type === "MomentCommented" && item.momentId
+      ? "View this comment"
+      : item.type === "MomentLiked" && item.momentId
       ? "View this Moment"
       : item.type === "MomentLiked" && item.petName
         ? `View ${item.petName}'s profile`
@@ -260,7 +266,13 @@ function ActivityRow({
             <Icon
               aria-hidden="true"
               className="h-5 w-5 text-pet-muted"
-              name={item.type === "MomentLiked" ? "heart" : "users"}
+              name={
+                item.type === "MomentLiked"
+                  ? "heart"
+                  : item.type === "MomentCommented"
+                    ? "comment"
+                    : "users"
+              }
             />
           )}
         </span>
@@ -270,7 +282,9 @@ function ActivityRow({
             <span className="font-black">{item.actor.displayName}</span>{" "}
             {item.type === "NewFollower"
               ? "started following you."
-              : subjects
+              : item.type === "MomentCommented"
+                ? "commented on your Moment."
+                : subjects
                 ? `liked your Moment of ${subjects}.`
                 : "liked your Moment."}
           </span>

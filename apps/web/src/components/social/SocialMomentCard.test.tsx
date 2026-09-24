@@ -58,6 +58,7 @@ function moment(overrides: Partial<PublicMomentListItem> = {}): PublicMomentList
       sortOrder: index,
     })),
     likeCount: 2,
+    commentCount: 5,
     viewerHasLiked: false,
     ...overrides,
   };
@@ -159,6 +160,18 @@ describe("Moment card navigation", () => {
     expect(like.closest("a")).toBeNull();
     // Outside the block the title's link is stretched across.
     expect(screen.getByTestId("moment-card-body").contains(like)).toBe(false);
+  });
+
+  it("opens Comments without changing the card's other navigation", () => {
+    renderCard();
+
+    const comments = screen.getByTestId("moment-comment-action");
+    expect(comments.getAttribute("href")).toBe(`${momentHref}#comments`);
+    expect(comments.getAttribute("aria-label")).toBe(
+      "Comments on Beach day. 5 comments."
+    );
+    expect(comments.textContent).toBe("5");
+    expect(screen.getByTestId("moment-card-body").contains(comments)).toBe(false);
   });
 
   it("sends the household's name to the household, not the Moment", () => {

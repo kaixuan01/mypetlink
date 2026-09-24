@@ -481,11 +481,142 @@ public sealed class SocialFoundationRelationalTests
         }
     }
 
+    [RelationalFact]
+    public async Task TwoSimultaneousCommentRetriesLeaveOneCommentAndOneNotification()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        var results = await Task.WhenAll(
+            CommentAsync(scope, BobId, momentId, "Same normalized body"),
+            CommentAsync(scope, BobId, momentId, "Same normalized body"));
+
+        Assert.Equal(results[0], results[1]);
+        await using var verify = scope.NewContext();
+        Assert.Single(await verify.MomentComments.Where(item => item.MomentId == momentId).ToListAsync());
+        Assert.Single(await verify.OwnerNotifications
+            .Where(item => item.MomentId == momentId
+                && item.Type == OwnerNotificationType.MomentCommented)
+            .ToListAsync());
+    }
+
+    [RelationalFact]
+    public async Task CommentDeletionConstraintRejectsAnUnscrubbedTombstone()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        await using var context = scope.NewContext();
+        context.MomentComments.Add(new MomentComment
+        {
+            MomentId = momentId,
+            AuthorUserId = BobId,
+            Body = "text that should have been scrubbed",
+            DeletedAt = DateTimeOffset.UtcNow,
+            DeletedByUserId = BobId
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+    }
+
+    [RelationalFact]
+    public async Task CommentAndActivityCreateAndDeleteInTheSameUnitOfWork()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        Guid commentId;
+        await using (var context = scope.NewContext())
+        {
+            var created = await NewCommentService(context).CreateAsync(
+                BobId,
+                momentId,
+                new CreateMomentCommentRequest("Hello"));
+            commentId = created.Comment.Id;
+        }
+
+        await using (var verify = scope.NewContext())
+        {
+            Assert.NotNull(await verify.MomentComments.FindAsync(commentId));
+            Assert.Single(await verify.OwnerNotifications
+                .Where(item => item.CommentId == commentId)
+                .ToListAsync());
+        }
+
+        await using (var context = scope.NewContext())
+        {
+            await NewCommentService(context).DeleteAsync(BobId, momentId, commentId);
+        }
+
+        await using (var verify = scope.NewContext())
+        {
+            var row = await verify.MomentComments.FindAsync(commentId);
+            Assert.Equal("", row!.Body);
+            Assert.NotNull(row.DeletedAt);
+            Assert.Empty(await verify.OwnerNotifications
+                .Where(item => item.CommentId == commentId)
+                .ToListAsync());
+        }
+    }
+
+    private static async Task<Guid> CommentAsync(
+        RelationalScope scope,
+        Guid userId,
+        Guid momentId,
+        string body)
+    {
+        await using var context = scope.NewContext();
+        var result = await NewCommentService(context).CreateAsync(
+            userId,
+            momentId,
+            new CreateMomentCommentRequest(body));
+        return result.Comment.Id;
+    }
+
     private static MomentLikeService NewLikeService(MyPetLinkDbContext context)
     {
         return new MomentLikeService(
             context,
             new OwnerNotificationService(context, Options.Create(new CloudflareR2Options())));
+    }
+
+    private static MomentCommentService NewCommentService(MyPetLinkDbContext context)
+    {
+        var r2 = Options.Create(new CloudflareR2Options());
+        return new MomentCommentService(
+            context,
+            new OwnerNotificationService(context, r2),
+            r2);
     }
 
     /// <summary>Social profiles for the seeded accounts, which social reads require.</summary>

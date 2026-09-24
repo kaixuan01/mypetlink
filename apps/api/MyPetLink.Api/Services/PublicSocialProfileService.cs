@@ -289,13 +289,9 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
             throw MomentNotFound();
         }
 
-        var query = SociallyVisibleMoments().Where(moment => moment.Id == momentId);
-
-        if (viewerId.HasValue)
-        {
-            var blocked = SocialBlocks.BlockedAccountIds(_dbContext, viewerId.Value);
-            query = query.Where(moment => !blocked.Contains(moment.AuthorUserId));
-        }
+        var query = _dbContext.PetMemories
+            .VisibleTo(_dbContext, viewerId)
+            .Where(moment => moment.Id == momentId);
 
         // Full resolution: this is one Moment filling a screen, not a tile. It
         // costs one larger image because only one Moment is being loaded.

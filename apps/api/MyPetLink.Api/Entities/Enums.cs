@@ -436,5 +436,6 @@ public enum OwnerNotificationType
 {
     Unknown,
     NewFollower,
-    MomentLiked
+    MomentLiked,
+    MomentCommented
 }

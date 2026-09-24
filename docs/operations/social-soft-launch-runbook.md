@@ -54,6 +54,11 @@ Each step is reversible. Do them in this order.
    `publicProfileSlug` field, which stays null for everybody until a household
    enables Social.
 
+   For the Phase 2A Comments release, keep the same schema-first order:
+   `AddMomentComments` / `migration.sql`, then API, then web. The migration is
+   additive; the previous web ignores `commentCount` and never calls the new
+   endpoints. Do not deploy Comment-aware API code before its tables exist.
+
 3. **Deploy the web app with Social still off.** Build it with the command
    that states the flag rather than inheriting it:
 
@@ -125,7 +130,8 @@ Each step is reversible. Do them in this order.
   existing `/u/` links keep working for anybody who saved one, exactly as `/p/`
   does under its own flag.
 - **Data is never deleted by a rollback.** Handles, follows, likes and activity
-  remain. Re-enabling restores the same world.
+  remain. Comment tombstones retain metadata but never their deleted body.
+  Re-enabling restores the same world.
 - **Do not roll back the migration** to disable Social. It is unnecessary and
   it would destroy owner-created content.
 
@@ -160,6 +166,12 @@ existing identity. The later `AddPetSocialConsentOwner` migration only adds one
 nullable column to `PetSocialProfiles` and backfills nothing, so it is safe in
 both directions on its own.
 
+`AddMomentComments` is also rollback-compatible with the prior Community web:
+the new table, nullable `OwnerNotifications.CommentId`, foreign keys and indexes
+are additive. A previous web can be redeployed while the Comment-capable API and
+migration remain. Do not down-migrate merely to hide Comments; use the existing
+`NEXT_PUBLIC_SOCIAL_ENABLED` Community gate.
+
 ---
 
 ## Manual smoke test
@@ -179,14 +191,17 @@ Run as a real owner account on a phone, after step 6.
 | 9 | Feed on the second account | The Moment is there |
 | 10 | Like it | Count moves; refresh keeps it |
 | 11 | Activity on the first account | "started following you" and "liked your Moment of …" |
-| 12 | Block, then check search | The blocked account is gone from search |
-| 13 | Settings → Blocked accounts → Unblock | They reappear; they are NOT following you again |
-| 14 | **Scan a tag** | `/t` or `/n` opens the **Safety Profile**, not Social |
-| 15 | **Safety contact** | WhatsApp and Call work |
-| 16 | Safety Profile, bottom | "View Share Profile" leads to `/p/{slug}` — below the contact actions |
-| 17 | Manage: edit a pet, add a care record | Unchanged |
+| 12 | Comment from the second account | Comment appears at the bottom; refresh keeps it; first account receives one Comment activity row |
+| 13 | Delete it, then add another and remove it as the Moment owner | Count updates and removed text cannot be read again |
+| 14 | Block the accounts while a Comment exists | Both accounts and a third viewer lose that Comment; unblock restores it |
+| 15 | Block, then check search | The blocked account is gone from search |
+| 16 | Settings → Blocked accounts → Unblock | They reappear; they are NOT following you again |
+| 17 | **Scan a tag** | `/t` or `/n` opens the **Safety Profile**, not Social |
+| 18 | **Safety contact** | WhatsApp and Call work |
+| 19 | Safety Profile, bottom | "View Share Profile" leads to `/p/{slug}` — below the contact actions |
+| 20 | Manage: edit a pet, add a care record | Unchanged |
 
-**Rollback-sensitive checks.** Steps 14, 15 and 17 must pass identically with
+**Rollback-sensitive checks.** Steps 17, 18 and 20 must pass identically with
 Social on and with Social off. If any of them behaves differently, Social has
 stopped being additive and the rollout stops.
 

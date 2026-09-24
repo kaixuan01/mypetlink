@@ -4,6 +4,7 @@ export type IconName =
   | "paw"
   | "tag"
   | "heart"
+  | "comment"
   | "shield"
   | "phone"
   | "pin"
@@ -72,6 +73,9 @@ const paths: Record<IconName, ReactNode> = {
   ),
   heart: (
     <path d="M20.4 6.8c-1.4-2.1-4.5-2.2-6.1-.3L12 9.1 9.7 6.5c-1.6-1.9-4.7-1.8-6.1.3-1.1 1.7-.8 4 .7 5.5L12 20l7.7-7.7c1.5-1.5 1.8-3.8.7-5.5Z" />
+  ),
+  comment: (
+    <path d="M5 5.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-4.5 3v-3H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
   ),
   shield: <path d="M12 3 20 6v5.5c0 4.2-2.7 7.7-8 9.5-5.3-1.8-8-5.3-8-9.5V6l8-3Z" />,
   phone: (

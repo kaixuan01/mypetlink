@@ -9922,3 +9922,95 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    ALTER TABLE [OwnerNotifications] ADD [CommentId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    CREATE TABLE [MomentComments] (
+        [Id] uniqueidentifier NOT NULL,
+        [MomentId] uniqueidentifier NOT NULL,
+        [AuthorUserId] uniqueidentifier NOT NULL,
+        [Body] nvarchar(500) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [DeletedAt] datetimeoffset NULL,
+        [DeletedByUserId] uniqueidentifier NULL,
+        CONSTRAINT [PK_MomentComments] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_MomentComments_DeletionState] CHECK (([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND [Body] <> N'') OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND [Body] = N'')),
+        CONSTRAINT [FK_MomentComments_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentComments_Users_AuthorUserId] FOREIGN KEY ([AuthorUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentComments_Users_DeletedByUserId] FOREIGN KEY ([DeletedByUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_CommentId] ON [OwnerNotifications] ([CommentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    CREATE INDEX [IX_MomentComments_AuthorUserId_CreatedAt] ON [MomentComments] ([AuthorUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    CREATE INDEX [IX_MomentComments_DeletedByUserId] ON [MomentComments] ([DeletedByUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_MomentComments_MomentId_CreatedAt_Id] ON [MomentComments] ([MomentId], [CreatedAt], [Id]) WHERE [DeletedAt] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    ALTER TABLE [OwnerNotifications] ADD CONSTRAINT [FK_OwnerNotifications_MomentComments_CommentId] FOREIGN KEY ([CommentId]) REFERENCES [MomentComments] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924031604_AddMomentComments'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260924031604_AddMomentComments', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

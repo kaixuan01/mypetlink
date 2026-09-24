@@ -29,6 +29,25 @@ beforeEach(() => {
 });
 
 describe("getPublicMoment", () => {
+  it("includes a signed-in session when one exists without requiring it", async () => {
+    mocks.apiRequest.mockResolvedValue({
+      data: {
+        id: "moment-1",
+        title: "Beach day",
+        subjects: [],
+        media: [],
+        likeCount: 0,
+        commentCount: 0,
+        viewerHasLiked: true,
+      },
+    });
+
+    const result = await getPublicMoment("moment-1");
+
+    expect(result.viewerHasLiked).toBe(true);
+    expect(mocks.apiRequest.mock.calls[0]).toHaveLength(1);
+  });
+
   it("treats the API's 404 as a Moment that is not available", async () => {
     // Missing, private, taken down and blocked all arrive as this one answer,
     // and the page must say "not available" rather than offer a Retry that

@@ -62,6 +62,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<PetSocialProfile> PetSocialProfiles => Set<PetSocialProfile>();
     public DbSet<MomentPet> MomentPets => Set<MomentPet>();
     public DbSet<MomentLike> MomentLikes => Set<MomentLike>();
+    public DbSet<MomentComment> MomentComments => Set<MomentComment>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
     public DbSet<TagVariantPreset> TagVariantPresets => Set<TagVariantPreset>();
     public DbSet<TagProduct> TagProducts => Set<TagProduct>();
@@ -1812,6 +1813,32 @@ public sealed class MyPetLinkDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<MomentComment>(entity =>
+        {
+            entity.ToTable("MomentComments", table => table.HasCheckConstraint(
+                "CK_MomentComments_DeletionState",
+                "([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND [Body] <> N'') OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND [Body] = N'')"));
+            entity.Property(item => item.Body).HasMaxLength(500).IsRequired();
+
+            entity.HasIndex(item => new { item.MomentId, item.CreatedAt, item.Id })
+                .HasFilter("[DeletedAt] IS NULL");
+            entity.HasIndex(item => new { item.AuthorUserId, item.CreatedAt });
+            entity.HasIndex(item => item.DeletedByUserId);
+
+            entity.HasOne(item => item.Moment)
+                .WithMany(moment => moment.Comments)
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.AuthorUser)
+                .WithMany()
+                .HasForeignKey(item => item.AuthorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.DeletedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.DeletedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<OwnerNotification>(entity =>
         {
             entity.ToTable("OwnerNotifications");
@@ -1833,6 +1860,7 @@ public sealed class MyPetLinkDbContext : DbContext
             // service that writes the row, where the intended lifecycle is
             // known, rather than a schema rule that cannot be relaxed.
             entity.HasIndex(item => new { item.RecipientUserId, item.Type, item.ActorUserId, item.MomentId });
+            entity.HasIndex(item => item.CommentId);
 
             entity.HasOne(item => item.RecipientUser)
                 .WithMany()
@@ -1849,6 +1877,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.Moment)
                 .WithMany()
                 .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Comment)
+                .WithMany()
+                .HasForeignKey(item => item.CommentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

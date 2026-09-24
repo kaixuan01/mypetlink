@@ -49,7 +49,12 @@ public sealed class SocialIdentityIsolationTests
         var socialResponseTypes = new[]
         {
             typeof(OwnerSocialProfileResponse),
-            typeof(OwnerHandleAvailabilityResponse)
+            typeof(OwnerHandleAvailabilityResponse),
+            typeof(MomentCommentResponse),
+            typeof(MomentCommentViewerResponse),
+            typeof(MomentCommentPageResponse),
+            typeof(CreateMomentCommentResponse),
+            typeof(DeleteMomentCommentResponse)
         };
 
         var offenders = new List<string>();
@@ -80,10 +85,19 @@ public sealed class SocialIdentityIsolationTests
         // A handle is the public address of a household. Exposing the row id
         // would give a stable internal identifier to correlate against, for no
         // benefit the handle does not already provide.
-        var identifierFields = typeof(OwnerSocialProfileResponse)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(property => property.Name is "UserId" or "Id" or "OwnerProfileId")
-            .Select(property => property.Name)
+        var identifierFields = new[]
+            {
+                typeof(OwnerSocialProfileResponse),
+                typeof(MomentCommentResponse),
+                typeof(MomentCommentViewerResponse),
+                typeof(MomentCommentPageResponse),
+                typeof(CreateMomentCommentResponse)
+            }
+            .SelectMany(type => type
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(property => property.Name is
+                    "UserId" or "AuthorUserId" or "OwnerProfileId")
+                .Select(property => $"{type.Name}.{property.Name}"))
             .ToArray();
 
         Assert.Empty(identifierFields);

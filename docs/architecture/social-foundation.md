@@ -1,7 +1,7 @@
 # MyPetLink Social — foundation architecture
 
-**Status:** Phase 1A–1D implemented. Phase 1E onward (public profiles, follow,
-likes, feed, Explore, search, notifications UI) is **not built**.
+**Status:** Community Phase 1 and Phase 2A Moment Comments are implemented.
+Replies, Comment likes, mentions, reporting and moderation remain future work.
 
 This document describes what exists in the codebase today. The product proposal
 that preceded it is a separate artefact; where the two disagree, this file is
@@ -433,18 +433,19 @@ unguessable and already known only to the owner — but it must stop being
 Before this work, **no authenticated endpoint anywhere was rate limited**. Two
 policies existed, covering five endpoints, all tag-related.
 
-Six social policies are now registered in `Program.cs` from
+Eight social policies are now registered in `Program.cs` from
 `SocialRateLimitingOptions`. Controllers name a policy and never carry a number.
 
 | Policy | Default | Applied to |
 | --- | --- | --- |
 | `social-follow` | 30 / hour | Phase 1G |
 | `social-like` | 120 / hour | Phase 1H |
+| `social-comment` | 20 / 10 min | creating a Moment Comment |
 | `social-moment-create` | 20 / hour | Phase 1E |
 | `social-search` | 30 / min | Phase 1J |
 | `social-handle-availability` | 20 / min | **`GET /social/handles/{handle}/available`** |
 | `social-profile-mutation` | 20 / hour | **`PUT /social/me/profile`, `POST /social/me/handle`** |
-| `social-withdraw` | 200 / hour | unfollow, unlike, unblock, **`PUT /social/me/pets/{petId}`** |
+| `social-withdraw` | 200 / hour | unfollow, unlike, unblock, delete/remove Comment, **`PUT /social/me/pets/{petId}`** |
 
 `PUT /social/me/pets/{petId}` sits under the withdraw budget rather than the
 profile-mutation one deliberately. One route carries both joining and leaving,
@@ -493,10 +494,11 @@ production.** Consequences for social:
 
 ---
 
-## 12. Denormalised counters — none yet, on purpose
+## 12. Denormalised counters — none, on purpose
 
-An earlier draft carried `FollowerCount`, `FollowingCount`, `PublicMomentCount`,
-`LikeCount` and `CommentCount`. **All five were removed before commit.**
+An earlier draft carried stored `FollowerCount`, `FollowingCount`,
+`PublicMomentCount`, `LikeCount` and `CommentCount`. **No stored counter column
+ships.**
 
 Every one of them had no mutation path and no Phase 1 consumer. A counter that
 nothing writes reads zero forever, and the first screen to bind to one would
@@ -513,7 +515,7 @@ When each is added, its change must document:
 | `FollowerCount` / `FollowingCount` | `OwnerFollows` | Same `SaveChanges` as the follow row | Only if a write path bypasses the service | 1G |
 | `LikeCount` | `MomentLikes` | Same `SaveChanges` as the like row | Same | 1H |
 | `PublicMomentCount` | `PetMemories` where `Visibility = Public` | Same `SaveChanges` as the visibility change | Same | 1F/1I |
-| `CommentCount` | `MomentComments` | Same `SaveChanges` as the comment row | Same | Phase 2 |
+| `CommentCount` | `MomentComments` visible to the current viewer | computed in one grouped query per Moment page | none: rows are authoritative | 2A |
 
 Until then, counts are computed. At current volumes that is correct and fast.
 
@@ -591,15 +593,45 @@ Community, and it answers the same way whether the finder opened
 [`product-model.md`](product-model.md).
 
 **Counts are computed, never stored.** Followers, following and likes are
-indexed `COUNT`s. There is still no counter column anywhere in Social (see
-§12), and the revisit thresholds are recorded in the services that would need
-it first.
+indexed `COUNT`s. Comment counts use the same `VisibleComments` query as the
+thread and are grouped for a whole Moment page, so Block rules cannot make a
+card promise rows the viewer cannot open. There is still no counter column
+anywhere in Community (see §12).
 
 **Activity is in-app only.** `OwnerNotification` rows carry ids and never
 identity; the actor's handle, name and avatar resolve at read time from their
 current public profile, which is what stops a blocked or departed account
 keeping an identity alive in somebody else's list. No social email exists and
 none is planned for Phase 1.
+
+## 12c. Phase 2A Moment Comments
+
+Comments are plain-text household-authored discussion on the canonical Moment
+detail page. Pets are never authors. Creating one requires an active account
+with an enabled Community profile, handle and display name; reading a public
+thread remains anonymous with an optional viewer session for Block filtering.
+
+`SocialVisibility.VisibleComments` is the only read/count predicate. It first
+requires the Moment to remain socially visible. It then requires an active,
+complete Community identity for the Comment author and applies both Block
+boundaries: viewer ↔ Comment author is viewer-specific, while Comment author ↔
+Moment author hides that Comment from everybody. Discoverability is not a
+secrecy control. Blocking stores no Comment changes, so unblocking restores an
+otherwise eligible row.
+
+Threads page from the newest end with a stable `(CreatedAt DESC, Id DESC)`
+cursor and render each returned page oldest-to-newest. Deletion is a scrubbed
+tombstone, not evidence retention: `Body = ''`, with `DeletedAt` and
+`DeletedByUserId` set together. The database constraint rejects an active empty
+body or an unscrubbed tombstone.
+
+Repeated unread Comment activity from one actor on one Moment is coalesced to
+the latest active Comment. Deleting that Comment retargets the unread row to the
+actor's latest remaining Comment, or removes it. Read history carries no body
+preview. A transaction-scoped SQL Server application lock per actor/Moment pair
+makes the 60-second normalized duplicate guard and unread-activity coalescing
+deterministic under concurrent retries without permanently forbidding the same
+text.
 
 ### Known limits at soft launch
 
@@ -617,7 +649,7 @@ none is planned for Phase 1.
   partial fix on one surface; the real answer is a second, larger derivative,
   which is a schema and backfill change deliberately not made before launch.
 
-## 12c. Moment media: one renderer, one route
+## 12d. Moment media: one renderer, one route
 
 A Moment card used to draw whatever was in `media[0]` with an `<img>`, whatever
 that item actually was. A Moment whose cover was a video therefore arrived as a
@@ -680,30 +712,14 @@ second rule; no data migration was needed.
 
 ---
 
-## 13. What Phase 1A–1D did NOT build
+## 13. Deliberately deferred Community work
 
-Deliberately absent, to be added in later phases:
+Deliberately absent, to be added only in later phases:
 
-- Public owner profile page (`/u/{handle}`) and its edge function — 1F
-- Follow / block API and UI — 1G
-- Like API and UI — 1H
-- Feed — 1I
-- Explore and search — 1J
-- Notifications UI — 1K
-- Navigation changes and the Safety Profile → Share Profile bridge — 1L
-- Comments, reports, moderation — **Phase 2**
+- Comment replies, likes, mentions, editing or media
+- Reporting and moderation workflows
 - Pet-level follow — evaluated, deferred; revisit with real engagement data
 - Any social email — a new consent category, not built
-
-`OwnerFollow`, `OwnerBlock`, `MomentLike` and `OwnerNotification` exist as
-**schema only**. No endpoint reads or writes them yet, and no denormalised
-counter exists for any of them — see §12.
-
-`PublicProfileService` is now fully projected, but the public Moments list is
-still **unpaginated**, matching today's behaviour. **A cursor-paginated Moments
-endpoint is required before the Social profile ships (Phase 1F/1I)** now that the
-ten-Moment ceiling is gone; the current projection is efficient but the result
-set is unbounded.
 
 ---
 

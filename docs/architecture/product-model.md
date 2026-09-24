@@ -114,7 +114,8 @@ The owner's public identity inside MyPetLink Community.
   email local part, or the finder-facing name. `OwnerSocialProfileFactory`
   enforces this.
 - Separate from the finder identity and from the Share Profile. It may reference
-  participating pets and public Moments.
+  participating pets and public Moments. Household identities author Moment
+  Comments; pets never author Comments.
 
 Internal code continues to use `Social*` naming. User-facing copy still says
 "social profile" and "MyPetLink Social" in several places; converging that on
@@ -150,6 +151,12 @@ The entity is `PetMemory` / `PetMemories`, the plan limit is
 `maxMemoriesPerPet`, and the public DTO field is `memories`. These internal
 names stay. Removing "Memory"/"Memories" from user-facing UI is a later
 terminology stage.
+
+Public Moment detail is the only surface that renders the full Comment thread.
+Feed, Explore, Community Profile and Share Profile Moment cards expose only the
+viewer-visible Comment count and a link to `/moments/{id}#comments`. Comments
+are part of Community and inherit the Moment's visibility; they never change a
+Share Profile or Safety Profile into a Community dependency.
 
 ---
 

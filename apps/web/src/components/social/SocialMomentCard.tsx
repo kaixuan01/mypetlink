@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { LikeButton } from "@/components/social/LikeButton";
+import { CommentAction } from "@/components/social/CommentAction";
 import type { AnalyticsSocialSource } from "@/lib/analytics";
 import {
   MomentByline,
@@ -44,8 +45,8 @@ type SocialMomentCardProps = {
  * through where it sits. That is also why this surface may show "2 / 4" while a
  * grid tile may not: here the counter describes a gesture that works.
  *
- * There is no comment control. Comments do not exist yet, and a card must not
- * imply an affordance it does not have.
+ * Comment opens the canonical Moment at its Comment section; the thread never
+ * expands inside a feed or profile grid.
  */
 export function SocialMomentCard({
   moment,
@@ -99,7 +100,7 @@ export function SocialMomentCard({
       )}
 
       <div className="p-3">
-        <div className="-ml-2">
+        <div className="-ml-2 flex items-center gap-1">
           <LikeButton
             analyticsSource={analyticsSource}
             likeCount={moment.likeCount}
@@ -108,6 +109,11 @@ export function SocialMomentCard({
             onChange={(state) => onLikeChange(moment.id, state)}
             signedIn={signedIn}
             viewerHasLiked={moment.viewerHasLiked}
+          />
+          <CommentAction
+            commentCount={moment.commentCount ?? 0}
+            momentId={moment.id}
+            momentTitle={moment.title}
           />
         </div>
 
@@ -216,7 +222,7 @@ export function SocialMomentTile({
           </div>
         ) : null}
 
-        <div className="relative z-10 -ml-2 mt-auto pt-1">
+        <div className="relative z-10 -ml-2 mt-auto flex items-center gap-1 pt-1">
           <LikeButton
             analyticsSource={analyticsSource}
             likeCount={moment.likeCount}
@@ -225,6 +231,11 @@ export function SocialMomentTile({
             onChange={(state) => onLikeChange(moment.id, state)}
             signedIn={signedIn}
             viewerHasLiked={moment.viewerHasLiked}
+          />
+          <CommentAction
+            commentCount={moment.commentCount ?? 0}
+            momentId={moment.id}
+            momentTitle={moment.title}
           />
         </div>
       </figcaption>
