@@ -48,6 +48,8 @@ export type PublicMomentListItem = {
   media: PublicMomentMedia[];
   /** Counted from the like rows; never stored on the Moment. */
   likeCount: number;
+  /** Counted through the same viewer-specific rules as the Comment list. */
+  commentCount?: number;
   /** Always false for a visitor with no session. */
   viewerHasLiked: boolean;
 };
@@ -135,8 +137,7 @@ export async function getPublicOwnerMoments(
 
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
   const response = await apiRequest<PublicMomentPage>(
-    `/api/v1/public/owners/${encodeURIComponent(handle)}/moments${query}`,
-    { auth: false }
+    `/api/v1/public/owners/${encodeURIComponent(handle)}/moments${query}`
   );
 
   return normalizeMomentPage(response.data);
@@ -150,8 +151,7 @@ export async function getPublicPetMoments(
 
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
   const response = await apiRequest<PublicMomentPage>(
-    `/api/v1/public/pets/${encodeURIComponent(publicSlug)}/moments${query}`,
-    { auth: false }
+    `/api/v1/public/pets/${encodeURIComponent(publicSlug)}/moments${query}`
   );
 
   return normalizeMomentPage(response.data);
@@ -174,8 +174,7 @@ export async function getPublicMoment(
 
   try {
     response = await apiRequest<PublicMomentListItem>(
-      `/api/v1/public/moments/${encodeURIComponent(momentId)}`,
-      { auth: false }
+      `/api/v1/public/moments/${encodeURIComponent(momentId)}`
     );
   } catch (error) {
     // The API answers 404 for every Moment it will not show — missing,
@@ -220,6 +219,7 @@ function normalizeMoment(item: PublicMomentListItem): PublicMomentListItem {
     })),
     media: item.media ?? [],
     likeCount: item.likeCount ?? 0,
+    commentCount: item.commentCount ?? 0,
     viewerHasLiked: item.viewerHasLiked ?? false,
   };
 }

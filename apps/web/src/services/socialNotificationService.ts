@@ -9,7 +9,10 @@ import type { PublicOwnerAttribution } from "@/services/publicSocialService";
  * There is no email counterpart to any of this.
  */
 
-export type SocialNotificationType = "NewFollower" | "MomentLiked";
+export type SocialNotificationType =
+  | "NewFollower"
+  | "MomentLiked"
+  | "MomentCommented";
 
 export type SocialNotification = {
   id: string;
@@ -26,6 +29,7 @@ export type SocialNotification = {
    * whole visibility question and refuses if the answer has changed.
    */
   momentId: string | null;
+  commentId?: string | null;
   momentTitle: string | null;
   momentSubjectNames: string[];
 };
@@ -45,14 +49,30 @@ export async function getSocialNotifications(
   );
 
   return {
-    items: (response.data?.items ?? []).map((item) => ({
-      ...item,
-      momentId: item.momentId ?? null,
-      momentSubjectNames: item.momentSubjectNames ?? [],
-    })),
+    // Forward-compatible by construction. An API deployed ahead of this web
+    // build may know an activity kind this UI does not; it must disappear, not
+    // be mislabelled as a Like.
+    items: (response.data?.items ?? [])
+      .filter((item) => isKnownNotificationType(item.type))
+      .map((item) => ({
+        ...item,
+        momentId: item.momentId ?? null,
+        commentId: item.commentId ?? null,
+        momentSubjectNames: item.momentSubjectNames ?? [],
+      })),
     nextCursor: response.data?.nextCursor ?? null,
     unreadCount: response.data?.unreadCount ?? 0,
   };
+}
+
+export function isKnownNotificationType(
+  value: string
+): value is SocialNotificationType {
+  return (
+    value === "NewFollower" ||
+    value === "MomentLiked" ||
+    value === "MomentCommented"
+  );
 }
 
 export async function getUnreadActivityCount(): Promise<number> {
