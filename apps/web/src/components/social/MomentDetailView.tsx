@@ -6,6 +6,8 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { LikeButton } from "@/components/social/LikeButton";
+import { CommentAction } from "@/components/social/CommentAction";
+import { MomentComments } from "@/components/social/MomentComments";
 import { MomentShareButton } from "@/components/social/MomentShareButton";
 import { SharedByIdentity } from "@/components/social/SharedByIdentity";
 import { MomentSubjects } from "@/components/social/SocialMomentParts";
@@ -130,6 +132,17 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
     []
   );
 
+  const onCommentCountChange = useCallback((commentCount: number) => {
+    setPhase((current) =>
+      current.state === "ready"
+        ? {
+            state: "ready",
+            moment: { ...current.moment, commentCount },
+          }
+        : current
+    );
+  }, []);
+
   return (
     <SocialLayout>
       <div className="mx-auto w-full max-w-2xl pb-4">
@@ -141,11 +154,18 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
         {phase.state === "unavailable" ? <MomentUnavailable /> : null}
         {phase.state === "error" ? <MomentLoadFailed onRetry={retry} /> : null}
         {phase.state === "ready" ? (
-          <MomentArticle
-            moment={phase.moment}
-            onLikeChange={onLikeChange}
-            signedIn={signedIn}
-          />
+          <>
+            <MomentArticle
+              moment={phase.moment}
+              onLikeChange={onLikeChange}
+              signedIn={signedIn}
+            />
+            <MomentComments
+              initialCount={phase.moment.commentCount ?? 0}
+              momentId={phase.moment.id}
+              onCountChange={onCommentCountChange}
+            />
+          </>
         ) : null}
       </div>
     </SocialLayout>
@@ -275,7 +295,7 @@ function MomentArticle({
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-pet-border pt-3">
-          <div className="-ml-2">
+          <div className="-ml-2 flex items-center gap-1">
             <LikeButton
               analyticsSource="direct"
               likeCount={moment.likeCount}
@@ -284,6 +304,11 @@ function MomentArticle({
               onChange={(state) => onLikeChange(moment.id, state)}
               signedIn={signedIn}
               viewerHasLiked={moment.viewerHasLiked}
+            />
+            <CommentAction
+              commentCount={moment.commentCount ?? 0}
+              momentId={moment.id}
+              momentTitle={moment.title}
             />
           </div>
 

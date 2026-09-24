@@ -17,10 +17,21 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getPublicMoment: vi.fn(),
+  getMomentComments: vi.fn(),
   // A visitor who followed a shared link: the case a Moment page exists for,
   // and the one that must not depend on a session.
   signedIn: { current: false as boolean | null },
 }));
+
+vi.mock("@/services/momentCommentService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/momentCommentService")
+  >("@/services/momentCommentService");
+  return {
+    ...actual,
+    getMomentComments: (...args: unknown[]) => mocks.getMomentComments(...args),
+  };
+});
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/moments/moment-1",
@@ -101,6 +112,12 @@ function moment(
 
 beforeEach(() => {
   mocks.getPublicMoment.mockResolvedValue(moment());
+  mocks.getMomentComments.mockResolvedValue({
+    items: [],
+    nextCursor: null,
+    commentCount: 0,
+    viewer: { canComment: false, requirement: "signIn", identity: null },
+  });
 });
 
 afterEach(() => {
@@ -123,7 +140,7 @@ describe("Moment detail", () => {
     expect(screen.getByText("A bright afternoon by the water.")).toBeTruthy();
   });
 
-  it("offers the actions a Moment has, and none it does not", async () => {
+  it("offers Like, Comment and Share as distinct actions", async () => {
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 
     await screen.findByTestId("moment-detail");
@@ -138,9 +155,9 @@ describe("Moment detail", () => {
 
     expect(like.getAttribute("aria-label")).toContain("3 likes");
 
-    // Comments do not exist. A page must not imply an affordance it lacks.
-    expect(screen.queryByRole("button", { name: /comment/i })).toBeNull();
-    expect(screen.queryByPlaceholderText(/comment/i)).toBeNull();
+    const comments = within(detail).getByRole("link", { name: /comments on beach day/i });
+    expect(comments.getAttribute("href")).toContain("#comments");
+    expect(await screen.findByRole("heading", { name: /comments/i })).toBeTruthy();
   });
 
   it("makes every item reachable, in the order they were arranged", async () => {

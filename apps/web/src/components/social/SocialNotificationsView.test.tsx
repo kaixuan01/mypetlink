@@ -62,6 +62,27 @@ function like(
   };
 }
 
+function comment(handle: string, commentId: string | null = "comment-1") {
+  return {
+    id: `comment-${handle}`,
+    type: "MomentCommented" as const,
+    createdAt: "2026-09-15T07:00:00Z",
+    isRead: false,
+    actor: {
+      handle,
+      displayName: `The ${handle} Family`,
+      avatarUrl: null,
+      avatarThumbnailUrl: null,
+    },
+    petName: "Mochi",
+    petPublicSlug: "mochi-pubmochi",
+    momentId: "8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c",
+    commentId,
+    momentTitle: "Beach day",
+    momentSubjectNames: ["Mochi"],
+  };
+}
+
 function page(
   items: SocialNotificationPage["items"],
   unreadCount = items.filter((item) => !item.isRead).length,
@@ -203,6 +224,30 @@ describe("SocialNotificationsView", () => {
     expect(row.getAttribute("aria-label")).toContain("View Mochi's profile");
   });
 
+  it("links Comment activity to the active Comment anchor", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(page([comment("limfamily")]));
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+    expect(row.textContent).toContain("commented on your Moment");
+    expect(row.getAttribute("href")).toBe(
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comment-comment-1"
+    );
+    expect(row.getAttribute("aria-label")).toContain("View this comment");
+  });
+
+  it("falls back to the Comments section when retained activity has no active Comment", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(page([comment("limfamily", null)]));
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+    expect(row.getAttribute("href")).toBe(
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comments"
+    );
+  });
+
   it("gives a timestamp machines can read", async () => {
     render(<SocialNotificationsView />);
 
@@ -237,7 +282,7 @@ describe("SocialNotificationsView", () => {
     const empty = await screen.findByTestId("activity-empty");
 
     expect(empty.textContent).toContain("Nothing new yet");
-    expect(empty.textContent).toContain("follow you or like a Moment");
+    expect(empty.textContent).toContain("follow you, like a Moment, or comment on one");
   });
 
   it("offers a retry when activity cannot be loaded", async () => {
