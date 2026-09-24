@@ -228,8 +228,9 @@ export function MomentCollaboratorsLine({
       data-testid="moment-collaborators"
     >
       <span className="shrink-0">with</span>{" "}
+      {/* `leading-5 py-0.5` keeps this link at the byline's 24px minimum target. */}
       <Link
-        className="truncate py-0.5 text-pet-ink/80 transition hover:text-pet-ink"
+        className="truncate py-0.5 leading-5 text-pet-ink/80 transition hover:text-pet-ink"
         href={ownerSocialProfilePath(collaborators[0].handle)}
       >
         {collaborators[0].displayName}
