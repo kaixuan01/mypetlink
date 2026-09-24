@@ -12,6 +12,7 @@ import { MomentShareButton } from "@/components/social/MomentShareButton";
 import { SharedByIdentity } from "@/components/social/SharedByIdentity";
 import { MomentSubjects } from "@/components/social/SocialMomentParts";
 import { MomentCollaborators } from "@/components/social/MomentCollaborators";
+import { MomentCollaborationPanel } from "@/components/social/MomentCollaborationPanel";
 import { allMomentPets } from "@/lib/momentCollaboration";
 import { Icon } from "@/components/ui/Icon";
 import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
@@ -123,6 +124,16 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
             : null
   );
 
+  // After joining or leaving a collaboration: the Moment's attribution
+  // changed, so read it again without flashing the loading state.
+  const refreshMoment = useCallback(() => {
+    getPublicMoment(momentId)
+      .then((moment) =>
+        setPhase((current) => (current.state === "ready" ? { state: "ready", moment } : current))
+      )
+      .catch(() => {});
+  }, [momentId]);
+
   const onLikeChange = useCallback(
     (_id: string, state: { likeCount: number; viewerHasLiked: boolean }) => {
       setPhase((current) =>
@@ -160,6 +171,11 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
             <MomentArticle
               moment={phase.moment}
               onLikeChange={onLikeChange}
+              signedIn={signedIn}
+            />
+            <MomentCollaborationPanel
+              momentId={phase.moment.id}
+              onChanged={refreshMoment}
               signedIn={signedIn}
             />
             <MomentComments
