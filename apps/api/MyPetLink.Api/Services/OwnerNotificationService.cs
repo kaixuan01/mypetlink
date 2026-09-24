@@ -256,6 +256,73 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         }
     }
 
+    /// <summary>
+    /// Stages "X invited Mochi to collaborate on a Moment" for the invitee.
+    /// Shown only while that collaboration is still Pending and unexpired.
+    /// </summary>
+    public Task StageCollaborationRequested(
+        Guid collaborationId,
+        Guid authorId,
+        Guid inviteeId,
+        Guid momentId,
+        Guid firstRequestedPetId,
+        CancellationToken cancellationToken = default)
+    {
+        _dbContext.OwnerNotifications.Add(new OwnerNotification
+        {
+            RecipientUserId = inviteeId,
+            ActorUserId = authorId,
+            MomentId = momentId,
+            SubjectPetId = firstRequestedPetId,
+            CollaborationId = collaborationId,
+            Type = OwnerNotificationType.MomentCollaborationRequested
+        });
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Stages "X joined your Moment" for the author. Shown only while that
+    /// collaboration is still Accepted.
+    /// </summary>
+    public Task StageCollaborationAccepted(
+        Guid collaborationId,
+        Guid inviteeId,
+        Guid authorId,
+        Guid momentId,
+        Guid firstAcceptedPetId,
+        CancellationToken cancellationToken = default)
+    {
+        _dbContext.OwnerNotifications.Add(new OwnerNotification
+        {
+            RecipientUserId = authorId,
+            ActorUserId = inviteeId,
+            MomentId = momentId,
+            SubjectPetId = firstAcceptedPetId,
+            CollaborationId = collaborationId,
+            Type = OwnerNotificationType.MomentCollaborationAccepted
+        });
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Stages the removal of a collaboration's UNREAD activity of the given
+    /// kinds. Read rows stay as history; read-time state filtering keeps them
+    /// out of the list once the collaboration no longer says what they say.
+    /// </summary>
+    public async Task StageCollaborationWithdrawal(
+        Guid collaborationId,
+        IReadOnlyCollection<OwnerNotificationType> types,
+        CancellationToken cancellationToken = default)
+    {
+        var unread = await _dbContext.OwnerNotifications
+            .Where(item => item.CollaborationId == collaborationId
+                && types.Contains(item.Type)
+                && item.ReadAt == null)
+            .ToListAsync(cancellationToken);
+
+        _dbContext.OwnerNotifications.RemoveRange(unread);
+    }
+
     // ---- reads ----------------------------------------------------------
 
     public async Task<OwnerNotificationPageResponse> GetAsync(

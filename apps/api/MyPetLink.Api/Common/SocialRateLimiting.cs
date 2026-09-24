@@ -20,6 +20,9 @@ public static class SocialRateLimitPolicies
     /// <summary>Creating a Comment. Per account.</summary>
     public const string Comment = "social-comment";
 
+    /// <summary>Inviting a household to collaborate on a Moment. Per account.</summary>
+    public const string CollaborationInvite = "social-collaboration-invite";
+
     /// <summary>
     /// Taking something back: unfollow, unlike, unblock.
     ///
@@ -92,6 +95,14 @@ public sealed class SocialRateLimitingOptions
     {
         PermitLimit = 20,
         WindowSeconds = 600,
+        QueueLimit = 0
+    };
+
+    /// <summary>~20 per hour. Daily and per-household caps are enforced in the service.</summary>
+    public RequestRateLimitOptions CollaborationInvite { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 3600,
         QueueLimit = 0
     };
 

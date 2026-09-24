@@ -54,7 +54,15 @@ public sealed class SocialIdentityIsolationTests
             typeof(MomentCommentViewerResponse),
             typeof(MomentCommentPageResponse),
             typeof(CreateMomentCommentResponse),
-            typeof(DeleteMomentCommentResponse)
+            typeof(DeleteMomentCommentResponse),
+            typeof(MomentCollaborationPetResponse),
+            typeof(MomentCollaborationResponse),
+            typeof(MomentCollaborationListResponse),
+            typeof(CollaborationCandidatePetResponse),
+            typeof(CollaborationCandidateResponse),
+            typeof(CollaborationCandidatesResponse),
+            typeof(IncomingMomentCollaborationResponse),
+            typeof(PublicMomentCollaborationResponse)
         };
 
         var offenders = new List<string>();
@@ -91,12 +99,20 @@ public sealed class SocialIdentityIsolationTests
                 typeof(MomentCommentResponse),
                 typeof(MomentCommentViewerResponse),
                 typeof(MomentCommentPageResponse),
-                typeof(CreateMomentCommentResponse)
+                typeof(CreateMomentCommentResponse),
+                typeof(MomentCollaborationPetResponse),
+                typeof(MomentCollaborationResponse),
+                typeof(MomentCollaborationListResponse),
+                typeof(CollaborationCandidatePetResponse),
+                typeof(CollaborationCandidateResponse),
+                typeof(IncomingMomentCollaborationResponse),
+                typeof(PublicMomentCollaborationResponse)
             }
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.Name is
-                    "UserId" or "AuthorUserId" or "OwnerProfileId")
+                    "UserId" or "AuthorUserId" or "OwnerProfileId"
+                    or "PetId" or "InviterUserId" or "InviteeUserId" or "OwnerUserId")
                 .Select(property => $"{type.Name}.{property.Name}"))
             .ToArray();
 

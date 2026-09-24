@@ -243,6 +243,54 @@ public interface IOwnerNotificationService : ISkeletonService
     Task StageCommentNotificationWithdrawal(
         Guid actorId, Guid momentId, Guid commentId,
         CancellationToken cancellationToken = default);
+
+    Task StageCollaborationRequested(
+        Guid collaborationId, Guid authorId, Guid inviteeId, Guid momentId,
+        Guid firstRequestedPetId, CancellationToken cancellationToken = default);
+
+    Task StageCollaborationAccepted(
+        Guid collaborationId, Guid inviteeId, Guid authorId, Guid momentId,
+        Guid firstAcceptedPetId, CancellationToken cancellationToken = default);
+
+    Task StageCollaborationWithdrawal(
+        Guid collaborationId, IReadOnlyCollection<OwnerNotificationType> types,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Consent-based Moment collaboration. The actor is always the JWT subject; the
+/// Moment stays its author's, and a collaborator controls only their own
+/// household's participation.
+/// </summary>
+public interface IMomentCollaborationService : ISkeletonService
+{
+    Task<CollaborationCandidatesResponse> GetCandidatesAsync(
+        Guid? currentUserId, string? query, Guid? momentId,
+        CancellationToken cancellationToken = default);
+
+    Task<MomentCollaborationListResponse> GetForMomentAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+
+    Task<MomentCollaborationListResponse> InviteAsync(
+        Guid? currentUserId, Guid momentId, CreateMomentCollaborationRequest? request,
+        CancellationToken cancellationToken = default);
+
+    Task<MomentCollaborationListResponse> RevokeAsync(
+        Guid? currentUserId, Guid momentId, Guid collaborationId,
+        CancellationToken cancellationToken = default);
+
+    Task<IncomingMomentCollaborationsResponse> GetIncomingAsync(
+        Guid? currentUserId, CancellationToken cancellationToken = default);
+
+    Task<MomentCollaborationListResponse> AcceptAsync(
+        Guid? currentUserId, Guid collaborationId, AcceptMomentCollaborationRequest? request,
+        CancellationToken cancellationToken = default);
+
+    Task<MomentCollaborationListResponse> DeclineAsync(
+        Guid? currentUserId, Guid collaborationId, CancellationToken cancellationToken = default);
+
+    Task<MomentCollaborationListResponse> LeaveAsync(
+        Guid? currentUserId, Guid collaborationId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>

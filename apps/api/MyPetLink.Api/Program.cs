@@ -138,6 +138,10 @@ builder.Services.AddRateLimiter(options =>
         social => social.Comment);
     AddSocialPolicy(
         options,
+        SocialRateLimitPolicies.CollaborationInvite,
+        social => social.CollaborationInvite);
+    AddSocialPolicy(
+        options,
         SocialRateLimitPolicies.MomentCreate,
         social => social.MomentCreate);
     AddSocialPolicy(
@@ -407,6 +411,7 @@ builder.Services.AddScoped<IPublicSocialProfileService, PublicSocialProfileServi
 builder.Services.AddScoped<ISocialGraphService, SocialGraphService>();
 builder.Services.AddScoped<IMomentLikeService, MomentLikeService>();
 builder.Services.AddScoped<IMomentCommentService, MomentCommentService>();
+builder.Services.AddScoped<IMomentCollaborationService, MomentCollaborationService>();
 builder.Services.AddScoped<IOwnerNotificationService, OwnerNotificationService>();
 builder.Services.AddScoped<ISocialFeedService, SocialFeedService>();
 builder.Services.AddScoped<ISocialDiscoveryService, SocialDiscoveryService>();

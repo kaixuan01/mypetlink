@@ -57,6 +57,7 @@ internal sealed class SocialSurfaceHarness : IDisposable
         Graph = new SocialGraphService(db, r2, Notifications);
         Likes = new MomentLikeService(db, Notifications);
         Comments = new MomentCommentService(db, Notifications, r2);
+        Collaborations = new MomentCollaborationService(db, Notifications, r2);
         PetSettings = new PetSocialSettingsService(
             db,
             r2,
@@ -82,6 +83,8 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public MomentLikeService Likes { get; }
 
     public MomentCommentService Comments { get; }
+
+    public MomentCollaborationService Collaborations { get; }
 
     public OwnerNotificationService Notifications { get; }
 
@@ -117,6 +120,32 @@ internal sealed class SocialSurfaceHarness : IDisposable
         await db.SaveChangesAsync();
 
         return new SocialSurfaceHarness(db);
+    }
+
+    /// <summary>
+    /// Adds another social, discoverable-by-default household with one pet,
+    /// for tests that need more households than the standing cast.
+    /// </summary>
+    public async Task AddHouseholdAsync(
+        Guid userId,
+        string handle,
+        string displayName,
+        Guid petId,
+        string petName,
+        bool discoverable = true)
+    {
+        AddOwner(Db, userId, $"{handle.ToLowerInvariant()}@example.com", displayName, handle, displayName,
+            social: true, discoverable: discoverable);
+        await Db.SaveChangesAsync();
+        AddPet(Db, petId, userId, petName, "Cat", social: true, discoverable: discoverable);
+        await Db.SaveChangesAsync();
+    }
+
+    /// <summary>Adds another pet to an existing household.</summary>
+    public async Task AddPetAsync(Guid ownerId, Guid petId, string petName, bool social = true)
+    {
+        AddPet(Db, petId, ownerId, petName, "Dog", social: social, discoverable: true);
+        await Db.SaveChangesAsync();
     }
 
     /// <summary>
