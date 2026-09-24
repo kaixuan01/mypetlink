@@ -173,39 +173,7 @@ export function MomentByline({
         </span>
       </Link>
 
-      {collaborators.length > 0 ? (
-        compact ? (
-          <span
-            className="shrink-0 text-xs font-bold text-pet-muted"
-            data-testid="moment-collaborators"
-          >
-            <span aria-hidden="true">+{collaborators.length}</span>
-            <span className="sr-only">
-              {` with ${formatCollaborators(collaborators)}`}
-            </span>
-          </span>
-        ) : (
-          <span
-            className="flex min-w-0 items-center gap-1 text-xs font-bold text-pet-muted"
-            data-testid="moment-collaborators"
-          >
-            <span className="shrink-0">with</span>{" "}
-            <Link
-              className="truncate py-0.5 text-pet-ink/80 transition hover:text-pet-ink"
-              href={ownerSocialProfilePath(collaborators[0].handle)}
-            >
-              {collaborators[0].displayName}
-            </Link>
-            {collaborators.length > 1 ? " " : null}
-            {collaborators.length > 1 ? (
-              <span className="shrink-0">
-                and {collaborators.length - 1}{" "}
-                {collaborators.length === 2 ? "other" : "others"}
-              </span>
-            ) : null}
-          </span>
-        )
-      ) : null}
+      <MomentCollaboratorsLine collaborators={collaborators} compact={compact} />
 
       {publishedAt && now !== undefined ? (
         // A machine-readable instant, a human-readable age, and the exact time
@@ -224,6 +192,55 @@ export function MomentByline({
         </time>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * "with The Lee Family" / "with The Lee Family and 2 others" — the households
+ * that joined a Moment, never its author. Part of the byline, and shown on its
+ * own where the byline is hidden (a household's own profile), so another
+ * household's pets are never read as the author's. A grid tile has room only
+ * for a compact "+N"; the full names are still spoken.
+ */
+export function MomentCollaboratorsLine({
+  collaborators,
+  compact = false,
+}: {
+  collaborators: PublicOwnerAttribution[];
+  compact?: boolean;
+}) {
+  if (collaborators.length === 0) {
+    return null;
+  }
+
+  if (compact) {
+    return (
+      <span className="shrink-0 text-xs font-bold text-pet-muted" data-testid="moment-collaborators">
+        <span aria-hidden="true">+{collaborators.length}</span>
+        <span className="sr-only">{` with ${formatCollaborators(collaborators)}`}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="flex min-w-0 items-center gap-1 text-xs font-bold text-pet-muted"
+      data-testid="moment-collaborators"
+    >
+      <span className="shrink-0">with</span>{" "}
+      <Link
+        className="truncate py-0.5 text-pet-ink/80 transition hover:text-pet-ink"
+        href={ownerSocialProfilePath(collaborators[0].handle)}
+      >
+        {collaborators[0].displayName}
+      </Link>
+      {collaborators.length > 1 ? " " : null}
+      {collaborators.length > 1 ? (
+        <span className="shrink-0">
+          and {collaborators.length - 1} {collaborators.length === 2 ? "other" : "others"}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

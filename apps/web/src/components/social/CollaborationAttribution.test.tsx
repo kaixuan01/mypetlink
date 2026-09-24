@@ -146,4 +146,13 @@ describe("collaboration attribution", () => {
     const { container } = render(<MomentCollaborators collaborations={[]} />);
     expect(container.textContent).toBe("");
   });
+
+  it("keeps \"with\" where the byline is hidden, so pets are never read as the author's", () => {
+    render(
+      <SocialMomentCard moment={moment([lee])} onLikeChange={vi.fn()} showAuthor={false} signedIn={false} />
+    );
+
+    expect(screen.queryByTestId("moment-byline")).toBeNull();
+    expect(screen.getByTestId("moment-collaborators").textContent).toBe("with The Lee Family");
+  });
 });

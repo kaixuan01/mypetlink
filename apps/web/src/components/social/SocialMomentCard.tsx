@@ -9,6 +9,7 @@ import type { AnalyticsSocialSource } from "@/lib/analytics";
 import { allMomentPets, collaboratorHouseholds } from "@/lib/momentCollaboration";
 import {
   MomentByline,
+  MomentCollaboratorsLine,
   MomentMedia,
   MomentSubjects,
 } from "@/components/social/SocialMomentParts";
@@ -81,6 +82,9 @@ export function SocialMomentCard({
             now={now}
             publishedAt={moment.publishedAt}
           />
+        ) : null}
+        {!(showAuthor && moment.author) ? (
+          <MomentCollaboratorsLine collaborators={collaboratorHouseholds(moment)} />
         ) : null}
       </header>
 
@@ -230,6 +234,11 @@ export function SocialMomentTile({
               compact
               publishedAt={null}
             />
+          </div>
+        ) : null}
+        {!(showAuthor && moment.author) && (moment.collaborations ?? []).length > 0 ? (
+          <div className="relative z-10">
+            <MomentCollaboratorsLine collaborators={collaboratorHouseholds(moment)} compact />
           </div>
         ) : null}
 
