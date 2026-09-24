@@ -59,6 +59,27 @@ public sealed class MomentCommentsController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    /// <summary>
+    /// Households the signed-in commenter might mean by "@" on this Moment.
+    /// Authenticated: the answer depends on who is asking.
+    /// </summary>
+    [Authorize]
+    [EnableRateLimiting(SocialRateLimitPolicies.Search)]
+    [HttpGet("social/moments/{momentId:guid}/comments/mention-suggestions")]
+    public async Task<IActionResult> MentionSuggestions(
+        Guid momentId,
+        [FromQuery] string? q,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var response = await _comments.GetMentionSuggestionsAsync(
+            _currentUserService.Current.UserId,
+            momentId,
+            q,
+            cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [Authorize]
     [EnableRateLimiting(SocialRateLimitPolicies.Withdraw)]
     [HttpDelete("social/moments/{momentId:guid}/comments/{commentId:guid}")]

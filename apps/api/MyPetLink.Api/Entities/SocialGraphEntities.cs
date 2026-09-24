@@ -248,6 +248,34 @@ public sealed class MomentComment : Entity
     public PetMemory Moment { get; set; } = null!;
     public User AuthorUser { get; set; } = null!;
     public User? DeletedByUser { get; set; }
+    public ICollection<MomentCommentMention> Mentions { get; set; } = new List<MomentCommentMention>();
+}
+
+/// <summary>
+/// One household a Comment mentions: which account, and where its "@handle"
+/// sits in the body.
+///
+/// The body keeps the text exactly as written; this row is what the text
+/// means. It names the account, never the handle, because a handle can be
+/// renamed, held and eventually handed to somebody else — "@oldname" in last
+/// year's Comment must go on meaning the household that was mentioned, and
+/// can never come to mean a stranger. Start and Length are UTF-16 offsets into
+/// the stored body and include the "@".
+///
+/// Written once, when the Comment is created (Comments are never edited), and
+/// removed with the body when the Comment is deleted. Whether it may be shown
+/// is decided at read time by <c>SocialVisibility.VisibleCommentMentions</c>.
+/// </summary>
+public sealed class MomentCommentMention : Entity
+{
+    public Guid CommentId { get; set; }
+    public Guid MentionedUserId { get; set; }
+    public int Start { get; set; }
+    public int Length { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public MomentComment Comment { get; set; } = null!;
+    public User MentionedUser { get; set; } = null!;
 }
 
 /// <summary>

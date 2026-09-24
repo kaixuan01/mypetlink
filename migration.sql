@@ -10181,3 +10181,66 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924144135_AddCommentMentions'
+)
+BEGIN
+    CREATE TABLE [MomentCommentMentions] (
+        [Id] uniqueidentifier NOT NULL,
+        [CommentId] uniqueidentifier NOT NULL,
+        [MentionedUserId] uniqueidentifier NOT NULL,
+        [Start] int NOT NULL,
+        [Length] int NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_MomentCommentMentions] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_MomentCommentMentions_Span] CHECK ([Start] >= 0 AND [Length] >= 4 AND [Length] <= 31 AND [Start] + [Length] <= 500),
+        CONSTRAINT [FK_MomentCommentMentions_MomentComments_CommentId] FOREIGN KEY ([CommentId]) REFERENCES [MomentComments] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentCommentMentions_Users_MentionedUserId] FOREIGN KEY ([MentionedUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924144135_AddCommentMentions'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_MomentCommentMentions_CommentId_MentionedUserId] ON [MomentCommentMentions] ([CommentId], [MentionedUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924144135_AddCommentMentions'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_MomentCommentMentions_CommentId_Start] ON [MomentCommentMentions] ([CommentId], [Start]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924144135_AddCommentMentions'
+)
+BEGIN
+    CREATE INDEX [IX_MomentCommentMentions_MentionedUserId_CommentId] ON [MomentCommentMentions] ([MentionedUserId], [CommentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924144135_AddCommentMentions'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260924144135_AddCommentMentions', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

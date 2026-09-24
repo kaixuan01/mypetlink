@@ -439,7 +439,8 @@ public enum OwnerNotificationType
     MomentLiked,
     MomentCommented,
     MomentCollaborationRequested,
-    MomentCollaborationAccepted
+    MomentCollaborationAccepted,
+    MomentCommentMentioned
 }
 
 /// <summary>
