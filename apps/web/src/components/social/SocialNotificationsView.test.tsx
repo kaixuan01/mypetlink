@@ -38,6 +38,21 @@ function follow(handle: string, isRead = false) {
   };
 }
 
+function collaboration(
+  handle: string,
+  type: "MomentCollaborationRequested" | "MomentCollaborationAccepted",
+  pets: string[]
+) {
+  return {
+    ...follow(handle),
+    id: `collab-${handle}`,
+    type,
+    momentId: "8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c",
+    momentTitle: "Beach day",
+    collaborationPetNames: pets,
+  };
+}
+
 function like(
   handle: string,
   pets: string[],
@@ -246,6 +261,35 @@ describe("SocialNotificationsView", () => {
     expect(row.getAttribute("href")).toBe(
       "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comments"
     );
+  });
+
+  it("opens a collaboration invitation on its Moment, naming the requested pets", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(
+      page([collaboration("tanfamily", "MomentCollaborationRequested", ["Mochi", "Milo"])])
+    );
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+    expect(row.textContent).toContain("invited Mochi & Milo to collaborate on a Moment.");
+    expect(row.getAttribute("href")).toBe("/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c");
+    expect(row.getAttribute("aria-label")).toContain("Open the invitation");
+    // Answering happens on the Moment, never inline in Activity.
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(row.textContent).not.toContain("liked");
+  });
+
+  it("tells the author which pets joined their Moment", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(
+      page([collaboration("limfamily", "MomentCollaborationAccepted", ["Buddy"])])
+    );
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+    expect(row.textContent).toContain("joined your Moment with Buddy.");
+    expect(row.getAttribute("aria-label")).toContain("View this Moment");
+    expect(row.textContent).not.toContain("edit");
   });
 
   it("gives a timestamp machines can read", async () => {

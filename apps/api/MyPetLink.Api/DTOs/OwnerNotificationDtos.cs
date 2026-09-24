@@ -51,6 +51,13 @@ public sealed record OwnerNotificationResponse(
 
     string? MomentTitle,
 
+    /// <summary>
+    /// For collaboration activity: the pets it is about — the ones requested
+    /// for an invitation, the ones that joined for an acceptance. Empty
+    /// otherwise.
+    /// </summary>
+    IReadOnlyCollection<string> CollaborationPetNames,
+
     /// <summary>Every pet the liked Moment is about, for "Moment of Mochi &amp; Coco".</summary>
     IReadOnlyCollection<string> MomentSubjectNames);
 

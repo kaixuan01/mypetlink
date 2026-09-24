@@ -207,38 +207,10 @@ function ActivityRow({
   item: SocialNotification;
   now?: number;
 }) {
-  // A like now opens the exact Moment, which is what the sentence above it
-  // describes. The pet's profile remains the fallback for a row recorded before
-  // Moments had a page of their own; neither destination is a promise that the
-  // content is still there, because both re-check on arrival.
-  const destination =
-    item.type === "MomentCommented" && item.momentId
-      ? `${momentPath(item.momentId)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`
-      : item.type === "MomentLiked" && item.momentId
-        ? momentPath(item.momentId)
-      : item.type === "MomentLiked" && item.petPublicSlug
-        ? `/p/${item.petPublicSlug}`
-        : ownerSocialProfilePath(item.actor.handle);
-
-  const subjects = formatMomentSubjects(item.momentSubjectNames);
-  const sentence =
-    item.type === "NewFollower"
-      ? `${item.actor.displayName} started following you.`
-      : item.type === "MomentCommented"
-        ? `${item.actor.displayName} commented on your Moment.`
-        : subjects
-        ? `${item.actor.displayName} liked your Moment of ${subjects}.`
-        : `${item.actor.displayName} liked your Moment.`;
-
-  // The link's accessible name says where it goes, not just what happened.
-  const destinationLabel =
-    item.type === "MomentCommented" && item.momentId
-      ? "View this comment"
-      : item.type === "MomentLiked" && item.momentId
-      ? "View this Moment"
-      : item.type === "MomentLiked" && item.petName
-        ? `View ${item.petName}'s profile`
-        : `View ${item.actor.displayName}'s profile`;
+  const copy = activityCopy(item);
+  const destination = copy.destination;
+  const sentence = `${item.actor.displayName} ${copy.predicate}`;
+  const destinationLabel = copy.destinationLabel;
 
   return (
     <li>
@@ -266,13 +238,7 @@ function ActivityRow({
             <Icon
               aria-hidden="true"
               className="h-5 w-5 text-pet-muted"
-              name={
-                item.type === "MomentLiked"
-                  ? "heart"
-                  : item.type === "MomentCommented"
-                    ? "comment"
-                    : "users"
-              }
+              name={copy.icon}
             />
           )}
         </span>
@@ -280,13 +246,7 @@ function ActivityRow({
         <span aria-hidden="true" className="min-w-0 flex-1">
           <span className="block text-sm font-semibold leading-5 text-pet-ink">
             <span className="font-black">{item.actor.displayName}</span>{" "}
-            {item.type === "NewFollower"
-              ? "started following you."
-              : item.type === "MomentCommented"
-                ? "commented on your Moment."
-                : subjects
-                ? `liked your Moment of ${subjects}.`
-                : "liked your Moment."}
+            {copy.predicate}
           </span>
           <span className="mt-0.5 block truncate text-xs font-bold text-pet-muted">
             @{item.actor.handle}
@@ -320,4 +280,83 @@ function ActivityRow({
       </Link>
     </li>
   );
+}
+
+/**
+ * What an activity row says, where it goes and how it is labelled, in one
+ * place so the visible sentence and the link's accessible name never drift.
+ *
+ * A like opens the exact Moment; the pet's profile remains the fallback for a
+ * row recorded before Moments had a page of their own. A collaboration
+ * invitation opens the Moment, where the invitation itself is answered —
+ * never inline here. No destination promises the content is still there;
+ * each re-checks on arrival.
+ */
+function activityCopy(item: SocialNotification): {
+  predicate: string;
+  destination: string;
+  destinationLabel: string;
+  icon: "heart" | "comment" | "users";
+} {
+  const subjects = formatMomentSubjects(item.momentSubjectNames);
+  const collaborationPets = formatMomentSubjects(item.collaborationPetNames ?? []);
+  const profile = {
+    destination: ownerSocialProfilePath(item.actor.handle),
+    destinationLabel: `View ${item.actor.displayName}'s profile`,
+  };
+
+  switch (item.type) {
+    case "NewFollower":
+      return { predicate: "started following you.", icon: "users", ...profile };
+    case "MomentCommented":
+      return item.momentId
+        ? {
+            predicate: "commented on your Moment.",
+            destination: `${momentPath(item.momentId)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
+            destinationLabel: "View this comment",
+            icon: "comment",
+          }
+        : { predicate: "commented on your Moment.", icon: "comment", ...profile };
+    case "MomentCollaborationRequested":
+      return {
+        predicate: collaborationPets
+          ? `invited ${collaborationPets} to collaborate on a Moment.`
+          : "invited your household to collaborate on a Moment.",
+        ...(item.momentId
+          ? { destination: momentPath(item.momentId), destinationLabel: "Open the invitation" }
+          : profile),
+        icon: "users",
+      };
+    case "MomentCollaborationAccepted":
+      return {
+        predicate: collaborationPets
+          ? `joined your Moment with ${collaborationPets}.`
+          : "joined your Moment.",
+        ...(item.momentId
+          ? { destination: momentPath(item.momentId), destinationLabel: "View this Moment" }
+          : profile),
+        icon: "users",
+      };
+    case "MomentLiked":
+    default: {
+      const predicate = subjects ? `liked your Moment of ${subjects}.` : "liked your Moment.";
+      if (item.momentId) {
+        return {
+          predicate,
+          destination: momentPath(item.momentId),
+          destinationLabel: "View this Moment",
+          icon: "heart",
+        };
+      }
+      if (item.petPublicSlug) {
+        return {
+          predicate,
+          destination: `/p/${item.petPublicSlug}`,
+          destinationLabel: item.petName ? `View ${item.petName}'s profile` : profile.destinationLabel,
+          icon: "heart",
+        };
+      }
+      return { predicate, icon: "heart", ...profile };
+    }
+  }
 }

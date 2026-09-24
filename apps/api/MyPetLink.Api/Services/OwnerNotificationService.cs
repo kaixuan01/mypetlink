@@ -364,6 +364,7 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                     ? item.CommentId
                     : null,
                 MomentTitle = item.Moment != null ? item.Moment.Title : null,
+                item.CollaborationId,
                 PetName = item.SubjectPet != null ? item.SubjectPet.Name : null,
                 PetSlug = item.SubjectPet != null ? item.SubjectPet.Slug : null
             })
@@ -374,6 +375,11 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
 
         var subjectNames = await LoadMomentSubjectNamesAsync(
             page.Where(row => row.MomentId.HasValue).Select(row => row.MomentId!.Value).ToArray(),
+            cancellationToken);
+        var collaborationPets = await LoadCollaborationPetNamesAsync(
+            page.Where(row => row.CollaborationId.HasValue)
+                .Select(row => (row.CollaborationId!.Value, row.Type))
+                .ToArray(),
             cancellationToken);
 
         var last = page.Count > 0 ? page[^1] : null;
@@ -395,6 +401,10 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                     row.MomentId,
                     row.CommentId,
                     row.MomentTitle,
+                    row.CollaborationId.HasValue
+                        && collaborationPets.TryGetValue(row.CollaborationId.Value, out var petNames)
+                        ? petNames
+                        : Array.Empty<string>(),
                     row.MomentId.HasValue && subjectNames.TryGetValue(row.MomentId.Value, out var names)
                         ? names
                         : Array.Empty<string>()))
@@ -486,6 +496,8 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     private IQueryable<OwnerNotification> VisibleNotifications(Guid recipientId)
     {
         var blocked = SocialBlocks.BlockedAccountIds(_dbContext, recipientId);
+        var now = DateTimeOffset.UtcNow;
+        var visibleMoments = _dbContext.PetMemories.SociallyVisible();
 
         return _dbContext.OwnerNotifications
             .AsNoTracking()
@@ -503,7 +515,19 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 && item.Type != OwnerNotificationType.Unknown
                 && (item.Type == OwnerNotificationType.NewFollower
                     || item.Type == OwnerNotificationType.MomentLiked
-                    || item.Type == OwnerNotificationType.MomentCommented)
+                    || item.Type == OwnerNotificationType.MomentCommented
+                    // Collaboration activity says what its collaboration is
+                    // right now, or nothing: an invitation only while it can
+                    // still be answered, a join only while it still stands.
+                    || (item.Type == OwnerNotificationType.MomentCollaborationRequested
+                        && item.Collaboration != null
+                        && item.Collaboration.Status == MomentCollaborationStatus.Pending
+                        && item.Collaboration.ExpiresAt > now
+                        && item.Collaboration.InviteeUserId == recipientId
+                        && visibleMoments.Any(moment => moment.Id == item.Collaboration.MomentId))
+                    || (item.Type == OwnerNotificationType.MomentCollaborationAccepted
+                        && item.Collaboration != null
+                        && item.Collaboration.Status == MomentCollaborationStatus.Accepted))
                 && !blocked.Contains(item.ActorUserId.Value));
     }
 
@@ -529,6 +553,40 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     /// Mochi &amp; Coco". Batched, and gated the same way every other social
     /// projection gates a subject.
     /// </summary>
+    private async Task<Dictionary<Guid, string[]>> LoadCollaborationPetNamesAsync(
+        IReadOnlyCollection<(Guid CollaborationId, OwnerNotificationType Type)> rows,
+        CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0)
+        {
+            return new Dictionary<Guid, string[]>();
+        }
+
+        var ids = rows.Select(row => row.CollaborationId).Distinct().ToArray();
+        var accepted = rows
+            .Where(row => row.Type == OwnerNotificationType.MomentCollaborationAccepted)
+            .Select(row => row.CollaborationId)
+            .ToHashSet();
+
+        var pets = await _dbContext.MomentCollaborationPets
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.CollaborationId))
+            .OrderBy(item => item.Pet.Name)
+            .Select(item => new { item.CollaborationId, item.Pet.Name, item.IsAccepted })
+            .ToListAsync(cancellationToken);
+
+        return pets
+            .GroupBy(item => item.CollaborationId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    // A join names the pets that joined; an invitation, the
+                    // pets it asked about.
+                    .Where(item => !accepted.Contains(group.Key) || item.IsAccepted)
+                    .Select(item => item.Name)
+                    .ToArray());
+    }
+
     private async Task<Dictionary<Guid, string[]>> LoadMomentSubjectNamesAsync(
         IReadOnlyCollection<Guid> momentIds,
         CancellationToken cancellationToken)

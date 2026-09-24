@@ -37,4 +37,27 @@ describe("Social activity compatibility", () => {
 
     expect(page.items).toEqual([]);
   });
+
+  it("keeps collaboration activity, with pet names defaulted", async () => {
+    const actor = { handle: "tanfamily", displayName: "The Tan Family", avatarUrl: null, avatarThumbnailUrl: null };
+    mocks.apiRequest.mockResolvedValue({
+      data: {
+        items: [
+          { id: "a", type: "MomentCollaborationRequested", createdAt: "2026-09-24T00:00:00Z", isRead: false, actor, momentId: "m1", collaborationPetNames: ["Mochi"] },
+          { id: "b", type: "MomentCollaborationAccepted", createdAt: "2026-09-24T00:00:00Z", isRead: false, actor, momentId: "m1" },
+        ],
+        nextCursor: null,
+        unreadCount: 2,
+      },
+    });
+
+    const page = await getSocialNotifications();
+
+    expect(page.items.map((item) => item.type)).toEqual([
+      "MomentCollaborationRequested",
+      "MomentCollaborationAccepted",
+    ]);
+    expect(page.items[0].collaborationPetNames).toEqual(["Mochi"]);
+    expect(page.items[1].collaborationPetNames).toEqual([]);
+  });
 });

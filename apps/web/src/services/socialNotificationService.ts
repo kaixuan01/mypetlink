@@ -12,7 +12,9 @@ import type { PublicOwnerAttribution } from "@/services/publicSocialService";
 export type SocialNotificationType =
   | "NewFollower"
   | "MomentLiked"
-  | "MomentCommented";
+  | "MomentCommented"
+  | "MomentCollaborationRequested"
+  | "MomentCollaborationAccepted";
 
 export type SocialNotification = {
   id: string;
@@ -32,6 +34,8 @@ export type SocialNotification = {
   commentId?: string | null;
   momentTitle: string | null;
   momentSubjectNames: string[];
+  /** Requested pets for an invitation; the pets that joined for an acceptance. */
+  collaborationPetNames?: string[];
 };
 
 export type SocialNotificationPage = {
@@ -58,6 +62,7 @@ export async function getSocialNotifications(
         ...item,
         momentId: item.momentId ?? null,
         commentId: item.commentId ?? null,
+        collaborationPetNames: item.collaborationPetNames ?? [],
         momentSubjectNames: item.momentSubjectNames ?? [],
       })),
     nextCursor: response.data?.nextCursor ?? null,
@@ -71,7 +76,9 @@ export function isKnownNotificationType(
   return (
     value === "NewFollower" ||
     value === "MomentLiked" ||
-    value === "MomentCommented"
+    value === "MomentCommented" ||
+    value === "MomentCollaborationRequested" ||
+    value === "MomentCollaborationAccepted"
   );
 }
 
