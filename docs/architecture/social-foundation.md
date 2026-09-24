@@ -601,8 +601,10 @@ anywhere in Community (see §12).
 **Activity is in-app only.** `OwnerNotification` rows carry ids and never
 identity; the actor's handle, name and avatar resolve at read time from their
 current public profile, which is what stops a blocked or departed account
-keeping an identity alive in somebody else's list. No social email exists and
-none is planned for Phase 1.
+keeping an identity alive in somebody else's list. An actor whose account is
+not Active (suspended, deleted or invited) is hidden from Activity and the
+unread badge the same way — read-time only, so reinstatement restores the
+rows. No social email exists and none is planned for Phase 1.
 
 ## 12c. Phase 2A Moment Comments
 
