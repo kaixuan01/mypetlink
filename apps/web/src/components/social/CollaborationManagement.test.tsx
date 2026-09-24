@@ -144,6 +144,24 @@ describe("choosing a household", () => {
       vi.useRealTimers();
     }
   });
+
+  it("points to Follow, not to a handle search that cannot find hidden households", async () => {
+    mocks.candidates.mockResolvedValue([]);
+    vi.useFakeTimers();
+    try {
+      render(<CollaboratorPicker confirmLabel="Add" onCancel={vi.fn()} onConfirm={vi.fn()} />);
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "quietpaws" } });
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      const hint = screen.getByText(/No households found\./);
+      expect(hint.textContent).toContain("follow them from their Community profile first");
+      expect(hint.textContent).not.toMatch(/exact @handle/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("the Collaborators section while creating", () => {

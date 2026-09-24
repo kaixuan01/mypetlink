@@ -291,7 +291,9 @@ export function CollaboratorPicker({
       ) : candidates.length === 0 ? (
         <p className="text-xs font-semibold text-pet-muted">
           {query.trim().length >= 2
-            ? "No households found. Try their exact @handle."
+            ? // Search never reveals a household that isn't discoverable, even by
+              // its exact handle; following one is how it becomes invitable.
+              "No households found. To invite a household that isn't listed, follow them from their Community profile first."
             : "Households you follow appear here. Type a name or @handle to search."}
         </p>
       ) : null}
