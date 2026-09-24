@@ -68,6 +68,7 @@ public sealed class PetMemory : AuditableEntity
     public MediaFile? CoverMediaFile { get; set; }
     public ICollection<MomentPet> MomentPets { get; set; } = new List<MomentPet>();
     public ICollection<MomentLike> Likes { get; set; } = new List<MomentLike>();
+    public ICollection<MomentComment> Comments { get; set; } = new List<MomentComment>();
 }
 
 public sealed class CareRecord : AuditableEntity

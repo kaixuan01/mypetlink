@@ -157,6 +157,27 @@ public sealed class MomentLike : Entity
 }
 
 /// <summary>
+/// One household-authored plain-text comment on a Moment.
+///
+/// Comments are authored by accounts, never pets. Deletion is a tombstone that
+/// preserves authorship and ordering but deliberately destroys the body: this
+/// table is not a hidden moderation-evidence store.
+/// </summary>
+public sealed class MomentComment : Entity
+{
+    public Guid MomentId { get; set; }
+    public Guid AuthorUserId { get; set; }
+    public string Body { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? DeletedAt { get; set; }
+    public Guid? DeletedByUserId { get; set; }
+
+    public PetMemory Moment { get; set; } = null!;
+    public User AuthorUser { get; set; } = null!;
+    public User? DeletedByUser { get; set; }
+}
+
+/// <summary>
 /// An in-app activity notification addressed to a human owner.
 ///
 /// In-app only. Social email is not modelled: every existing
@@ -179,6 +200,13 @@ public sealed class OwnerNotification : Entity
 
     public Guid? MomentId { get; set; }
 
+    /// <summary>
+    /// The latest active comment represented by a coalesced comment activity
+    /// row. Null for other activity types and for retained read history whose
+    /// comment has since been removed.
+    /// </summary>
+    public Guid? CommentId { get; set; }
+
     public OwnerNotificationType Type { get; set; } = OwnerNotificationType.Unknown;
 
     public DateTimeOffset? ReadAt { get; set; }
@@ -188,4 +216,5 @@ public sealed class OwnerNotification : Entity
     public User? ActorUser { get; set; }
     public Pet? SubjectPet { get; set; }
     public PetMemory? Moment { get; set; }
+    public MomentComment? Comment { get; set; }
 }
