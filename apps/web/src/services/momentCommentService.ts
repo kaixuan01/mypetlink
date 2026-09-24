@@ -9,6 +9,32 @@ export type MomentComment = {
   createdAt: string;
   author: PublicOwnerAttribution;
   viewerDeleteAction: MomentCommentDeleteAction;
+  mentions?: MomentCommentMention[];
+};
+
+/** UTF-16 offsets into the immutable Comment body, including the leading @. */
+export type MomentCommentMention = {
+  start: number;
+  length: number;
+  /** Resolved at read time so links follow a household's current handle. */
+  household: PublicOwnerAttribution;
+};
+
+export type CommentMentionSuggestionContext =
+  | "author"
+  | "collaborator"
+  | "commenter"
+  | "following"
+  | "discoverable";
+
+export type CommentMentionSuggestion = {
+  household: PublicOwnerAttribution;
+  context: CommentMentionSuggestionContext;
+};
+
+export type CommentMentionSuggestions = {
+  query: string;
+  items: CommentMentionSuggestion[];
 };
 
 export type MomentCommentViewer = {
@@ -114,6 +140,24 @@ export async function createMomentComment(
   } catch (error) {
     throw mapCommentError(error);
   }
+}
+
+export async function getCommentMentionSuggestions(
+  momentId: string,
+  query: string
+): Promise<CommentMentionSuggestions> {
+  const params = new URLSearchParams({ q: query });
+  const response = await apiRequest<CommentMentionSuggestions>(
+    `/api/v1/social/moments/${encodeURIComponent(momentId)}/comments/mention-suggestions?${params}`,
+    { cache: "no-store" }
+  );
+
+  return {
+    query: response.data?.query ?? query,
+    // Preserve the server's contextual order. It is privacy-aware and more
+    // meaningful than client-side alphabetizing.
+    items: response.data?.items ?? [],
+  };
 }
 
 export async function deleteMomentComment(

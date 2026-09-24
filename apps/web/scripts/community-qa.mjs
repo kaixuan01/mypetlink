@@ -1726,6 +1726,197 @@ async function verifyCommentBlockFlow(browser, page) {
   }
 }
 
+/**
+ * D4 is a browser/UI pass over the backend contract. The API's relational
+ * tests own privacy resolution; this fixture makes every allowed context and
+ * every deliberately absent identity deterministic while exercising the real
+ * composer, renderer, Activity view and deep-link code at once.
+ */
+async function verifyCommentMentions(browser, momentRoute) {
+  const momentId = momentRoute.split("/").pop();
+  const commentId = "5f0c2d1e-7a3b-4c11-8d2e-000000000042";
+  const household = (handle, displayName) => ({
+    handle,
+    displayName,
+    avatarUrl: null,
+    avatarThumbnailUrl: null,
+  });
+  const candidates = [
+    { household: household("authorprivate", "Author Household"), context: "author" },
+    { household: household("collabprivate", "Collaborator Household"), context: "collaborator" },
+    { household: household("commenterprivate", "Commenter Household"), context: "commenter" },
+    { household: household("followedprivate", "Followed Household"), context: "following" },
+    { household: household("discoverablepets", "Discoverable Household"), context: "discoverable" },
+  ];
+  const body =
+    "🐾 @oldauthor @collabprivate @commenterprivate @followedprivate @selfhouse @sixth";
+  const linked = [
+    ["@oldauthor", household("authorprivate", "Author Household")],
+    ["@collabprivate", candidates[1].household],
+    ["@commenterprivate", candidates[2].household],
+    ["@followedprivate", candidates[3].household],
+    ["@selfhouse", household("selfhouse", "My Household")],
+  ].map(([token, target]) => ({
+    start: body.indexOf(token),
+    length: token.length,
+    household: target,
+  }));
+  const comment = {
+    id: commentId,
+    body,
+    createdAt: "2026-09-24T13:00:00.000Z",
+    author: household("selfhouse", "My Household"),
+    viewerDeleteAction: "delete",
+    mentions: linked,
+  };
+  const context = await browser.newContext({
+    storageState: SESSION_FILE,
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  const anchors = [];
+  let postedBody = null;
+
+  try {
+    await page.route(`**/api/v1/public/moments/${momentId}/comments**`, async (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.has("anchor")) anchors.push(url.searchParams.get("anchor"));
+      await route.fulfill({
+        body: JSON.stringify({
+          data: {
+            items: postedBody ? [comment] : [],
+            nextCursor: null,
+            commentCount: postedBody ? 1 : 0,
+            viewer: {
+              canComment: true,
+              requirement: null,
+              identity: household("selfhouse", "My Household"),
+            },
+          },
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route(
+      `**/api/v1/social/moments/${momentId}/comments/mention-suggestions**`,
+      async (route) => {
+        const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+        await route.fulfill({
+          body: JSON.stringify({ data: { query, items: candidates } }),
+          contentType: "application/json",
+          status: 200,
+        });
+      }
+    );
+    await page.route(`**/api/v1/social/moments/${momentId}/comments`, async (route) => {
+      const payload = route.request().postDataJSON();
+      postedBody = payload?.body ?? null;
+      assert(
+        Object.keys(payload ?? {}).join(",") === "body",
+        "Comment composer sent hidden mention identity data."
+      );
+      await route.fulfill({
+        body: JSON.stringify({ data: { comment, commentCount: 1 } }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await visit(page, `${momentRoute}#comments`);
+    const composer = page.getByLabel("Add a comment");
+    await composer.fill("Hello @a");
+    const options = page.getByRole("option");
+    await options.first().waitFor();
+    assert((await options.count()) === 5, "Mention suggestions did not show every allowed context.");
+    assert(
+      (await options.allTextContents()).join("|") ===
+        "Author Household@authorprivateAuthor|Collaborator Household@collabprivateCollaborator|Commenter Household@commenterprivateCommenter|Followed Household@followedprivateFollowing|Discoverable Household@discoverablepetsCommunity",
+      "Mention suggestions changed the backend's context order."
+    );
+    const suggestionText = (await options.allTextContents()).join(" ");
+    assert(!suggestionText.includes("blockedhouse"), "Blocked household appeared in suggestions.");
+    assert(!suggestionText.includes("selfhouse"), "The current household appeared in suggestions.");
+    await options.nth(1).click();
+    assert(
+      (await composer.inputValue()) === "Hello @collabprivate ",
+      "Choosing a suggestion did not replace only the active token."
+    );
+
+    await composer.fill(body);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const row = page.locator(`#comment-${commentId}`);
+    await row.waitFor();
+    const mentionLinks = row.locator('p a[href^="/u/"]');
+    assert((await mentionLinks.count()) === 5, "Comment did not honor the five-mention link cap.");
+    assert(
+      (await mentionLinks.first().innerText()) === "@oldauthor" &&
+        (await mentionLinks.first().getAttribute("href")) === "/u/authorprivate",
+      "A renamed household did not keep its saved text and current destination."
+    );
+    assert(
+      (await row.getByText("@sixth", { exact: false }).count()) > 0,
+      "The sixth typed handle did not remain visible as plain text."
+    );
+    assert(
+      (await mentionLinks.filter({ hasText: "@selfhouse" }).count()) === 1,
+      "A typed self mention did not render from the server-resolved span."
+    );
+
+    await page.route("**/api/v1/social/notifications", async (route) => {
+      if (route.request().method() === "POST") {
+        await route.fulfill({ json: { data: { unreadCount: 0 } } });
+        return;
+      }
+      await route.fulfill({
+        json: {
+          data: {
+            items: [{
+              id: "mention-activity",
+              type: "MomentCommentMentioned",
+              createdAt: "2026-09-24T13:01:00.000Z",
+              isRead: false,
+              actor: candidates[2].household,
+              petName: null,
+              petPublicSlug: null,
+              momentId,
+              commentId,
+              momentTitle: "Mention QA",
+              momentSubjectNames: [],
+            }],
+            nextCursor: null,
+            unreadCount: 1,
+          },
+        },
+      });
+    });
+    await page.route("**/api/v1/social/notifications/read", async (route) => {
+      await route.fulfill({ json: { data: { unreadCount: 0 } } });
+    });
+    await visit(page, "/notifications");
+    const activity = page.getByTestId("activity-row");
+    await activity.waitFor();
+    assert(
+      (await activity.getAttribute("href")) === `${momentRoute}#comment-${commentId}`,
+      "Mention Activity did not target its Comment."
+    );
+    await activity.click();
+    await page.locator(`#comment-${commentId}`).waitFor();
+    assert(anchors.includes(commentId), "Mention Activity did not request its Comment anchor.");
+
+    return {
+      contexts: candidates.map((item) => item.context),
+      absent: ["blockedhouse", "selfhouse"],
+      linkedMentions: await mentionLinks.count(),
+      renamed: true,
+      selfMention: true,
+      activityAnchored: true,
+    };
+  } finally {
+    await context.close();
+  }
+}
+
 async function verifyCommentsResponsive(browser, momentRoute) {
   const momentId = momentRoute.split("/").pop();
   const author = {
@@ -1741,10 +1932,19 @@ async function verifyCommentsResponsive(browser, momentRoute) {
         ? `${"Unbroken".repeat(58)}🐾`
         : index === 1
           ? "First line\nSecond line with family emoji 👩‍👩‍👧‍👦"
+          : index === 2
+            ? "Hello @savedname 🐾"
           : `Comment ${index + 1}`,
     createdAt: new Date(Date.UTC(2026, 8, 24, 12, index)).toISOString(),
     author,
     viewerDeleteAction: "delete",
+    mentions: index === 2
+      ? [{
+          start: 6,
+          length: 10,
+          household: { ...author, handle: "currentname" },
+        }]
+      : [],
   }));
   const older = {
     id: "responsive-older",
@@ -1813,6 +2013,25 @@ async function verifyCommentsResponsive(browser, momentRoute) {
           status: 200,
         });
       });
+      await page.route(
+        `**/api/v1/social/moments/${momentId}/comments/mention-suggestions**`,
+        async (route) => {
+          const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+          await route.fulfill({
+            body: JSON.stringify({
+              data: {
+                query,
+                items: [{
+                  household: { ...author, handle: "responsivehouse" },
+                  context: "author",
+                }],
+              },
+            }),
+            contentType: "application/json",
+            status: 200,
+          });
+        }
+      );
 
       // Deep link to a Comment older than the first page.
       await visit(page, `${momentRoute}#comment-${linked.id}`);
@@ -1904,6 +2123,26 @@ async function verifyCommentsResponsive(browser, momentRoute) {
       await removeDialog.getByRole("button", { name: "Cancel" }).click();
 
       const composer = page.getByLabel("Add a comment");
+      const savedMention = page.locator("#comment-responsive-3").getByRole("link", {
+        name: "@savedname",
+      });
+      assert(
+        (await savedMention.getAttribute("href")) === "/u/currentname",
+        `${w}x${h}: saved mention text did not link to the current handle.`
+      );
+      await composer.fill("Hello @re");
+      const option = page.getByRole("option", { name: /Responsive QA Household/ });
+      await option.waitFor();
+      const optionBox = await option.boundingBox();
+      assert(
+        optionBox && optionBox.height >= 44 && optionBox.x >= 0 && optionBox.x + optionBox.width <= w + 1,
+        `${w}x${h}: mention suggestion was clipped or smaller than 44px.`
+      );
+      await option.click();
+      assert(
+        (await composer.inputValue()) === "Hello @responsivehouse ",
+        `${w}x${h}: mention selection did not update the composer.`
+      );
       await composer.fill(`${"n".repeat(448)}🐾`);
       await page.getByText("450 / 500", { exact: true }).waitFor();
       await composer.press("Control+Enter");
@@ -2046,10 +2285,12 @@ async function main() {
     );
     const commentBlock = await verifyCommentBlockFlow(browser, page);
     const commentDraft = await verifyCommentDraftRestore(browser, c5.moment.route);
+    const commentMentions = await verifyCommentMentions(browser, c5.moment.route);
     process.stdout.write(
       `  OK    Create/reload/delete; card link=${commentCrud.cardLinked}; count=${commentCrud.countUpdated}\n` +
         `  OK    Block hid Comment from pair and third viewer; unblock restored=${commentBlock.restored}\n` +
-        `  OK    Expired-session draft restored after sign-in -> ${commentDraft.returnTo}; extra posts=${commentDraft.extraPosts}\n\n`
+        `  OK    Expired-session draft restored after sign-in -> ${commentDraft.returnTo}; extra posts=${commentDraft.extraPosts}\n` +
+        `  OK    Mentions contexts=${commentMentions.contexts.join(",")}; blocked/self suggestions absent; links=${commentMentions.linkedMentions}/5; rename+self+Activity deep link\n\n`
     );
 
     const block = await verifyBlockFlow(page, "devadminhouse");

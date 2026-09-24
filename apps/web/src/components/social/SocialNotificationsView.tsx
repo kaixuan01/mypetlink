@@ -20,7 +20,7 @@ import {
 type LoadState = "loading" | "ready" | "error";
 
 /**
- * Activity: who followed you, liked a Moment, or commented on one.
+ * Activity: who followed you, liked a Moment, or joined its conversation.
  *
  * Reading is per page, not per visit. Opening this screen marks the rows it
  * actually delivered — and each further page marks its own — rather than
@@ -167,7 +167,7 @@ export function SocialNotificationsView() {
           />
           <h2 className="mt-4 text-lg font-black text-pet-ink">Nothing new yet</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-            When pet parents follow you, like a Moment, or comment on one,
+            When pet parents follow you, like a Moment, comment, or mention you,
             you&rsquo;ll see it here.
           </p>
           <div className="mt-5">
@@ -317,6 +317,15 @@ function activityCopy(item: SocialNotification): {
             icon: "comment",
           }
         : { predicate: "commented on your Moment.", icon: "comment", ...profile };
+    case "MomentCommentMentioned":
+      return item.momentId
+        ? {
+            predicate: "mentioned you in a comment.",
+            destination: `${momentPath(item.momentId)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
+            destinationLabel: "View this comment",
+            icon: "comment",
+          }
+        : { predicate: "mentioned you in a comment.", icon: "comment", ...profile };
     case "MomentCollaborationRequested":
       return {
         predicate: collaborationPets
