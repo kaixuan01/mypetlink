@@ -63,6 +63,8 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MomentPet> MomentPets => Set<MomentPet>();
     public DbSet<MomentLike> MomentLikes => Set<MomentLike>();
     public DbSet<MomentComment> MomentComments => Set<MomentComment>();
+    public DbSet<MomentCollaboration> MomentCollaborations => Set<MomentCollaboration>();
+    public DbSet<MomentCollaborationPet> MomentCollaborationPets => Set<MomentCollaborationPet>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
     public DbSet<TagVariantPreset> TagVariantPresets => Set<TagVariantPreset>();
     public DbSet<TagProduct> TagProducts => Set<TagProduct>();
@@ -1792,6 +1794,68 @@ public sealed class MyPetLinkDbContext : DbContext
                 .WithMany(pet => pet.MomentAppearances)
                 .HasForeignKey(item => item.PetId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Null for the author's own subjects. Only an accepted
+            // collaboration sets it, and its end deletes exactly these rows.
+            entity.HasIndex(item => item.CollaborationId);
+            entity.HasOne(item => item.Collaboration)
+                .WithMany()
+                .HasForeignKey(item => item.CollaborationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MomentCollaboration>(entity =>
+        {
+            entity.ToTable("MomentCollaborations", table => table.HasCheckConstraint(
+                "CK_MomentCollaborations_State",
+                "([Status] = N'Pending' AND [RespondedAt] IS NULL AND [EndedAt] IS NULL)"
+                + " OR ([Status] = N'Accepted' AND [RespondedAt] IS NOT NULL AND [EndedAt] IS NULL)"
+                + " OR ([Status] = N'Declined' AND [RespondedAt] IS NOT NULL AND [EndedAt] IS NULL)"
+                + " OR ([Status] IN (N'Revoked', N'Left', N'Dissolved', N'Expired') AND [EndedAt] IS NOT NULL)"));
+            entity.Property(item => item.Status)
+                .HasConversion(new SafeNamedEnumStringConverter<MomentCollaborationStatus>(
+                    MomentCollaborationStatus.Unknown))
+                .HasMaxLength(32);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+
+            // One live collaboration per Moment and household. Data integrity,
+            // not privacy: every read still applies its own visibility rules.
+            entity.HasIndex(item => new { item.MomentId, item.InviteeUserId })
+                .IsUnique()
+                .HasFilter("[Status] IN (N'Pending', N'Accepted')")
+                .HasDatabaseName("IX_MomentCollaborations_Live");
+            entity.HasIndex(item => new { item.MomentId, item.Status });
+            entity.HasIndex(item => new { item.InviteeUserId, item.Status, item.ExpiresAt });
+            entity.HasIndex(item => new { item.InviterUserId, item.CreatedAt });
+
+            entity.HasOne(item => item.Moment)
+                .WithMany(moment => moment.Collaborations)
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.InviterUser)
+                .WithMany()
+                .HasForeignKey(item => item.InviterUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.InviteeUser)
+                .WithMany()
+                .HasForeignKey(item => item.InviteeUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MomentCollaborationPet>(entity =>
+        {
+            entity.ToTable("MomentCollaborationPets");
+            entity.HasIndex(item => new { item.CollaborationId, item.PetId }).IsUnique();
+            entity.HasIndex(item => item.PetId);
+
+            entity.HasOne(item => item.Collaboration)
+                .WithMany(collaboration => collaboration.Pets)
+                .HasForeignKey(item => item.CollaborationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Pet)
+                .WithMany()
+                .HasForeignKey(item => item.PetId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<MomentLike>(entity =>
@@ -1861,6 +1925,7 @@ public sealed class MyPetLinkDbContext : DbContext
             // known, rather than a schema rule that cannot be relaxed.
             entity.HasIndex(item => new { item.RecipientUserId, item.Type, item.ActorUserId, item.MomentId });
             entity.HasIndex(item => item.CommentId);
+            entity.HasIndex(item => item.CollaborationId);
 
             entity.HasOne(item => item.RecipientUser)
                 .WithMany()
@@ -1881,6 +1946,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.Comment)
                 .WithMany()
                 .HasForeignKey(item => item.CommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Collaboration)
+                .WithMany()
+                .HasForeignKey(item => item.CollaborationId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

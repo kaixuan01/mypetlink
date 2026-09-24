@@ -131,6 +131,69 @@ public static class SocialVisibility
         var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
         return visible.Where(comment => !blocked.Contains(comment.AuthorUserId));
     }
+    /// <summary>
+    /// Collaborator pets that may be shown on a Moment right now.
+    ///
+    /// The one definition every surface uses — cards, Moment detail, a pet's
+    /// Moments and its Share Profile — so a collaboration can never be visible
+    /// on one surface after it has stopped being eligible on another. It reads
+    /// only rows an accepted collaboration created (Pending never has any) and
+    /// re-checks everything that could have changed since the invitee accepted:
+    /// the Moment is still socially visible, the pet is still the invitee's and
+    /// still shared with their consent, the invitee's household is still an
+    /// active, complete Community identity, and no block stands between the
+    /// invitee and the author — or, for a signed-in viewer, between the viewer
+    /// and the invitee.
+    /// </summary>
+    public static IQueryable<MomentPet> VisibleCollaboratorSubjects(
+        this IQueryable<MomentPet> subjects,
+        MyPetLinkDbContext dbContext,
+        Guid? viewerId)
+    {
+        var visible = subjects
+            .AsNoTracking()
+            .Where(subject =>
+                subject.CollaborationId != null
+                && subject.Collaboration!.Status == MomentCollaborationStatus.Accepted
+                && subject.Collaboration.MomentId == subject.MomentId
+                && subject.Collaboration.InviteeUserId == subject.Pet.OwnerUserId
+                && subject.Moment.Visibility == MemoryVisibility.Public
+                && subject.Moment.DeletedAt == null
+                && subject.Moment.ArchivedAt == null
+                && subject.Moment.PublishedAt != null
+                && subject.Moment.AuthorUser.DeletedAt == null
+                && subject.Moment.AuthorUser.Status == UserStatus.Active
+                && subject.Moment.AuthorUser.SocialProfile != null
+                && subject.Moment.AuthorUser.SocialProfile.IsSocialEnabled
+                && subject.Pet.DeletedAt == null
+                && subject.Pet.LifecycleStatus == PetLifecycleStatus.Active
+                && subject.Pet.PublicProfile != null
+                && subject.Pet.PublicProfile.IsPublicProfileEnabled
+                && subject.Pet.SocialProfile != null
+                && subject.Pet.SocialProfile.IsSocialEnabled
+                && subject.Pet.SocialProfile.ConsentedByUserId == subject.Pet.OwnerUserId
+                && subject.Collaboration.InviteeUser.DeletedAt == null
+                && subject.Collaboration.InviteeUser.Status == UserStatus.Active
+                && subject.Collaboration.InviteeUser.SocialProfile != null
+                && subject.Collaboration.InviteeUser.SocialProfile.IsSocialEnabled
+                && subject.Collaboration.InviteeUser.SocialProfile.Handle != null
+                && subject.Collaboration.InviteeUser.SocialProfile.Handle != ""
+                && subject.Collaboration.InviteeUser.SocialProfile.DisplayName != null
+                && subject.Collaboration.InviteeUser.SocialProfile.DisplayName != ""
+                && !dbContext.OwnerBlocks.Any(block =>
+                    (block.BlockerUserId == subject.Collaboration.InviteeUserId
+                        && block.BlockedUserId == subject.Moment.AuthorUserId)
+                    || (block.BlockedUserId == subject.Collaboration.InviteeUserId
+                        && block.BlockerUserId == subject.Moment.AuthorUserId)));
+
+        if (!viewerId.HasValue)
+        {
+            return visible;
+        }
+
+        var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
+        return visible.Where(subject => !blocked.Contains(subject.Collaboration!.InviteeUserId));
+    }
 }
 
 /// <summary>

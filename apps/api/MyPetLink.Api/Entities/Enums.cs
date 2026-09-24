@@ -437,5 +437,23 @@ public enum OwnerNotificationType
     Unknown,
     NewFollower,
     MomentLiked,
-    MomentCommented
+    MomentCommented,
+    MomentCollaborationRequested,
+    MomentCollaborationAccepted
+}
+
+/// <summary>
+/// Stored lifecycle of a <see cref="MomentCollaboration"/>. Unknown is the
+/// safe read fallback for a value written by a newer build.
+/// </summary>
+public enum MomentCollaborationStatus
+{
+    Unknown,
+    Pending,
+    Accepted,
+    Declined,
+    Revoked,
+    Left,
+    Dissolved,
+    Expired
 }

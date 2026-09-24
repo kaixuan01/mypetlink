@@ -10014,3 +10014,170 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    ALTER TABLE [OwnerNotifications] ADD [CollaborationId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    ALTER TABLE [MomentPets] ADD [CollaborationId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE TABLE [MomentCollaborations] (
+        [Id] uniqueidentifier NOT NULL,
+        [MomentId] uniqueidentifier NOT NULL,
+        [InviterUserId] uniqueidentifier NOT NULL,
+        [InviteeUserId] uniqueidentifier NOT NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ExpiresAt] datetimeoffset NOT NULL,
+        [RespondedAt] datetimeoffset NULL,
+        [EndedAt] datetimeoffset NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_MomentCollaborations] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_MomentCollaborations_State] CHECK (([Status] = N'Pending' AND [RespondedAt] IS NULL AND [EndedAt] IS NULL) OR ([Status] = N'Accepted' AND [RespondedAt] IS NOT NULL AND [EndedAt] IS NULL) OR ([Status] = N'Declined' AND [RespondedAt] IS NOT NULL AND [EndedAt] IS NULL) OR ([Status] IN (N'Revoked', N'Left', N'Dissolved', N'Expired') AND [EndedAt] IS NOT NULL)),
+        CONSTRAINT [FK_MomentCollaborations_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentCollaborations_Users_InviteeUserId] FOREIGN KEY ([InviteeUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentCollaborations_Users_InviterUserId] FOREIGN KEY ([InviterUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE TABLE [MomentCollaborationPets] (
+        [Id] uniqueidentifier NOT NULL,
+        [CollaborationId] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [IsAccepted] bit NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_MomentCollaborationPets] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_MomentCollaborationPets_MomentCollaborations_CollaborationId] FOREIGN KEY ([CollaborationId]) REFERENCES [MomentCollaborations] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentCollaborationPets_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_CollaborationId] ON [OwnerNotifications] ([CollaborationId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE INDEX [IX_MomentPets_CollaborationId] ON [MomentPets] ([CollaborationId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_MomentCollaborationPets_CollaborationId_PetId] ON [MomentCollaborationPets] ([CollaborationId], [PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE INDEX [IX_MomentCollaborationPets_PetId] ON [MomentCollaborationPets] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE INDEX [IX_MomentCollaborations_InviteeUserId_Status_ExpiresAt] ON [MomentCollaborations] ([InviteeUserId], [Status], [ExpiresAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE INDEX [IX_MomentCollaborations_InviterUserId_CreatedAt] ON [MomentCollaborations] ([InviterUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_MomentCollaborations_Live] ON [MomentCollaborations] ([MomentId], [InviteeUserId]) WHERE [Status] IN (N''Pending'', N''Accepted'')');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    CREATE INDEX [IX_MomentCollaborations_MomentId_Status] ON [MomentCollaborations] ([MomentId], [Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    ALTER TABLE [MomentPets] ADD CONSTRAINT [FK_MomentPets_MomentCollaborations_CollaborationId] FOREIGN KEY ([CollaborationId]) REFERENCES [MomentCollaborations] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    ALTER TABLE [OwnerNotifications] ADD CONSTRAINT [FK_OwnerNotifications_MomentCollaborations_CollaborationId] FOREIGN KEY ([CollaborationId]) REFERENCES [MomentCollaborations] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260924091451_AddMomentCollaborations'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260924091451_AddMomentCollaborations', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

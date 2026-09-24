@@ -409,47 +409,19 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
     /// instance. Taken by both create and delete with the Comment author's id,
     /// whoever is acting, because that pair is what unread Activity coalesces on.
     /// </summary>
-    private async Task AcquireCommentPairLockAsync(
+    private Task AcquireCommentPairLockAsync(
         IDbContextTransaction transaction,
         Guid authorUserId,
         Guid momentId,
         CancellationToken cancellationToken)
     {
-        var connection = _dbContext.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            await connection.OpenAsync(cancellationToken);
-        }
-
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction.GetDbTransaction();
-        command.CommandText = """
-            DECLARE @result int;
-            EXEC @result = sys.sp_getapplock
-                @Resource = @resource,
-                @LockMode = N'Exclusive',
-                @LockOwner = N'Transaction',
-                @LockTimeout = 10000;
-            SELECT @result;
-            """;
-
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "@resource";
-        parameter.DbType = DbType.String;
-        parameter.Size = 255;
-        parameter.Value = $"mypetlink:moment-comment:{authorUserId:N}:{momentId:N}";
-        command.Parameters.Add(parameter);
-
-        var result = Convert.ToInt32(
-            await command.ExecuteScalarAsync(cancellationToken),
-            System.Globalization.CultureInfo.InvariantCulture);
-        if (result < 0)
-        {
-            throw new ApiException(
-                StatusCodes.Status503ServiceUnavailable,
-                "comment_temporarily_unavailable",
-                "We couldn’t post your comment right now. Please try again.");
-        }
+        return SqlApplicationLock.AcquireAsync(
+            _dbContext,
+            transaction,
+            $"mypetlink:moment-comment:{authorUserId:N}:{momentId:N}",
+            "comment_temporarily_unavailable",
+            "We couldn’t post your comment right now. Please try again.",
+            cancellationToken);
     }
 
     private async Task<MomentCommentResponse> LoadResponseAsync(

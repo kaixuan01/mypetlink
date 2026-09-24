@@ -131,9 +131,82 @@ public sealed class MomentPet : Entity
     public Guid MomentId { get; set; }
     public Guid PetId { get; set; }
 
+    /// <summary>
+    /// Where this subject comes from. Null: one of the author's own pets,
+    /// managed by the author's ordinary Moment editing. Set: a pet another
+    /// household accepted into this Moment through that collaboration. The
+    /// author's editing never adds, removes or replaces a row that has one;
+    /// only the collaboration lifecycle does (Accept creates, Revoke / Leave /
+    /// Block dissolution delete).
+    /// </summary>
+    public Guid? CollaborationId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public PetMemory Moment { get; set; } = null!;
+    public Pet Pet { get; set; } = null!;
+    public MomentCollaboration? Collaboration { get; set; }
+}
+
+/// <summary>
+/// One household's invitation to take part in another household's Moment.
+///
+/// The Moment stays the author's (<see cref="PetMemory.AuthorUserId"/>): a
+/// collaborator decides only whether their household joins, which of the pets
+/// they were asked about take part, and whether to leave. Pets become publicly
+/// associated only after the invitee accepts — a Pending invitation never
+/// creates a <see cref="MomentPet"/>.
+///
+/// Rows are history and are never deleted. At most one live (Pending or
+/// Accepted) collaboration exists per Moment and invitee household; the live
+/// household cap per Moment is enforced by the service under a per-Moment
+/// application lock.
+/// </summary>
+public sealed class MomentCollaboration : Entity
+{
+    public Guid MomentId { get; set; }
+
+    /// <summary>The Moment's canonical author at the time of the invitation.</summary>
+    public Guid InviterUserId { get; set; }
+
+    public Guid InviteeUserId { get; set; }
+
+    /// <summary>
+    /// Persisted lifecycle state. A Pending row whose <see cref="ExpiresAt"/>
+    /// has passed is expired whether or not it has been rewritten as
+    /// <see cref="MomentCollaborationStatus.Expired"/> yet.
+    /// </summary>
+    public MomentCollaborationStatus Status { get; set; } = MomentCollaborationStatus.Pending;
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    /// <summary>When the invitee accepted or declined.</summary>
+    public DateTimeOffset? RespondedAt { get; set; }
+
+    /// <summary>When it stopped: revoked, left, dissolved by a block, or expired.</summary>
+    public DateTimeOffset? EndedAt { get; set; }
+
+    public byte[] RowVersion { get; set; } = [];
+
+    public PetMemory Moment { get; set; } = null!;
+    public User InviterUser { get; set; } = null!;
+    public User InviteeUser { get; set; } = null!;
+    public ICollection<MomentCollaborationPet> Pets { get; set; } = new List<MomentCollaborationPet>();
+}
+
+/// <summary>
+/// A pet an invitation asked about, and whether its owner accepted it.
+/// Kept as history after the collaboration ends.
+/// </summary>
+public sealed class MomentCollaborationPet : Entity
+{
+    public Guid CollaborationId { get; set; }
+    public Guid PetId { get; set; }
+    public bool IsAccepted { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public MomentCollaboration Collaboration { get; set; } = null!;
     public Pet Pet { get; set; } = null!;
 }
 
@@ -207,6 +280,12 @@ public sealed class OwnerNotification : Entity
     /// </summary>
     public Guid? CommentId { get; set; }
 
+    /// <summary>
+    /// The collaboration a collaboration activity row is about. Its visibility
+    /// is resolved from that collaboration's current state at read time.
+    /// </summary>
+    public Guid? CollaborationId { get; set; }
+
     public OwnerNotificationType Type { get; set; } = OwnerNotificationType.Unknown;
 
     public DateTimeOffset? ReadAt { get; set; }
@@ -217,4 +296,5 @@ public sealed class OwnerNotification : Entity
     public Pet? SubjectPet { get; set; }
     public PetMemory? Moment { get; set; }
     public MomentComment? Comment { get; set; }
+    public MomentCollaboration? Collaboration { get; set; }
 }

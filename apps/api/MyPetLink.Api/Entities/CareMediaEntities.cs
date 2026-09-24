@@ -69,6 +69,7 @@ public sealed class PetMemory : AuditableEntity
     public ICollection<MomentPet> MomentPets { get; set; } = new List<MomentPet>();
     public ICollection<MomentLike> Likes { get; set; } = new List<MomentLike>();
     public ICollection<MomentComment> Comments { get; set; } = new List<MomentComment>();
+    public ICollection<MomentCollaboration> Collaborations { get; set; } = new List<MomentCollaboration>();
 }
 
 public sealed class CareRecord : AuditableEntity
