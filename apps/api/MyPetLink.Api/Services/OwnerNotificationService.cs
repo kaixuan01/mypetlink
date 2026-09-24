@@ -540,7 +540,8 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
 
         var rows = await _dbContext.MomentPets
             .AsNoTracking()
-            .Where(subject => momentIds.Contains(subject.MomentId))
+            // "Your Moment of ..." names the author's own pets.
+            .Where(subject => momentIds.Contains(subject.MomentId) && subject.CollaborationId == null)
             .Where(subject =>
                 subject.Pet.DeletedAt == null
                 && subject.Pet.SocialProfile != null

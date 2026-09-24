@@ -158,18 +158,18 @@ public sealed class SocialQueryPlanRelationalTests
         var page = await feed.GetFeedAsync(ViewerId, null, null);
         Assert.NotEmpty(page.Items);
 
-        // Eight round trips for a page of ANY size: the Moment selection, then
-        // one batched query each for subjects, media, authors, like counts and
-        // viewer-visible Comment counts and viewer likes, plus a single EXISTS
-        // asking whether this viewer follows anybody at all. Never one per
-        // Moment — that is the N+1 this guards.
+        // Nine round trips for a page of ANY size: the Moment selection, then
+        // one batched query each for subjects, media, authors, like counts,
+        // viewer-visible Comment counts, visible collaborators and viewer
+        // likes, plus a single EXISTS asking whether this viewer follows
+        // anybody at all. Never one per Moment — that is the N+1 this guards.
         //
-        // The eighth is what lets the UI tell "you follow nobody" apart from
+        // The ninth is what lets the UI tell "you follow nobody" apart from
         // "nobody you follow has posted lately", which an empty page cannot say
         // for itself. It is a constant: see the scale test, where 1, 50 and 500
         // follows all produce this same count.
         _output.WriteLine($"round trips: {capture.Commands.Count}");
-        Assert.Equal(8, capture.Commands.Count);
+        Assert.Equal(9, capture.Commands.Count);
 
         var selection = capture.Commands[0];
 

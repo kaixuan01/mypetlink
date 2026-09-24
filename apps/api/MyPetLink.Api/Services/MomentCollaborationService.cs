@@ -421,7 +421,8 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
                 // Already over: nothing to revoke, and that is not an error.
                 return false;
             },
-            cancellationToken);
+            cancellationToken,
+            reapplyAfterConflict: true);
 
         return await BuildListAsync(actorId, momentId, cancellationToken);
     }
@@ -439,7 +440,7 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
 
         if (snapshot.Status == MomentCollaborationStatus.Accepted)
         {
-            return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken);
+            return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken, afterOwnResponse: true);
         }
 
         EnsureActionablePending(snapshot);
@@ -562,7 +563,7 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
             _dbContext.ChangeTracker.Clear();
         }
 
-        return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken);
+        return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken, afterOwnResponse: true);
     }
 
     public async Task<MomentCollaborationListResponse> DeclineAsync(
@@ -592,7 +593,7 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
             },
             cancellationToken);
 
-        return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken);
+        return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken, afterOwnResponse: true);
     }
 
     public async Task<MomentCollaborationListResponse> LeaveAsync(
@@ -629,9 +630,10 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
                 // Revoked, dissolved or already left: the association is gone.
                 return false;
             },
-            cancellationToken);
+            cancellationToken,
+            reapplyAfterConflict: true);
 
-        return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken);
+        return await BuildListAsync(actorId, snapshot.MomentId, cancellationToken, afterOwnResponse: true);
     }
 
     // ---- block ----------------------------------------------------------
@@ -692,37 +694,49 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
 
     /// <summary>
     /// Applies one state change to a collaboration inside a retrying
-    /// transaction. The row is re-read inside the transaction; its RowVersion
-    /// makes a concurrent change lose deterministically, in which case the
-    /// winner's state is what the caller reports.
+    /// transaction. The row is re-read inside the transaction and its
+    /// RowVersion makes a concurrent change lose deterministically: the first
+    /// commit wins.
+    ///
+    /// A response (Accept, Decline) that loses reports the winning state. An
+    /// ending (Revoke, Leave) that loses is re-applied to the winning state,
+    /// because the intent still holds: a revoke racing an accept still ends the
+    /// collaboration, and a revoke after a leave finds nothing left to do.
     /// </summary>
     private async Task ChangeStateAsync(
         Guid collaborationId,
         System.Linq.Expressions.Expression<Func<MomentCollaboration, bool>> authorised,
         Func<MomentCollaboration, Task<bool>> change,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool reapplyAfterConflict = false)
     {
-        try
+        for (var attempt = 1; ; attempt += 1)
         {
-            await InTransactionAsync(async _ =>
+            try
             {
-                var collaboration = await _dbContext.MomentCollaborations
-                    .Where(item => item.Id == collaborationId)
-                    .Where(authorised)
-                    .SingleOrDefaultAsync(cancellationToken)
-                    ?? throw CollaborationNotFound();
-
-                if (await change(collaboration))
+                await InTransactionAsync(async _ =>
                 {
-                    await _dbContext.SaveChangesAsync(cancellationToken);
+                    var collaboration = await _dbContext.MomentCollaborations
+                        .Where(item => item.Id == collaborationId)
+                        .Where(authorised)
+                        .SingleOrDefaultAsync(cancellationToken)
+                        ?? throw CollaborationNotFound();
+
+                    if (await change(collaboration))
+                    {
+                        await _dbContext.SaveChangesAsync(cancellationToken);
+                    }
+                }, cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _dbContext.ChangeTracker.Clear();
+                if (!reapplyAfterConflict || attempt >= 3)
+                {
+                    break;
                 }
-            }, cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Somebody else changed it first (a revoke, a block, the other
-            // response). Their state stands; the caller reads it back.
-            _dbContext.ChangeTracker.Clear();
+            }
         }
 
         _dbContext.ChangeTracker.Clear();
@@ -780,10 +794,17 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
         _dbContext.MomentPets.RemoveRange(associations);
     }
 
+    /// <summary>
+    /// The viewer's view of a Moment's collaborations. After the viewer's own
+    /// response (<paramref name="afterOwnResponse"/>) a Moment that has since
+    /// become hidden answers with an empty view rather than not-found: the
+    /// response did commit, and the invitee already knows the Moment exists.
+    /// </summary>
     private async Task<MomentCollaborationListResponse> BuildListAsync(
         Guid actorId,
         Guid momentId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool afterOwnResponse = false)
     {
         _dbContext.ChangeTracker.Clear();
         var now = DateTimeOffset.UtcNow;
@@ -844,6 +865,11 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
 
         if (!visible)
         {
+            if (afterOwnResponse)
+            {
+                return new MomentCollaborationListResponse("none", null, MaxLiveHouseholds, 0, false, null, []);
+            }
+
             throw MomentNotFound();
         }
 

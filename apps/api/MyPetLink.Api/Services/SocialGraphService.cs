@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
@@ -162,54 +163,121 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
                 "You can't block your own profile.");
         }
 
-        var alreadyBlocked = await _dbContext.OwnerBlocks.AnyAsync(
-            block => block.BlockerUserId == actorId && block.BlockedUserId == targetId,
-            cancellationToken);
-
-        if (!alreadyBlocked)
+        // A concurrent collaboration change (an accept landing at the same
+        // moment) can win the RowVersion race on a row this block dissolves.
+        // The block then simply runs again against the state that won, so it
+        // always ends with every collaboration between the two dissolved.
+        for (var attempt = 1; ; attempt += 1)
         {
-            _dbContext.OwnerBlocks.Add(new OwnerBlock
+            try
             {
-                BlockerUserId = actorId,
-                BlockedUserId = targetId,
-                Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
-            });
-        }
-
-        var follows = await _dbContext.OwnerFollows
-            .Where(follow =>
-                (follow.FollowerUserId == actorId && follow.FollowedUserId == targetId)
-                || (follow.FollowerUserId == targetId && follow.FollowedUserId == actorId))
-            .ToListAsync(cancellationToken);
-
-        _dbContext.OwnerFollows.RemoveRange(follows);
-
-        // Blocking removes the relationship in both directions, so any unread
-        // "started following you" activity for those exact edges must leave in
-        // the same transaction. Otherwise it is only hidden while the block is
-        // active and resurfaces after Unblock, describing a follow that no
-        // longer exists. Read activity remains history, matching Unfollow.
-        foreach (var follow in follows)
-        {
-            await _notifications.StageFollowNotificationWithdrawal(
-                follow.FollowerUserId,
-                follow.FollowedUserId,
-                cancellationToken);
-        }
-
-        try
-        {
-            // One SaveChanges: the block and the removals land together or not
-            // at all.
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception)
-            when (UniqueConstraintViolation.IsFor(exception, BlockUniqueIndexName))
-        {
-            _dbContext.ChangeTracker.Clear();
+                await BlockOnceAsync(actorId, targetId, reason, cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 3)
+            {
+                _dbContext.ChangeTracker.Clear();
+            }
         }
 
         return await GetRelationshipAsync(actorId, handle, cancellationToken);
+    }
+
+    /// <summary>
+    /// One attempt at a block: the block row, the follows it removes in both
+    /// directions, and every collaboration between the two households
+    /// dissolved — one transaction, under the household-pair lock invitations
+    /// also take, so an invitation and a block cannot interleave.
+    /// </summary>
+    private async Task BlockOnceAsync(
+        Guid actorId,
+        Guid targetId,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            _dbContext.ChangeTracker.Clear();
+            await using IDbContextTransaction? transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+
+            if (transaction is not null && _dbContext.Database.IsSqlServer())
+            {
+                await SqlApplicationLock.AcquireAsync(
+                    _dbContext,
+                    transaction,
+                    MomentCollaborationService.PairLockResource(actorId, targetId),
+                    "block_temporarily_unavailable",
+                    "We couldn't update this right now. Please try again.",
+                    cancellationToken);
+            }
+
+            var alreadyBlocked = await _dbContext.OwnerBlocks.AnyAsync(
+                block => block.BlockerUserId == actorId && block.BlockedUserId == targetId,
+                cancellationToken);
+
+            if (!alreadyBlocked)
+            {
+                _dbContext.OwnerBlocks.Add(new OwnerBlock
+                {
+                    BlockerUserId = actorId,
+                    BlockedUserId = targetId,
+                    Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
+                });
+            }
+
+            var follows = await _dbContext.OwnerFollows
+                .Where(follow =>
+                    (follow.FollowerUserId == actorId && follow.FollowedUserId == targetId)
+                    || (follow.FollowerUserId == targetId && follow.FollowedUserId == actorId))
+                .ToListAsync(cancellationToken);
+
+            _dbContext.OwnerFollows.RemoveRange(follows);
+
+            // Blocking removes the relationship in both directions, so any
+            // unread "started following you" activity for those exact edges
+            // must leave in the same transaction. Otherwise it is only hidden
+            // while the block is active and resurfaces after Unblock,
+            // describing a follow that no longer exists. Read activity remains
+            // history, matching Unfollow.
+            foreach (var follow in follows)
+            {
+                await _notifications.StageFollowNotificationWithdrawal(
+                    follow.FollowerUserId,
+                    follow.FollowedUserId,
+                    cancellationToken);
+            }
+
+            // Collaborations between the two end here, in either direction,
+            // and unblocking will not bring them back.
+            await MomentCollaborationService.StageBlockDissolutionAsync(
+                _dbContext,
+                _notifications,
+                actorId,
+                targetId,
+                cancellationToken);
+
+            try
+            {
+                // One SaveChanges: the block and the removals land together or
+                // not at all.
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception)
+                when (UniqueConstraintViolation.IsFor(exception, BlockUniqueIndexName))
+            {
+                // The same block landed concurrently; theirs stands.
+                _dbContext.ChangeTracker.Clear();
+                return;
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        });
     }
 
     public async Task<OwnerRelationshipResponse> UnblockAsync(

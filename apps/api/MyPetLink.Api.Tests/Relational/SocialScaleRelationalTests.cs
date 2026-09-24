@@ -125,16 +125,17 @@ public sealed class SocialScaleRelationalTests
         Assert.NotEmpty(first.Items);
         Assert.NotEmpty(second.Items);
 
-        // The shape is what is asserted: eight round trips per page whatever the
+        // The shape is what is asserted: nine round trips per page whatever the
         // follow list holds. If this ever grows with the graph, the query has
         // stopped being one query.
         //
-        // The seventh is the grouped viewer-visible Comment count; the eighth
-        // is the EXISTS behind "does this viewer follow anybody". Both stay
-        // constant at 1, 50 and 500 follows, which is the point: neither is a
-        // query per Moment or a walk of the follow list.
-        Assert.Equal(8, firstPageTrips);
-        Assert.Equal(8, capture.Commands.Count);
+        // The seventh is the grouped viewer-visible Comment count, the eighth
+        // the batched visible-collaborator lookup, and the ninth the EXISTS
+        // behind "does this viewer follow anybody". All stay constant at 1, 50
+        // and 500 follows, which is the point: none is a query per Moment or a
+        // walk of the follow list.
+        Assert.Equal(9, firstPageTrips);
+        Assert.Equal(9, capture.Commands.Count);
     }
 
     [RelationalFact]

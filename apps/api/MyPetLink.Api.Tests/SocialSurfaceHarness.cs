@@ -319,7 +319,7 @@ internal sealed class SocialSurfaceHarness : IDisposable
             new DTOs.UpdatePetSocialSettingsRequest(social, discoverable, null));
     }
 
-    private static void AddOwner(
+    internal static void AddOwner(
         MyPetLinkDbContext db,
         Guid id,
         string email,
@@ -373,7 +373,7 @@ internal sealed class SocialSurfaceHarness : IDisposable
         });
     }
 
-    private static void AddPet(
+    internal static void AddPet(
         MyPetLinkDbContext db,
         Guid id,
         Guid ownerId,

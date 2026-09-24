@@ -105,6 +105,7 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
                 LastMomentAt = _dbContext.MomentPets
                     .Where(subject =>
                         subject.PetId == pet.Id
+                        && subject.CollaborationId == null
                         && subject.Moment.Visibility == MemoryVisibility.Public
                         && subject.Moment.DeletedAt == null
                         && subject.Moment.ArchivedAt == null)
@@ -219,8 +220,11 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
                 // discoverable. A Moment reaches Explore through a pet, never
                 // through its author alone.
                 discoverablePets.Contains(moment.PetId)
+                // The author's own subjects only: a collaborator's pet never
+                // makes another household's Moment eligible for Explore.
                 || moment.MomentPets.Any(subject =>
-                    discoverablePets.Contains(subject.PetId)));
+                    subject.CollaborationId == null
+                    && discoverablePets.Contains(subject.PetId)));
 
         if (viewerId.HasValue)
         {

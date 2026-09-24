@@ -137,6 +137,7 @@ public sealed class SocialMomentProjection
             cancellationToken);
         var likeCounts = await LoadLikeCountsAsync(momentIds, cancellationToken);
         var commentCounts = await LoadCommentCountsAsync(momentIds, viewerId, cancellationToken);
+        var collaborations = await LoadCollaborationsAsync(momentIds, viewerId, audience, cancellationToken);
         var viewerLikes = await LoadViewerLikesAsync(momentIds, viewerId, cancellationToken);
 
         var items = page
@@ -156,6 +157,9 @@ public sealed class SocialMomentProjection
                     : Array.Empty<MemoryMediaResponse>(),
                 likeCounts.TryGetValue(row.Id, out var likeCount) ? likeCount : 0,
                 commentCounts.TryGetValue(row.Id, out var commentCount) ? commentCount : 0,
+                collaborations.TryGetValue(row.Id, out var collaborators)
+                    ? collaborators
+                    : Array.Empty<PublicMomentCollaborationResponse>(),
                 viewerLikes.Contains(row.Id)))
             .ToArray();
 
@@ -227,7 +231,10 @@ public sealed class SocialMomentProjection
 
         var rows = await _dbContext.MomentPets
             .AsNoTracking()
-            .Where(subject => momentIds.Contains(subject.MomentId))
+            // The author's own subjects. Collaborator pets are projected
+            // separately, grouped by household, so they can never be read as
+            // the author's pets.
+            .Where(subject => momentIds.Contains(subject.MomentId) && subject.CollaborationId == null)
             .Where(subject =>
                 subject.Pet.DeletedAt == null
                 && subject.Pet.LifecycleStatus == PetLifecycleStatus.Active
@@ -337,6 +344,82 @@ public sealed class SocialMomentProjection
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(row => row.MomentId, row => row.Count);
+    }
+
+    /// <summary>
+    /// Accepted collaborators still eligible to be shown, batched for the whole
+    /// page in one query through <see cref="SocialVisibility.VisibleCollaboratorSubjects"/>.
+    ///
+    /// On discovery surfaces a collaborating household and its pets are named
+    /// only when they are discoverable themselves: a Moment reaching Explore on
+    /// its author's merits must not become the way a household that chose not
+    /// to be found is found.
+    /// </summary>
+    private async Task<Dictionary<Guid, PublicMomentCollaborationResponse[]>> LoadCollaborationsAsync(
+        IReadOnlyCollection<Guid> momentIds,
+        Guid? viewerId,
+        MomentSubjectAudience audience,
+        CancellationToken cancellationToken)
+    {
+        if (momentIds.Count == 0)
+        {
+            return new Dictionary<Guid, PublicMomentCollaborationResponse[]>();
+        }
+
+        var discoveryOnly = audience == MomentSubjectAudience.Discovery;
+        var rows = await _dbContext.MomentPets
+            .VisibleCollaboratorSubjects(_dbContext, viewerId)
+            .Where(subject => momentIds.Contains(subject.MomentId))
+            .Where(subject =>
+                !discoveryOnly
+                || (subject.Pet.SocialProfile!.IsDiscoverable
+                    && subject.Collaboration!.InviteeUser.SocialProfile!.IsDiscoverable))
+            .Select(subject => new
+            {
+                subject.MomentId,
+                CollaborationId = subject.CollaborationId!.Value,
+                subject.Collaboration!.RespondedAt,
+                Handle = subject.Collaboration.InviteeUser.SocialProfile!.Handle!,
+                DisplayName = subject.Collaboration.InviteeUser.SocialProfile.DisplayName!,
+                Avatar = subject.Collaboration.InviteeUser.SocialProfile.AvatarMediaFile,
+                subject.CreatedAt,
+                subject.Pet.Name,
+                subject.Pet.Slug,
+                subject.Pet.LostModeEnabled,
+                Photo = subject.Pet.ProfileMediaFile
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.MomentId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .GroupBy(row => row.CollaborationId)
+                    // Households in the order they joined; pets in the order
+                    // they were added.
+                    .OrderBy(household => household.First().RespondedAt)
+                    .Select(household =>
+                    {
+                        var first = household.First();
+                        return new PublicMomentCollaborationResponse(
+                            new PublicOwnerAttributionResponse(
+                                first.Handle,
+                                first.DisplayName,
+                                MediaDerivatives.ResolveOriginalUrl(first.Avatar, _r2Options.PublicBaseUrl),
+                                MediaDerivatives.ResolveThumbnailUrl(first.Avatar, _r2Options.PublicBaseUrl)),
+                            household
+                                .OrderBy(row => row.CreatedAt)
+                                .ThenBy(row => row.Name)
+                                .Select(row => new PublicMomentSubjectResponse(
+                                    row.Name,
+                                    row.Slug,
+                                    MediaDerivatives.ResolveThumbnailUrl(row.Photo, _r2Options.PublicBaseUrl),
+                                    false,
+                                    row.LostModeEnabled))
+                                .ToArray());
+                    })
+                    .ToArray());
     }
 
     /// <summary>

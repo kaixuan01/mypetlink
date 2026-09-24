@@ -303,10 +303,30 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
 
         var showMoments = source.ShowMoments;
         var showTimeline = source.ShowTimeline;
+        var petId = source.PetId;
+
+        // A Moment this pet joined through another household's collaboration
+        // shows here only while that collaboration is eligible, which includes
+        // the Moment still being socially visible. Anything less and the Share
+        // Profile simply goes on without it.
+        var collaborated = showMoments
+            ? await _dbContext.MomentPets
+                .VisibleCollaboratorSubjects(_dbContext, null)
+                .Where(subject => subject.PetId == petId)
+                .Select(subject => new
+                {
+                    subject.MomentId,
+                    Handle = subject.Moment.AuthorUser.SocialProfile!.Handle,
+                    DisplayName = subject.Moment.AuthorUser.SocialProfile.DisplayName,
+                    Avatar = subject.Moment.AuthorUser.SocialProfile.AvatarMediaFile
+                })
+                .ToListAsync(cancellationToken)
+            : [];
+        var collaboratedIds = collaborated.Select(row => row.MomentId).ToArray();
 
         var memories = await _dbContext.PetMemories
             .AsNoTracking()
-            .Where(memory =>
+            .Where(memory => collaboratedIds.Contains(memory.Id) || (
                 // Subject membership: a Moment about Mochi and Coco belongs on
                 // both pets' profiles.
                 //
@@ -317,11 +337,12 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 // from its own pet's page, silently. PetId is the authoritative
                 // primary subject, so it is read as such here.
                 (memory.PetId == source.PetId
-                    || memory.MomentPets.Any(subject => subject.PetId == source.PetId))
+                    || memory.MomentPets.Any(subject =>
+                        subject.PetId == source.PetId && subject.CollaborationId == null))
                 && memory.DeletedAt == null
                 && memory.ArchivedAt == null
                 && memory.Visibility == MemoryVisibility.Public
-                && (showMoments || (showTimeline && memory.ShowInLifeTimeline)))
+                && (showMoments || (showTimeline && memory.ShowInLifeTimeline))))
             .OrderByDescending(memory => memory.MomentDate)
             .ThenByDescending(memory => memory.CreatedAt)
             .Select(memory => new
@@ -346,21 +367,43 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             memories.Select(memory => memory.Id).ToArray(),
             cancellationToken);
 
+        var authors = collaborated
+            .Where(row => !string.IsNullOrEmpty(row.Handle) && !string.IsNullOrEmpty(row.DisplayName))
+            .GroupBy(row => row.MomentId)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var row = group.First();
+                    return new PublicOwnerAttributionResponse(
+                        row.Handle!,
+                        row.DisplayName!,
+                        MediaDerivatives.ResolveOriginalUrl(row.Avatar, _r2Options.PublicBaseUrl),
+                        MediaDerivatives.ResolveThumbnailUrl(row.Avatar, _r2Options.PublicBaseUrl));
+                });
+
         return memories
-            .Select(memory => new PublicMemorySummaryResponse(
-                memory.Title,
-                memory.MomentDate,
-                memory.Type,
-                memory.Caption,
-                memory.Visibility,
-                // This response field remains temporarily for existing
-                // clients, but now represents effective gallery placement.
-                source.ShowMoments,
-                memory.ShowInLifeTimeline,
-                memory.TimelineNote,
-                media.TryGetValue(memory.Id, out var items)
-                    ? items
-                    : Array.Empty<MemoryMediaResponse>()))
+            .Select(memory =>
+            {
+                var momentBy = authors.GetValueOrDefault(memory.Id);
+                return new PublicMemorySummaryResponse(
+                    memory.Title,
+                    memory.MomentDate,
+                    memory.Type,
+                    memory.Caption,
+                    memory.Visibility,
+                    // This response field remains temporarily for existing
+                    // clients, but now represents effective gallery placement.
+                    source.ShowMoments,
+                    // Another household's Moment is never part of this pet's
+                    // Life Timeline.
+                    momentBy is null && memory.ShowInLifeTimeline,
+                    momentBy is null ? memory.TimelineNote : null,
+                    media.TryGetValue(memory.Id, out var items)
+                        ? items
+                        : Array.Empty<MemoryMediaResponse>(),
+                    momentBy);
+            })
             .ToArray();
     }
 

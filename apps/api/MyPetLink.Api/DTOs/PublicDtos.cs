@@ -111,7 +111,13 @@ public sealed record PublicMemorySummaryResponse(
     bool ShowOnPublicProfile,
     bool ShowInLifeTimeline,
     string? TimelineNote,
-    IReadOnlyCollection<MemoryMediaResponse> Media);
+    IReadOnlyCollection<MemoryMediaResponse> Media,
+    /// <summary>
+    /// Set only on a Moment this pet joined through another household's
+    /// collaboration: the household that wrote it. Null for the pet's own
+    /// household's Moments.
+    /// </summary>
+    PublicOwnerAttributionResponse? MomentBy = null);
 
 public sealed record PublicCareSummaryResponse(
     string Type,

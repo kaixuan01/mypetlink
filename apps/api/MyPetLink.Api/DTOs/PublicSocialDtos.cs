@@ -81,6 +81,13 @@ public sealed record PublicMomentListItemResponse(
     int CommentCount,
 
     /// <summary>
+    /// The Moment's accepted, currently visible collaborators, each with the
+    /// pets it placed in the Moment. Never includes a pending or ended
+    /// collaboration, and never mixed into <c>Subjects</c>.
+    /// </summary>
+    IReadOnlyCollection<PublicMomentCollaborationResponse> Collaborations,
+
+    /// <summary>
     /// Whether the caller has liked this Moment. Always false for a visitor with
     /// no session — there is nobody for a like to belong to.
     /// </summary>

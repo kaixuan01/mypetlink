@@ -255,12 +255,24 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
 
         var showMoments = pet.ShowMoments;
         var showTimeline = pet.ShowTimeline;
+        var petId = pet.Id;
+
+        // Moments this pet joined through another household's invitation, only
+        // while that collaboration is still eligible to show. They belong to
+        // the pet's Moments, never its Life Timeline, which is its own
+        // household's to curate.
+        var collaborated = _dbContext.MomentPets
+            .VisibleCollaboratorSubjects(_dbContext, viewerId)
+            .Where(subject => subject.PetId == petId)
+            .Select(subject => subject.MomentId);
 
         var query = SociallyVisibleMoments()
             .Where(moment =>
-                (moment.PetId == pet.Id
-                    || moment.MomentPets.Any(subject => subject.PetId == pet.Id))
-                && (showMoments || (showTimeline && moment.ShowInLifeTimeline)));
+                ((moment.PetId == petId
+                        || moment.MomentPets.Any(subject =>
+                            subject.PetId == petId && subject.CollaborationId == null))
+                    && (showMoments || (showTimeline && moment.ShowInLifeTimeline)))
+                || (showMoments && collaborated.Contains(moment.Id)));
 
         return await PageMomentsAsync(query, cursor, pageSize, viewerId, cancellationToken);
     }

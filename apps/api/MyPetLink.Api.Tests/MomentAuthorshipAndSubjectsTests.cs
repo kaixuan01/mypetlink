@@ -764,6 +764,30 @@ public sealed class MomentAuthorshipAndSubjectsTests
             .ToListAsync());
     }
 
+    [Fact]
+    public async Task ACollaboratorGainsNoAuthorityOverTheMoment()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId, MochiId, Request(MemoryVisibility.Public));
+        await AddAcceptedCollaboratorPetAsync(harness, created.Id);
+
+        // Having a pet in the Moment is not managing it: no read of the owner
+        // record, no edit (caption, visibility, pets) and no archive.
+        await Assert.ThrowsAsync<ApiException>(() => harness.Memories.GetAsync(BobId, created.Id));
+        await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Memories.UpdateAsync(BobId, created.Id, UpdateRequest(caption: "Mine now")));
+        await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Memories.UpdateAsync(BobId, created.Id, UpdateRequest(visibility: MemoryVisibility.Private)));
+        await Assert.ThrowsAsync<ApiException>(() => harness.Memories.ArchiveAsync(BobId, created.Id));
+
+        var stored = await harness.Db.PetMemories.AsNoTracking().SingleAsync(item => item.Id == created.Id);
+        Assert.Equal("First swim", stored.Caption);
+        Assert.Equal(MemoryVisibility.Public, stored.Visibility);
+        Assert.Null(stored.ArchivedAt);
+        Assert.Equal(AliceId, stored.AuthorUserId);
+    }
+
     /// <summary>
     /// The state an accepted collaboration leaves behind: Bob's pet on Alice's
     /// Moment through a collaboration row.
