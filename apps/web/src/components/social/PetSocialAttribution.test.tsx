@@ -200,7 +200,9 @@ describe("sharing a pet profile", () => {
 
     // A heart means "like" everywhere else in Community. Using it for Share made
     // the two gestures read as the same one.
-    expect(controls).toContain('<Icon name="share" className="h-4 w-4" />\n                  Share profile');
+    expect(controls.replaceAll("\r\n", "\n")).toContain(
+      '<Icon name="share" className="h-4 w-4" />\n                  Share profile'
+    );
   });
 
   it("copies a link with a link mark, not a QR mark", () => {

@@ -587,6 +587,101 @@ async function verifyAnonymousLike(browser, sourceRoute, title) {
   }
 }
 
+async function verifyAnonymousComments(browser, momentRoute) {
+  const returnTo = `${momentRoute}#comments`;
+  const { context, page } = await openAnonymousPage(browser, returnTo);
+  let commentWrites = 0;
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "POST" && pathname.endsWith("/comments")) {
+      commentWrites += 1;
+    }
+  });
+
+  try {
+    await page.getByRole("heading", { name: /Comments/ }).waitFor();
+    const gate = page.getByRole("link", { name: "Sign in to comment" });
+    await gate.waitFor();
+    assert(
+      (await gate.getAttribute("href")) === expectedLoginPath(returnTo),
+      "Anonymous Comments did not preserve the #comments return target."
+    );
+    assert(
+      (await page.getByLabel("Add a comment").count()) === 0,
+      "Anonymous Comments rendered a composer."
+    );
+
+    await gate.click();
+    await assertLoginTarget(page, returnTo);
+    await completeDevelopmentSignIn(page, returnTo);
+    await ensureQaCommunityProfile(page, returnTo);
+    const composer = page.getByLabel("Add a comment");
+    await composer.waitFor();
+    assert((await composer.inputValue()) === "", "Login restored an undisclosed Comment draft.");
+    assert(commentWrites === 0, `Comment wrote ${commentWrites} time(s) during login.`);
+
+    return { returnTo, writesDuringLogin: commentWrites };
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * A brand-new local database gives the development login an ordinary account
+ * with no social identity. Comments deliberately require one, so the browser
+ * runner creates an explicit QA household through the product UI once. Nothing
+ * is inferred from the account/finder identity, and subsequent runs simply see
+ * the existing eligible composer and skip this setup.
+ */
+async function ensureQaCommunityProfile(page, returnTo) {
+  const setup = page.getByRole("link", {
+    name: "Set up your Community profile to comment",
+  });
+  const composer = page.getByLabel("Add a comment");
+  await composer.or(setup).waitFor();
+  if (!(await setup.isVisible())) return;
+
+  await setup.click();
+  await page.waitForURL((url) => url.pathname === "/community/profile");
+  await page.getByRole("link", { name: "Set up profile" }).click();
+  await page.waitForURL((url) => url.pathname === "/community/profile/edit");
+
+  const handle = page.locator("#social-handle-input");
+  await handle.fill("devadminhouse");
+  const handleResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      responsePath(response) === "/api/v1/social/me/handle"
+  );
+  await page.getByRole("button", { name: "Claim handle" }).click();
+  assert((await handleResponse).ok(), "The QA Community handle could not be claimed.");
+
+  await page.locator("#social-display-name-input").fill("Development Admin Household");
+  const detailsResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      responsePath(response) === "/api/v1/social/me/profile"
+  );
+  await page.getByRole("button", { name: "Save Community Profile" }).click();
+  assert((await detailsResponse).ok(), "The QA Community name could not be saved.");
+
+  const socialSwitch = page.getByRole("switch", {
+    name: "Turn on my Community Profile",
+  });
+  await socialSwitch.waitFor();
+  if ((await socialSwitch.getAttribute("aria-checked")) !== "true") {
+    const enableResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        responsePath(response) === "/api/v1/social/me/profile"
+    );
+    await socialSwitch.click();
+    assert((await enableResponse).ok(), "The QA Community profile could not be enabled.");
+  }
+
+  await visit(page, returnTo);
+}
+
 async function verifyAnonymousBlock(browser) {
   const returnTo = `/u/${BLOCK_QA.handle}?source=c5-block`;
   const { context, page } = await openAnonymousPage(browser, returnTo);
@@ -790,6 +885,7 @@ async function verifyC5AnonymousFlows(browser) {
     moment.title
   );
   const detailLike = await verifyAnonymousLike(browser, moment.route, moment.title);
+  const comments = await verifyAnonymousComments(browser, moment.route);
   const block = await verifyAnonymousBlock(browser);
   const unsafeRedirects = await verifyUnsafeRedirects(browser);
   const expiry = await verifySessionExpiry(browser, moment.route, moment.title);
@@ -798,6 +894,7 @@ async function verifyC5AnonymousFlows(browser) {
   return {
     anonymousShare,
     block,
+    comments,
     detailLike,
     expiry,
     exploreLike,
@@ -1376,6 +1473,312 @@ async function verifyBlockFlow(page, viewerHandle) {
   return result;
 }
 
+function commentCountFromHeading(text) {
+  const match = /Comments\s*·\s*(\d+)/i.exec(text ?? "");
+  return match ? Number(match[1]) : null;
+}
+
+async function createCommentThroughUi(page, momentRoute, body) {
+  await visit(page, `${momentRoute}#comments`);
+  const heading = page.getByRole("heading", { name: /Comments/ });
+  await heading.waitFor();
+  const before = commentCountFromHeading(await heading.innerText());
+  assert(before !== null, "Comments heading did not expose its count.");
+
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      responsePath(response) ===
+        `/api/v1/social/moments/${momentRoute.split("/").pop()}/comments`
+  );
+  const composer = page.getByLabel("Add a comment");
+  await composer.fill(body);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const response = await responsePromise;
+  assert(response.ok(), `Create Comment returned HTTP ${response.status()}.`);
+  const created = await responseData(response);
+  const row = page.locator(`#comment-${created.comment.id}`);
+  await row.waitFor();
+  assert((await row.innerText()).includes(body), "Created Comment did not appear at the bottom.");
+  assert(
+    commentCountFromHeading(await heading.innerText()) === before + 1,
+    "Creating a Comment did not increment the visible count once."
+  );
+  return { before, id: created.comment.id };
+}
+
+async function deleteOwnCommentThroughUi(page, momentRoute, commentId) {
+  await visit(page, `${momentRoute}#comment-${commentId}`);
+  const row = page.locator(`#comment-${commentId}`);
+  if ((await row.count()) === 0) return false;
+
+  await row.getByRole("button", { name: /Comment actions/ }).click();
+  await row.getByRole("button", { name: "Delete comment", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete your comment?" });
+  await dialog.waitFor();
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "DELETE" &&
+      responsePath(response).endsWith(`/comments/${commentId}`)
+  );
+  await dialog.getByRole("button", { name: "Delete comment", exact: true }).click();
+  const response = await responsePromise;
+  assert(response.ok(), `Delete Comment returned HTTP ${response.status()}.`);
+  await row.waitFor({ state: "detached" });
+  return true;
+}
+
+async function verifyCommentCrud(page, momentRoute, momentTitle) {
+  const body = `Community QA ${Date.now()} 🐾\nMultiline Comment`;
+  let commentId = null;
+
+  try {
+    const created = await createCommentThroughUi(page, momentRoute, body);
+    commentId = created.id;
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.locator(`#comment-${commentId}`).waitFor();
+    assert(
+      (await page.locator(`#comment-${commentId}`).innerText()).includes(body),
+      "Comment did not persist after reload."
+    );
+
+    await visit(page, "/explore");
+    const card = page
+      .locator('[data-testid="social-moment-card"], [data-testid="social-moment-tile"]')
+      .filter({ hasText: momentTitle })
+      .first();
+    const commentLink = card.locator(`a[href="${momentRoute}#comments"]`);
+    await commentLink.waitFor();
+    assert(Number((await commentLink.innerText()).trim()) >= created.before + 1,
+      "Moment card Comment count did not update.");
+
+    const deleted = await deleteOwnCommentThroughUi(page, momentRoute, commentId);
+    assert(deleted, "Own Comment could not be deleted through its menu.");
+    commentId = null;
+
+    return { persisted: true, countUpdated: true, cardLinked: true };
+  } finally {
+    if (commentId) {
+      await deleteOwnCommentThroughUi(page, momentRoute, commentId).catch(() => {});
+    }
+  }
+}
+
+async function resolveBlockQaMoment(page) {
+  await visit(page, `/u/${BLOCK_QA.handle}`);
+  const card = page
+    .locator('[data-testid="social-moment-card"], [data-testid="social-moment-tile"]')
+    .filter({ hasText: BLOCK_QA.momentTitle })
+    .first();
+  await card.waitFor();
+  const href = await card.locator('a[href^="/moments/"]').first().getAttribute("href");
+  assert(href, "Disposable Block household did not expose its Moment route.");
+  return href;
+}
+
+async function verifyCommentBlockFlow(browser, page) {
+  const mutation = { blockCreated: false, followCreated: false };
+  const momentRoute = await resolveBlockQaMoment(page);
+  const body = `Block restore QA ${Date.now()}`;
+  let commentId = null;
+  let anonymousContext = null;
+
+  try {
+    const baseline = await loadBlockTarget(page);
+    assert(!baseline.hasBlocked, "Disposable Comment Block pair was not clean.");
+    const created = await createCommentThroughUi(page, momentRoute, body);
+    commentId = created.id;
+
+    const anonymous = await openAnonymousPage(browser, `${momentRoute}#comments`);
+    anonymousContext = anonymous.context;
+    await anonymous.page.getByText(body, { exact: true }).waitFor();
+
+    await loadBlockTarget(page);
+    await clickProfileMenuAction(page, `Block @${BLOCK_QA.handle}`);
+    await confirmRelationshipAction(
+      page,
+      "Block",
+      "POST",
+      `/api/v1/social/owners/${BLOCK_QA.handle}/block`
+    );
+    mutation.blockCreated = true;
+
+    await visit(page, momentRoute);
+    await page.getByTestId("moment-unavailable").waitFor();
+    await anonymous.page.reload({ waitUntil: "domcontentloaded" });
+    await anonymous.page.getByTestId("moment-detail").waitFor();
+    assert(
+      (await anonymous.page.getByText(body, { exact: true }).count()) === 0,
+      "Third-party viewer still saw a Comment across the author pair Block."
+    );
+
+    await loadBlockTarget(page);
+    await clickProfileMenuAction(page, `Unblock @${BLOCK_QA.handle}`);
+    await confirmRelationshipAction(
+      page,
+      "Unblock",
+      "DELETE",
+      `/api/v1/social/owners/${BLOCK_QA.handle}/block`
+    );
+    mutation.blockCreated = false;
+
+    await anonymous.page.reload({ waitUntil: "domcontentloaded" });
+    await anonymous.page.getByText(body, { exact: true }).waitFor();
+    await deleteOwnCommentThroughUi(page, momentRoute, commentId);
+    commentId = null;
+
+    return { hiddenFromPair: true, hiddenFromThirdViewer: true, restored: true };
+  } finally {
+    await anonymousContext?.close();
+    await cleanupBlockQaRelationship(page, mutation);
+    if (commentId && !mutation.blockCreated) {
+      await deleteOwnCommentThroughUi(page, momentRoute, commentId).catch(() => {});
+    }
+  }
+}
+
+async function verifyCommentsResponsive(browser, momentRoute) {
+  const momentId = momentRoute.split("/").pop();
+  const author = {
+    handle: "responsiveqa",
+    displayName: "Responsive QA Household With A Long Name",
+    avatarUrl: null,
+    avatarThumbnailUrl: null,
+  };
+  const newest = Array.from({ length: 20 }, (_, index) => ({
+    id: `responsive-${index + 1}`,
+    body:
+      index === 0
+        ? `${"Unbroken".repeat(58)}🐾`
+        : index === 1
+          ? "First line\nSecond line with family emoji 👩‍👩‍👧‍👦"
+          : `Comment ${index + 1}`,
+    createdAt: new Date(Date.UTC(2026, 8, 24, 12, index)).toISOString(),
+    author,
+    viewerDeleteAction: "delete",
+  }));
+  const older = {
+    id: "responsive-older",
+    body: "Earlier Comment",
+    createdAt: "2026-09-23T12:00:00.000Z",
+    author,
+    viewerDeleteAction: "remove",
+  };
+  const results = [];
+
+  for (const { w, h } of VIEWPORTS) {
+    const context = await browser.newContext({
+      storageState: SESSION_FILE,
+      viewport: { width: w, height: h },
+    });
+    const page = await context.newPage();
+
+    try {
+      await page.route(`**/api/v1/public/moments/${momentId}/comments**`, async (route) => {
+        const url = new URL(route.request().url());
+        const pageData = url.searchParams.has("cursor")
+          ? { items: [older], nextCursor: null }
+          : { items: [...newest].reverse(), nextCursor: "older-page" };
+        await route.fulfill({
+          body: JSON.stringify({
+            data: {
+              ...pageData,
+              commentCount: 21,
+              viewer: { canComment: true, requirement: null, identity: author },
+            },
+          }),
+          contentType: "application/json",
+          status: 200,
+        });
+      });
+      await page.route(`**/api/v1/social/moments/${momentId}/comments`, async (route) => {
+        const body = route.request().postDataJSON()?.body ?? "";
+        await route.fulfill({
+          body: JSON.stringify({
+            data: {
+              comment: {
+                id: "responsive-created",
+                body,
+                createdAt: "2026-09-24T13:00:00.000Z",
+                author,
+                viewerDeleteAction: "delete",
+              },
+              commentCount: 22,
+            },
+          }),
+          contentType: "application/json",
+          status: 200,
+        });
+      });
+
+      await visit(page, `${momentRoute}#comments`);
+      await page.getByText("Earlier Comment").count();
+      const showEarlier = page.getByRole("button", { name: "Show earlier comments" });
+      await showEarlier.waitFor();
+      await showEarlier.click();
+      await page.getByText("Earlier Comment", { exact: true }).waitFor();
+
+      const row = page.locator("#comment-responsive-1");
+      await row.getByRole("button", { name: /Comment actions/ }).click();
+      const trigger = row.getByRole("button", { name: /Comment actions/ });
+      await row.getByRole("button", { name: "Delete comment", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Delete your comment?" });
+      await dialog.waitFor();
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      assert(await trigger.evaluate((element) => element === document.activeElement),
+        `${w}x${h}: cancelling Comment deletion did not restore focus.`);
+
+      const olderRow = page.locator("#comment-responsive-older");
+      await olderRow.getByRole("button", { name: /Comment actions/ }).click();
+      await olderRow.getByRole("button", { name: "Remove comment", exact: true }).click();
+      const removeDialog = page.getByRole("dialog", { name: "Remove this comment?" });
+      await removeDialog.waitFor();
+      await removeDialog.getByRole("button", { name: "Cancel" }).click();
+
+      const composer = page.getByLabel("Add a comment");
+      await composer.fill(`${"n".repeat(448)}🐾`);
+      await page.getByText("450 / 500", { exact: true }).waitFor();
+      await composer.press("Control+Enter");
+      await page.getByText(`${"n".repeat(448)}🐾`, { exact: true }).waitFor();
+      assert(await composer.evaluate((element) => element === document.activeElement),
+        `${w}x${h}: posting did not keep focus in the Comment composer.`);
+
+      await composer.scrollIntoViewIfNeeded();
+      const [overflow, box] = await Promise.all([
+        overflowReport(page),
+        composer.boundingBox(),
+      ]);
+      assert(!overflow.scrolls,
+        `${w}x${h}: Comments caused horizontal overflow ${overflow.documentWidth}>${overflow.viewportWidth}.`);
+      assert(box && box.x >= 0 && box.x + box.width <= w + 1,
+        `${w}x${h}: Comment composer escaped the viewport.`);
+
+      const controls = await page.locator(
+        '#comments button, #comments a[aria-label^="Comments"], #comments a[href*="login"], #comments a[href="/community/profile"]'
+      ).evaluateAll((elements) =>
+        elements
+          .map((element) => ({
+            label: element.getAttribute("aria-label") || element.textContent?.trim() || element.tagName,
+            height: element.getBoundingClientRect().height,
+            width: element.getBoundingClientRect().width,
+          }))
+          .filter((item) => item.height > 0)
+      );
+      const undersized = controls.filter((item) => item.height < 44 || item.width < 44);
+      assert(
+        undersized.length === 0,
+        `${w}x${h}: undersized Comment controls ${JSON.stringify(undersized)}.`
+      );
+      results.push(`${w}x${h}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  return results;
+}
+
 async function main() {
   await requireServers();
 
@@ -1390,6 +1793,7 @@ async function main() {
     process.stdout.write(
       `  OK    Follow -> ${c5.follow.returnTo}; Back clean=${c5.follow.backReturned}; no auto-follow\n` +
         `  OK    Like -> ${c5.exploreLike} and ${c5.detailLike}; no auto-like\n` +
+        `  OK    Comments -> ${c5.comments.returnTo}; readable anonymously; no auto-comment\n` +
         `  OK    Block -> ${c5.block.returnTo}; fresh confirmation=${c5.block.confirmationRequiredAgain}; no auto-block\n` +
         `  OK    Anonymous Share -> ${c5.anonymousShare.native.url}; ${c5.anonymousShare.fallback.feedback}\n` +
         `  OK    Protected returns -> ${c5.protectedRoutes.join(", ")}\n` +
@@ -1419,7 +1823,11 @@ async function main() {
 
     let failures = 0;
 
-    const momentRoute = routes.find((route) => route.name === "moment detail")?.path;
+    // A new QA household has no pets or followed feed yet; the anonymous C5
+    // discovery pass already resolved a real public Moment we can reuse.
+    const momentRoute =
+      routes.find((route) => route.name === "moment detail")?.path ??
+      c5.moment.route;
     assert(momentRoute, "A Moment detail route is required for Share QA.");
 
     process.stdout.write("C6 navigation shell verification\n");
@@ -1435,6 +1843,18 @@ async function main() {
     process.stdout.write(
       `  OK    Web Share once -> ${share.native.url} (${share.native.title})\n` +
         `  OK    Copy Link -> ${share.fallback.url}; ${share.fallback.feedback}\n`
+    );
+
+    process.stdout.write("\nPhase 2A Comment verification\n");
+    const commentCrud = await verifyCommentCrud(
+      page,
+      c5.moment.route,
+      c5.moment.title
+    );
+    const commentBlock = await verifyCommentBlockFlow(browser, page);
+    process.stdout.write(
+      `  OK    Create/reload/delete; card link=${commentCrud.cardLinked}; count=${commentCrud.countUpdated}\n` +
+        `  OK    Block hid Comment from pair and third viewer; unblock restored=${commentBlock.restored}\n\n`
     );
 
     const block = await verifyBlockFlow(page, "devadminhouse");
@@ -1464,6 +1884,15 @@ async function main() {
     }
 
     if (wantResponsive) {
+      process.stdout.write("\nResponsive Comments matrix\n");
+      const commentViewports = await verifyCommentsResponsive(
+        browser,
+        c5.moment.route
+      );
+      for (const viewport of commentViewports) {
+        process.stdout.write(`  OK    ${viewport}\n`);
+      }
+
       process.stdout.write("\nResponsive sweep (anonymous login and Back)\n");
       const anonymousResults = await verifyAnonymousResponsive(browser);
       for (const { w, h, notes } of anonymousResults) {
