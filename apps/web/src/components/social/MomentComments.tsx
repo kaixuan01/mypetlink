@@ -11,6 +11,13 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { ownerLoginPath } from "@/lib/authRedirect";
+import {
+  clearCommentDraft,
+  commentDraftStorage,
+  hasCommentDraft,
+  saveCommentDraft,
+  takeCommentDraft,
+} from "@/lib/commentDraftRecovery";
 import { formatRelativeAge } from "@/lib/momentPublishedTime";
 import {
   momentPath,
@@ -25,6 +32,7 @@ import {
   type MomentComment,
   type MomentCommentViewer,
 } from "@/services/momentCommentService";
+import { readStoredAuthSession } from "@/services/authStorage";
 
 type LoadState = "loading" | "ready" | "error" | "unavailable";
 
@@ -55,6 +63,8 @@ export function MomentComments({
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [draftKept, setDraftKept] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<MomentComment | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -83,6 +93,22 @@ export function MomentComments({
         setViewer(page.viewer);
         updateCount(page.commentCount);
         setLoadedAt(Date.now());
+        // A Comment interrupted by an ended session comes back only to the
+        // same account on the same Moment, and is never sent on its own.
+        const storage = commentDraftStorage();
+        if (page.viewer.canComment) {
+          const restored = takeCommentDraft(storage, {
+            momentId,
+            userId: readStoredAuthSession()?.user.id,
+          });
+          if (restored) {
+            setDraft(restored);
+            setDraftRestored(true);
+            setAnnouncement("Your unsent comment was restored.");
+          }
+        } else {
+          setDraftKept(hasCommentDraft(storage, momentId));
+        }
         setState("ready");
       })
       .catch((error: unknown) => {
@@ -135,6 +161,9 @@ export function MomentComments({
     if (posting || !draft.trim() || !viewer.canComment) return;
     setPosting(true);
     setComposerError(null);
+    // Read before posting: an ended session is cleared on the way to the
+    // error, and the draft must stay bound to the account that wrote it.
+    const authorUserId = readStoredAuthSession()?.user.id ?? null;
     try {
       const result = await createMomentComment(momentId, draft);
       setItems((current) =>
@@ -144,12 +173,23 @@ export function MomentComments({
       );
       updateCount(result.commentCount);
       setDraft("");
+      setDraftRestored(false);
+      clearCommentDraft(commentDraftStorage());
       setAnnouncement("Comment posted.");
       requestAnimationFrame(() => textareaRef.current?.focus());
     } catch (error) {
       if (error instanceof MomentCommentError) {
         setComposerError(error.message);
         if (error.reason === "session") {
+          if (authorUserId) {
+            setDraftKept(
+              saveCommentDraft(commentDraftStorage(), {
+                momentId,
+                userId: authorUserId,
+                body: draft,
+              })
+            );
+          }
           setViewer({ canComment: false, requirement: "signIn", identity: null });
         } else if (error.reason === "community-profile") {
           setViewer({
@@ -299,6 +339,11 @@ export function MomentComments({
                   <label className="text-sm font-black text-pet-ink" htmlFor="comment-body">
                     Add a comment
                   </label>
+                  {draftRestored ? (
+                    <p className="mt-1 text-sm font-semibold text-pet-muted">
+                      Your unsent comment is back. Press Send when you’re ready.
+                    </p>
+                  ) : null}
                   <textarea
                     aria-describedby="comment-help comment-error"
                     aria-invalid={Boolean(composerError)}
@@ -341,12 +386,19 @@ export function MomentComments({
                 Set up your Community profile to comment
               </Link>
             ) : (
-              <Link
-                className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal"
-                href={loginHref}
-              >
-                Sign in to comment
-              </Link>
+              <>
+                {draftKept ? (
+                  <p className="mb-3 text-sm font-semibold text-pet-muted">
+                    We’ve kept your comment. Sign in to finish posting it.
+                  </p>
+                ) : null}
+                <Link
+                  className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal"
+                  href={loginHref}
+                >
+                  Sign in to comment
+                </Link>
+              </>
             )}
           </div>
         </>

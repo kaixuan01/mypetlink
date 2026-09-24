@@ -221,24 +221,118 @@ describe("Moment Comments", () => {
     await screen.findByText("Second comment");
   });
 
-  it("keeps the draft and switches to sign-in after an expired session", async () => {
-    mocks.get.mockResolvedValue({
-      items: [],
-      nextCursor: null,
-      commentCount: 0,
-      viewer: { canComment: true, requirement: null, identity: author },
+  describe("a session that ends mid-comment", () => {
+    const signedInViewer = {
+      canComment: true,
+      requirement: null,
+      identity: author,
+    };
+
+    function signIn(userId: string) {
+      window.localStorage.setItem(
+        "mypetlink_api_auth_session",
+        JSON.stringify({
+          accessToken: "access",
+          refreshToken: "refresh",
+          expiresAt: Date.now() + 60_000,
+          user: { id: userId, email: "a@b.local", displayName: "A", roles: ["Owner"], status: "Active" },
+        })
+      );
+    }
+
+    afterEach(() => {
+      window.localStorage.clear();
+      window.sessionStorage.clear();
     });
-    mocks.create.mockRejectedValue(
-      new MomentCommentError("session", "Sign in to comment.")
-    );
 
-    render(<MomentComments initialCount={0} momentId="moment-1" onCountChange={vi.fn()} />);
-    const textarea = await screen.findByLabelText("Add a comment");
-    fireEvent.change(textarea, { target: { value: "Keep this draft" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    async function expireWhilePosting(text: string) {
+      signIn("user-1");
+      mocks.get.mockResolvedValue({ items: [], nextCursor: null, commentCount: 0, viewer: signedInViewer });
+      mocks.create.mockImplementationOnce(async () => {
+        // apiClient clears the stored session before the 401 reaches us.
+        window.localStorage.removeItem("mypetlink_api_auth_session");
+        throw new MomentCommentError("session", "Sign in to comment.");
+      });
 
-    expect(await screen.findByRole("link", { name: "Sign in to comment" })).toBeTruthy();
-    expect(mocks.create).toHaveBeenCalledWith("moment-1", "Keep this draft");
+      const view = render(
+        <MomentComments initialCount={0} momentId="moment-1" onCountChange={vi.fn()} />
+      );
+      fireEvent.change(await screen.findByLabelText("Add a comment"), { target: { value: text } });
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      await screen.findByRole("link", { name: "Sign in to comment" });
+      return view;
+    }
+
+    it("keeps the draft through sign-in without putting it in the URL", async () => {
+      await expireWhilePosting("This is my comment");
+
+      expect(screen.getByText("We’ve kept your comment. Sign in to finish posting it.")).toBeTruthy();
+      const href = screen.getByRole("link", { name: "Sign in to comment" }).getAttribute("href") ?? "";
+      expect(decodeURIComponent(href)).toContain("/moments/moment-1#comments");
+      expect(href).not.toContain("This");
+      expect(window.location.href).not.toContain("This");
+      expect(window.sessionStorage.getItem("mypetlink_comment_draft_v1")).toContain("This is my comment");
+    });
+
+    it("restores the draft after the same account returns, and never sends it by itself", async () => {
+      const first = await expireWhilePosting("This is my comment");
+      first.unmount();
+      mocks.create.mockClear();
+
+      signIn("user-1");
+      render(<MomentComments initialCount={0} momentId="moment-1" onCountChange={vi.fn()} />);
+
+      const textarea = (await screen.findByLabelText("Add a comment")) as HTMLTextAreaElement;
+      expect(textarea.value).toBe("This is my comment");
+      expect(screen.getByText("Your unsent comment is back. Press Send when you’re ready.")).toBeTruthy();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(mocks.create).not.toHaveBeenCalled();
+      // Consumed: a reload does not bring it back a second time.
+      expect(window.sessionStorage.getItem("mypetlink_comment_draft_v1")).toBeNull();
+    });
+
+    it("clears the draft once it is sent deliberately", async () => {
+      const first = await expireWhilePosting("Send me later");
+      first.unmount();
+      mocks.create.mockClear();
+
+      signIn("user-1");
+      mocks.create.mockResolvedValueOnce({
+        comment: { ...newer, id: "comment-9", body: "Send me later" },
+        commentCount: 1,
+      });
+      render(<MomentComments initialCount={0} momentId="moment-1" onCountChange={vi.fn()} />);
+      const textarea = (await screen.findByLabelText("Add a comment")) as HTMLTextAreaElement;
+      await waitFor(() => expect(textarea.value).toBe("Send me later"));
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+      await screen.findByText("Send me later");
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+      expect(textarea.value).toBe("");
+      expect(window.sessionStorage.getItem("mypetlink_comment_draft_v1")).toBeNull();
+    });
+
+    it("does not give the draft to a different Moment", async () => {
+      const first = await expireWhilePosting("Only for moment one");
+      first.unmount();
+
+      signIn("user-1");
+      render(<MomentComments initialCount={0} momentId="moment-2" onCountChange={vi.fn()} />);
+      const textarea = (await screen.findByLabelText("Add a comment")) as HTMLTextAreaElement;
+      expect(textarea.value).toBe("");
+      expect(window.sessionStorage.getItem("mypetlink_comment_draft_v1")).toContain("Only for moment one");
+    });
+
+    it("does not give the draft to a different account", async () => {
+      const first = await expireWhilePosting("Private words");
+      first.unmount();
+
+      signIn("user-2");
+      render(<MomentComments initialCount={0} momentId="moment-1" onCountChange={vi.fn()} />);
+      const textarea = (await screen.findByLabelText("Add a comment")) as HTMLTextAreaElement;
+      expect(textarea.value).toBe("");
+      expect(window.sessionStorage.getItem("mypetlink_comment_draft_v1")).toBeNull();
+    });
   });
 
   it("replaces the composer with an unavailable state after a safe 404", async () => {
