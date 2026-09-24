@@ -6,6 +6,7 @@ import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { LikeButton } from "@/components/social/LikeButton";
 import { CommentAction } from "@/components/social/CommentAction";
 import type { AnalyticsSocialSource } from "@/lib/analytics";
+import { allMomentPets, collaboratorHouseholds } from "@/lib/momentCollaboration";
 import {
   MomentByline,
   MomentMedia,
@@ -28,6 +29,8 @@ type SocialMomentCardProps = {
   now?: number;
   /** False on a household's own profile, where the byline would repeat the page. */
   showAuthor?: boolean;
+  /** Leading words for the byline, such as "Moment by" on another household's pet page. */
+  authorPrefix?: string;
   /** Which screen this card is on, for engagement measurement. */
   analyticsSource?: AnalyticsSocialSource;
   className?: string;
@@ -54,6 +57,7 @@ export function SocialMomentCard({
   onLikeChange,
   now,
   showAuthor = true,
+  authorPrefix,
   analyticsSource = "direct",
   className = "",
 }: SocialMomentCardProps) {
@@ -68,10 +72,12 @@ export function SocialMomentCard({
       data-testid="social-moment-card"
     >
       <header className="flex flex-col gap-1.5 p-3 pb-2">
-        <MomentSubjects subjects={moment.subjects} />
+        <MomentSubjects subjects={allMomentPets(moment)} />
         {showAuthor && moment.author ? (
           <MomentByline
             author={moment.author}
+            collaborators={collaboratorHouseholds(moment)}
+            prefix={authorPrefix}
             now={now}
             publishedAt={moment.publishedAt}
           />
@@ -213,12 +219,17 @@ export function SocialMomentTile({
         </h3>
 
         <div className="relative z-10 min-h-8">
-          <MomentSubjects size="sm" subjects={moment.subjects} />
+          <MomentSubjects size="sm" subjects={allMomentPets(moment)} />
         </div>
 
         {showAuthor && moment.author ? (
           <div className="relative z-10">
-            <MomentByline author={moment.author} compact publishedAt={null} />
+            <MomentByline
+              author={moment.author}
+              collaborators={collaboratorHouseholds(moment)}
+              compact
+              publishedAt={null}
+            />
           </div>
         ) : null}
 

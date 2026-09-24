@@ -11,6 +11,8 @@ import { MomentComments } from "@/components/social/MomentComments";
 import { MomentShareButton } from "@/components/social/MomentShareButton";
 import { SharedByIdentity } from "@/components/social/SharedByIdentity";
 import { MomentSubjects } from "@/components/social/SocialMomentParts";
+import { MomentCollaborators } from "@/components/social/MomentCollaborators";
+import { allMomentPets } from "@/lib/momentCollaboration";
 import { Icon } from "@/components/ui/Icon";
 import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
 import {
@@ -252,8 +254,9 @@ function MomentArticle({
         household is who shared it.
       */}
       <header className="flex flex-col gap-3 p-4 pb-3">
-        <MomentSubjects subjects={moment.subjects} />
+        <MomentSubjects subjects={allMomentPets(moment)} />
         {moment.author ? <SharedByIdentity author={moment.author} /> : null}
+        <MomentCollaborators collaborations={moment.collaborations ?? []} />
       </header>
 
       {media.length > 0 ? (

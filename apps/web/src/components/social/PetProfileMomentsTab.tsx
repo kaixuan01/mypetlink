@@ -5,6 +5,7 @@ import { SocialMomentCard } from "@/components/social/SocialMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
 import { MomentCardSkeleton } from "@/components/social/SocialSkeletons";
+import { isCollaboratorPet } from "@/lib/momentCollaboration";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import { getPublicPetMoments } from "@/services/publicSocialService";
@@ -85,12 +86,16 @@ export function PetProfileMomentsTab({
   return (
     <div className="grid gap-4">
       {moments.map((moment) => (
+        // This page belongs to the pet's household, so its own Moments carry
+        // no byline. A Moment the pet joined through another household's
+        // invitation is theirs, and says so.
         <SocialMomentCard
+          authorPrefix="Moment by"
           key={moment.id}
           moment={moment}
           now={loadedAt}
           onLikeChange={onLikeChange}
-          showAuthor={false}
+          showAuthor={isCollaboratorPet(moment, publicSlug)}
           signedIn={signedIn}
         />
       ))}

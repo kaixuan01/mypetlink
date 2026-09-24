@@ -19,6 +19,16 @@ export type PublicMomentSubject = {
   lostModeEnabled: boolean;
 };
 
+/**
+ * Another household that accepted an invitation into a Moment, and the pets it
+ * placed there. Kept apart from the Moment's own subjects so a collaborator's
+ * pet is never presented as the author's.
+ */
+export type PublicMomentCollaboration = {
+  household: PublicOwnerAttribution;
+  pets: PublicMomentSubject[];
+};
+
 /** A household's social identity. Never an account or finder-facing name. */
 export type PublicOwnerAttribution = {
   handle: string;
@@ -50,6 +60,8 @@ export type PublicMomentListItem = {
   likeCount: number;
   /** Counted through the same viewer-specific rules as the Comment list. */
   commentCount?: number;
+  /** Accepted, currently visible collaborators. Absent from older responses. */
+  collaborations?: PublicMomentCollaboration[];
   /** Always false for a visitor with no session. */
   viewerHasLiked: boolean;
 };
@@ -220,6 +232,10 @@ function normalizeMoment(item: PublicMomentListItem): PublicMomentListItem {
     media: item.media ?? [],
     likeCount: item.likeCount ?? 0,
     commentCount: item.commentCount ?? 0,
+    collaborations: (item.collaborations ?? []).map((collaboration) => ({
+      household: collaboration.household,
+      pets: collaboration.pets ?? [],
+    })),
     viewerHasLiked: item.viewerHasLiked ?? false,
   };
 }

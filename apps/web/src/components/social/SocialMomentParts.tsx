@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { VideoPoster } from "@/components/moments/VideoPoster";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
+import { formatCollaborators } from "@/lib/momentCollaboration";
 import {
   formatMomentPublishedAge,
   formatMomentPublishedLabel,
@@ -106,9 +107,21 @@ export function MomentByline({
   publishedAt,
   now,
   compact = false,
+  collaborators = [],
+  prefix,
 }: {
   author: PublicOwnerAttribution;
   publishedAt: string | null;
+  /**
+   * Households that joined this Moment. Shown after the author as "with …":
+   * the author stays the one who shared it.
+   */
+  collaborators?: PublicOwnerAttribution[];
+  /**
+   * Leading words for a page that belongs to someone else, such as a
+   * collaborator pet's own Moments: "Moment by The Tan Family".
+   */
+  prefix?: string;
   /**
    * On a grid tile there is room for one identifier, not two. The handle wins:
    * it is shorter, it is unique, and it is what a Follow acts on. Showing both
@@ -124,6 +137,9 @@ export function MomentByline({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
+      {prefix ? (
+        <span className="shrink-0 text-xs font-bold text-pet-muted">{prefix}</span>
+      ) : null}
       {/*
         `py-0.5` lifts this to the 24px minimum target size. The byline is the
         only route from a Moment to the household that shared it, and it
@@ -156,6 +172,40 @@ export function MomentByline({
           @{author.handle}
         </span>
       </Link>
+
+      {collaborators.length > 0 ? (
+        compact ? (
+          <span
+            className="shrink-0 text-xs font-bold text-pet-muted"
+            data-testid="moment-collaborators"
+          >
+            <span aria-hidden="true">+{collaborators.length}</span>
+            <span className="sr-only">
+              {` with ${formatCollaborators(collaborators)}`}
+            </span>
+          </span>
+        ) : (
+          <span
+            className="flex min-w-0 items-center gap-1 text-xs font-bold text-pet-muted"
+            data-testid="moment-collaborators"
+          >
+            <span className="shrink-0">with</span>{" "}
+            <Link
+              className="truncate py-0.5 text-pet-ink/80 transition hover:text-pet-ink"
+              href={ownerSocialProfilePath(collaborators[0].handle)}
+            >
+              {collaborators[0].displayName}
+            </Link>
+            {collaborators.length > 1 ? " " : null}
+            {collaborators.length > 1 ? (
+              <span className="shrink-0">
+                and {collaborators.length - 1}{" "}
+                {collaborators.length === 2 ? "other" : "others"}
+              </span>
+            ) : null}
+          </span>
+        )
+      ) : null}
 
       {publishedAt && now !== undefined ? (
         // A machine-readable instant, a human-readable age, and the exact time
