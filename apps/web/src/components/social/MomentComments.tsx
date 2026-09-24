@@ -149,13 +149,25 @@ export function MomentComments({
         target.scrollIntoView({ block: "center" });
         target.focus({ preventScroll: true });
         setHighlightId(linked);
-        return;
+      } else {
+        // The thread renders after the Moment, so the browser's own jump to
+        // the fragment has usually already missed. A Comment that is gone,
+        // hidden from this viewer or too old for a link to reach lands on
+        // the thread.
+        sectionRef.current?.scrollIntoView({ block: "start" });
       }
 
-      // The thread renders after the Moment, so the browser's own jump to the
-      // fragment has usually already missed. A Comment that is gone, hidden
-      // from this viewer or too old for a link to reach lands on the thread.
-      sectionRef.current?.scrollIntoView({ block: "start" });
+      // The fragment has done its job; take it off this history entry. A
+      // Moment page is served from the export's fallback shell, and when Back
+      // returns to it from another page the router re-enters it with a full
+      // load of the same URL. With a fragment still attached, the browser
+      // treats that load as an in-page jump instead, and the previous page
+      // stays on screen. Next copies its own history state across this call.
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`
+      );
     });
   }, [items, state]);
 

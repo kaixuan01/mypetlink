@@ -323,6 +323,10 @@ describe("Moment Comments", () => {
       expect(document.activeElement).toBe(item);
       expect(item.getAttribute("data-highlighted")).toBe("true");
       expect(screen.getByRole("button", { name: "Show earlier comments" })).toBeTruthy();
+      // Consumed: the fragment is taken off the entry so Back from another
+      // page reloads the Moment instead of stranding the reader.
+      expect(window.location.hash).toBe("");
+      expect(window.location.pathname).toBe("/moments/moment-1");
     });
 
     it("lands on the thread when the linked Comment is not available", async () => {
@@ -334,6 +338,7 @@ describe("Moment Comments", () => {
       const section = document.getElementById("comments")!;
       await waitFor(() => expect(scrolls).toContain(section));
       expect(document.querySelector("[data-highlighted]")).toBeNull();
+      expect(window.location.hash).toBe("");
     });
 
     it("does not send an anchor for an ordinary visit or a malformed link", async () => {

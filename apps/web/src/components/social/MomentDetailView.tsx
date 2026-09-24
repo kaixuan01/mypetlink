@@ -307,6 +307,7 @@ function MomentArticle({
             />
             <CommentAction
               commentCount={moment.commentCount ?? 0}
+              inPage
               momentId={moment.id}
               momentTitle={moment.title}
             />
