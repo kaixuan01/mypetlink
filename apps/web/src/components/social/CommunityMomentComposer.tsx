@@ -1,5 +1,7 @@
 "use client";
 
+import { useCollaborationInviteFollowUp } from "@/components/social/useCollaborationInviteFollowUp";
+import type { CollaborationInvite } from "@/services/momentCollaborationService";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MomentEditorDialog } from "@/components/portal/MomentEditorDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -47,6 +49,16 @@ export function CommunityMomentComposer({
   onClose,
   onCreated,
 }: CommunityMomentComposerProps) {
+  const inviteFollowUp = useCollaborationInviteFollowUp();
+  const [awaitingFollowUp, setAwaitingFollowUp] = useState(false);
+
+  useEffect(() => {
+    // Close once the invitation prompt has been dealt with.
+    if (awaitingFollowUp && !inviteFollowUp.open) {
+      onClose();
+    }
+  }, [awaitingFollowUp, inviteFollowUp.open, onClose]);
+
   const [pets, setPets] = useState<PetListItem[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [primaryPetId, setPrimaryPetId] = useState<string | null>(null);
@@ -121,7 +133,10 @@ export function CommunityMomentComposer({
     onClose();
   }, [dirty, onClose, submitting]);
 
-  async function handleSubmit(payload: PetMomentPayload) {
+  async function handleSubmit(
+    payload: PetMomentPayload,
+    extras?: { collaboratorInvites: CollaborationInvite[] }
+  ) {
     if (!primaryPet || submitting) {
       return;
     }
@@ -130,11 +145,21 @@ export function CommunityMomentComposer({
     setError("");
 
     try {
-      await createPetMoment(primaryPet.id, payload);
+      const created = await createPetMoment(primaryPet.id, payload);
 
       trackEvent(AnalyticsEvent.MomentCreated, { source: "community" });
       onCreated?.();
-      onClose();
+      // The Moment is shared either way. If an invitation could not be sent
+      // the composer stays open only to offer it again, then closes.
+      const allSent = await inviteFollowUp.sendAfterCreate(
+        created.data.id,
+        extras?.collaboratorInvites ?? []
+      );
+      if (allSent) {
+        onClose();
+      } else {
+        setAwaitingFollowUp(true);
+      }
     } catch (caught) {
       // The draft stays exactly as it was. A failed upload or a rejected field
       // is a reason to try again, not a reason to retype everything.
@@ -146,6 +171,12 @@ export function CommunityMomentComposer({
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (awaitingFollowUp) {
+    // Shared already: only the offer to resend an invitation remains, so the
+    // form cannot be submitted a second time.
+    return inviteFollowUp.dialog;
   }
 
   if (pets === null) {
@@ -243,6 +274,7 @@ export function CommunityMomentComposer({
         onPrimaryPetChange={
           primaryOptions.length > 1 ? setPrimaryPetId : undefined
         }
+        collaboration
         onRequestClose={requestClose}
         onSubmit={handleSubmit}
         otherPets={otherPets}

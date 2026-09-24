@@ -1,5 +1,7 @@
 "use client";
 
+import { useCollaborationInviteFollowUp } from "@/components/social/useCollaborationInviteFollowUp";
+import type { CollaborationInvite } from "@/services/momentCollaborationService";
 import {
   useCallback,
   useEffect,
@@ -170,6 +172,7 @@ export function PetMomentsManager({
     () => ownerPets.filter((candidate) => candidate.id !== pet.id),
     [ownerPets, pet.id]
   );
+  const inviteFollowUp = useCollaborationInviteFollowUp();
   const [moments, setMoments] = useState<PetMoment[]>(
     apiMode ? [] : initialMoments
   );
@@ -310,7 +313,10 @@ export function PetMomentsManager({
     closeEditor();
   }, [closeEditor, editorDirty]);
 
-  async function handleEditorSubmit(payload: PetMomentPayload) {
+  async function handleEditorSubmit(
+    payload: PetMomentPayload,
+    extras?: { collaboratorInvites: CollaborationInvite[] }
+  ) {
     const currentEditor = editorRef.current;
     if (!currentEditor) {
       return;
@@ -330,6 +336,11 @@ export function PetMomentsManager({
         ]);
         setSuccess("Moment added.");
         trackEvent(AnalyticsEvent.MomentCreated, { source: "owner_portal" });
+        // The Moment exists now; invitations follow it and never undo it.
+        void inviteFollowUp.sendAfterCreate(
+          response.data.id,
+          extras?.collaboratorInvites ?? []
+        );
       } else {
         const response = await updatePetMoment(
           currentEditor.moment.id,
@@ -607,6 +618,7 @@ export function PetMomentsManager({
 
       {editor ? (
         <MomentEditorDialog
+          collaboration
           error={formError}
           initialMoment={editor.mode === "edit" ? editor.moment : undefined}
           key={editor.key}
@@ -624,6 +636,8 @@ export function PetMomentsManager({
           submitting={isSubmitting}
         />
       ) : null}
+
+      {inviteFollowUp.dialog}
 
       <ConfirmDialog
         cancelLabel="Keep editing"

@@ -1,5 +1,9 @@
 "use client";
 
+import { MomentCollaboratorsField } from "@/components/social/MomentCollaboratorsField";
+import { socialEnabled } from "@/lib/features";
+import { canUseApi } from "@/services/apiConfig";
+import type { CollaborationInvite } from "@/services/momentCollaborationService";
 import {
   useEffect,
   useMemo,
@@ -126,7 +130,16 @@ type MomentEditorDialogProps = {
   error?: string;
   onDirtyChange?: (dirty: boolean) => void;
   onRequestClose: () => void;
-  onSubmit: (payload: PetMomentPayload) => void | Promise<void>;
+  /**
+   * Offer the Collaborators section. Creating: invitations are queued and
+   * handed back with the payload, to be sent once the Moment exists.
+   * Editing: the section manages the saved Moment directly.
+   */
+  collaboration?: boolean;
+  onSubmit: (
+    payload: PetMomentPayload,
+    extras: { collaboratorInvites: CollaborationInvite[] }
+  ) => void | Promise<void>;
 };
 
 const emptyValues: MomentEditorValues = {
@@ -159,7 +172,9 @@ export function MomentEditorDialog({
   onDirtyChange,
   onRequestClose,
   onSubmit,
+  collaboration = false,
 }: MomentEditorDialogProps) {
+  const [collaboratorInvites, setCollaboratorInvites] = useState<CollaborationInvite[]>([]);
   const initialValues = useMemo(
     () => (initialMoment ? valuesFromMoment(initialMoment) : emptyValues),
     [initialMoment]
@@ -214,6 +229,7 @@ export function MomentEditorDialog({
       return;
     }
 
+    const invites = form.visibility === "Public" ? collaboratorInvites : [];
     void onSubmit({
       title: form.title.trim(),
       date: formatDisplayDate(form.date),
@@ -236,7 +252,7 @@ export function MomentEditorDialog({
             ),
           }
         : {}),
-    });
+    }, { collaboratorInvites: invites });
   }
 
   const dialogTitle =
@@ -380,6 +396,24 @@ export function MomentEditorDialog({
                   })}
                 </div>
               </fieldset>
+
+              {collaboration && socialEnabled && canUseApi() ? (
+                mode === "edit" && initialMoment ? (
+                  <MomentCollaboratorsField
+                    isPublic={form.visibility === "Public"}
+                    mode="edit"
+                    momentId={initialMoment.id}
+                  />
+                ) : mode === "create" ? (
+                  <MomentCollaboratorsField
+                    disabled={submitting}
+                    invites={collaboratorInvites}
+                    isPublic={form.visibility === "Public"}
+                    mode="create"
+                    onInvitesChange={setCollaboratorInvites}
+                  />
+                ) : null
+              ) : null}
 
               <Field label="Caption">
                 <textarea
