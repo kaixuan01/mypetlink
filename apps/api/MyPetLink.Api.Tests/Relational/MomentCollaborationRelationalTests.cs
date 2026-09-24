@@ -90,6 +90,44 @@ public sealed class MomentCollaborationRelationalTests
         Assert.Equal(1, await verify.MomentCollaborations.CountAsync(item => item.MomentId == momentId));
     }
 
+    /// <summary>
+    /// An expired invitation is still stored as Pending, so it still occupies
+    /// the live index until an invitation writes it down as Expired. Asking the
+    /// same household again does both in one save: this proves the database
+    /// accepts that order rather than refusing the new row as a duplicate.
+    /// </summary>
+    [RelationalFact]
+    public async Task ReinvitingAfterExpiryReplacesTheStaleRowInOneSave()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        var momentId = await SeedAsync(scope);
+
+        await using (var context = scope.NewContext())
+        {
+            await Service(context).InviteAsync(Author, momentId, Invite(0));
+            var pending = await context.MomentCollaborations.SingleAsync(item => item.MomentId == momentId);
+            pending.CreatedAt = DateTimeOffset.UtcNow.AddDays(-15);
+            pending.ExpiresAt = DateTimeOffset.UtcNow.AddDays(-1);
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = scope.NewContext())
+        {
+            var list = await Service(context).InviteAsync(Author, momentId, Invite(0));
+            Assert.Equal(new[] { "Expired", "Pending" }, list.Items.Select(item => item.Status).ToArray());
+        }
+
+        await using var verify = scope.NewContext();
+        var rows = await verify.MomentCollaborations
+            .Where(item => item.MomentId == momentId)
+            .OrderBy(item => item.CreatedAt)
+            .ToListAsync();
+        Assert.Equal(
+            new[] { MomentCollaborationStatus.Expired, MomentCollaborationStatus.Pending },
+            rows.Select(item => item.Status).ToArray());
+        Assert.NotNull(rows[0].EndedAt);
+    }
+
     [RelationalFact]
     public async Task TheLiveIndexAndStateConstraintHoldInTheDatabase()
     {
