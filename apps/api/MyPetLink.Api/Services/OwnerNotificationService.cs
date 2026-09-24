@@ -129,6 +129,14 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
             return;
         }
 
+        // Liking does not require a Community Profile, but Activity cannot
+        // safely render an actor without one. The like still succeeds; only the
+        // unusable notification is withheld.
+        if (!await HasUsableCommunityIdentity(actorId, cancellationToken))
+        {
+            return;
+        }
+
         var alreadyWaiting = await _dbContext.OwnerNotifications.AnyAsync(
             item => item.RecipientUserId == recipientId
                 && item.ActorUserId == actorId
@@ -165,6 +173,87 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
             .ToListAsync(cancellationToken);
 
         _dbContext.OwnerNotifications.RemoveRange(unread);
+    }
+
+    public async Task StageCommentNotification(
+        Guid actorId,
+        Guid recipientId,
+        Guid momentId,
+        Guid subjectPetId,
+        Guid commentId,
+        CancellationToken cancellationToken = default)
+    {
+        if (actorId == recipientId)
+        {
+            return;
+        }
+
+        var waiting = await _dbContext.OwnerNotifications.SingleOrDefaultAsync(
+            item => item.RecipientUserId == recipientId
+                && item.ActorUserId == actorId
+                && item.MomentId == momentId
+                && item.Type == OwnerNotificationType.MomentCommented
+                && item.ReadAt == null,
+            cancellationToken);
+
+        if (waiting is not null)
+        {
+            waiting.CommentId = commentId;
+            waiting.CreatedAt = DateTimeOffset.UtcNow;
+            return;
+        }
+
+        _dbContext.OwnerNotifications.Add(new OwnerNotification
+        {
+            RecipientUserId = recipientId,
+            ActorUserId = actorId,
+            MomentId = momentId,
+            CommentId = commentId,
+            SubjectPetId = subjectPetId,
+            Type = OwnerNotificationType.MomentCommented
+        });
+    }
+
+    public async Task StageCommentNotificationWithdrawal(
+        Guid actorId,
+        Guid momentId,
+        Guid commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var waiting = await _dbContext.OwnerNotifications
+            .Where(item => item.ActorUserId == actorId
+                && item.MomentId == momentId
+                && item.CommentId == commentId
+                && item.Type == OwnerNotificationType.MomentCommented
+                && item.ReadAt == null)
+            .ToListAsync(cancellationToken);
+
+        if (waiting.Count == 0)
+        {
+            return;
+        }
+
+        var latest = await _dbContext.MomentComments
+            .Where(comment => comment.AuthorUserId == actorId
+                && comment.MomentId == momentId
+                && comment.Id != commentId
+                && comment.DeletedAt == null)
+            .OrderByDescending(comment => comment.CreatedAt)
+            .ThenByDescending(comment => comment.Id)
+            .Select(comment => (Guid?)comment.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latest.HasValue)
+        {
+            foreach (var notification in waiting)
+            {
+                notification.CommentId = latest.Value;
+            }
+        }
+        else
+        {
+            _dbContext.OwnerNotifications.RemoveRange(waiting);
+        }
     }
 
     // ---- reads ----------------------------------------------------------
@@ -204,6 +293,9 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 ActorDisplayName = item.ActorUser.SocialProfile.DisplayName!,
                 ActorAvatar = item.ActorUser.SocialProfile.AvatarMediaFile,
                 item.MomentId,
+                CommentId = item.Comment != null && item.Comment.DeletedAt == null
+                    ? item.CommentId
+                    : null,
                 MomentTitle = item.Moment != null ? item.Moment.Title : null,
                 PetName = item.SubjectPet != null ? item.SubjectPet.Name : null,
                 PetSlug = item.SubjectPet != null ? item.SubjectPet.Slug : null
@@ -234,6 +326,7 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                     row.PetName,
                     row.PetSlug,
                     row.MomentId,
+                    row.CommentId,
                     row.MomentTitle,
                     row.MomentId.HasValue && subjectNames.TryGetValue(row.MomentId.Value, out var names)
                         ? names
@@ -334,7 +427,28 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 && item.ActorUser.SocialProfile.IsSocialEnabled
                 && item.ActorUser.SocialProfile.Handle != null
                 && item.ActorUser.SocialProfile.DisplayName != null
+                && item.Type != OwnerNotificationType.Unknown
+                && (item.Type == OwnerNotificationType.NewFollower
+                    || item.Type == OwnerNotificationType.MomentLiked
+                    || item.Type == OwnerNotificationType.MomentCommented)
                 && !blocked.Contains(item.ActorUserId.Value));
+    }
+
+    private Task<bool> HasUsableCommunityIdentity(
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.Users.AnyAsync(user =>
+            user.Id == actorId
+            && user.DeletedAt == null
+            && user.Status == UserStatus.Active
+            && user.SocialProfile != null
+            && user.SocialProfile.IsSocialEnabled
+            && user.SocialProfile.Handle != null
+            && user.SocialProfile.Handle != ""
+            && user.SocialProfile.DisplayName != null
+            && user.SocialProfile.DisplayName != "",
+            cancellationToken);
     }
 
     /// <summary>

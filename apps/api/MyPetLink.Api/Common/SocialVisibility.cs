@@ -59,7 +59,77 @@ public static class SocialVisibility
                 && moment.PublishedAt != null
                 && moment.AuthorUser.SocialProfile != null
                 && moment.AuthorUser.SocialProfile.IsSocialEnabled
-                && moment.AuthorUser.DeletedAt == null);
+                && moment.AuthorUser.DeletedAt == null
+                && moment.AuthorUser.Status == UserStatus.Active);
+    }
+
+    /// <summary>
+    /// Social Moments visible to this viewer. Anonymous callers get the public
+    /// set; a signed-in caller additionally loses Moments whose author is on
+    /// either side of a block with them.
+    /// </summary>
+    public static IQueryable<PetMemory> VisibleTo(
+        this IQueryable<PetMemory> moments,
+        MyPetLinkDbContext dbContext,
+        Guid? viewerId)
+    {
+        var visible = moments.SociallyVisible();
+
+        if (!viewerId.HasValue)
+        {
+            return visible;
+        }
+
+        var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
+        return visible.Where(moment => !blocked.Contains(moment.AuthorUserId));
+    }
+
+    /// <summary>
+    /// Comments readable by a viewer.
+    ///
+    /// The author/Moment-author block is global: while either has blocked the
+    /// other, their comments on that Moment disappear for everybody. A signed-
+    /// in viewer also cannot see comments by an account on either side of a
+    /// block with them. Rows are never mutated by these relationships.
+    /// </summary>
+    public static IQueryable<MomentComment> VisibleComments(
+        this IQueryable<MomentComment> comments,
+        MyPetLinkDbContext dbContext,
+        Guid? viewerId)
+    {
+        var visible = comments
+            .AsNoTracking()
+            .Where(comment =>
+                comment.DeletedAt == null
+                && comment.Moment.Visibility == MemoryVisibility.Public
+                && comment.Moment.DeletedAt == null
+                && comment.Moment.ArchivedAt == null
+                && comment.Moment.PublishedAt != null
+                && comment.Moment.AuthorUser.DeletedAt == null
+                && comment.Moment.AuthorUser.Status == UserStatus.Active
+                && comment.Moment.AuthorUser.SocialProfile != null
+                && comment.Moment.AuthorUser.SocialProfile.IsSocialEnabled
+                && comment.AuthorUser.DeletedAt == null
+                && comment.AuthorUser.Status == UserStatus.Active
+                && comment.AuthorUser.SocialProfile != null
+                && comment.AuthorUser.SocialProfile.IsSocialEnabled
+                && comment.AuthorUser.SocialProfile.Handle != null
+                && comment.AuthorUser.SocialProfile.Handle != ""
+                && comment.AuthorUser.SocialProfile.DisplayName != null
+                && comment.AuthorUser.SocialProfile.DisplayName != ""
+                && !dbContext.OwnerBlocks.Any(block =>
+                    (block.BlockerUserId == comment.AuthorUserId
+                        && block.BlockedUserId == comment.Moment.AuthorUserId)
+                    || (block.BlockedUserId == comment.AuthorUserId
+                        && block.BlockerUserId == comment.Moment.AuthorUserId)));
+
+        if (!viewerId.HasValue)
+        {
+            return visible;
+        }
+
+        var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
+        return visible.Where(comment => !blocked.Contains(comment.AuthorUserId));
     }
 }
 

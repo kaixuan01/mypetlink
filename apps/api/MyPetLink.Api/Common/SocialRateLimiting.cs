@@ -17,6 +17,9 @@ public static class SocialRateLimitPolicies
     /// <summary>Liking. Per account. Unliking uses <see cref="Withdraw"/>.</summary>
     public const string Like = "social-like";
 
+    /// <summary>Creating a Comment. Per account.</summary>
+    public const string Comment = "social-comment";
+
     /// <summary>
     /// Taking something back: unfollow, unlike, unblock.
     ///
@@ -81,6 +84,14 @@ public sealed class SocialRateLimitingOptions
     {
         PermitLimit = 120,
         WindowSeconds = 3600,
+        QueueLimit = 0
+    };
+
+    /// <summary>~20 per ten minutes.</summary>
+    public RequestRateLimitOptions Comment { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 600,
         QueueLimit = 0
     };
 

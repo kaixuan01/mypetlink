@@ -136,6 +136,7 @@ public sealed class SocialMomentProjection
             page.Select(row => row.AuthorUserId).Distinct().ToArray(),
             cancellationToken);
         var likeCounts = await LoadLikeCountsAsync(momentIds, cancellationToken);
+        var commentCounts = await LoadCommentCountsAsync(momentIds, viewerId, cancellationToken);
         var viewerLikes = await LoadViewerLikesAsync(momentIds, viewerId, cancellationToken);
 
         var items = page
@@ -154,6 +155,7 @@ public sealed class SocialMomentProjection
                     ? items
                     : Array.Empty<MemoryMediaResponse>(),
                 likeCounts.TryGetValue(row.Id, out var likeCount) ? likeCount : 0,
+                commentCounts.TryGetValue(row.Id, out var commentCount) ? commentCount : 0,
                 viewerLikes.Contains(row.Id)))
             .ToArray();
 
@@ -331,6 +333,31 @@ public sealed class SocialMomentProjection
             .AsNoTracking()
             .Where(like => momentIds.Contains(like.MomentId))
             .GroupBy(like => like.MomentId)
+            .Select(group => new { MomentId = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.MomentId, row => row.Count);
+    }
+
+    /// <summary>
+    /// Viewer-specific Comment counts, batched for the whole page. This is the
+    /// exact predicate the Comment list uses, so a card can never promise more
+    /// rows than opening it will show.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> LoadCommentCountsAsync(
+        IReadOnlyCollection<Guid> momentIds,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        if (momentIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var rows = await _dbContext.MomentComments
+            .VisibleComments(_dbContext, viewerId)
+            .Where(comment => momentIds.Contains(comment.MomentId))
+            .GroupBy(comment => comment.MomentId)
             .Select(group => new { MomentId = group.Key, Count = group.Count() })
             .ToListAsync(cancellationToken);
 

@@ -147,6 +147,24 @@ public interface IMomentLikeService : ISkeletonService
 }
 
 /// <summary>
+/// Plain-text Comments on public Moments. The actor is always the JWT subject.
+/// </summary>
+public interface IMomentCommentService : ISkeletonService
+{
+    Task<MomentCommentPageResponse> GetAsync(
+        Guid momentId, Guid? viewerId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<CreateMomentCommentResponse> CreateAsync(
+        Guid? currentUserId, Guid momentId, CreateMomentCommentRequest? request,
+        CancellationToken cancellationToken = default);
+
+    Task<DeleteMomentCommentResponse> DeleteAsync(
+        Guid? currentUserId, Guid momentId, Guid commentId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// The chronological home feed: Moments from households the caller follows,
 /// plus their own. Authenticated only — there is no feed without a graph.
 /// </summary>
@@ -212,6 +230,14 @@ public interface IOwnerNotificationService : ISkeletonService
 
     Task StageLikeNotificationWithdrawal(
         Guid actorId, Guid momentId, CancellationToken cancellationToken = default);
+
+    Task StageCommentNotification(
+        Guid actorId, Guid recipientId, Guid momentId, Guid subjectPetId,
+        Guid commentId, CancellationToken cancellationToken = default);
+
+    Task StageCommentNotificationWithdrawal(
+        Guid actorId, Guid momentId, Guid commentId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>

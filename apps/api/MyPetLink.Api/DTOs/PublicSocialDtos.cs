@@ -75,6 +75,12 @@ public sealed record PublicMomentListItemResponse(
     int LikeCount,
 
     /// <summary>
+    /// Counted through the same visibility predicate as the Comment endpoint,
+    /// including this viewer's blocks. Never stored on the Moment.
+    /// </summary>
+    int CommentCount,
+
+    /// <summary>
     /// Whether the caller has liked this Moment. Always false for a visitor with
     /// no session — there is nobody for a like to belong to.
     /// </summary>

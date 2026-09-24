@@ -43,6 +43,12 @@ public sealed record OwnerNotificationResponse(
     /// </summary>
     Guid? MomentId,
 
+    /// <summary>
+    /// Latest active Comment represented by a coalesced comment notification.
+    /// Null when the Comment was removed or for non-comment activity.
+    /// </summary>
+    Guid? CommentId,
+
     string? MomentTitle,
 
     /// <summary>Every pet the liked Moment is about, for "Moment of Mochi &amp; Coco".</summary>
