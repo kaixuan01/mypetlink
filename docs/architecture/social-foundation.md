@@ -116,6 +116,14 @@ A cross-owner tag puts someone else's animal on a page they do not control, and
 that needs their consent rather than a notification afterwards. The API returns
 `403 pet_not_owned`.
 
+**Phase 2C: consent-based collaboration.** Another household's pets reach a
+Moment only through an accepted collaboration (§12e). Such rows carry
+`MomentPets.CollaborationId`; the author's own rows keep it null. The author's
+ordinary editing (`ReplaceMomentPetsAsync`, the owner editor's pet list) reads
+and replaces **only** `CollaborationId == null`, so an edit can never delete a
+collaborator's pet, and the ownership check above still refuses any attempt to
+claim one.
+
 ## 4. Publication time
 
 `PetMemories.PublishedAt` is the social publication timestamp, deliberately
@@ -433,7 +441,7 @@ unguessable and already known only to the owner — but it must stop being
 Before this work, **no authenticated endpoint anywhere was rate limited**. Two
 policies existed, covering five endpoints, all tag-related.
 
-Eight social policies are now registered in `Program.cs` from
+Nine social policies are now registered in `Program.cs` from
 `SocialRateLimitingOptions`. Controllers name a policy and never carry a number.
 
 | Policy | Default | Applied to |
@@ -441,6 +449,7 @@ Eight social policies are now registered in `Program.cs` from
 | `social-follow` | 30 / hour | Phase 1G |
 | `social-like` | 120 / hour | Phase 1H |
 | `social-comment` | 20 / 10 min | creating a Moment Comment |
+| `social-collaboration-invite` | 20 / hour | inviting a household to collaborate on a Moment (accept/decline use `social-profile-mutation`; revoke/leave use `social-withdraw`; candidate search uses `social-search`) |
 | `social-moment-create` | 20 / hour | Phase 1E |
 | `social-search` | 30 / min | Phase 1J |
 | `social-handle-availability` | 20 / min | **`GET /social/handles/{handle}/available`** |
@@ -729,11 +738,88 @@ second rule; no data migration was needed.
 
 ---
 
+## 12e. Phase 2C Moment Collaboration
+
+A Moment's author may invite up to **3 other households** (live = Pending and
+unexpired, or Accepted) to add some of their pets. The Moment stays the
+author's: `PetMemory.AuthorUserId` is the only authority to invite, see the
+outgoing list and revoke — owning the primary pet never makes somebody the
+author, so a future pet transfer cannot hand these controls over. Inviting also
+requires the author to still manage the Moment (own its primary pet), the rule
+ordinary edits apply. A collaborator controls only whether their household
+joins, which requested pets take part, and leaving; never the caption, media,
+visibility, the author's pets, other collaborators or Comment removal.
+
+**Eligibility.** Only public, published, socially visible Moments. The invitee
+is an Active account with Community on and a complete identity, not the author,
+with no block either way; a missing, Community-off, inactive or blocked
+household all answer the same `collaboration_household_unavailable`. Requested
+pets must be the invitee's, active, shared, and in Community with their current
+owner's consent; discoverability is not required. Follow is never permission.
+Candidate search lists households the author follows first and otherwise only
+discoverable households, so it cannot reveal a household that chose not to be
+found; an explicitly named handle still passes every rule above.
+
+**Data.** `MomentCollaborations` (status stored as text with an `Unknown`
+read fallback; `CreatedAt`, `ExpiresAt` = +14 days, `RespondedAt`,
+`EndedAt`, `RowVersion`; a state check constraint; filtered unique
+`IX_MomentCollaborations_Live` on `(MomentId, InviteeUserId)` over Pending and
+Accepted) and `MomentCollaborationPets` (requested pets, `IsAccepted`) are
+history and are never deleted. Only an accept creates collaborator
+`MomentPets` rows; Revoke, Leave and Block dissolution delete exactly those
+rows. Expiry is inferred from `Pending` + `ExpiresAt`; an invitation
+transaction writes stale rows as `Expired` when it replaces them. No job.
+
+**Lifecycle.** Invite runs in a retrying transaction under two SQL application
+locks — `mypetlink:moment-collab:{momentId}` (the 3-household cap and one live
+row per household) and `mypetlink:moment-collab-pair:{low}:{high}`, which Block
+also takes. Accept takes a non-empty subset of the requested pets and re-checks
+the Moment, both households, blocks and pet eligibility. Decline is quiet and
+final. Re-invite for the same Moment and household: allowed after Revoked or
+Expired; never after Declined, Left or Dissolved (unblocking restores nothing).
+Caps: 3 live households per Moment, 3 pending invitations from one household
+to another across Moments, 30 invitations per inviter per 24 hours, 10 pets per
+invitation. State changes are RowVersion-checked: Accept and Decline keep
+first-commit-wins; Revoke, Leave and Block re-apply to the winning state.
+
+**Block.** Blocking, in one transaction, dissolves every Pending or Accepted
+collaboration between the two households in either direction, deletes their
+association rows and withdraws their unread activity. Other collaborators on
+the same Moment are untouched. The author's own collaborator list omits any
+household blocked either way and anything a block dissolved.
+
+**Visibility.** `SocialVisibility.VisibleCollaboratorSubjects` is the single
+read-time rule — cards, detail, a pet's Moments and its Share Profile all use
+it: collaboration Accepted, Moment socially visible, pet still the invitee's and
+still shared with consent, invitee Active with a complete Community identity, no
+block invitee ↔ author, and (signed in) none viewer ↔ invitee. A private,
+archived or deleted Moment hides it; when the Moment is public again an
+accepted, never-ended collaboration shows again.
+
+**Surfaces.** Public cards keep `subjects` for the author's own pets and add
+`collaborations: [{ household, pets }]` (additive; older clients ignore it).
+Feed stays author-centric (never syndicated to a collaborator's followers).
+Explore eligibility counts the author's own subjects only; a collaborating
+household and its pets are named on discovery surfaces only if discoverable.
+A household's Community Profile lists only what it authored. A collaborator
+pet's social Moments and Share Profile Moments show the Moment (only when that
+pet's Moments setting allows it) with "Moment by {author}"; it never joins that
+pet's Life Timeline. Likes, the Comment thread, Share URL and Like/Comment
+notifications stay with the one canonical Moment and its author.
+
+**Activity.** `MomentCollaborationRequested` (to the invitee) is shown only
+while Pending, unexpired and on a visible Moment; `MomentCollaborationAccepted`
+(to the author) only while Accepted. Nothing is sent for decline, revoke, leave
+or expiry. The row opens the Moment, whose viewer-only panel is where the
+invitee chooses pets and accepts, declines or later leaves.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
 
 - Comment replies, likes, mentions, editing or media
+- A collaborator section on household profiles ("With friends"), collaboration
+  in Feed for a collaborator's followers, and private-Moment collaboration
 - Reporting and moderation workflows
 - Pet-level follow — evaluated, deferred; revisit with real engagement data
 - Any social email — a new consent category, not built

@@ -158,6 +158,14 @@ viewer-visible Comment count and a link to `/moments/{id}#comments`. Comments
 are part of Community and inherit the Moment's visibility; they never change a
 Share Profile or Safety Profile into a Community dependency.
 
+A Moment may have **collaborators**: up to three other households who accepted
+an invitation and chose which of their pets appear. The Moment stays its
+author's (one URL, one Like count, one Comment thread) and is described as "The
+Tan Family with The Lee Family". A collaborator pet's Share Profile may show it
+as "Moment by The Tan Family" while the collaboration is visible; the Share
+Profile itself never depends on Community, and simply goes on without the
+Moment when it is not.
+
 ---
 
 ## Audiences

@@ -54,6 +54,16 @@ Each step is reversible. Do them in this order.
    `publicProfileSlug` field, which stays null for everybody until a household
    enables Social.
 
+   For the Phase 2C Collaboration release, the same order applies:
+   `AddMomentCollaborations` / `migration.sql` (two new tables, nullable
+   `CollaborationId` on `MomentPets` and `OwnerNotifications`, no backfill),
+   then API, then web. The previous web ignores the additive `collaborations`
+   and `momentBy` fields and skips the new activity kinds. If the web is rolled
+   back after collaborations exist, an accepted collaborator pet's own Moments
+   list still shows the Moment, but the old web omits its "Moment by" line;
+   nothing pending ever appears. Never run Down in Production: it drops
+   collaboration history.
+
    For the Phase 2A Comments release, keep the same schema-first order:
    `AddMomentComments` / `migration.sql`, then API, then web. The migration is
    additive; the previous web ignores `commentCount` and never calls the new
