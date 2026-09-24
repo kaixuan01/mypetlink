@@ -589,6 +589,63 @@ public sealed class SocialFoundationRelationalTests
         }
     }
 
+    [RelationalFact]
+    public async Task AnchoredCommentReadsFollowSqlServerOrderingAcrossTiedTimestamps()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            var start = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
+            for (var index = 0; index < 40; index += 1)
+            {
+                seed.MomentComments.Add(new MomentComment
+                {
+                    MomentId = moment.Id,
+                    AuthorUserId = BobId,
+                    Body = $"Comment {index}",
+                    // Ten Comments share one instant, so uniqueidentifier
+                    // ordering — not .NET Guid ordering — decides between them.
+                    CreatedAt = index is >= 5 and < 15 ? start : start.AddMinutes(index)
+                });
+            }
+
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        // The thread's true order, as the API pages it.
+        var order = new List<Guid>();
+        string? cursor = null;
+        do
+        {
+            await using var context = scope.NewContext();
+            var page = await NewCommentService(context).GetAsync(momentId, CarolId, cursor, 7);
+            order.AddRange(page.Items.Select(item => item.Id));
+            cursor = page.NextCursor;
+        }
+        while (cursor is not null);
+
+        Assert.Equal(40, order.Distinct().Count());
+
+        // Every anchor inside the tie, all deeper than the first page.
+        for (var depth = 25; depth < 35; depth += 1)
+        {
+            await using var context = scope.NewContext();
+            var service = NewCommentService(context);
+            var anchored = await service.GetAsync(momentId, CarolId, null, null, default, order[depth]);
+
+            Assert.Equal(order.Take(depth + 1), anchored.Items.Select(item => item.Id));
+            var rest = await service.GetAsync(momentId, CarolId, anchored.NextCursor, 30);
+            Assert.Equal(order.Skip(depth + 1), rest.Items.Select(item => item.Id));
+        }
+    }
+
     private static async Task<Guid> CommentAsync(
         RelationalScope scope,
         Guid userId,

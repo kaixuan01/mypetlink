@@ -22,6 +22,13 @@ namespace MyPetLink.Api.Services;
 public sealed class MomentCommentService : SkeletonService, IMomentCommentService
 {
     public const int PageSize = 20;
+
+    /// <summary>
+    /// How deep an anchored read may reach. A link to a Comment within the
+    /// newest <see cref="AnchorWindow"/> visible Comments opens with the
+    /// thread loaded down to it; anything older opens at the normal first page.
+    /// </summary>
+    public const int AnchorWindow = 100;
     public static readonly TimeSpan DuplicateWindow = TimeSpan.FromSeconds(60);
 
     private readonly MyPetLinkDbContext _dbContext;
@@ -43,7 +50,8 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         Guid? viewerId,
         string? cursor,
         int? pageSize,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? anchorId = null)
     {
         var moment = await RequireVisibleMomentAsync(momentId, viewerId, cancellationToken);
         var take = SocialCursor.ClampPageSize(pageSize, PageSize);
@@ -51,6 +59,12 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         var query = _dbContext.MomentComments
             .VisibleComments(_dbContext, viewerId)
             .Where(comment => comment.MomentId == momentId);
+
+        if (position is null && anchorId.HasValue)
+        {
+            take = await ResolveAnchoredPageSizeAsync(
+                query, anchorId.Value, take, cancellationToken);
+        }
 
         if (position is not null)
         {
@@ -214,6 +228,40 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         return new DeleteMomentCommentResponse(
             commentId,
             await CountVisibleAsync(momentId, actorId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Widens the first page just enough to include a linked Comment.
+    ///
+    /// The anchor is looked up through the same visibility query as the page
+    /// itself, so a deleted, blocked or otherwise hidden Comment is simply not
+    /// found — and a not-found anchor, like one beyond
+    /// <see cref="AnchorWindow"/>, yields exactly the ordinary first page. The
+    /// response therefore never says whether a hidden Comment exists.
+    /// </summary>
+    private static async Task<int> ResolveAnchoredPageSizeAsync(
+        IQueryable<MomentComment> visible,
+        Guid anchorId,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var anchor = await visible
+            .Where(comment => comment.Id == anchorId)
+            .Select(comment => new { comment.CreatedAt, comment.Id })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (anchor is null)
+        {
+            return take;
+        }
+
+        var newer = await visible.CountAsync(
+            comment => comment.CreatedAt > anchor.CreatedAt
+                || (comment.CreatedAt == anchor.CreatedAt
+                    && comment.Id.CompareTo(anchor.Id) > 0),
+            cancellationToken);
+
+        return newer < AnchorWindow ? Math.Max(take, newer + 1) : take;
     }
 
     private async Task<VisibleMoment> RequireVisibleMomentAsync(

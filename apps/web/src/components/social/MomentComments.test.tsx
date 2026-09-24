@@ -221,6 +221,58 @@ describe("Moment Comments", () => {
     await screen.findByText("Second comment");
   });
 
+  describe("links to one Comment", () => {
+    const linkedId = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    const scrolls: Element[] = [];
+
+    beforeEach(() => {
+      scrolls.length = 0;
+      Element.prototype.scrollIntoView = function scrollIntoView(this: Element) {
+        scrolls.push(this);
+      };
+    });
+
+    it("loads down to the linked Comment, scrolls to it and highlights it", async () => {
+      window.history.replaceState({}, "", `/moments/moment-1#comment-${linkedId}`);
+      mocks.get.mockResolvedValue({
+        items: [{ ...newer, id: "comment-3" }, { ...older, id: linkedId, body: "Linked comment" }],
+        nextCursor: "older-cursor",
+        commentCount: 30,
+        viewer: { canComment: false, requirement: "signIn", identity: null },
+      });
+
+      render(<MomentComments initialCount={30} momentId="moment-1" onCountChange={vi.fn()} />);
+
+      expect(mocks.get).toHaveBeenCalledWith("moment-1", undefined, { anchor: linkedId });
+      const row = await screen.findByText("Linked comment");
+      const item = row.closest("li")!;
+      await waitFor(() => expect(scrolls).toContain(item));
+      expect(document.activeElement).toBe(item);
+      expect(item.getAttribute("data-highlighted")).toBe("true");
+      expect(screen.getByRole("button", { name: "Show earlier comments" })).toBeTruthy();
+    });
+
+    it("lands on the thread when the linked Comment is not available", async () => {
+      window.history.replaceState({}, "", `/moments/moment-1#comment-${linkedId}`);
+
+      render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
+
+      await screen.findByTestId("comment-list");
+      const section = document.getElementById("comments")!;
+      await waitFor(() => expect(scrolls).toContain(section));
+      expect(document.querySelector("[data-highlighted]")).toBeNull();
+    });
+
+    it("does not send an anchor for an ordinary visit or a malformed link", async () => {
+      window.history.replaceState({}, "", "/moments/moment-1#comment-not-an-id");
+
+      render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
+
+      await screen.findByTestId("comment-list");
+      expect(mocks.get).toHaveBeenCalledWith("moment-1", undefined, { anchor: null });
+    });
+  });
+
   describe("a session that ends mid-comment", () => {
     const signedInViewer = {
       canComment: true,

@@ -28,6 +28,7 @@ import {
   createMomentComment,
   deleteMomentComment,
   getMomentComments,
+  linkedCommentId,
   MomentCommentError,
   type MomentComment,
   type MomentCommentViewer,
@@ -45,6 +46,7 @@ export function MomentComments({
   initialCount: number;
   onCountChange: (count: number) => void;
 }) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -71,6 +73,7 @@ export function MomentComments({
   const [deleteErrorId, setDeleteErrorId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
 
   const updateCount = useCallback(
@@ -84,7 +87,13 @@ export function MomentComments({
   useEffect(() => {
     let active = true;
 
-    getMomentComments(momentId)
+    // A `#comment-{id}` link asks the first page to reach down to that
+    // Comment; the API bounds how far, and ignores anything this viewer
+    // cannot already see.
+    const anchor =
+      typeof window === "undefined" ? null : linkedCommentId(window.location.hash);
+
+    getMomentComments(momentId, undefined, { anchor })
       .then((page) => {
         if (!active) return;
         // The API pages from the newest end; the conversation reads forward.
@@ -128,13 +137,32 @@ export function MomentComments({
   useEffect(() => {
     if (state !== "ready" || typeof window === "undefined") return;
     const hash = window.location.hash;
-    if (!hash.startsWith("#comment-") || handledHashRef.current === hash) return;
-
-    const target = document.getElementById(hash.slice(1));
-    if (!target) return;
+    if (handledHashRef.current === hash) return;
+    const linked = linkedCommentId(hash);
+    if (!linked && hash !== "#comments") return;
     handledHashRef.current = hash;
-    requestAnimationFrame(() => target.scrollIntoView({ block: "center" }));
+
+    const target = linked ? document.getElementById(`comment-${linked}`) : null;
+    requestAnimationFrame(() => {
+      if (target) {
+        target.scrollIntoView({ block: "center" });
+        target.focus({ preventScroll: true });
+        setHighlightId(linked);
+        return;
+      }
+
+      // The thread renders after the Moment, so the browser's own jump to the
+      // fragment has usually already missed. A Comment that is gone, hidden
+      // from this viewer or too old for a link to reach lands on the thread.
+      sectionRef.current?.scrollIntoView({ block: "start" });
+    });
   }, [items, state]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = window.setTimeout(() => setHighlightId(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
 
   const loadEarlier = useCallback(async () => {
     if (!nextCursor || loadMorePending) return;
@@ -252,8 +280,9 @@ export function MomentComments({
   return (
     <section
       aria-busy={state === "loading"}
-      className="brand-card mt-4 rounded-[1.5rem] p-4 sm:p-5"
+      className="brand-card mt-4 scroll-mt-24 rounded-[1.5rem] p-4 sm:p-5"
       id="comments"
+      ref={sectionRef}
     >
       <h2
         className="text-lg font-black text-pet-ink outline-none"
@@ -315,6 +344,7 @@ export function MomentComments({
                 <CommentRow
                   comment={comment}
                   deleteError={deleteErrorId === comment.id}
+                  highlighted={highlightId === comment.id}
                   key={comment.id}
                   menuOpen={menuId === comment.id}
                   now={loadedAt}
@@ -446,6 +476,7 @@ function CommentRow({
   now,
   menuOpen,
   deleteError,
+  highlighted,
   onMenu,
   onConfirm,
   setMenuTrigger,
@@ -454,6 +485,7 @@ function CommentRow({
   now: number;
   menuOpen: boolean;
   deleteError: boolean;
+  highlighted: boolean;
   onMenu: () => void;
   onConfirm: () => void;
   setMenuTrigger: (element: HTMLButtonElement | null) => void;
@@ -462,7 +494,12 @@ function CommentRow({
 
   return (
     <li
-      className="flex scroll-mt-24 gap-3 outline-none"
+      className={`flex scroll-mt-24 gap-3 rounded-xl motion-safe:transition-[outline-color] ${
+        highlighted
+          ? "outline-2 outline-offset-4 outline-pet-teal"
+          : "outline-none"
+      }`}
+      data-highlighted={highlighted || undefined}
       id={`comment-${comment.id}`}
       tabIndex={-1}
     >

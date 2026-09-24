@@ -620,7 +620,13 @@ secrecy control. Blocking stores no Comment changes, so unblocking restores an
 otherwise eligible row.
 
 Threads page from the newest end with a stable `(CreatedAt DESC, Id DESC)`
-cursor and render each returned page oldest-to-newest. Deletion is a scrubbed
+cursor and render each returned page oldest-to-newest. A `#comment-{id}` link
+(Activity uses one) sends that id as `anchor` with the first read: when the
+Comment passes the same `VisibleComments` rules and sits within the newest
+`MomentCommentService.AnchorWindow` (100) visible Comments, the first page is
+widened just enough to include it; otherwise the read is answered exactly as
+if no anchor had been sent, and the page lands on `#comments`. An anchor
+therefore never reveals whether a hidden or deleted Comment exists. Deletion is a scrubbed
 tombstone, not evidence retention: `Body = ''`, with `DeletedAt` and
 `DeletedByUserId` set together. The database constraint rejects an active empty
 body or an unscrubbed tombstone.

@@ -10,6 +10,7 @@ import {
   createMomentComment,
   deleteMomentComment,
   getMomentComments,
+  linkedCommentId,
   MomentCommentError,
 } from "@/services/momentCommentService";
 
@@ -104,4 +105,36 @@ describe("Moment Comment service", () => {
       expect((error as MomentCommentError).reason).toBe(expectedReason);
     });
   }
+
+  it("asks the first page to reach a linked Comment, but never alongside a cursor", async () => {
+    mocks.apiRequest.mockResolvedValue({
+      data: {
+        items: [],
+        nextCursor: null,
+        commentCount: 0,
+        viewer: { canComment: false, requirement: "signIn", identity: null },
+      },
+    });
+    const anchor = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+    await getMomentComments("moment-1", undefined, { anchor });
+    await getMomentComments("moment-1", "cursor-1", { anchor });
+
+    expect(mocks.apiRequest.mock.calls[0][0]).toBe(
+      `/api/v1/public/moments/moment-1/comments?limit=20&anchor=${anchor}`
+    );
+    expect(mocks.apiRequest.mock.calls[1][0]).toBe(
+      "/api/v1/public/moments/moment-1/comments?limit=20&cursor=cursor-1"
+    );
+  });
+
+  it("recognises only well-formed Comment links", () => {
+    expect(linkedCommentId("#comment-0F8FAD5B-D9CB-469F-A165-70867728950E")).toBe(
+      "0F8FAD5B-D9CB-469F-A165-70867728950E"
+    );
+    expect(linkedCommentId("#comments")).toBeNull();
+    expect(linkedCommentId("#comment-123")).toBeNull();
+    expect(linkedCommentId("#comment-0f8fad5b-d9cb-469f-a165-70867728950e&x=1")).toBeNull();
+    expect(linkedCommentId("")).toBeNull();
+  });
 });
