@@ -56,6 +56,7 @@ internal sealed class SocialSurfaceHarness : IDisposable
         Notifications = new OwnerNotificationService(db, r2);
         Graph = new SocialGraphService(db, r2, Notifications);
         Likes = new MomentLikeService(db, Notifications);
+        Comments = new MomentCommentService(db, Notifications, r2);
         PetSettings = new PetSocialSettingsService(
             db,
             r2,
@@ -79,6 +80,8 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public SocialGraphService Graph { get; }
 
     public MomentLikeService Likes { get; }
+
+    public MomentCommentService Comments { get; }
 
     public OwnerNotificationService Notifications { get; }
 

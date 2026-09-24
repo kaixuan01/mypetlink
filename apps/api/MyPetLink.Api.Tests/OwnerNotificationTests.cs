@@ -299,6 +299,38 @@ public sealed class OwnerNotificationTests
     }
 
     [Fact]
+    public async Task UnknownActivityTypesAreNeverProjectedOrCounted()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        harness.Db.OwnerNotifications.Add(new OwnerNotification
+        {
+            RecipientUserId = Alice,
+            ActorUserId = Bob,
+            Type = OwnerNotificationType.Unknown
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var page = await harness.Notifications.GetAsync(Alice, null, null);
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.UnreadCount);
+    }
+
+    [Fact]
+    public async Task LikeWithoutDisplayableCommunityIdentityCreatesNoActivity()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        var profile = await harness.Db.OwnerSocialProfiles.SingleAsync(item => item.UserId == Bob);
+        profile.DisplayName = null;
+        await harness.Db.SaveChangesAsync();
+
+        var result = await harness.Likes.LikeAsync(Bob, momentId);
+
+        Assert.True(result.ViewerHasLiked);
+        Assert.Empty(await harness.Db.OwnerNotifications.ToListAsync());
+    }
+
+    [Fact]
     public async Task NoNotificationRowEverStoresAnAccountName()
     {
         using var harness = await SocialSurfaceHarness.CreateAsync();
