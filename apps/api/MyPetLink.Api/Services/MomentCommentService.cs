@@ -195,35 +195,72 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         CancellationToken cancellationToken = default)
     {
         var actorId = RequireUserId(currentUserId);
-        var comment = await _dbContext.MomentComments
+        var target = await _dbContext.MomentComments
+            .AsNoTracking()
             .Where(item => item.Id == commentId && item.MomentId == momentId)
             .Select(item => new
             {
-                Entity = item,
+                item.AuthorUserId,
                 MomentAuthorUserId = item.Moment.AuthorUserId
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (comment is null
-            || (comment.Entity.AuthorUserId != actorId
-                && comment.MomentAuthorUserId != actorId))
+        if (target is null
+            || (target.AuthorUserId != actorId
+                && target.MomentAuthorUserId != actorId))
         {
             throw CommentNotFound();
         }
 
-        if (!comment.Entity.DeletedAt.HasValue)
+        // The same per-author/Moment lock as CreateAsync. Retargeting or
+        // withdrawing the author's unread Activity reads "their latest active
+        // Comment" and then writes the row a concurrent create is coalescing
+        // into; without one lock for both, a delete could remove the row that
+        // now represents a brand-new Comment, or a create could fail updating
+        // a row the delete had just withdrawn.
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            comment.Entity.Body = "";
-            comment.Entity.DeletedAt = DateTimeOffset.UtcNow;
-            comment.Entity.DeletedByUserId = actorId;
+            _dbContext.ChangeTracker.Clear();
+            await using IDbContextTransaction? transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(
+                    _dbContext.Database.IsSqlServer()
+                        ? IsolationLevel.ReadCommitted
+                        : IsolationLevel.Serializable,
+                    cancellationToken)
+                : null;
 
-            await _notifications.StageCommentNotificationWithdrawal(
-                comment.Entity.AuthorUserId,
-                momentId,
-                commentId,
-                cancellationToken);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
+            if (transaction is not null && _dbContext.Database.IsSqlServer())
+            {
+                await AcquireCommentPairLockAsync(
+                    transaction,
+                    target.AuthorUserId,
+                    momentId,
+                    cancellationToken);
+            }
+
+            var comment = await _dbContext.MomentComments
+                .SingleAsync(item => item.Id == commentId, cancellationToken);
+
+            if (!comment.DeletedAt.HasValue)
+            {
+                comment.Body = "";
+                comment.DeletedAt = DateTimeOffset.UtcNow;
+                comment.DeletedByUserId = actorId;
+
+                await _notifications.StageCommentNotificationWithdrawal(
+                    comment.AuthorUserId,
+                    momentId,
+                    commentId,
+                    cancellationToken);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        });
 
         return new DeleteMomentCommentResponse(
             commentId,
@@ -367,9 +404,14 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             .CountAsync(comment => comment.MomentId == momentId, cancellationToken);
     }
 
+    /// <summary>
+    /// Serializes Comment writes for one author on one Moment across every API
+    /// instance. Taken by both create and delete with the Comment author's id,
+    /// whoever is acting, because that pair is what unread Activity coalesces on.
+    /// </summary>
     private async Task AcquireCommentPairLockAsync(
         IDbContextTransaction transaction,
-        Guid actorId,
+        Guid authorUserId,
         Guid momentId,
         CancellationToken cancellationToken)
     {
@@ -395,7 +437,7 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         parameter.ParameterName = "@resource";
         parameter.DbType = DbType.String;
         parameter.Size = 255;
-        parameter.Value = $"mypetlink:moment-comment:{actorId:N}:{momentId:N}";
+        parameter.Value = $"mypetlink:moment-comment:{authorUserId:N}:{momentId:N}";
         command.Parameters.Add(parameter);
 
         var result = Convert.ToInt32(

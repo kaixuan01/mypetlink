@@ -634,10 +634,12 @@ body or an unscrubbed tombstone.
 Repeated unread Comment activity from one actor on one Moment is coalesced to
 the latest active Comment. Deleting that Comment retargets the unread row to the
 actor's latest remaining Comment, or removes it. Read history carries no body
-preview. A transaction-scoped SQL Server application lock per actor/Moment pair
-makes the 60-second normalized duplicate guard and unread-activity coalescing
-deterministic under concurrent retries without permanently forbidding the same
-text.
+preview. A transaction-scoped SQL Server application lock per Comment-author/Moment
+pair makes the 60-second normalized duplicate guard and unread-activity
+coalescing deterministic under concurrent retries without permanently
+forbidding the same text. Delete and Remove take the same lock (keyed by the
+Comment's author, whoever acts), so retargeting or withdrawing that unread row
+can never race a concurrent create.
 
 ### Known limits at soft launch
 
