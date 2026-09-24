@@ -402,6 +402,12 @@ public sealed class MemoryService : SkeletonService, IMemoryService
     /// <summary>
     /// Replaces the additional subjects of an existing Moment.
     ///
+    /// Only the author's own subjects (<c>CollaborationId == null</c>) are in
+    /// scope. Pets another household accepted into this Moment belong to that
+    /// collaboration: they are not in the author's pet list, cannot be sent by
+    /// the author's editor, and are added and removed only by the collaboration
+    /// lifecycle — an ordinary edit must never delete them.
+    ///
     /// The primary pet's membership row is never removed. The primary pet is
     /// fixed for the life of the Moment because it owns the Moment's place in
     /// that pet's timeline and its plan allowance, and a caller editing the
@@ -413,7 +419,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         CancellationToken cancellationToken)
     {
         var existing = await _dbContext.MomentPets
-            .Where(item => item.MomentId == memory.Id)
+            .Where(item => item.MomentId == memory.Id && item.CollaborationId == null)
             .ToListAsync(cancellationToken);
 
         // Membership rows can only ever be missing, never contradictory, so
@@ -740,7 +746,12 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         var rows = await _dbContext.MomentPets
             .AsNoTracking()
-            .Where(item => momentIds.Contains(item.MomentId) && item.PetId != item.Moment.PetId)
+            // The owner's editor lists the author's own extra pets only;
+            // collaborator pets are managed through the collaboration.
+            .Where(item =>
+                momentIds.Contains(item.MomentId)
+                && item.PetId != item.Moment.PetId
+                && item.CollaborationId == null)
             .Select(item => new { item.MomentId, item.PetId })
             .ToListAsync(cancellationToken);
 

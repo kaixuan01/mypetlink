@@ -708,6 +708,92 @@ public sealed class MomentAuthorshipAndSubjectsTests
         Assert.Equal(publishedAt, updated.PublishedAt);
     }
 
+    // ---- collaborator subjects are outside the author's ordinary editing ----
+
+    [Fact]
+    public async Task AnOrdinaryEdit_NeverRemovesACollaboratorsPet()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId, MochiId, Request(MemoryVisibility.Public, additionalPetIds: [CocoId]));
+        var collaborationRowId = await AddAcceptedCollaboratorPetAsync(harness, created.Id);
+
+        await harness.Memories.UpdateAsync(AliceId, created.Id, UpdateRequest(caption: "New caption"));
+        await harness.Memories.UpdateAsync(AliceId, created.Id, UpdateRequest(additionalPetIds: [LuckyId]));
+        var cleared = await harness.Memories.UpdateAsync(AliceId, created.Id, UpdateRequest(additionalPetIds: []));
+
+        var subjects = await harness.Db.MomentPets
+            .Where(item => item.MomentId == created.Id)
+            .ToListAsync();
+        Assert.Contains(subjects, item => item.Id == collaborationRowId && item.PetId == BobsPetId);
+        Assert.Contains(subjects, item => item.PetId == MochiId && item.CollaborationId == null);
+        Assert.DoesNotContain(subjects, item => item.PetId == CocoId || item.PetId == LuckyId);
+        // The editor only ever lists the author's own extra pets.
+        Assert.Empty(cleared.AdditionalPetIds);
+    }
+
+    [Fact]
+    public async Task TheOwnersEditor_DoesNotListCollaboratorPetsAsItsOwn()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId, MochiId, Request(MemoryVisibility.Public, additionalPetIds: [CocoId]));
+        await AddAcceptedCollaboratorPetAsync(harness, created.Id);
+
+        var loaded = await harness.Memories.GetAsync(AliceId, created.Id);
+        var edited = await harness.Memories.UpdateAsync(AliceId, created.Id, UpdateRequest(caption: "x"));
+
+        Assert.Equal(new[] { CocoId }, loaded.AdditionalPetIds);
+        Assert.Equal(new[] { CocoId }, edited.AdditionalPetIds);
+    }
+
+    [Fact]
+    public async Task TheAuthorsEditor_CannotClaimACollaboratorsPet()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId, MochiId, Request(MemoryVisibility.Public));
+        await AddAcceptedCollaboratorPetAsync(harness, created.Id);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Memories.UpdateAsync(AliceId, created.Id, UpdateRequest(additionalPetIds: [BobsPetId])));
+
+        Assert.Equal("pet_not_owned", error.Code);
+        Assert.Single(await harness.Db.MomentPets
+            .Where(item => item.MomentId == created.Id && item.PetId == BobsPetId)
+            .ToListAsync());
+    }
+
+    /// <summary>
+    /// The state an accepted collaboration leaves behind: Bob's pet on Alice's
+    /// Moment through a collaboration row.
+    /// </summary>
+    private static async Task<Guid> AddAcceptedCollaboratorPetAsync(Harness harness, Guid momentId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var collaboration = new MomentCollaboration
+        {
+            MomentId = momentId,
+            InviterUserId = AliceId,
+            InviteeUserId = BobId,
+            Status = MomentCollaborationStatus.Accepted,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(14),
+            RespondedAt = now
+        };
+        var subject = new MomentPet
+        {
+            MomentId = momentId,
+            PetId = BobsPetId,
+            CollaborationId = collaboration.Id
+        };
+        harness.Db.MomentCollaborations.Add(collaboration);
+        harness.Db.MomentPets.Add(subject);
+        await harness.Db.SaveChangesAsync();
+        harness.Db.ChangeTracker.Clear();
+        return subject.Id;
+    }
+
     private static CreateMemoryRequest Request(
         MemoryVisibility visibility = MemoryVisibility.Private,
         IReadOnlyCollection<Guid>? additionalPetIds = null)
