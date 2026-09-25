@@ -1,7 +1,8 @@
 # MyPetLink Social — foundation architecture
 
 **Status:** Community Phase 1 and Phase 2A Moment Comments are implemented.
-Replies, Comment likes, mentions, reporting and moderation remain future work.
+Phase 2E reporting and Admin moderation (E1–E4A) are implemented; the Admin
+moderation screens are not. Replies and Comment likes remain future work.
 
 This document describes what exists in the codebase today. The product proposal
 that preceded it is a separate artefact; where the two disagree, this file is
@@ -921,7 +922,7 @@ Lost Mode and orders are untouched (the Share Profile's optional "shared by"
 Community link disappears, as whenever Community is off).
 
 **Transitions and audit.** `CommunityModeration` holds the only state
-changes (hide/unhide, restrict/lift). Moderator actions will append to the
+changes (hide/unhide, restrict/lift). Moderator actions (E4A) append to the
 existing `AuditLog` with the action names in `CommunityModerationAudit`.
 
 **Access.** `community_reports.view` (a sensitive read, so the Read Only /
@@ -977,6 +978,88 @@ or evidence is returned, and there is no endpoint to list one's reports.
 - **No side effect:** submitting blocks nobody and hides, removes, restricts
   and notifies nothing; no audit row is written (the audit log records
   moderator decisions, not reports).
+
+### Admin moderation (E4A)
+
+`AdminCommunityReportsController` at `api/v1/admin/community-reports`; every
+response is `no-store`. The queue and detail are `AdminCommunityReportQueryService`,
+the actions `AdminCommunityModerationService`. Admin endpoints are not on any
+social rate limit.
+
+| Endpoint | Capability (in addition to `community_reports.view`) |
+| --- | --- |
+| `GET /` — the queue | — |
+| `GET /{id}` — the detail | — |
+| `POST /{id}/dismiss` | `community_reports.resolve` |
+| `POST /{id}/remove-comment` | `community_reports.resolve` |
+| `POST /{id}/hide-moment`, `POST /{id}/unhide-moment` | `community_moderation.enforce` |
+| `POST /{id}/restrict-household`, `POST /{id}/lift-restriction` | `community_moderation.enforce` |
+
+**Queue.** Server-side paging (`page`, `pageSize` ≤ 100). Filters: `status`
+(`Open`/`Resolved`), `targetType`, `reason` (exact names, anything else is
+`400 validation_failed`), `reportedOwnerId`, `createdFrom`/`createdTo`. Open
+first, then newest. Each row carries the snapshot handle and name, the
+reported household and the reporter as they are now (id, handle, display
+name, Community on/restricted, account active — never e-mail, phone, finder
+or Safety details), and `openReportsOnTarget`, counted for the whole page in
+one grouped query.
+
+**Detail.** The report (reason, details, status, resolution, internal note,
+reviewer's name, `rowVersion`), the evidence exactly as stored, and — beside
+it, never merged — the target now: the Comment (body, removed, by whom, still
+publicly visible) and the Moment it is on; or the Moment (title, caption,
+visibility, archived, hidden, publicly visible, and its media by id and
+public URL — never object keys or bucket details); and the household's
+current Community state. Prior reports: the same target and the same
+reported household, 20 each, newest first, with totals. The reads are
+privileged: blocks, Community switch-offs, removal, hiding and restriction
+do not hide anything from a moderator, and none of this widens a public
+query. `availableActions` lists what the state allows; `involvesYou` marks a
+report the moderator's own household made. Reports about the moderator's own
+household are left out of their queue and their detail answers not found, so
+no operator learns who reported them; the actions refuse both cases with
+`403 moderation_conflict_of_interest`.
+
+**Actions.** The request is `{ note, rowVersion }` and nothing else is read.
+The note is required on every action (plain text, the Comment safe-text rule,
+up to 1000 characters). `rowVersion` is the report's, from the detail, and is
+required by the four actions that decide it. The moderator is the session's
+account; status, resolution and every "by" field are the server's.
+
+- A decision (Dismiss, Remove Comment, Hide Moment, Restrict household)
+  resolves **every Open report on the same target** — `CommunityReportTargets`
+  — with the same resolution, note, moderator and time. Nothing else: reports
+  about the same household's other Comments, Moments or profile stay open.
+- **Remove Comment** is `MomentCommentRemoval.StageAsync`, the one removal an
+  author or Moment author's delete also uses (body wiped, mentions removed,
+  unread Activity withdrawn or retargeted, count drops), with the moderator as
+  `DeletedByUserId`. Already removed → the reports are still decided
+  `CommentRemoved` and the answer is `AlreadyInEffect`; nothing is recreated.
+- **Hide Moment** sets the E1 moderation state. Activity (likes, Comments,
+  mentions, collaborations) about a hidden Moment is filtered out at read time
+  in `OwnerNotificationService.VisibleNotifications`, so it never deep-links
+  to a Moment nobody can open and it returns if the Moment is unhidden.
+  Hiding an already hidden Moment decides the reports (`AlreadyInEffect`).
+- **Restrict household** restricts the report's `ReportedUserId` — for a
+  Comment or Moment report, its author — and resolves that target's reports
+  `HouseholdRestricted` (the decision taken on them). Household reports about
+  the same household are a different target and stay open; deciding them
+  while the restriction stands converges (`AlreadyInEffect`).
+- **Unhide** and **Lift** restore through `CommunityModeration` and change no
+  report: decided reports stay decided. `409 moment_not_hidden` /
+  `409 household_not_restricted` when there is nothing to reverse.
+- A report already decided is `409 community_report_already_resolved`; an
+  action that does not fit the report's target is
+  `422 moderation_action_not_applicable`; a report involving the moderator's
+  own household is `403 moderation_conflict_of_interest`.
+- One transaction per action: the change, the report decisions and one
+  `AuditLog` row (`CommunityModerationAudit` names; old and new state, the
+  report and every report it resolved, the note) commit together. Actions on
+  one target serialize on a SQL Server application lock (target first, then
+  household); the clicked report saves against the client's row version and
+  every other row against the version read, so a concurrent moderator,
+  owner edit or Community switch makes the loser answer `409` with nothing
+  written. Nobody is notified.
 
 ## 13. Deliberately deferred Community work
 
