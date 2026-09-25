@@ -368,6 +368,77 @@ public sealed class AdminCommunityModerationRelationalTests
     }
 
     [RelationalTheory]
+    [InlineData("report", "moment")]
+    [InlineData("moderator", "moment")]
+    [InlineData("report", "household")]
+    [InlineData("moderator", "household")]
+    public async Task AReportArrivingWhileItsTargetIsHiddenOrRestrictedIsDecidedOrLeftDecidable(string held, string target)
+    {
+        var gate = new SaveGate(held);
+        await using var scope = await RelationalDatabase.CreateAsync(gate, enableRetryOnFailure: true);
+        var world = await SeedAsync(scope);
+        var clicked = target == "moment" ? world.MomentReport : world.HouseholdReport;
+        var expected = target == "moment" ? CommunityReportResolution.MomentHidden : CommunityReportResolution.HouseholdRestricted;
+
+        await RaceAsync(gate, held,
+            ("report", async context =>
+            {
+                try
+                {
+                    await Reports(context).SubmitAsync(SecondReporter, target == "moment"
+                        ? new CreateCommunityReportRequest("moment", world.MomentId.ToString(), "SpamOrScam", null)
+                        : new CreateCommunityReportRequest("household", "authorhome", "SpamOrScam", null));
+                }
+                catch (ApiException exception) when (exception.Code == "report_target_unavailable")
+                {
+                }
+            }),
+            ("moderator", context => target == "moment"
+                ? Moderation(context).HideMomentAsync(Moderator, clicked.Id, Request(clicked))
+                : Moderation(context).RestrictHouseholdAsync(Moderator, clicked.Id, Request(clicked))),
+            scope);
+
+        await using (var verify = scope.NewContext())
+        {
+            if (target == "moment")
+            {
+                Assert.NotNull((await verify.PetMemories.SingleAsync()).ModeratedAt);
+            }
+            else
+            {
+                var profile = await verify.OwnerSocialProfiles.SingleAsync(item => item.UserId == Author);
+                Assert.Equal((false, true), (profile.IsSocialEnabled, profile.CommunityEnabledBeforeRestriction == true));
+            }
+
+            var arrived = await verify.CommunityReports.SingleOrDefaultAsync(item => item.ReporterUserId == SecondReporter);
+            if (arrived is not null)
+            {
+                Assert.Equal("AuthorHome", arrived.SnapshotHandle);
+                Assert.Contains((arrived.Status, arrived.Resolution), new (CommunityReportStatus, CommunityReportResolution?)[]
+                {
+                    (CommunityReportStatus.Resolved, expected),
+                    (CommunityReportStatus.Open, null)
+                });
+
+                if (arrived.Status == CommunityReportStatus.Open)
+                {
+                    await using var context = scope.NewContext();
+                    var result = target == "moment"
+                        ? await Moderation(context).HideMomentAsync(Moderator, arrived.Id, Request(arrived))
+                        : await Moderation(context).RestrictHouseholdAsync(Moderator, arrived.Id, Request(arrived));
+                    Assert.Equal(("AlreadyInEffect", 1), (result.Outcome, result.ReportsResolved));
+                }
+            }
+        }
+
+        await using var final = scope.NewContext();
+        var audits = await final.AuditLogs.CountAsync();
+        var decisions = await final.CommunityReports.CountAsync(item => item.Resolution == expected);
+        Assert.InRange(audits, 1, 2);
+        Assert.True(decisions >= 1);
+    }
+
+    [RelationalTheory]
     [InlineData("owner")]
     [InlineData("moderator")]
     public async Task AnOwnerArchivingWhileAModeratorHidesKeepsBoth(string held)

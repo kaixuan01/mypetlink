@@ -329,6 +329,230 @@ public sealed class AdminCommunityModerationHttpTests
             targets.Contains(type) || (type.IsGenericType && type.GetGenericArguments().Any(argument => Mentions(argument, targets)));
     }
 
+    // ---- E5: security and stale state --------------------------------------
+
+    [Fact]
+    public async Task NoMutationLetsTheRequestChooseStateIdentitiesOrTargets()
+    {
+        await using var world = await World.CreateAsync();
+        var adminId = Operators[AdminRoleTemplates.AdministratorCode];
+        using var admin = world.As(adminId);
+        var comment = await world.SingleReportIdAsync(CommunityReportTargetType.Comment);
+        var moment = await world.SingleReportIdAsync(CommunityReportTargetType.Moment);
+        var household = await world.SingleReportIdAsync(CommunityReportTargetType.Household);
+
+        async Task<HttpStatusCode> Post(Guid reportId, string action, string? rowVersion)
+        {
+            using var response = await admin.PostAsJsonAsync($"/api/v1/admin/community-reports/{reportId}/{action}", new
+            {
+                note = SecretNote,
+                rowVersion,
+                id = Guid.NewGuid(),
+                status = "Open",
+                resolution = "Dismissed",
+                reviewedByUserId = Carol,
+                reviewedAt = "2020-01-01T00:00:00Z",
+                reviewNote = "forged",
+                moderatedByUserId = Carol,
+                moderatedAt = "2020-01-01T00:00:00Z",
+                communityRestrictedByUserId = Carol,
+                communityEnabledBeforeRestriction = false,
+                reporterUserId = Bob,
+                reportedUserId = Carol,
+                targetType = "Household",
+                commentId = Guid.NewGuid(),
+                momentId = Guid.NewGuid(),
+                ownerId = Carol
+            });
+            return response.StatusCode;
+        }
+
+        Assert.Equal(HttpStatusCode.OK, await Post(comment, "dismiss", await RowVersion(admin, comment)));
+        Assert.Equal(HttpStatusCode.OK, await Post(moment, "hide-moment", await RowVersion(admin, moment)));
+        Assert.Equal(HttpStatusCode.OK, await Post(moment, "unhide-moment", null));
+        Assert.Equal(HttpStatusCode.OK, await Post(household, "restrict-household", await RowVersion(admin, household)));
+        Assert.Equal(HttpStatusCode.OK, await Post(household, "lift-restriction", null));
+
+        await using var db = world.Db();
+        foreach (var report in await db.CommunityReports.ToListAsync())
+        {
+            Assert.Equal(CommunityReportStatus.Resolved, report.Status);
+            Assert.Equal(adminId, report.ReviewedByUserId);
+            Assert.Equal(SecretNote, report.ReviewNote);
+            Assert.Equal(Carol, report.ReporterUserId);
+            Assert.NotEqual(Carol, report.ReportedUserId);
+        }
+
+        Assert.Equal(CommunityReportResolution.Dismissed, (await db.CommunityReports.SingleAsync(item => item.Id == comment)).Resolution);
+        Assert.Equal(CommunityReportResolution.MomentHidden, (await db.CommunityReports.SingleAsync(item => item.Id == moment)).Resolution);
+        Assert.Equal(CommunityReportResolution.HouseholdRestricted, (await db.CommunityReports.SingleAsync(item => item.Id == household)).Resolution);
+        Assert.Equal("Rude words", (await db.MomentComments.SingleAsync()).Body);
+        var alice = await db.OwnerSocialProfiles.SingleAsync(item => item.UserId == Alice);
+        Assert.True(alice.IsSocialEnabled);
+        Assert.Null(alice.CommunityRestrictedAt);
+        Assert.Null((await db.PetMemories.SingleAsync()).ModeratedAt);
+        Assert.All(await db.AuditLogs.Where(item => item.Action.StartsWith("Community")).ToListAsync(),
+            item => Assert.Equal(adminId, item.ActorId));
+    }
+
+    [Fact]
+    public async Task ASecondModeratorWithAStalePageGetsAConflictAndNothingHappensTwice()
+    {
+        await using var world = await World.CreateAsync();
+        using var first = world.As(Operators[AdminRoleTemplates.AdministratorCode]);
+        using var second = world.As(Operators[AdminRoleTemplates.OwnerSupportCode]);
+        var comment = await world.SingleReportIdAsync(CommunityReportTargetType.Comment);
+
+        // Both open the same report.
+        var firstVersion = await RowVersion(first, comment);
+        var secondVersion = await RowVersion(second, comment);
+        Assert.Equal(firstVersion, secondVersion);
+
+        Assert.Equal(HttpStatusCode.OK, (await Act(first, comment, "dismiss", firstVersion)).StatusCode);
+        using var stale = await Act(second, comment, "remove-comment", secondVersion);
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Contains("community_report_already_resolved", await stale.Content.ReadAsStringAsync());
+        await using var db = world.Db();
+        Assert.Equal("Rude words", (await db.MomentComments.SingleAsync()).Body);
+        Assert.Equal(CommunityReportResolution.Dismissed, (await db.CommunityReports.SingleAsync(item => item.Id == comment)).Resolution);
+        Assert.Single(await db.AuditLogs.Where(item => item.Action.StartsWith("Community")).ToListAsync());
+
+        // The refreshed detail shows the decision and offers no more decisions.
+        var refreshed = await Data(await second.GetAsync($"/api/v1/admin/community-reports/{comment}"));
+        Assert.Equal("Resolved", refreshed.GetProperty("status").GetString());
+        Assert.DoesNotContain(refreshed.GetProperty("availableActions").EnumerateArray(), item => item.GetString() is "Dismiss" or "RemoveComment");
+    }
+
+    [Fact]
+    public async Task AnOperatorsOwnHouseholdIsNeverShownItsReportsOrAllowedToDecideItsOwn()
+    {
+        await using var world = await World.CreateAsync();
+        await world.GrantAsync(Alice, AdminRoleTemplates.AdministratorCode);   // reported (Moment, household)
+        await world.GrantAsync(Carol, AdminRoleTemplates.OwnerSupportCode);    // the reporter
+        using var alice = world.As(Alice);
+        using var carol = world.As(Carol);
+        var moment = await world.SingleReportIdAsync(CommunityReportTargetType.Moment);
+        var household = await world.SingleReportIdAsync(CommunityReportTargetType.Household);
+        var comment = await world.SingleReportIdAsync(CommunityReportTargetType.Comment);
+
+        // Alice sees only the report about Bob, and her own read exactly like
+        // a report that does not exist.
+        var queue = (await Data(await alice.GetAsync("/api/v1/admin/community-reports?pageSize=100"))).EnumerateArray().ToArray();
+        Assert.Equal([comment], queue.Select(item => item.GetProperty("id").GetGuid()));
+        using var missing = await alice.GetAsync($"/api/v1/admin/community-reports/{Guid.NewGuid()}");
+        var missingBody = await missing.Content.ReadAsStringAsync();
+        foreach (var own in new[] { moment, household })
+        {
+            using var hidden = await alice.GetAsync($"/api/v1/admin/community-reports/{own}");
+            Assert.Equal(missing.StatusCode, hidden.StatusCode);
+            var body = await hidden.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("carolpets", body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(SecretDetails, body);
+            Assert.Equal(ErrorCode(missingBody), ErrorCode(body));
+            using var acted = await Act(alice, own, "restrict-household", "");
+            Assert.Equal(HttpStatusCode.Forbidden, acted.StatusCode);
+            Assert.Contains("moderation_conflict_of_interest", await acted.Content.ReadAsStringAsync());
+        }
+
+        // Carol sees her own report, is told it involves her, and cannot decide it.
+        var own2 = await Data(await carol.GetAsync($"/api/v1/admin/community-reports/{comment}"));
+        Assert.True(own2.GetProperty("involvesYou").GetBoolean());
+        Assert.Empty(own2.GetProperty("availableActions").EnumerateArray());
+        using var refused = await Act(carol, comment, "dismiss", own2.GetProperty("rowVersion").GetString());
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.Contains("moderation_conflict_of_interest", await refused.Content.ReadAsStringAsync());
+
+        await using var db = world.Db();
+        Assert.All(await db.CommunityReports.ToListAsync(), item => Assert.Equal(CommunityReportStatus.Open, item.Status));
+        Assert.Empty(await db.AuditLogs.Where(item => item.Action.StartsWith("Community")).ToListAsync());
+
+        static string? ErrorCode(string body) =>
+            JsonDocument.Parse(body).RootElement.GetProperty("error").GetProperty("code").GetString();
+    }
+
+    [Fact]
+    public async Task GuessingReportIdsRevealsNothing()
+    {
+        await using var world = await World.CreateAsync();
+        var real = await world.SingleReportIdAsync(CommunityReportTargetType.Household);
+        var guessed = Guid.NewGuid();
+        using var auditor = world.As(Operators[AdminRoleTemplates.AuditorCode]);
+        using var owner = world.As(Bob);
+        using var admin = world.As(Operators[AdminRoleTemplates.AdministratorCode]);
+
+        // Without the capability, a real id and a guessed one answer the same,
+        // before anything is looked up.
+        foreach (var client in new[] { auditor, owner })
+        {
+            foreach (var path in new[] { "", "/dismiss", "/hide-moment", "/restrict-household" })
+            {
+                using var forReal = path == ""
+                    ? await client.GetAsync($"/api/v1/admin/community-reports/{real}")
+                    : await Act(client, real, path.TrimStart('/'), "");
+                using var forGuess = path == ""
+                    ? await client.GetAsync($"/api/v1/admin/community-reports/{guessed}")
+                    : await Act(client, guessed, path.TrimStart('/'), "");
+                Assert.Equal(HttpStatusCode.Forbidden, forReal.StatusCode);
+                Assert.Equal(forGuess.StatusCode, forReal.StatusCode);
+            }
+        }
+
+        // With it: an unknown id is 404 for reads and every action; a decided
+        // report is 409 for every further decision.
+        using var unknownDetail = await admin.GetAsync($"/api/v1/admin/community-reports/{guessed}");
+        Assert.Equal(HttpStatusCode.NotFound, unknownDetail.StatusCode);
+        foreach (var action in new[] { "dismiss", "remove-comment", "hide-moment", "unhide-moment", "restrict-household", "lift-restriction" })
+        {
+            using var unknown = await Act(admin, guessed, action, "");
+            Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.OK, (await Act(admin, real, "dismiss", await RowVersion(admin, real))).StatusCode);
+        foreach (var action in new[] { "dismiss", "restrict-household" })
+        {
+            using var decided = await Act(admin, real, action, await RowVersion(admin, real));
+            Assert.Equal(HttpStatusCode.Conflict, decided.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task AnonymousVisitorsCannotReportOrModerateButStillBrowse()
+    {
+        await using var world = await World.CreateAsync();
+        using var anonymous = world.As(null);
+
+        using var report = await anonymous.PostAsJsonAsync("/api/v1/social/reports",
+            new { targetType = "moment", target = world.MomentId.ToString(), reason = "SpamOrScam" });
+        Assert.Equal(HttpStatusCode.Unauthorized, report.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/admin/community-reports")).StatusCode);
+
+        var moment = await anonymous.GetAsync($"/api/v1/public/moments/{world.MomentId}");
+        Assert.Equal(HttpStatusCode.OK, moment.StatusCode);
+        var body = await moment.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("report", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("carolpets", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ARestrictedHouseholdIsRefusedFollowAndLikeOverHttp()
+    {
+        await using var world = await World.CreateAsync();
+        using var admin = world.As(Operators[AdminRoleTemplates.AdministratorCode]);
+        var household = await world.SingleReportIdAsync(CommunityReportTargetType.Household);
+        Assert.Equal(HttpStatusCode.OK, (await Act(admin, household, "restrict-household", await RowVersion(admin, household))).StatusCode);
+        using var alice = world.As(Alice);
+
+        using var follow = await alice.PostAsync("/api/v1/social/owners/carolpets/follow", null);
+        using var like = await alice.PostAsync($"/api/v1/social/moments/{world.MomentId}/like", null);
+
+        foreach (var response in new[] { follow, like })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Contains("community_restricted", await response.Content.ReadAsStringAsync());
+        }
+    }
+
     // ---- helpers ----------------------------------------------------------
 
     private static async Task<HttpResponseMessage> Act(HttpClient client, Guid reportId, string action, string? rowVersion) =>
@@ -465,6 +689,20 @@ public sealed class AdminCommunityModerationHttpTests
 
         public MyPetLinkDbContext Db() =>
             _factory.Services.CreateScope().ServiceProvider.GetRequiredService<MyPetLinkDbContext>();
+
+        /// <summary>Makes an existing household an operator with one built-in role.</summary>
+        public async Task GrantAsync(Guid userId, string roleCode)
+        {
+            await using var db = Db();
+            var admin = new AdminUser { UserId = userId, Role = AdminRole.OwnerSupport, IsActive = true };
+            db.Add(admin);
+            db.AdminUserRoles.Add(new AdminUserRoleAssignment
+            {
+                AdminUserId = admin.Id,
+                AdminRoleId = (await db.AdminRoles.SingleAsync(role => role.Code == roleCode)).Id
+            });
+            await db.SaveChangesAsync();
+        }
 
         public async Task<Guid> SingleReportIdAsync(CommunityReportTargetType type)
         {
