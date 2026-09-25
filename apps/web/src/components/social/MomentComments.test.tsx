@@ -70,6 +70,29 @@ afterEach(() => {
 });
 
 describe("Moment Comments", () => {
+  it.each([
+    ["author", author, "delete", false, true],
+    ["Moment author", { ...author, handle: "momenthome" }, "remove", true, true],
+    ["collaborator", { ...author, handle: "collabhome" }, null, true, false],
+    ["viewer", { ...author, handle: "viewerhome" }, null, true, false],
+  ] as const)("shows distinct Comment actions for %s", async (_role, identity, action, reportVisible, removeVisible) => {
+    mocks.get.mockResolvedValue({
+      items: [{ ...older, viewerDeleteAction: action }], nextCursor: null, commentCount: 1,
+      viewer: { canComment: true, requirement: null, identity },
+    });
+    render(<MomentComments initialCount={1} momentId="moment-1" onCountChange={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Comment actions/ }));
+    expect(Boolean(screen.queryByRole("button", { name: "Report comment" }))).toBe(reportVisible);
+    expect(Boolean(screen.queryByRole("button", { name: "Remove comment" }))).toBe(action === "remove");
+    expect(Boolean(screen.queryByRole("button", { name: "Delete comment" }))).toBe(action === "delete");
+    if (reportVisible) {
+      fireEvent.click(screen.getByRole("button", { name: "Report comment" }));
+      expect(screen.getByRole("dialog", { name: "Report comment" })).toBeTruthy();
+      expect(screen.getByText(/Comment by The Lim Family/)).toBeTruthy();
+    }
+    if (removeVisible) expect(action).toBeTruthy();
+  });
+
   it("shows skeletons, then conversation order and an anonymous sign-in return", async () => {
     render(<MomentComments initialCount={2} momentId="moment-1" onCountChange={vi.fn()} />);
 

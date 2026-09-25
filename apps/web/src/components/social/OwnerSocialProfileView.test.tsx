@@ -505,7 +505,7 @@ describe("OwnerSocialProfileView", () => {
       expect(screen.getByText(/we couldn't load this profile/i)).toBeTruthy()
     );
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
-    expect(document.title).toBe("Community Profile unavailable | MyPetLink");
+    await waitFor(() => expect(document.title).toBe("Community Profile unavailable | MyPetLink"));
   });
 });
 
