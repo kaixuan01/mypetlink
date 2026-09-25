@@ -914,7 +914,10 @@ forces `IsSocialEnabled` off — which every one of the ~32 Community identity
 checks already requires, so no visibility rule needed a new clause — and
 `CK_OwnerSocialProfiles_CommunityRestriction` keeps it off while restricted.
 `OwnerSocialProfileService`, the only place the switch is ever turned on,
-refuses with `403 community_restricted`. The owner's own choice is kept and
+refuses with `403 community_restricted`. Following and liking do not need the
+follower's own Community switch, so they check the restriction explicitly
+(`CommunityModeration.RequireNotRestrictedAsync`, same `403`); unfollowing and
+unliking are never refused. The owner's own choice is kept and
 restored on lift, including a switch-off made meanwhile, and discoverability
 is not cleared while Community is off by MyPetLink. It is never an account
 suspension: sign-in, Owner Portal, pets, Share/Safety Profiles, Smart Tags,

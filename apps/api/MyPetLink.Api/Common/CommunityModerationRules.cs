@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
+using MyPetLink.Api.Data;
 using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Common;
@@ -135,6 +137,33 @@ public static class CommunityModeration
     public const string RestrictedMessage = "Your Community access is paused. Contact support.";
 
     public static bool IsRestricted(OwnerSocialProfile profile) => profile.CommunityRestrictedAt.HasValue;
+
+    public static Task<bool> IsRestrictedAsync(
+        MyPetLinkDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        dbContext.OwnerSocialProfiles.AnyAsync(
+            profile => profile.UserId == userId && profile.CommunityRestrictedAt != null,
+            cancellationToken);
+
+    /// <summary>
+    /// Refuses starting Community participation that does not itself require
+    /// Community to be on — following and liking — while the household is
+    /// restricted. Taking a follow or a like back is never refused.
+    /// </summary>
+    public static async Task RequireNotRestrictedAsync(
+        MyPetLinkDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (await IsRestrictedAsync(dbContext, userId, cancellationToken))
+        {
+            throw new ApiException(
+                StatusCodes.Status403Forbidden,
+                "community_restricted",
+                RestrictedMessage);
+        }
+    }
 
     public static bool IsHidden(PetMemory moment) => moment.ModeratedAt.HasValue;
 

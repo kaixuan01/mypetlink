@@ -121,6 +121,44 @@ public sealed class CommunityModerationTests
     // ---- Community-only restriction --------------------------------------------
 
     [Fact]
+    public async Task ARestrictedHouseholdCannotFollowOrLikeButCanStillTakeEitherBack()
+    {
+        using var harness = await CreateAsync();
+        var aliceMoment = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 20);
+        var otherMoment = await harness.AddMomentAsync(Alice, Mochi, "Park", 10);
+        await harness.Likes.LikeAsync(Bob, otherMoment);
+        var carolBefore = await harness.Graph.GetRelationshipAsync(Bob, "carolpets");
+        Assert.True(carolBefore.CanFollow);
+        await RestrictAsync(harness, Bob);
+
+        // Following and liking are Community participation: refused, with the
+        // same calm answer as turning Community back on, and nothing written.
+        foreach (var attempt in new Func<Task>[]
+                 {
+                     () => harness.Graph.FollowAsync(Bob, "carolpets"),
+                     () => harness.Likes.LikeAsync(Bob, aliceMoment)
+                 })
+        {
+            var refused = await Assert.ThrowsAsync<ApiException>(attempt);
+            Assert.Equal(StatusCodes.Status403Forbidden, refused.StatusCode);
+            Assert.Equal("community_restricted", refused.Code);
+            Assert.Equal(CommunityModeration.RestrictedMessage, refused.Message);
+        }
+
+        harness.Db.ChangeTracker.Clear();
+        Assert.False(await harness.Db.OwnerFollows.AnyAsync(item => item.FollowerUserId == Bob && item.FollowedUserId == SocialSurfaceHarness.CarolId));
+        Assert.False(await harness.Db.MomentLikes.AnyAsync(item => item.UserId == Bob && item.MomentId == aliceMoment));
+        Assert.Equal(0, (await harness.Likes.GetAsync(Alice, aliceMoment)).LikeCount);
+        Assert.False((await harness.Graph.GetRelationshipAsync(Bob, "carolpets")).CanFollow);
+
+        // Withdrawing is never refused: Bob can still unfollow and unlike.
+        await harness.Graph.UnfollowAsync(Bob, "tanfamily");
+        await harness.Likes.UnlikeAsync(Bob, otherMoment);
+        Assert.False(await harness.Db.OwnerFollows.AnyAsync(item => item.FollowerUserId == Bob));
+        Assert.False(await harness.Db.MomentLikes.AnyAsync(item => item.UserId == Bob));
+    }
+
+    [Fact]
     public async Task ARestrictedHouseholdCannotTurnCommunityBackOn()
     {
         using var harness = await CreateAsync();

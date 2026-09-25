@@ -50,6 +50,7 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
         CancellationToken cancellationToken = default)
     {
         var actorId = RequireUserId(currentUserId);
+        await CommunityModeration.RequireNotRestrictedAsync(_dbContext, actorId, cancellationToken);
         var target = await LoadFollowTargetAsync(handle, cancellationToken);
 
         if (target.UserId == actorId)
@@ -358,13 +359,15 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
             cancellationToken);
         var blockedEitherWay = !isSelf
             && await IsBlockedEitherWayAsync(viewerId.Value, targetId, cancellationToken);
+        var viewerRestricted = !isSelf
+            && await CommunityModeration.IsRestrictedAsync(_dbContext, viewerId.Value, cancellationToken);
 
         return new OwnerRelationshipResponse(
             isSelf,
             isFollowing,
             isFollowedBy,
             hasBlocked,
-            CanFollow: !isSelf && !blockedEitherWay && allowsFollowers,
+            CanFollow: !isSelf && !blockedEitherWay && allowsFollowers && !viewerRestricted,
             // Not narrowed by a block: this says what the profile offers, and a
             // blocked viewer already learns nothing from it that the profile
             // page does not show them anyway.
