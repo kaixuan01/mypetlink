@@ -1,12 +1,11 @@
-# Community moderation runbook (Phase 2E draft)
+# Community moderation runbook (Phase 2E)
 
-**Status: draft.** The schema, the moderation states and their enforcement,
-and the Admin capabilities exist (Phase 2E E1); households can report from
-Comments, Moments and Community Profiles (E2, E3); and the Admin moderation
-queue, report detail and every action below exist in the API (E4A). The Admin
-Portal screens for them (E4B) are not built yet, so until they ship nothing
-here can be done from the Portal. Never change moderation state by hand in the
-database: it would skip the audit row and the report decisions.
+**Status: available in Admin.** The schema, moderation states and their
+enforcement, and Admin capabilities exist (Phase 2E E1); households can report
+from Comments, Moments and Community Profiles (E2, E3); the Admin moderation
+API exists (E4A); and the Admin Portal queue and review screens are available
+(E4B). Never change moderation state by hand in the database: it would skip the
+audit row and the report decisions.
 
 MyPetLink moderation is small on purpose: a few households report, a person
 reviews, and a small set of reversible, audited actions follows. It is
