@@ -12,7 +12,7 @@ const WEB = process.env.QA_WEB_ORIGIN ?? "http://localhost:3000";
 const BROWSER = process.env.QA_BROWSER_PATH ?? "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const MODE = process.env.QA_MODE ?? "conflict";
 const expectedReportId = process.env.QA_REPORT_ID?.toLowerCase();
-const widths = [320, 360, 375, 390, 412, 768, 1024, 1280];
+const viewports = [[320, 640], [360, 800], [375, 812], [390, 844], [412, 915], [768, 900], [1024, 900], [1280, 900]];
 const check = (condition, message) => { if (!condition) throw new Error(message); };
 
 async function noOverflow(page, width, label) {
@@ -45,6 +45,12 @@ async function run() {
     await login(page);
     await page.getByRole("heading", { name: "Report queue" }).waitFor();
     await page.getByRole("button", { name: "View report" }).first().waitFor();
+    for (const [width, height] of viewports) {
+      await page.setViewportSize({ width, height });
+      await noOverflow(page, width, "queue");
+      check(await page.getByRole("button", { name: "View report" }).first().isVisible(), `Queue action inaccessible at ${width}.`);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "Filters", exact: true }).click();
     if (MODE === "conflict") {
       await page.getByRole("combobox", { name: "Target type" }).first().selectOption("Moment");
@@ -61,14 +67,18 @@ async function run() {
     }
 
     if (MODE === "conflict") {
-      await page.getByText("This report involves your household. Moderation actions are unavailable.").waitFor();
+      await page.getByText("You can’t review this report because your household is involved.").waitFor();
       check(await page.getByRole("button", { name: "Dismiss report" }).count() === 0, "Conflict action exposed.");
-      console.log("Conflict-of-interest and unauthorized browser QA: PASS");
+      for (const [width, height] of viewports) {
+        await page.setViewportSize({ width, height });
+        await noOverflow(page, width, "detail");
+      }
+      console.log("Conflict-of-interest, unauthorized and eight-width browser QA: PASS");
       return;
     }
 
-    for (const width of widths) {
-      await page.setViewportSize({ width, height: width <= 412 ? 844 : 900 });
+    for (const [width, height] of viewports) {
+      await page.setViewportSize({ width, height });
       await noOverflow(page, width, "detail");
       await page.getByRole("button", { name: "Dismiss report" }).click();
       const dialog = page.getByRole("dialog", { name: "Dismiss report" });
@@ -89,22 +99,22 @@ async function run() {
     await page.getByRole("dialog", { name: "Dismiss report" }).getByRole("button", { name: "Dismiss report" }).click();
     check((await decision).status() === 200, "Dismiss did not succeed.");
     await page.getByText(/Dismiss report completed/).waitFor();
-    await page.getByText("Dismissed").waitFor();
+    await page.getByText("Dismissed", { exact: true }).first().waitFor();
 
     await stale.getByRole("button", { name: "Dismiss report" }).click();
     await stale.getByRole("textbox", { name: /Internal moderator note/ }).fill("Stale second review");
     const staleResponse = stale.waitForResponse((response) => response.url().endsWith("/dismiss") && response.request().method() === "POST");
     await stale.getByRole("dialog", { name: "Dismiss report" }).getByRole("button", { name: "Dismiss report" }).click();
     check((await staleResponse).status() === 409, "Stale review did not return 409.");
-    await stale.getByText(/changed while you were reviewing/).waitFor();
+    await stale.getByText(/already been reviewed|changed while you were reviewing/).waitFor();
     await stale.close();
 
     await page.getByRole("button", { name: /Back to report queue/ }).click();
     await page.getByRole("heading", { name: "Report queue" }).waitFor();
     await page.getByRole("combobox", { name: "Status" }).first().selectOption("Resolved");
     await page.locator("tbody").getByText("Resolved", { exact: true }).first().waitFor();
-    for (const width of widths) {
-      await page.setViewportSize({ width, height: width <= 412 ? 844 : 900 });
+    for (const [width, height] of viewports) {
+      await page.setViewportSize({ width, height });
       await noOverflow(page, width, "queue");
       check(await page.getByRole("button", { name: "View report" }).first().isVisible(), `Queue action inaccessible at ${width}.`);
     }

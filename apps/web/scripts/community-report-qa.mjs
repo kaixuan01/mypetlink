@@ -19,6 +19,7 @@ const check = (condition, message) => { if (!condition) throw new Error(message)
 const path = (response) => new URL(response.url()).pathname;
 const sqlServer = process.env.QA_SQL_SERVER ?? "(localdb)\\MSSQLLocalDB";
 const sqlDatabase = process.env.QA_SQL_DATABASE ?? "MyPetLinkDev";
+const keepCommentForModeration = process.env.QA_KEEP_COMMENT === "true";
 const sql = (query) => execFileSync("sqlcmd", ["-S", sqlServer, "-d", sqlDatabase, "-b", "-Q", `SET QUOTED_IDENTIFIER ON; SET ANSI_NULLS ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF; ${query}`], { encoding: "utf8" });
 
 async function run() {
@@ -136,9 +137,10 @@ async function run() {
     check(reportBodies.some((body) => body.targetType === "moment" && body.target === momentId), "Moment request target incorrect.");
     check(reportBodies.some((body) => body.targetType === "comment" && body.target === commentId), "Comment request target incorrect.");
     check(reportBodies.every((body) => Object.keys(body).sort().join() === "details,reason,target,targetType"), "Report request has unexpected fields.");
+    if (keepCommentForModeration) console.log(`Disposable moderation Comment: ${qaCommentId}`);
     console.log("Community report browser QA: PASS (three real E2 reports, Block cleanup, privacy, eight widths)");
   } finally {
-    if (qaCommentId) sql(`SET NOCOUNT ON; BEGIN TRANSACTION; DELETE FROM CommunityReports WHERE CommentId='${qaCommentId}'; DELETE FROM MomentComments WHERE Id='${qaCommentId}'; COMMIT TRANSACTION;`);
+    if (qaCommentId && !keepCommentForModeration) sql(`SET NOCOUNT ON; BEGIN TRANSACTION; DELETE FROM CommunityReports WHERE CommentId='${qaCommentId}'; DELETE FROM MomentComments WHERE Id='${qaCommentId}'; COMMIT TRANSACTION;`);
     if (blockCreated) {
       await page.goto(`${WEB}/u/quietpaws`).catch(() => {});
       await page.getByTestId("owner-profile-menu-trigger").click().catch(() => {});
