@@ -6,8 +6,9 @@ import {
   useEffect,
   useRef,
   useState,
-  type KeyboardEvent,
 } from "react";
+import { CommentBodyWithMentions } from "@/components/social/CommentBodyWithMentions";
+import { CommentMentionComposer } from "@/components/social/CommentMentionComposer";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { ownerLoginPath } from "@/lib/authRedirect";
@@ -249,13 +250,6 @@ export function MomentComments({
     }
   }, [draft, momentId, posting, updateCount, viewer.canComment]);
 
-  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-      event.preventDefault();
-      void submit();
-    }
-  };
-
   const confirmDelete = useCallback(async () => {
     if (!confirming || deleting) return;
     setDeleting(true);
@@ -391,16 +385,13 @@ export function MomentComments({
                       Your unsent comment is back. Press Send when you’re ready.
                     </p>
                   ) : null}
-                  <textarea
-                    aria-describedby="comment-help comment-error"
-                    aria-invalid={Boolean(composerError)}
-                    className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-pet-border bg-white px-3 py-3 text-base font-semibold text-pet-ink outline-none focus:border-pet-teal"
+                  <CommentMentionComposer
                     disabled={posting}
-                    id="comment-body"
-                    maxLength={500}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={onComposerKeyDown}
-                    ref={textareaRef}
+                    hasError={Boolean(composerError)}
+                    inputRef={textareaRef}
+                    momentId={momentId}
+                    onChange={setDraft}
+                    onSubmit={() => void submit()}
                     value={draft}
                   />
                   <div className="mt-2 flex min-h-11 items-center justify-between gap-3">
@@ -597,7 +588,7 @@ function CommentRow({
           ) : null}
         </div>
         <p className="mt-1 whitespace-pre-line break-words text-sm font-semibold leading-6 text-pet-ink">
-          {comment.body}
+          <CommentBodyWithMentions body={comment.body} mentions={comment.mentions} />
         </p>
         {deleteError ? (
           <p className="mt-1 text-sm font-bold text-pet-coral" role="alert">

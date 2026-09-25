@@ -9,6 +9,7 @@ vi.mock("@/services/apiClient", async (importOriginal) => {
 import {
   createMomentComment,
   deleteMomentComment,
+  getCommentMentionSuggestions,
   getMomentComments,
   linkedCommentId,
   MomentCommentError,
@@ -81,6 +82,22 @@ describe("Moment Comment service", () => {
       "/api/v1/social/moments/moment-1/comments/comment-1",
       { method: "DELETE" }
     );
+  });
+
+  it("requests mention suggestions without reordering the server response", async () => {
+    const items = [
+      { household: { handle: "zara" }, context: "author" },
+      { household: { handle: "adam" }, context: "following" },
+    ];
+    mocks.apiRequest.mockResolvedValue({ data: { query: "ra", items } });
+
+    const result = await getCommentMentionSuggestions("moment/1", "r a");
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      "/api/v1/social/moments/moment%2F1/comments/mention-suggestions?q=r+a",
+      { cache: "no-store" }
+    );
+    expect(result.items).toEqual(items);
   });
 
   for (const [status, code, expectedReason] of [

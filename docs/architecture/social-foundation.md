@@ -451,7 +451,7 @@ Nine social policies are now registered in `Program.cs` from
 | `social-comment` | 20 / 10 min | creating a Moment Comment |
 | `social-collaboration-invite` | 20 / hour | inviting a household to collaborate on a Moment (accept/decline use `social-profile-mutation`; revoke/leave use `social-withdraw`; candidate search uses `social-search`) |
 | `social-moment-create` | 20 / hour | Phase 1E |
-| `social-search` | 30 / min | Phase 1J |
+| `social-search` | 30 / min | Phase 1J; also Comment mention suggestions |
 | `social-handle-availability` | 20 / min | **`GET /social/handles/{handle}/available`** |
 | `social-profile-mutation` | 20 / hour | **`PUT /social/me/profile`, `POST /social/me/handle`** |
 | `social-withdraw` | 200 / hour | unfollow, unlike, unblock, delete/remove Comment, **`PUT /social/me/pets/{petId}`** |
@@ -813,11 +813,77 @@ while Pending, unexpired and on a visible Moment; `MomentCollaborationAccepted`
 or expiry. The row opens the Moment, whose viewer-only panel is where the
 invitee chooses pets and accepts, declines or later leaves.
 
+## 12f. Phase 2D Comment @Mentions (backend foundation)
+
+A Comment may mention Community households with "@handle". A mention is a
+conversation reference only: it attaches no pet, creates no collaboration,
+grants nothing, and no Share Profile, Safety Profile or Smart Tag surface reads
+it. The web does not render mentions yet; the API is ready for it.
+
+**Grammar.** `CommentMentionRules` finds candidates in running text and asks
+`OwnerHandleRules` — the only handle grammar — whether each could be a
+handle. An "@" starts a candidate only at the start of the text or after a
+character that cannot sit inside an address (so e-mail addresses, URL paths
+and "@@" are not mentions); the candidate is the longest run of ASCII letters,
+digits, "_" and "."; trailing "." and "_" are punctuation. A run that runs into
+another "@" or a letter the grammar forbids, or that the grammar rejects, is
+refused whole — never shortened into a different handle. Reserved names never
+resolve.
+
+**Storage.** The body is kept exactly as written. Each resolved mention is a
+`MomentCommentMentions` row naming the **account** (`MentionedUserId`) with a
+UTF-16 `Start`/`Length` span that includes the "@". Unique on
+`(CommentId, MentionedUserId)` and `(CommentId, Start)`, a span check
+constraint, an index on `(MentionedUserId, CommentId)`, Restrict foreign keys.
+Because the row names the account, a renamed, held or reassigned handle can
+never make old text link to somebody else: the link always goes to the
+mentioned account's *current* handle.
+
+**Resolution** happens on the server when the Comment is created, inside the
+existing per-author/Moment application lock and the same transaction as the
+Comment and its Activity. A handle resolves only to an Active account with a
+complete, enabled Community identity and no block, either way, with the
+commenter or the Moment's author (exactly who could open the Moment and read
+the Comment). Discoverability is not required: an exact handle is already
+public at `/u/{handle}`. Anything else — missing, Community off, inactive,
+incomplete, blocked — reads exactly like a handle nobody holds. The first five
+**distinct** households become mentions, each at its first occurrence; repeats,
+unresolvable handles and anything past the cap stay plain text. Comments are
+never edited, so a mention is resolved once.
+
+**Read time.** `SocialVisibility.VisibleCommentMentions` is the single rule for
+the `mentions` spans on Comment responses and for mention Activity: the
+Comment readable by the viewer, the mentioned household still eligible, no
+block between it and the commenter or the Moment's author, and (signed in) none
+between the viewer and the mentioned household or the Moment's author. Nothing
+is deleted for these: when they lift, the same account links again.
+
+**Activity.** `MomentCommentMentioned`, to each mentioned household except the
+commenter and the Moment's author (who already receives `MomentCommented` for
+the same Comment). One unread row per recipient, commenter and Moment, pointed
+at the newest Comment, like Comment Activity. Deleting or removing a Comment
+wipes the body, deletes its mention rows and withdraws unread mention Activity
+(or moves it to the commenter's newest remaining mention of that household on
+the Moment). Activity carries `momentId` and `commentId` for
+`/moments/{momentId}#comment-{commentId}`. Nothing is re-sent after a block
+lifts.
+
+**Suggestions.** `GET /api/v1/social/moments/{momentId}/comments/mention-suggestions?q=`
+— signed in, a complete Community identity, the Moment visible to the caller,
+`social-search` limited, `no-store`. Up to eight households, never the caller:
+the Moment's author, visible accepted collaborators, households with visible
+Comments on the Moment, households the caller follows; then, only once at least
+two characters are typed, discoverable households by prefix. An undiscoverable
+household appears only through one of those relationships. Block-aware in both
+directions, with the caller and the Moment's author.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
 
-- Comment replies, likes, mentions, editing or media
+- Comment replies, likes, editing or media
+- The web mention UI (rendering spans, composer suggestions, Activity copy) and
+  mentions in Moment captions
 - A collaborator section on household profiles ("With friends"), collaboration
   in Feed for a collaborator's followers, and private-Moment collaboration
 - Reporting and moderation workflows

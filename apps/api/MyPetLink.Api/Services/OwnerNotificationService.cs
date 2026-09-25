@@ -257,6 +257,109 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     }
 
     /// <summary>
+    /// Stages "X mentioned you in a comment" for each household a new Comment
+    /// mentions.
+    ///
+    /// Nobody is told about their own mention, and the Moment's author is not
+    /// told twice: the Comment already reaches them as "commented on your
+    /// Moment". Like Comment Activity, one unread row per commenter per Moment
+    /// per recipient is kept and pointed at the newest Comment, so a run of
+    /// Comments mentioning the same household reads as one line, not five.
+    /// </summary>
+    public async Task StageCommentMentionNotifications(
+        Guid actorId,
+        Guid momentAuthorId,
+        Guid momentId,
+        Guid commentId,
+        IReadOnlyCollection<Guid> mentionedUserIds,
+        CancellationToken cancellationToken = default)
+    {
+        var recipients = mentionedUserIds
+            .Where(userId => userId != actorId && userId != momentAuthorId)
+            .Distinct()
+            .ToArray();
+        if (recipients.Length == 0)
+        {
+            return;
+        }
+
+        var waiting = await _dbContext.OwnerNotifications
+            .Where(item => item.ActorUserId == actorId
+                && item.MomentId == momentId
+                && item.Type == OwnerNotificationType.MomentCommentMentioned
+                && item.ReadAt == null
+                && recipients.Contains(item.RecipientUserId))
+            .ToListAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var recipientId in recipients)
+        {
+            var existing = waiting.FirstOrDefault(item => item.RecipientUserId == recipientId);
+            if (existing is not null)
+            {
+                existing.CommentId = commentId;
+                existing.CreatedAt = now;
+                continue;
+            }
+
+            _dbContext.OwnerNotifications.Add(new OwnerNotification
+            {
+                RecipientUserId = recipientId,
+                ActorUserId = actorId,
+                MomentId = momentId,
+                CommentId = commentId,
+                Type = OwnerNotificationType.MomentCommentMentioned,
+                CreatedAt = now
+            });
+        }
+    }
+
+    /// <summary>
+    /// Stages the withdrawal of unread "mentioned you" rows that point at a
+    /// Comment being deleted. A recipient the same commenter also mentioned in
+    /// another, still-active Comment on this Moment keeps the row, moved to the
+    /// newest such Comment — exactly how Comment Activity is retargeted.
+    /// </summary>
+    public async Task StageCommentMentionNotificationWithdrawal(
+        Guid actorId,
+        Guid momentId,
+        Guid commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var waiting = await _dbContext.OwnerNotifications
+            .Where(item => item.ActorUserId == actorId
+                && item.MomentId == momentId
+                && item.CommentId == commentId
+                && item.Type == OwnerNotificationType.MomentCommentMentioned
+                && item.ReadAt == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var notification in waiting)
+        {
+            var recipientId = notification.RecipientUserId;
+            var latest = await _dbContext.MomentCommentMentions
+                .Where(mention => mention.MentionedUserId == recipientId
+                    && mention.CommentId != commentId
+                    && mention.Comment.AuthorUserId == actorId
+                    && mention.Comment.MomentId == momentId
+                    && mention.Comment.DeletedAt == null)
+                .OrderByDescending(mention => mention.Comment.CreatedAt)
+                .ThenByDescending(mention => mention.CommentId)
+                .Select(mention => (Guid?)mention.CommentId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latest.HasValue)
+            {
+                notification.CommentId = latest.Value;
+            }
+            else
+            {
+                _dbContext.OwnerNotifications.Remove(notification);
+            }
+        }
+    }
+
+    /// <summary>
     /// Stages "X invited Mochi to collaborate on a Moment" for the invitee.
     /// Shown only while that collaboration is still Pending and unexpired.
     /// </summary>
@@ -498,6 +601,8 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         var blocked = SocialBlocks.BlockedAccountIds(_dbContext, recipientId);
         var now = DateTimeOffset.UtcNow;
         var visibleMoments = _dbContext.PetMemories.SociallyVisible();
+        var visibleMentions = _dbContext.MomentCommentMentions
+            .VisibleCommentMentions(_dbContext, recipientId);
 
         return _dbContext.OwnerNotifications
             .AsNoTracking()
@@ -527,7 +632,14 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                         && visibleMoments.Any(moment => moment.Id == item.Collaboration.MomentId))
                     || (item.Type == OwnerNotificationType.MomentCollaborationAccepted
                         && item.Collaboration != null
-                        && item.Collaboration.Status == MomentCollaborationStatus.Accepted))
+                        && item.Collaboration.Status == MomentCollaborationStatus.Accepted)
+                    // A mention says "you are named in this Comment" only while
+                    // the recipient could open it and see themselves named.
+                    || (item.Type == OwnerNotificationType.MomentCommentMentioned
+                        && item.CommentId != null
+                        && visibleMentions.Any(mention =>
+                            mention.CommentId == item.CommentId
+                            && mention.MentionedUserId == recipientId)))
                 && !blocked.Contains(item.ActorUserId.Value));
     }
 

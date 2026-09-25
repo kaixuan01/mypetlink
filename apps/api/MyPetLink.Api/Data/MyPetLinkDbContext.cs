@@ -63,6 +63,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MomentPet> MomentPets => Set<MomentPet>();
     public DbSet<MomentLike> MomentLikes => Set<MomentLike>();
     public DbSet<MomentComment> MomentComments => Set<MomentComment>();
+    public DbSet<MomentCommentMention> MomentCommentMentions => Set<MomentCommentMention>();
     public DbSet<MomentCollaboration> MomentCollaborations => Set<MomentCollaboration>();
     public DbSet<MomentCollaborationPet> MomentCollaborationPets => Set<MomentCollaborationPet>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
@@ -1900,6 +1901,32 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.DeletedByUser)
                 .WithMany()
                 .HasForeignKey(item => item.DeletedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MomentCommentMention>(entity =>
+        {
+            // A span is an "@" plus a 3–30 character handle, inside a body of
+            // at most 500 characters.
+            entity.ToTable("MomentCommentMentions", table => table.HasCheckConstraint(
+                "CK_MomentCommentMentions_Span",
+                "[Start] >= 0 AND [Length] >= 4 AND [Length] <= 31 AND [Start] + [Length] <= 500"));
+
+            // One row per household per Comment, and never two rows for one
+            // span: a retried or raced write cannot double a mention.
+            entity.HasIndex(item => new { item.CommentId, item.MentionedUserId }).IsUnique();
+            entity.HasIndex(item => new { item.CommentId, item.Start }).IsUnique();
+
+            // "Which Comments mention this household", for Activity.
+            entity.HasIndex(item => new { item.MentionedUserId, item.CommentId });
+
+            entity.HasOne(item => item.Comment)
+                .WithMany(comment => comment.Mentions)
+                .HasForeignKey(item => item.CommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.MentionedUser)
+                .WithMany()
+                .HasForeignKey(item => item.MentionedUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

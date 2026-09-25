@@ -132,6 +132,57 @@ public static class SocialVisibility
         return visible.Where(comment => !blocked.Contains(comment.AuthorUserId));
     }
     /// <summary>
+    /// Mentions that may be shown to this viewer right now: as a link inside a
+    /// Comment, or as "mentioned you" Activity.
+    ///
+    /// The one definition both surfaces use. A mention shows only while its
+    /// Comment is readable by the viewer, the mentioned household is an Active
+    /// account with a complete Community identity, and no block stands between
+    /// that household and the commenter or the Moment's author — the same
+    /// people a mention was checked against when it was written. A signed-in
+    /// viewer on either side of a block with the mentioned household, or with
+    /// the Moment's author, sees none. Nothing here deletes a row: when a
+    /// block lifts or a household comes back to Community, the mention links
+    /// again, always to the account it was written for.
+    /// </summary>
+    public static IQueryable<MomentCommentMention> VisibleCommentMentions(
+        this IQueryable<MomentCommentMention> mentions,
+        MyPetLinkDbContext dbContext,
+        Guid? viewerId)
+    {
+        var visibleComments = dbContext.MomentComments.VisibleComments(dbContext, viewerId);
+        var visible = mentions
+            .AsNoTracking()
+            .Where(mention =>
+                visibleComments.Any(comment => comment.Id == mention.CommentId)
+                && mention.MentionedUser.DeletedAt == null
+                && mention.MentionedUser.Status == UserStatus.Active
+                && mention.MentionedUser.SocialProfile != null
+                && mention.MentionedUser.SocialProfile.IsSocialEnabled
+                && mention.MentionedUser.SocialProfile.Handle != null
+                && mention.MentionedUser.SocialProfile.Handle != ""
+                && mention.MentionedUser.SocialProfile.DisplayName != null
+                && mention.MentionedUser.SocialProfile.DisplayName != ""
+                && !dbContext.OwnerBlocks.Any(block =>
+                    (block.BlockerUserId == mention.MentionedUserId
+                        && (block.BlockedUserId == mention.Comment.AuthorUserId
+                            || block.BlockedUserId == mention.Comment.Moment.AuthorUserId))
+                    || (block.BlockedUserId == mention.MentionedUserId
+                        && (block.BlockerUserId == mention.Comment.AuthorUserId
+                            || block.BlockerUserId == mention.Comment.Moment.AuthorUserId))));
+
+        if (!viewerId.HasValue)
+        {
+            return visible;
+        }
+
+        var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
+        return visible.Where(mention =>
+            !blocked.Contains(mention.MentionedUserId)
+            && !blocked.Contains(mention.Comment.Moment.AuthorUserId));
+    }
+
+    /// <summary>
     /// Collaborator pets that may be shown on a Moment right now.
     ///
     /// The one definition every surface uses — cards, Moment detail, a pet's

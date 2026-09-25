@@ -83,9 +83,11 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         var hasMore = rows.Count > take;
         var page = hasMore ? rows.Take(take).ToList() : rows;
         var last = page.Count > 0 ? page[^1] : null;
+        var mentions = await LoadMentionsAsync(
+            page.Select(row => row.Id).ToArray(), viewerId, cancellationToken);
 
         return new MomentCommentPageResponse(
-            page.Select(row => ToResponse(row, viewerId, moment.AuthorUserId)).ToArray(),
+            page.Select(row => ToResponse(row, viewerId, moment.AuthorUserId, mentions)).ToArray(),
             hasMore && last is not null
                 ? new SocialCursor(last.CreatedAt, last.Id).Encode()
                 : null,
@@ -164,12 +166,28 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                 };
                 commentId = comment.Id;
                 _dbContext.MomentComments.Add(comment);
+
+                // Resolved here, inside the same lock and transaction as the
+                // Comment and its Activity, so a Comment is never saved with
+                // its mentions or their Activity missing.
+                var mentioned = await StageMentionsAsync(
+                    comment,
+                    actorId,
+                    moment.AuthorUserId,
+                    cancellationToken);
                 await _notifications.StageCommentNotification(
                     actorId,
                     moment.AuthorUserId,
                     momentId,
                     moment.PetId,
                     comment.Id,
+                    cancellationToken);
+                await _notifications.StageCommentMentionNotifications(
+                    actorId,
+                    moment.AuthorUserId,
+                    momentId,
+                    comment.Id,
+                    mentioned,
                     cancellationToken);
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
@@ -248,7 +266,18 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                 comment.DeletedAt = DateTimeOffset.UtcNow;
                 comment.DeletedByUserId = actorId;
 
+                // The spans pointed into the body just wiped; they go with it.
+                _dbContext.MomentCommentMentions.RemoveRange(
+                    await _dbContext.MomentCommentMentions
+                        .Where(mention => mention.CommentId == commentId)
+                        .ToListAsync(cancellationToken));
+
                 await _notifications.StageCommentNotificationWithdrawal(
+                    comment.AuthorUserId,
+                    momentId,
+                    commentId,
+                    cancellationToken);
+                await _notifications.StageCommentMentionNotificationWithdrawal(
                     comment.AuthorUserId,
                     momentId,
                     commentId,
@@ -434,7 +463,8 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             .AsNoTracking()
             .Where(comment => comment.Id == commentId);
         var row = await Project(source).SingleAsync(cancellationToken);
-        return ToResponse(row, viewerId, momentAuthorUserId);
+        var mentions = await LoadMentionsAsync([row.Id], viewerId, cancellationToken);
+        return ToResponse(row, viewerId, momentAuthorUserId, mentions);
     }
 
     private static IQueryable<CommentProjection> Project(IQueryable<MomentComment> query)
@@ -452,7 +482,8 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
     private MomentCommentResponse ToResponse(
         CommentProjection row,
         Guid? viewerId,
-        Guid momentAuthorUserId)
+        Guid momentAuthorUserId,
+        IReadOnlyDictionary<Guid, MomentCommentMentionResponse[]> mentions)
     {
         var action = viewerId == row.AuthorUserId
             ? "delete"
@@ -464,12 +495,255 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             row.Id,
             row.Body,
             row.CreatedAt,
-            new PublicOwnerAttributionResponse(
-                row.Handle,
-                row.DisplayName,
-                MediaDerivatives.ResolveOriginalUrl(row.Avatar, _r2Options.PublicBaseUrl),
-                MediaDerivatives.ResolveThumbnailUrl(row.Avatar, _r2Options.PublicBaseUrl)),
-            action);
+            Attribution(row.Handle, row.DisplayName, row.Avatar),
+            action,
+            mentions.TryGetValue(row.Id, out var spans) ? spans : []);
+    }
+
+    private PublicOwnerAttributionResponse Attribution(string handle, string displayName, MediaFile? avatar) =>
+        new(
+            handle,
+            displayName,
+            MediaDerivatives.ResolveOriginalUrl(avatar, _r2Options.PublicBaseUrl),
+            MediaDerivatives.ResolveThumbnailUrl(avatar, _r2Options.PublicBaseUrl));
+
+    // ---- mentions -------------------------------------------------------
+
+    /// <summary>
+    /// Resolves a new Comment's "@handle" candidates to accounts and stages one
+    /// mention row for each of the first <see cref="CommentMentionRules.MaxMentionsPerComment"/>
+    /// distinct households, in body order. The first occurrence of a household
+    /// is the one recorded; a repeat, an unresolvable handle, and anything past
+    /// the cap stay plain text. Returns the mentioned accounts in that order.
+    ///
+    /// The handle is looked up here, on the server, at the moment of writing;
+    /// from then on the row names the account, never the handle.
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> StageMentionsAsync(
+        MomentComment comment,
+        Guid commenterId,
+        Guid momentAuthorId,
+        CancellationToken cancellationToken)
+    {
+        var candidates = CommentMentionRules.Parse(comment.Body);
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var handles = candidates.Select(candidate => candidate.NormalizedHandle).Distinct().ToArray();
+        var accounts = await MentionableProfiles(commenterId, momentAuthorId)
+            .Where(profile => handles.Contains(profile.NormalizedHandle!))
+            .Select(profile => new { NormalizedHandle = profile.NormalizedHandle!, profile.UserId })
+            .ToListAsync(cancellationToken);
+        var byHandle = accounts.ToDictionary(
+            account => account.NormalizedHandle,
+            account => account.UserId,
+            StringComparer.Ordinal);
+
+        var mentioned = new List<Guid>();
+        foreach (var candidate in candidates)
+        {
+            if (!byHandle.TryGetValue(candidate.NormalizedHandle, out var userId)
+                || mentioned.Contains(userId))
+            {
+                continue;
+            }
+
+            mentioned.Add(userId);
+            _dbContext.MomentCommentMentions.Add(new MomentCommentMention
+            {
+                CommentId = comment.Id,
+                MentionedUserId = userId,
+                Start = candidate.Start,
+                Length = candidate.Length,
+                CreatedAt = comment.CreatedAt
+            });
+
+            if (mentioned.Count == CommentMentionRules.MaxMentionsPerComment)
+            {
+                break;
+            }
+        }
+
+        return mentioned;
+    }
+
+    /// <summary>
+    /// Households a commenter may mention on a Moment: an Active account with a
+    /// complete, enabled Community identity and no block, either way, with the
+    /// commenter or the Moment's author — exactly who could open the Moment and
+    /// read the Comment. A household that fails any of these is treated like a
+    /// handle nobody holds, so a mention can never test for one.
+    /// </summary>
+    private IQueryable<OwnerSocialProfile> MentionableProfiles(Guid commenterId, Guid momentAuthorId)
+    {
+        return _dbContext.OwnerSocialProfiles
+            .AsNoTracking()
+            .Where(profile =>
+                profile.IsSocialEnabled
+                && profile.Handle != null
+                && profile.Handle != ""
+                && profile.DisplayName != null
+                && profile.DisplayName != ""
+                && profile.User.DeletedAt == null
+                && profile.User.Status == UserStatus.Active
+                && !_dbContext.OwnerBlocks.Any(block =>
+                    (block.BlockerUserId == profile.UserId
+                        && (block.BlockedUserId == commenterId || block.BlockedUserId == momentAuthorId))
+                    || (block.BlockedUserId == profile.UserId
+                        && (block.BlockerUserId == commenterId || block.BlockerUserId == momentAuthorId))));
+    }
+
+    private async Task<Dictionary<Guid, MomentCommentMentionResponse[]>> LoadMentionsAsync(
+        IReadOnlyCollection<Guid> commentIds,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        if (commentIds.Count == 0)
+        {
+            return new Dictionary<Guid, MomentCommentMentionResponse[]>();
+        }
+
+        var rows = await _dbContext.MomentCommentMentions
+            .VisibleCommentMentions(_dbContext, viewerId)
+            .Where(mention => commentIds.Contains(mention.CommentId))
+            .OrderBy(mention => mention.Start)
+            .Select(mention => new
+            {
+                mention.CommentId,
+                mention.Start,
+                mention.Length,
+                Handle = mention.MentionedUser.SocialProfile!.Handle!,
+                DisplayName = mention.MentionedUser.SocialProfile.DisplayName!,
+                Avatar = mention.MentionedUser.SocialProfile.AvatarMediaFile
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.CommentId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(row => new MomentCommentMentionResponse(
+                        row.Start,
+                        row.Length,
+                        Attribution(row.Handle, row.DisplayName, row.Avatar)))
+                    .ToArray());
+    }
+
+    public const int MaxMentionSuggestions = 8;
+
+    private static readonly string[] SuggestionContexts =
+        ["author", "collaborator", "commenter", "following", "discoverable"];
+
+    public async Task<CommentMentionSuggestionsResponse> GetMentionSuggestionsAsync(
+        Guid? currentUserId,
+        Guid momentId,
+        string? query,
+        CancellationToken cancellationToken = default)
+    {
+        var actorId = RequireUserId(currentUserId);
+        await RequireCommentingIdentityAsync(actorId, cancellationToken);
+        var moment = await RequireVisibleMomentAsync(momentId, actorId, cancellationToken);
+
+        var term = OwnerHandleRules.Normalize(query) ?? "";
+        if (term.Length > OwnerHandleRules.MaxLength)
+        {
+            term = term[..OwnerHandleRules.MaxLength];
+        }
+
+        var authorId = moment.AuthorUserId;
+        var collaborators = _dbContext.MomentPets
+            .VisibleCollaboratorSubjects(_dbContext, actorId)
+            .Where(subject => subject.MomentId == momentId)
+            .Select(subject => subject.Collaboration!.InviteeUserId);
+        var commenters = _dbContext.MomentComments
+            .VisibleComments(_dbContext, actorId)
+            .Where(comment => comment.MomentId == momentId)
+            .Select(comment => comment.AuthorUserId);
+        var followed = _dbContext.OwnerFollows
+            .Where(follow => follow.FollowerUserId == actorId)
+            .Select(follow => follow.FollowedUserId);
+
+        // Suggesting yourself is noise; typing your own handle still links.
+        var candidates = MentionableProfiles(actorId, authorId)
+            .Where(profile => profile.UserId != actorId);
+        if (term.Length > 0)
+        {
+            var prefix = LikePrefix(term);
+            candidates = candidates.Where(profile =>
+                EF.Functions.Like(profile.NormalizedHandle!, prefix)
+                || EF.Functions.Like(profile.NormalizedDisplayName!, prefix));
+        }
+
+        // Households this Moment or this commenter already makes known, in that
+        // order. Only these may be undiscoverable.
+        var rows = await candidates
+            .Where(profile =>
+                profile.UserId == authorId
+                || collaborators.Contains(profile.UserId)
+                || commenters.Contains(profile.UserId)
+                || followed.Contains(profile.UserId))
+            .Select(profile => new
+            {
+                profile.UserId,
+                Handle = profile.Handle!,
+                DisplayName = profile.DisplayName!,
+                profile.NormalizedDisplayName,
+                profile.NormalizedHandle,
+                Avatar = profile.AvatarMediaFile,
+                Rank = profile.UserId == authorId ? 0
+                    : collaborators.Contains(profile.UserId) ? 1
+                    : commenters.Contains(profile.UserId) ? 2
+                    : 3
+            })
+            .OrderBy(row => row.Rank)
+            .ThenBy(row => row.NormalizedDisplayName)
+            .ThenBy(row => row.NormalizedHandle)
+            .Take(MaxMentionSuggestions)
+            .ToListAsync(cancellationToken);
+
+        // Anybody else only once there is enough typed to search, and only if
+        // they chose to be found — the same rule as Search.
+        if (rows.Count < MaxMentionSuggestions && term.Length >= SocialDiscoveryService.MinimumSearchLength)
+        {
+            var known = rows.Select(row => row.UserId).ToArray();
+            var discoverable = await candidates
+                .Where(profile => profile.IsDiscoverable && !known.Contains(profile.UserId))
+                .OrderBy(profile => profile.NormalizedDisplayName)
+                .ThenBy(profile => profile.NormalizedHandle)
+                .Take(MaxMentionSuggestions - rows.Count)
+                .Select(profile => new
+                {
+                    profile.UserId,
+                    Handle = profile.Handle!,
+                    DisplayName = profile.DisplayName!,
+                    profile.NormalizedDisplayName,
+                    profile.NormalizedHandle,
+                    Avatar = profile.AvatarMediaFile,
+                    Rank = 4
+                })
+                .ToListAsync(cancellationToken);
+            rows.AddRange(discoverable);
+        }
+
+        return new CommentMentionSuggestionsResponse(
+            term,
+            rows
+                .Select(row => new CommentMentionSuggestionResponse(
+                    Attribution(row.Handle, row.DisplayName, row.Avatar),
+                    SuggestionContexts[row.Rank]))
+                .ToArray());
+    }
+
+    private static string LikePrefix(string term)
+    {
+        var escaped = term
+            .Replace("[", "[[]", StringComparison.Ordinal)
+            .Replace("%", "[%]", StringComparison.Ordinal)
+            .Replace("_", "[_]", StringComparison.Ordinal);
+        return escaped + "%";
     }
 
     private static Guid RequireUserId(Guid? currentUserId) =>

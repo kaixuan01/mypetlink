@@ -167,6 +167,14 @@ public interface IMomentCommentService : ISkeletonService
     Task<DeleteMomentCommentResponse> DeleteAsync(
         Guid? currentUserId, Guid momentId, Guid commentId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Households the signed-in commenter might mean by "@" on this Moment,
+    /// never revealing one Search would not.
+    /// </summary>
+    Task<CommentMentionSuggestionsResponse> GetMentionSuggestionsAsync(
+        Guid? currentUserId, Guid momentId, string? query,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -241,6 +249,15 @@ public interface IOwnerNotificationService : ISkeletonService
         Guid commentId, CancellationToken cancellationToken = default);
 
     Task StageCommentNotificationWithdrawal(
+        Guid actorId, Guid momentId, Guid commentId,
+        CancellationToken cancellationToken = default);
+
+    Task StageCommentMentionNotifications(
+        Guid actorId, Guid momentAuthorId, Guid momentId, Guid commentId,
+        IReadOnlyCollection<Guid> mentionedUserIds,
+        CancellationToken cancellationToken = default);
+
+    Task StageCommentMentionNotificationWithdrawal(
         Guid actorId, Guid momentId, Guid commentId,
         CancellationToken cancellationToken = default);
 

@@ -62,7 +62,10 @@ public sealed class SocialIdentityIsolationTests
             typeof(CollaborationCandidateResponse),
             typeof(CollaborationCandidatesResponse),
             typeof(IncomingMomentCollaborationResponse),
-            typeof(PublicMomentCollaborationResponse)
+            typeof(PublicMomentCollaborationResponse),
+            typeof(MomentCommentMentionResponse),
+            typeof(CommentMentionSuggestionsResponse),
+            typeof(CommentMentionSuggestionResponse)
         };
 
         var offenders = new List<string>();
@@ -106,13 +109,17 @@ public sealed class SocialIdentityIsolationTests
                 typeof(CollaborationCandidatePetResponse),
                 typeof(CollaborationCandidateResponse),
                 typeof(IncomingMomentCollaborationResponse),
-                typeof(PublicMomentCollaborationResponse)
+                typeof(PublicMomentCollaborationResponse),
+                typeof(MomentCommentMentionResponse),
+                typeof(CommentMentionSuggestionsResponse),
+                typeof(CommentMentionSuggestionResponse)
             }
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.Name is
                     "UserId" or "AuthorUserId" or "OwnerProfileId"
-                    or "PetId" or "InviterUserId" or "InviteeUserId" or "OwnerUserId")
+                    or "PetId" or "InviterUserId" or "InviteeUserId" or "OwnerUserId"
+                    or "MentionedUserId" or "CommentAuthorUserId")
                 .Select(property => $"{type.Name}.{property.Name}"))
             .ToArray();
 

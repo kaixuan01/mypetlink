@@ -98,6 +98,14 @@ function comment(handle: string, commentId: string | null = "comment-1") {
   };
 }
 
+function mention(handle: string, commentId: string | null = "comment-mention-1") {
+  return {
+    ...comment(handle, commentId),
+    id: `mention-${handle}`,
+    type: "MomentCommentMentioned" as const,
+  };
+}
+
 function page(
   items: SocialNotificationPage["items"],
   unreadCount = items.filter((item) => !item.isRead).length,
@@ -263,6 +271,30 @@ describe("SocialNotificationsView", () => {
     );
   });
 
+  it("links mention activity to the exact Comment", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(page([mention("limfamily")]));
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+    expect(row.textContent).toContain("mentioned you in a comment.");
+    expect(row.getAttribute("href")).toBe(
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comment-comment-mention-1"
+    );
+    expect(row.getAttribute("aria-label")).toContain("View this comment");
+  });
+
+  it("keeps retained mention activity useful when its Comment is unavailable", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(page([mention("limfamily", null)]));
+
+    render(<SocialNotificationsView />);
+
+    const row = (await screen.findAllByTestId("activity-row"))[0];
+    expect(row.getAttribute("href")).toBe(
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comments"
+    );
+  });
+
   it("opens a collaboration invitation on its Moment, naming the requested pets", async () => {
     mocks.getSocialNotifications.mockResolvedValue(
       page([collaboration("tanfamily", "MomentCollaborationRequested", ["Mochi", "Milo"])])
@@ -326,7 +358,7 @@ describe("SocialNotificationsView", () => {
     const empty = await screen.findByTestId("activity-empty");
 
     expect(empty.textContent).toContain("Nothing new yet");
-    expect(empty.textContent).toContain("follow you, like a Moment, or comment on one");
+    expect(empty.textContent).toContain("follow you, like a Moment, comment, or mention you");
   });
 
   it("offers a retry when activity cannot be loaded", async () => {

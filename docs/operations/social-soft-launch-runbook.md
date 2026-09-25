@@ -54,6 +54,15 @@ Each step is reversible. Do them in this order.
    `publicProfileSlug` field, which stays null for everybody until a household
    enables Social.
 
+   For the Phase 2D Comment Mentions release, the same order applies:
+   `AddCommentMentions` / `migration.sql` (one new table, no backfill), then
+   API, then web. The previous web renders a Comment's "@handle" as the plain
+   text it is and ignores the additive `mentions` field. It also hides the new
+   `MomentCommentMentioned` activity, but the unread count is computed by the
+   API and does include it, so while the web lags the API the badge can count
+   a mention the list does not show. Keep that window short. Never run Down in
+   Production: it drops mention history.
+
    For the Phase 2C Collaboration release, the same order applies:
    `AddMomentCollaborations` / `migration.sql` (two new tables, nullable
    `CollaborationId` on `MomentPets` and `OwnerNotifications`, no backfill),
