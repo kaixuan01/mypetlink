@@ -58,6 +58,7 @@ internal sealed class SocialSurfaceHarness : IDisposable
         Likes = new MomentLikeService(db, Notifications);
         Comments = new MomentCommentService(db, Notifications, r2);
         Collaborations = new MomentCollaborationService(db, Notifications, r2);
+        Reports = new CommunityReportService(db);
         PetSettings = new PetSocialSettingsService(
             db,
             r2,
@@ -85,6 +86,8 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public MomentCommentService Comments { get; }
 
     public MomentCollaborationService Collaborations { get; }
+
+    public CommunityReportService Reports { get; }
 
     public OwnerNotificationService Notifications { get; }
 
