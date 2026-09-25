@@ -64,7 +64,13 @@ public sealed record MemoryResponse(
     /// <summary>Other pets this Moment is about, besides the primary one.</summary>
     IReadOnlyCollection<Guid> AdditionalPetIds,
     /// <summary>When this Moment first became public. Null while it is private.</summary>
-    DateTimeOffset? PublishedAt);
+    DateTimeOffset? PublishedAt,
+    /// <summary>
+    /// When MyPetLink hid this Moment from every public surface. Null unless it
+    /// is hidden. Only a moderator can clear it; changing the Moment's own
+    /// visibility does not.
+    /// </summary>
+    DateTimeOffset? HiddenByMyPetLinkAt = null);
 
 public sealed record MemoryMediaResponse(
     Guid Id,

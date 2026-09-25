@@ -54,6 +54,9 @@ public static class SocialVisibility
             .AsNoTracking()
             .Where(moment =>
                 moment.Visibility == MemoryVisibility.Public
+                // Hidden by MyPetLink: absent from every social surface, and
+                // nothing the owner does can bring it back.
+                && moment.ModeratedAt == null
                 && moment.DeletedAt == null
                 && moment.ArchivedAt == null
                 && moment.PublishedAt != null
@@ -102,6 +105,7 @@ public static class SocialVisibility
             .Where(comment =>
                 comment.DeletedAt == null
                 && comment.Moment.Visibility == MemoryVisibility.Public
+                && comment.Moment.ModeratedAt == null
                 && comment.Moment.DeletedAt == null
                 && comment.Moment.ArchivedAt == null
                 && comment.Moment.PublishedAt != null
@@ -209,6 +213,7 @@ public static class SocialVisibility
                 && subject.Collaboration.MomentId == subject.MomentId
                 && subject.Collaboration.InviteeUserId == subject.Pet.OwnerUserId
                 && subject.Moment.Visibility == MemoryVisibility.Public
+                && subject.Moment.ModeratedAt == null
                 && subject.Moment.DeletedAt == null
                 && subject.Moment.ArchivedAt == null
                 && subject.Moment.PublishedAt != null

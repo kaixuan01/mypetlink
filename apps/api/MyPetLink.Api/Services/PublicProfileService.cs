@@ -342,6 +342,9 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 && memory.DeletedAt == null
                 && memory.ArchivedAt == null
                 && memory.Visibility == MemoryVisibility.Public
+                // Hidden by MyPetLink is hidden on the Share Profile too — its
+                // Moments and its Timeline — not only in Community.
+                && memory.ModeratedAt == null
                 && (showMoments || (showTimeline && memory.ShowInLifeTimeline))))
             .OrderByDescending(memory => memory.MomentDate)
             .ThenByDescending(memory => memory.CreatedAt)

@@ -107,6 +107,7 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
                         subject.PetId == pet.Id
                         && subject.CollaborationId == null
                         && subject.Moment.Visibility == MemoryVisibility.Public
+                        && subject.Moment.ModeratedAt == null
                         && subject.Moment.DeletedAt == null
                         && subject.Moment.ArchivedAt == null)
                     .Max(subject => (DateTimeOffset?)subject.Moment.PublishedAt)
