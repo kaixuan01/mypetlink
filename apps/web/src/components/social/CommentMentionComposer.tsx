@@ -130,8 +130,8 @@ export function CommentMentionComposer({
       next?.end !== token?.end ||
       next?.query !== token?.query;
     setToken(changed ? next : token);
-    setDismissed(false);
     if (changed) {
+      setDismissed(false);
       setLoading(Boolean(next));
       setUnavailable(false);
       setSelectionTooLong(false);

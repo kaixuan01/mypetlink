@@ -186,7 +186,13 @@ describe("CommentMentionComposer", () => {
     await passDebounce();
 
     fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyUp(input, { key: "Escape" });
+    fireEvent.select(input);
     expect(input.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.change(input, { target: { value: "@rah", selectionStart: 4 } });
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+
     const tab = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
     input.dispatchEvent(tab);
     expect(tab.defaultPrevented).toBe(false);
