@@ -279,6 +279,18 @@ public interface IOwnerNotificationService : ISkeletonService
 /// Moment stays its author's, and a collaborator controls only their own
 /// household's participation.
 /// </summary>
+/// <summary>
+/// A signed-in household reporting a Comment, a Moment or a Community Profile.
+/// Creates an Open report and nothing else: no block, hide, removal,
+/// restriction or notification.
+/// </summary>
+public interface ICommunityReportService : ISkeletonService
+{
+    Task<CommunityReportReceivedResponse> SubmitAsync(
+        Guid? currentUserId, CreateCommunityReportRequest? request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IMomentCollaborationService : ISkeletonService
 {
     Task<CollaborationCandidatesResponse> GetCandidatesAsync(

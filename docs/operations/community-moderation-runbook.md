@@ -1,9 +1,9 @@
 # Community moderation runbook (Phase 2E draft)
 
 **Status: draft.** The schema, the moderation states and their enforcement,
-and the Admin capabilities exist (Phase 2E E1). Report submission (E2), the
-Report buttons (E3) and the Admin moderation queue and actions (E4) are not
-built yet. Until E4 ships, nothing in this runbook can be done from the Admin
+and the Admin capabilities exist (Phase 2E E1), and households can submit
+reports through the API (E2). The Report buttons (E3) and the Admin moderation
+queue and actions (E4) are not built yet. Until E4 ships, nothing in this runbook can be done from the Admin
 Portal; do not change moderation state by hand in the database.
 
 MyPetLink moderation is small on purpose: a few households report, a person

@@ -452,6 +452,7 @@ Nine social policies are now registered in `Program.cs` from
 | `social-collaboration-invite` | 20 / hour | inviting a household to collaborate on a Moment (accept/decline use `social-profile-mutation`; revoke/leave use `social-withdraw`; candidate search uses `social-search`) |
 | `social-moment-create` | 20 / hour | Phase 1E |
 | `social-search` | 30 / min | Phase 1J; also Comment mention suggestions |
+| `social-report` | 10 / hour | **`POST /social/reports`** — reporting a Comment, Moment or household |
 | `social-handle-availability` | 20 / min | **`GET /social/handles/{handle}/available`** |
 | `social-profile-mutation` | 20 / hour | **`PUT /social/me/profile`, `POST /social/me/handle`** |
 | `social-withdraw` | 200 / hour | unfollow, unlike, unblock, delete/remove Comment, **`PUT /social/me/pets/{petId}`** |
@@ -928,6 +929,54 @@ Auditor template never gets it automatically), `community_reports.resolve`,
 `community_moderation.enforce`: Administrator all three, Owner Support view and
 resolve, Super Admin by grant-all. `AddCommunityModeration` adds the same
 grants to existing built-in roles.
+
+### Report submission (E2)
+
+`POST /api/v1/social/reports` — signed in, `social-report` (10 per hour per
+user; the limiter runs before any target is looked up), `no-store`.
+
+Request, all strings:
+
+| Field | Meaning |
+| --- | --- |
+| `targetType` | `comment`, `moment` or `household` (case-insensitive) |
+| `target` | the Comment id, the Moment id, or the household's @handle |
+| `reason` | exactly one of `SpamOrScam`, `HarassmentOrBullying`, `InappropriateContent`, `AnimalWelfareConcern`, `Impersonation`, `PrivacyConcern`, `Other` (case-insensitive); anything else is refused, never mapped to Other |
+| `details` | optional plain text, normalized like a Comment body, up to 500 characters; required for `Other` |
+
+Nothing else is read. The reporter is the session's account; the reported
+household and the evidence snapshot are resolved on the server from one read
+of the target, and a request cannot supply either.
+
+Response: `{ "accepted": true }` — the same for a first report and for a
+repeat of one still open. No report id, status, reporter, reported household
+or evidence is returned, and there is no endpoint to list one's reports.
+
+- **Who may report:** an Active account with a complete, enabled Community
+  identity (`401`, `403 account_inactive`, `403 community_profile_required`).
+  A restricted household has Community off, so it cannot report.
+- **What:** only a target the reporter can currently see under the normal rule
+  for that surface — `VisibleComments` on a Moment `VisibleTo` them;
+  `VisibleTo` for a Moment; for a household, its current handle with
+  Community on, a complete identity, an Active account and no block either
+  way. Everything else — missing, deleted, private, archived, hidden by
+  MyPetLink, blocked either way, Community off, restricted, inactive,
+  incomplete, a malformed id — is one identical `404 report_target_unavailable`.
+- **Who is reported:** a Comment's author, a Moment's author (never a
+  collaborator or another pet's owner), the household itself. Reporting your
+  own content is `422 report_own_content`. A Moment's author may report a
+  Comment on their own Moment.
+- **Idempotent:** one Open report per reporter per target. A repeat — double
+  tap, retry after a timeout, concurrent requests — leaves the existing report
+  untouched (reason, details, snapshot, time) and answers identically; a race
+  is settled by the filtered unique index. A resolved report is history, and a
+  new genuine report may follow it.
+- **Evidence:** handle, display name, and the Comment text / Moment title and
+  caption / profile bio and avatar reference, exactly as that one read saw
+  them — never rewritten afterwards.
+- **No side effect:** submitting blocks nobody and hides, removes, restricts
+  and notifies nothing; no audit row is written (the audit log records
+  moderator decisions, not reports).
 
 ## 13. Deliberately deferred Community work
 
