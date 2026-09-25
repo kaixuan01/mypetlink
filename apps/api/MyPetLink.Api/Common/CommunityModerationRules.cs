@@ -57,6 +57,71 @@ public static class CommunityReportDetailsRules
 }
 
 /// <summary>
+/// A moderator's internal note: required for every moderation action, plain
+/// text under the same safe-text rule as Comments, and never shown outside the
+/// Admin Portal. Sized to <see cref="CommunityReport.ReviewNote"/>.
+/// </summary>
+public static class CommunityModerationNoteRules
+{
+    public const int MaxLength = 1000;
+
+    public static string RequireValid(string? note)
+    {
+        var normalized = MomentCommentBodyRules.Normalize(note);
+        if (normalized.Length == 0 || !MomentCommentBodyRules.HasVisibleContent(normalized))
+        {
+            throw new ApiException(
+                StatusCodes.Status422UnprocessableEntity,
+                "moderation_note_required",
+                "Add an internal note explaining this decision.");
+        }
+
+        if (normalized.Length > MaxLength)
+        {
+            throw new ApiException(
+                StatusCodes.Status422UnprocessableEntity,
+                "moderation_note_too_long",
+                $"Internal notes can be up to {MaxLength} characters.");
+        }
+
+        return normalized;
+    }
+}
+
+/// <summary>
+/// What "the same target" means, in one place. A Comment report is about one
+/// Comment, a Moment report about one Moment, and a Household report about one
+/// household's Community Profile — so reports about that household's Comments
+/// or Moments are never the same target as a report about the household.
+/// </summary>
+public static class CommunityReportTargets
+{
+    public static IQueryable<CommunityReport> SameTarget(
+        this IQueryable<CommunityReport> reports,
+        CommunityReportTargetType targetType,
+        Guid? commentId,
+        Guid? momentId,
+        Guid reportedUserId)
+    {
+        return targetType switch
+        {
+            CommunityReportTargetType.Comment => reports.Where(report =>
+                report.TargetType == CommunityReportTargetType.Comment && report.CommentId == commentId),
+            CommunityReportTargetType.Moment => reports.Where(report =>
+                report.TargetType == CommunityReportTargetType.Moment && report.MomentId == momentId),
+            CommunityReportTargetType.Household => reports.Where(report =>
+                report.TargetType == CommunityReportTargetType.Household && report.ReportedUserId == reportedUserId),
+            _ => reports.Where(_ => false)
+        };
+    }
+
+    public static IQueryable<CommunityReport> SameTarget(
+        this IQueryable<CommunityReport> reports,
+        CommunityReport report) =>
+        reports.SameTarget(report.TargetType, report.CommentId, report.MomentId, report.ReportedUserId);
+}
+
+/// <summary>
 /// The only ways Community moderation state changes.
 ///
 /// Each is a pure change to the entity, staged on the caller's unit of work:

@@ -83,15 +83,6 @@ public sealed class AdminCapabilityCoverageTests
             // Filters the detail sections of the shared dashboard rather than
             // guarding a route of its own.
             AdminCapabilities.AuditLogView,
-
-            // Community moderation (Phase 2E). Defined and granted with the
-            // schema in E1 so role defaults ship with the migration; the queue
-            // and moderation endpoints that use them arrive in E2–E4, on the
-            // same feature branch and before any release. Remove these three
-            // entries when those endpoints exist.
-            AdminCapabilities.CommunityReportsView,
-            AdminCapabilities.CommunityReportsResolve,
-            AdminCapabilities.CommunityModerationEnforce,
         };
 
         var used = AdminControllers()

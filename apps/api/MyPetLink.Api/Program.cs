@@ -417,6 +417,8 @@ builder.Services.AddScoped<IMomentLikeService, MomentLikeService>();
 builder.Services.AddScoped<IMomentCommentService, MomentCommentService>();
 builder.Services.AddScoped<IMomentCollaborationService, MomentCollaborationService>();
 builder.Services.AddScoped<ICommunityReportService, CommunityReportService>();
+builder.Services.AddScoped<IAdminCommunityReportQueryService, AdminCommunityReportQueryService>();
+builder.Services.AddScoped<IAdminCommunityModerationService, AdminCommunityModerationService>();
 builder.Services.AddScoped<IOwnerNotificationService, OwnerNotificationService>();
 builder.Services.AddScoped<ISocialFeedService, SocialFeedService>();
 builder.Services.AddScoped<ISocialDiscoveryService, SocialDiscoveryService>();

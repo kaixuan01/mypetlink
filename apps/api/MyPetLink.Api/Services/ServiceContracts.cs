@@ -291,6 +291,38 @@ public interface ICommunityReportService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>Admin-only: the Community report queue and report detail.</summary>
+public interface IAdminCommunityReportQueryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminCommunityReportListItemResponse> Items, int Total)> ListAsync(
+        Guid? currentUserId, AdminCommunityReportQuery query, CancellationToken cancellationToken = default);
+    Task<AdminCommunityReportDetailResponse> GetAsync(
+        Guid? currentUserId, Guid reportId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Admin-only: Community moderation actions, each started from a report.</summary>
+public interface IAdminCommunityModerationService : ISkeletonService
+{
+    Task<AdminCommunityModerationResultResponse> DismissAsync(
+        Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityModerationResultResponse> RemoveCommentAsync(
+        Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityModerationResultResponse> HideMomentAsync(
+        Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityModerationResultResponse> UnhideMomentAsync(
+        Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityModerationResultResponse> RestrictHouseholdAsync(
+        Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityModerationResultResponse> LiftRestrictionAsync(
+        Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IMomentCollaborationService : ISkeletonService
 {
     Task<CollaborationCandidatesResponse> GetCandidatesAsync(
