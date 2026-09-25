@@ -20,6 +20,7 @@ import {
   moderationActions,
   moderationErrorMessage,
   reportReasons,
+  reportResolutions,
   type CommunityReportDetail,
   type CommunityReportFilters,
   type CommunityReportHistoryItem,
@@ -57,6 +58,10 @@ function dateBoundary(value: string | undefined, end = false) {
 
 function reasonLabel(value: string) {
   return reportReasons[value as keyof typeof reportReasons] ?? value;
+}
+
+function resolutionLabel(value: string | null) {
+  return value ? reportResolutions[value] ?? "Other review decision" : "Not yet reviewed";
 }
 
 function stateBadge(value: string) {
@@ -180,7 +185,7 @@ export function AdminCommunityReportsManager() {
       refresh();
     } catch (error) {
       const message = moderationErrorMessage(error);
-      if (isApiClientError(error) && (error.status === 403 || error.status === 409 || error.code === "moderation_action_not_applicable")) {
+      if (isApiClientError(error) && (error.status === 403 || error.status === 409 || error.code === "moderation_action_not_applicable" || error.code === "moderation_conflict_of_interest")) {
         setPending(null);
         setNotice(message);
         refresh();
@@ -194,11 +199,13 @@ export function AdminCommunityReportsManager() {
   };
 
   const columns: AdminColumn<CommunityReportSummary>[] = [
-    { id: "reported", header: "Reported", cell: (row) => <span className="font-bold text-slate-900">{householdName(row.reportedHousehold.displayName, row.reportedHousehold.handle, row.snapshotDisplayName)}</span> },
+    { id: "reported", header: "Reported household", cell: (row) => <span className="font-bold text-slate-900">{householdName(row.reportedHousehold.displayName, row.reportedHousehold.handle, row.snapshotDisplayName)}</span> },
+    { id: "reporter", header: "Reporter", cell: (row) => householdName(row.reporter.displayName, row.reporter.handle) },
     { id: "target", header: "Target", cell: (row) => <Badge tone="teal">{row.targetType}</Badge> },
     { id: "reason", header: "Reason", cell: (row) => reasonLabel(row.reason) },
     { id: "status", header: "Status", cell: (row) => stateBadge(row.status) },
-    { id: "open", header: "Open reports", cell: (row) => row.openReportsOnTarget },
+    { id: "open", header: "Open reports", cell: (row) => `${row.openReportsOnTarget} open report${row.openReportsOnTarget === 1 ? "" : "s"}` },
+    { id: "resolution", header: "Resolution", cell: (row) => resolutionLabel(row.resolution) },
     { id: "created", header: "Reported at", cell: (row) => <span className="whitespace-nowrap">{formatAdminDateTime(row.createdAt)}</span> },
     { id: "reviewed", header: "Reviewed at", cell: (row) => <span className="whitespace-nowrap">{formatAdminDateTime(row.reviewedAt)}</span> },
   ];
@@ -254,7 +261,7 @@ export function AdminCommunityReportsManager() {
       <ConfirmDialog
         open={Boolean(pending && activeReport)}
         title={pending ? moderationActions[pending].label : "Confirm action"}
-        message={pending ? moderationActions[pending].explanation : ""}
+        message={pending && activeReport ? `${moderationActions[pending].explanation} Target: ${activeReport.targetType} reported on ${formatAdminDateTime(activeReport.createdAt)}.` : ""}
         confirmLabel={busy ? "Working…" : pending ? moderationActions[pending].label : "Confirm"}
         confirmDisabled={busy || !note.trim()}
         destructive={pending ? moderationActions[pending].destructive : false}
@@ -264,14 +271,16 @@ export function AdminCommunityReportsManager() {
         <label className="grid gap-1 text-sm font-bold text-slate-700">
           Internal moderator note
           <textarea
+            aria-invalid={Boolean(dialogError)}
+            aria-describedby={dialogError ? "moderation-note-error" : undefined}
             className="min-h-28 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-pet-teal"
             maxLength={1000}
             onChange={(event) => setNote(event.target.value)}
             value={note}
           />
-          <span className="text-xs font-normal text-slate-500">Required. Visible only to moderators. Up to 1,000 characters.</span>
+          <span className="text-xs font-normal text-slate-500">Required. Not visible to the reported household. Up to 1,000 characters.</span>
         </label>
-        {dialogError ? <p className="mt-2 text-sm text-red-700" role="alert">{dialogError}</p> : null}
+        {dialogError ? <p className="mt-2 text-sm text-red-700" id="moderation-note-error" role="alert">{dialogError}</p> : null}
       </ConfirmDialog>
     </>
   );
@@ -300,7 +309,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
               <AdminDetailItem label="Reason" value={reasonLabel(report.reason)} />
               <div className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-xs font-bold uppercase text-slate-500">Status</p>{stateBadge(report.status)}</div>
               <AdminDetailItem label="Reported at" value={formatAdminDateTime(report.createdAt)} />
-              <AdminDetailItem label="Resolution" value={report.resolution ?? "Not yet reviewed"} />
+              <AdminDetailItem label="Resolution" value={resolutionLabel(report.resolution)} />
               <AdminDetailItem label="Reviewed at" value={formatAdminDateTime(report.reviewedAt)} />
               <AdminDetailItem label="Reviewer" value={report.reviewedByName ?? "Not yet reviewed"} />
               <AdminDetailItem label="Open reports about this content" value={String(report.openReportsOnTarget)} />
@@ -308,6 +317,12 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
             <div className="grid gap-3 px-4 pb-4">
               <PlainText label="Report details" value={report.details} />
               {report.reviewNote ? <PlainText label="Internal moderator note" value={report.reviewNote} /> : null}
+            </div>
+          </AdminSection>
+          <AdminSection title="Reporter" description="Community identity supplied for this report. Keep this information within moderation.">
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
+              <AdminDetailItem label="Community name" value={report.reporter.displayName ?? "Unavailable"} />
+              <AdminDetailItem label="Handle" value={report.reporter.handle ? `@${report.reporter.handle}` : "Unavailable"} />
             </div>
           </AdminSection>
           <AdminSection title="Reported content · Current state" description="This is the content and Community state now. It may differ from the evidence below.">
@@ -318,6 +333,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
                   <h3 className="font-black text-slate-900">Comment</h3>
                   {report.currentComment ? (
                     <div className="grid gap-2">
+                      <AdminDetailItem label="Current comment author" value={householdName(report.currentComment.author.displayName, report.currentComment.author.handle)} />
                       <p className="text-sm font-bold">{report.currentComment.removed ? "Comment already removed" : "Comment present"} · {report.currentComment.publiclyVisible ? "Publicly visible" : "Not publicly visible"}</p>
                       {!report.currentComment.removed ? <PlainText label="Current body" value={report.currentComment.body} /> : null}
                       {report.currentComment.removed ? <AdminDetailItem label="Removed by" value={report.currentComment.removedBy ?? "Unavailable"} /> : null}
@@ -348,7 +364,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
           </AdminSection>
           <AdminSection title="Moderation actions" description="Decisions and Community restrictions are recorded with an internal note.">
             <div className="p-4">
-              {report.involvesYou ? <p role="alert" className="text-sm font-semibold text-amber-800">This report involves your household. Moderation actions are unavailable.</p> : null}
+              {report.involvesYou ? <p role="alert" className="text-sm font-semibold text-amber-800">You can’t review this report because your household is involved.</p> : null}
               <div className="flex flex-wrap gap-2">
                 {availableModerationActions(report, access).map((action) => <AdminActionButton key={action} tone={moderationActions[action].destructive ? "danger" : "neutral"} onClick={() => onAction(action)}>{moderationActions[action].label}</AdminActionButton>)}
               </div>
@@ -383,6 +399,7 @@ function MomentState({ report }: { report: CommunityReportDetail }) {
   return <div className="grid gap-3">
     <PlainText label="Current title" value={moment.title} />
     <PlainText label="Current caption" value={moment.caption} />
+    <AdminDetailItem label="Current Moment author" value={householdName(moment.author.displayName, moment.author.handle)} />
     <div className="grid gap-2 sm:grid-cols-2">
       <AdminDetailItem label="Owner visibility" value={moment.visibility} />
       <AdminDetailItem label="Archived" value={moment.archivedAt ? "Yes" : "No"} />
@@ -408,6 +425,6 @@ function SafeMedia({ url, alt, type }: { url: string | null; alt: string; type: 
 function History({ title, items, total, onOpen }: { title: string; items: CommunityReportHistoryItem[]; total: number; onOpen: (id: string) => void }) {
   return <div className="min-w-0 rounded-xl border border-slate-200 p-3">
     <h3 className="text-sm font-black text-slate-900">{title} ({total})</h3>
-    {!items.length ? <p className="mt-2 text-sm text-slate-500">No prior reports.</p> : <ul className="mt-2 divide-y divide-slate-100">{items.map((item) => <li className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2 text-sm" key={item.id}><span className="min-w-0 break-words">{item.targetType} · {reasonLabel(item.reason)} · {item.status} · {formatAdminDateTime(item.createdAt)}</span><button className="min-h-10 rounded-full px-3 text-xs font-bold text-pet-teal underline" onClick={() => onOpen(item.id)} type="button">View report</button></li>)}</ul>}
+    {!items.length ? <p className="mt-2 text-sm text-slate-500">No prior reports.</p> : <ul className="mt-2 divide-y divide-slate-100">{items.map((item) => <li className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2 text-sm" key={item.id}><span className="min-w-0 break-words">{item.targetType} · {reasonLabel(item.reason)} · {item.status} · {resolutionLabel(item.resolution)} · {formatAdminDateTime(item.createdAt)}</span><button className="min-h-10 rounded-full px-3 text-xs font-bold text-pet-teal underline" onClick={() => onOpen(item.id)} type="button">View report</button></li>)}</ul>}
   </div>;
 }

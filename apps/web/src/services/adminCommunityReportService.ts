@@ -21,6 +21,7 @@ export type CommunityReportSummary = {
   snapshotHandle: string;
   snapshotDisplayName: string;
   reportedHousehold: CommunityHousehold;
+  reporter: CommunityHousehold;
   openReportsOnTarget: number;
 };
 
@@ -38,6 +39,7 @@ export type CommunityReportDetail = Pick<CommunityReportSummary, "id" | "targetT
   details: string | null;
   reviewNote: string | null;
   reviewedByName: string | null;
+  reporter: CommunityHousehold;
   rowVersion: string;
   evidence: {
     handle: string;
@@ -48,6 +50,7 @@ export type CommunityReportDetail = Pick<CommunityReportSummary, "id" | "targetT
   };
   householdPubliclyVisible: boolean;
   currentComment: {
+    author: CommunityHousehold;
     body: string;
     removed: boolean;
     removedAt: string | null;
@@ -55,6 +58,7 @@ export type CommunityReportDetail = Pick<CommunityReportSummary, "id" | "targetT
     publiclyVisible: boolean;
   } | null;
   currentMoment: {
+    author: CommunityHousehold;
     title: string;
     caption: string | null;
     visibility: string;
@@ -94,14 +98,21 @@ export const reportReasons = {
   Other: "Other",
 } as const;
 
+export const reportResolutions: Record<string, string> = {
+  Dismissed: "Dismissed",
+  CommentRemoved: "Comment removed",
+  MomentHidden: "Moment hidden",
+  HouseholdRestricted: "Household restricted",
+};
+
 export type ModerationAction = "Dismiss" | "RemoveComment" | "HideMoment" | "UnhideMoment" | "RestrictHousehold" | "LiftRestriction";
 
 export const moderationActions: Record<ModerationAction, { label: string; path: string; explanation: string; capability: "resolve" | "enforce"; destructive?: boolean }> = {
-  Dismiss: { label: "Dismiss report", path: "dismiss", explanation: "This resolves all open reports for this same target. The reported content is not changed.", capability: "resolve" },
-  RemoveComment: { label: "Remove Comment", path: "remove-comment", explanation: "The Comment will be removed and its body wiped. Related unread Activity and mentions are handled automatically. Report evidence remains available to moderators.", capability: "resolve", destructive: true },
-  HideMoment: { label: "Hide Moment", path: "hide-moment", explanation: "The Moment will be hidden from Community surfaces. The owner’s original visibility setting is preserved.", capability: "enforce" },
+  Dismiss: { label: "Dismiss report", path: "dismiss", explanation: "No content will be removed. All open reports about this same content will be resolved as Dismissed.", capability: "resolve" },
+  RemoveComment: { label: "Remove comment", path: "remove-comment", explanation: "This comment will no longer be publicly visible. Evidence stays in the report, and all open reports about this same comment will be resolved.", capability: "resolve", destructive: true },
+  HideMoment: { label: "Hide Moment", path: "hide-moment", explanation: "MyPetLink will hide this Moment from Community and Share Profile Moment surfaces. The owner will still have it in the Owner Portal. Their account stays active.", capability: "enforce" },
   UnhideMoment: { label: "Unhide Moment", path: "unhide-moment", explanation: "This removes the moderation hide. The Moment will only become visible where the owner’s current settings allow it.", capability: "enforce" },
-  RestrictHousehold: { label: "Restrict Community access", path: "restrict-household", explanation: "This restricts the household from Community while preserving the owner’s account, pets, Share Profiles, Safety Profiles, Smart Tags and other MyPetLink services.", capability: "enforce", destructive: true },
+  RestrictHousehold: { label: "Restrict Community access", path: "restrict-household", explanation: "This pauses the household’s Community access. Their Owner Portal, pet profiles, Safety Profiles and Smart Tags remain available.", capability: "enforce", destructive: true },
   LiftRestriction: { label: "Lift Community restriction", path: "lift-restriction", explanation: "This removes the moderation restriction and restores the household’s previously preserved Community setting.", capability: "enforce" },
 };
 
@@ -129,11 +140,13 @@ export async function actOnCommunityReport(id: string, action: ModerationAction,
 
 export function moderationErrorMessage(error: unknown) {
   if (!isApiClientError(error)) return "We couldn’t complete this action. Please try again.";
-  if (error.code === "moderation_conflict_of_interest") return "This report involves your household. Moderation actions are unavailable.";
+  if (error.code === "moderation_conflict_of_interest") return "You can’t review this report because your household is involved.";
+  if (error.code === "community_report_already_resolved") return "This report has already been reviewed. Refreshing the latest state.";
   if (error.code === "moderation_note_required") return "Enter an internal moderator note before continuing.";
   if (error.code === "moderation_note_too_long") return "Keep the internal moderator note within 1,000 characters.";
-  if (error.status === 409) return "This report changed while you were reviewing it. The latest state has been loaded.";
-  if (error.status === 422) return "This moderation action is no longer available for the current report state.";
+  if (error.status === 409) return "This report changed while you were reviewing it. Refreshing the latest state.";
+  if (error.code === "moderation_action_not_applicable") return "This action is no longer available. Refreshing the latest state.";
+  if (error.status === 422) return "This action is no longer available. Refreshing the latest state.";
   if (error.status === 403) return "Your access to this action has changed. Please contact an administrator.";
   if (error.status === 401) return "Your session has expired. Please sign in again.";
   if (error.status === 400) return "Please check your internal note and try again.";

@@ -33,8 +33,9 @@ describe("Admin Community report requests", () => {
   });
 
   it("maps stale, permission and action errors to safe messages", () => {
-    expect(moderationErrorMessage(new ApiClientError(409, "community_report_already_resolved", "private detail"))).toMatch(/changed while you were reviewing/);
+    expect(moderationErrorMessage(new ApiClientError(409, "community_report_already_resolved", "private detail"))).toMatch(/already been reviewed/);
+    expect(moderationErrorMessage(new ApiClientError(409, "moderation_row_version_conflict", "private detail"))).toMatch(/changed while you were reviewing/);
     expect(moderationErrorMessage(new ApiClientError(422, "moderation_action_not_applicable", "private detail"))).toMatch(/no longer available/);
-    expect(moderationErrorMessage(new ApiClientError(403, "moderation_conflict_of_interest", "private detail"))).toMatch(/involves your household/);
+    expect(moderationErrorMessage(new ApiClientError(403, "moderation_conflict_of_interest", "private detail"))).toMatch(/household is involved/);
   });
 });

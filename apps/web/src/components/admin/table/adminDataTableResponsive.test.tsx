@@ -83,6 +83,14 @@ describe("Admin data table layout", () => {
     expect(screen.getByRole("status").textContent).toContain("Loading records.");
   });
 
+  it("keeps row and paging controls at mobile touch size", () => {
+    renderTable({ onRowOpen: () => {}, onPageSizeChange: () => {} });
+    for (const name of ["View details", "Previous page", "Next page"]) {
+      expect(screen.getAllByRole("button", { name })[0].className).toContain("min-h-11");
+    }
+    expect(screen.getByRole("combobox", { name: "Rows" }).className).toContain("min-h-11");
+  });
+
   it("never shows an empty-result message while it is still loading", () => {
     renderTable({ loading: true, rows: [] });
 

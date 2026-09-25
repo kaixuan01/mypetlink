@@ -29,7 +29,7 @@ export function ConfirmDialog({
   onConfirm,
   children,
 }: ConfirmDialogProps) {
-  const confirmRef = useRef<HTMLButtonElement | null>(null);
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const messageId = useId();
@@ -37,7 +37,7 @@ export function ConfirmDialog({
   useModalDialogFocus({
     dialogRef: panelRef,
     enabled: open,
-    initialFocusRef: confirmRef,
+    initialFocusRef: cancelRef,
     onEscape: onCancel,
   });
 
@@ -64,7 +64,7 @@ export function ConfirmDialog({
         type="button"
       />
       <div
-        className="relative w-full max-w-lg rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6"
+        className="relative max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-[2rem] sm:p-6"
         ref={panelRef}
       >
         <h2 className="text-2xl font-black text-pet-ink" id={titleId}>{title}</h2>
@@ -74,6 +74,7 @@ export function ConfirmDialog({
           <button
             className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
             onClick={onCancel}
+            ref={cancelRef}
             type="button"
           >
             {cancelLabel}
@@ -82,7 +83,6 @@ export function ConfirmDialog({
             className={`inline-flex min-h-12 items-center justify-center rounded-full border px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${confirmClass}`}
             disabled={confirmDisabled}
             onClick={onConfirm}
-            ref={confirmRef}
             type="button"
           >
             {confirmLabel}

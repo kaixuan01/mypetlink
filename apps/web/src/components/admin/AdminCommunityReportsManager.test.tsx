@@ -40,16 +40,16 @@ const household = {
 const summary: CommunityReportSummary = {
   id: "22222222-2222-4222-8222-222222222222", targetType: "Comment", reason: "SpamOrScam", status: "Open", resolution: null,
   createdAt: "2026-09-20T09:00:00Z", reviewedAt: null, snapshotHandle: "old-handle", snapshotDisplayName: "Old Name",
-  reportedHousehold: household, openReportsOnTarget: 2,
+  reportedHousehold: household, reporter: { ...household, handle: "reporting-family", displayName: "Reporting Family" }, openReportsOnTarget: 2,
 };
 const detail: CommunityReportDetail = {
   id: summary.id, targetType: "Comment", reason: "SpamOrScam", status: "Open", resolution: null,
-  createdAt: summary.createdAt, reviewedAt: null, reportedHousehold: household, openReportsOnTarget: 2,
+  createdAt: summary.createdAt, reviewedAt: null, reportedHousehold: household, reporter: summary.reporter, openReportsOnTarget: 2,
   details: "<script>alert('report')</script>", reviewNote: null, reviewedByName: null, rowVersion: "AQID",
   evidence: { handle: "old-handle", displayName: "Old Name", title: null, text: "<img src=x onerror=alert(1)>", avatarUrl: null },
   householdPubliclyVisible: true,
-  currentComment: { body: "Current Comment", removed: false, removedAt: null, removedBy: null, publiclyVisible: true },
-  currentMoment: { title: "Parent Moment", caption: "Current caption", visibility: "Public", archivedAt: null, deleted: false, hidden: false, hiddenAt: null, publiclyVisible: true, media: [] },
+  currentComment: { author: household, body: "Current Comment", removed: false, removedAt: null, removedBy: null, publiclyVisible: true },
+  currentMoment: { author: household, title: "Parent Moment", caption: "Current caption", visibility: "Public", archivedAt: null, deleted: false, hidden: false, hiddenAt: null, publiclyVisible: true, media: [] },
   targetHistory: [{ id: "33333333-3333-4333-8333-333333333333", targetType: "Comment", reason: "Other", status: "Resolved", resolution: "Dismissed", createdAt: summary.createdAt, reviewedAt: summary.createdAt }],
   targetHistoryTotal: 3, householdHistory: [], householdHistoryTotal: 4, involvesYou: false,
   availableActions: ["Dismiss", "RemoveComment", "RestrictHousehold"],
@@ -78,6 +78,9 @@ describe("Community report queue", () => {
     mock.list.mockResolvedValue({ items: [summary], total: 45 });
     render(<AdminCommunityReportsManager />);
     expect(await screen.findByText("Luna Family")).toBeDefined();
+    expect(screen.getByText("Reporting Family")).toBeDefined();
+    expect(screen.getByText("2 open reports")).toBeDefined();
+    expect(screen.queryByRole("button", { name: /export/i })).toBeNull();
     expect(screen.getByText("Page 1 of 3")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(mock.setPage).toHaveBeenCalledWith(2);
@@ -141,7 +144,9 @@ describe("Community report detail", () => {
     expect(document.querySelector("script")).toBeNull();
     expect(screen.getByText("Reports about this content (3)")).toBeDefined();
     expect(screen.getByText("Reports involving this household (4)")).toBeDefined();
-    expect(screen.queryByText(/reporter/i)).toBeNull();
+    expect(screen.getByRole("heading", { name: "Reporter" })).toBeDefined();
+    expect(screen.getByText("Reporting Family")).toBeDefined();
+    if (targetType === "Comment") expect(screen.getByText("Current comment author")).toBeDefined();
     expect(screen.queryByText(/bucket|storage key|phone|email/i)).toBeNull();
   });
 
@@ -162,13 +167,13 @@ describe("Community report detail", () => {
   it("intersects available actions with current capabilities and conflicts", async () => {
     grant(adminCapabilities.communityReportsView, adminCapabilities.communityReportsResolve);
     const view = render(<AdminCommunityReportsManager />);
-    expect(await screen.findByRole("button", { name: "Remove Comment" })).toBeDefined();
+    expect(await screen.findByRole("button", { name: "Remove comment" })).toBeDefined();
     expect(screen.queryByRole("button", { name: "Restrict Community access" })).toBeNull();
     view.unmount();
     mock.get.mockResolvedValue({ ...detail, involvesYou: true });
     render(<AdminCommunityReportsManager />);
-    expect(await screen.findByText(/This report involves your household/)).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Remove Comment" })).toBeNull();
+    expect(await screen.findByText(/can’t review this report because your household is involved/)).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Remove comment" })).toBeNull();
   });
 
   it("uses the server action list and capability changes for every action family", () => {
@@ -193,13 +198,14 @@ describe("Community report detail", () => {
   });
 
   it.each([
-    ["Dismiss", "Dismiss report"], ["RemoveComment", "Remove Comment"], ["HideMoment", "Hide Moment"],
+    ["Dismiss", "Dismiss report"], ["RemoveComment", "Remove comment"], ["HideMoment", "Hide Moment"],
     ["UnhideMoment", "Unhide Moment"], ["RestrictHousehold", "Restrict Community access"], ["LiftRestriction", "Lift Community restriction"],
   ] as const)("confirms %s with a note and current row version", async (action, label) => {
     mock.get.mockResolvedValue({ ...detail, availableActions: [action] });
     render(<AdminCommunityReportsManager />);
     fireEvent.click(await screen.findByRole("button", { name: label }));
     expect(screen.getByRole("dialog", { name: label })).toBeDefined();
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: label })).toHaveProperty("disabled", true);
     fireEvent.change(screen.getByRole("textbox", { name: /Internal moderator note/i }), { target: { value: "Reviewed evidence" } });
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: label }));
     await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, action, "Reviewed evidence", "AQID"));
@@ -210,9 +216,9 @@ describe("Community report detail", () => {
     let finish!: (value: { outcome: string; reportsResolved: number }) => void;
     mock.act.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     render(<AdminCommunityReportsManager />);
-    fireEvent.click(await screen.findByRole("button", { name: "Remove Comment" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove comment" }));
     fireEvent.change(screen.getByRole("textbox", { name: /Internal moderator note/i }), { target: { value: "Already gone" } });
-    const confirm = within(screen.getByRole("dialog")).getByRole("button", { name: "Remove Comment" });
+    const confirm = within(screen.getByRole("dialog")).getByRole("button", { name: "Remove comment" });
     fireEvent.click(confirm);
     fireEvent.click(confirm);
     expect(mock.act).toHaveBeenCalledTimes(1);
@@ -221,9 +227,10 @@ describe("Community report detail", () => {
   });
 
   it.each([
-    [409, "community_report_already_resolved", /changed while you were reviewing/],
+    [409, "community_report_already_resolved", /already been reviewed/],
+    [409, "moderation_row_version_conflict", /changed while you were reviewing/],
     [422, "moderation_action_not_applicable", /no longer available/],
-    [403, "moderation_conflict_of_interest", /involves your household/],
+    [403, "moderation_conflict_of_interest", /household is involved/],
   ] as const)("refreshes after %s and shows a safe error", async (status, code, message) => {
     mock.act.mockRejectedValue(new ApiClientError(status, code, "sensitive server detail"));
     render(<AdminCommunityReportsManager />);
