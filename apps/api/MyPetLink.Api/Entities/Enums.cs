@@ -458,3 +458,58 @@ public enum MomentCollaborationStatus
     Dissolved,
     Expired
 }
+
+/// <summary>
+/// What a Community report is about. Exactly three targets: a Moment report
+/// covers its caption, images and video; a Comment report covers any mention
+/// inside it; a Household report covers the Community Profile — name, bio,
+/// avatar and impersonation. Unknown is the safe read fallback.
+/// </summary>
+public enum CommunityReportTargetType
+{
+    Unknown,
+    Comment,
+    Moment,
+    Household
+}
+
+/// <summary>
+/// Why something was reported. A controlled set: free text goes in the
+/// report's details, never here. Unknown is the safe read fallback.
+/// </summary>
+public enum CommunityReportReason
+{
+    Unknown,
+    SpamOrScam,
+    HarassmentOrBullying,
+    InappropriateContent,
+    AnimalWelfareConcern,
+    Impersonation,
+    PrivacyConcern,
+    Other
+}
+
+/// <summary>
+/// A report is open until a moderator decides it. There is no assignment,
+/// escalation or appeal state in V1.
+/// </summary>
+public enum CommunityReportStatus
+{
+    Unknown,
+    Open,
+    Resolved
+}
+
+/// <summary>
+/// What a moderator decided. Set exactly when the report is Resolved. A later
+/// reversal (unhiding a Moment, lifting a restriction) is an audited action on
+/// the content or household, not a change to this historical decision.
+/// </summary>
+public enum CommunityReportResolution
+{
+    Unknown,
+    Dismissed,
+    CommentRemoved,
+    MomentHidden,
+    HouseholdRestricted
+}

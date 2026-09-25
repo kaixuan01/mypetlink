@@ -62,6 +62,27 @@ public sealed class OwnerSocialProfile : AuditableEntity
     public bool IsSocialEnabled { get; set; }
 
     /// <summary>
+    /// A Community-only restriction by MyPetLink. While set, Community is
+    /// forced off (<see cref="IsSocialEnabled"/> is false, which every Community
+    /// visibility rule already requires) and the owner cannot turn it back on.
+    /// Sign-in, the Owner Portal, pets, Share and Safety Profiles, Smart Tags,
+    /// Lost Mode and orders are untouched: this is never an account suspension.
+    /// </summary>
+    public DateTimeOffset? CommunityRestrictedAt { get; set; }
+
+    /// <summary>The Admin Portal user who applied the restriction.</summary>
+    public Guid? CommunityRestrictedByUserId { get; set; }
+    public User? CommunityRestrictedByUser { get; set; }
+
+    /// <summary>
+    /// The owner's own Community choice, kept while restricted, so lifting the
+    /// restriction restores exactly that choice rather than switching Community
+    /// on for somebody who had turned it off. Turning Community off while
+    /// restricted updates it. Null exactly when not restricted.
+    /// </summary>
+    public bool? CommunityEnabledBeforeRestriction { get; set; }
+
+    /// <summary>
     /// Appearing in discovery surfaces to people who were not given a link.
     /// Independent of <see cref="IsSocialEnabled"/>, so an owner can be
     /// followable without being browsable.

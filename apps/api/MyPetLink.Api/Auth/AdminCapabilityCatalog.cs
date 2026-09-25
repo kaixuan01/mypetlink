@@ -185,6 +185,22 @@ public static class AdminCapabilityCatalog
                     "Download pet data as a spreadsheet."),
             ]),
 
+        new AdminCapabilityModule("community", "Community moderation",
+            "Reports about Comments, Moments and Community Profiles, and what is done about them. "
+            + "Affects Community only — never an owner's pets, Safety Profile, Smart Tags or orders.",
+            [
+                SensitiveRead(C.CommunityReportsView, "community", "Community moderation",
+                    "View Community reports",
+                    "See reports, who made them and the reported content."),
+                Write(C.CommunityReportsResolve, "community", "Community moderation",
+                    "Resolve Community reports",
+                    "Dismiss a report, or remove a reported Comment."),
+                Sensitive(C.CommunityModerationEnforce, "community", "Community moderation",
+                    "Hide Moments and pause Community access",
+                    "Hide a Moment from everyone, or pause a household's Community participation, "
+                    + "and undo either."),
+            ]),
+
         new AdminCapabilityModule("sales", "Merchant Sales",
             "Bulk sales to business customers, and the people and resellers behind them.",
             [
@@ -274,4 +290,12 @@ public static class AdminCapabilityCatalog
     private static AdminCapabilityDescriptor Sensitive(
         string key, string moduleKey, string moduleName, string name, string description) =>
         new(key, moduleKey, moduleName, name, description, IsWriteAccess: true, IsSensitive: true);
+
+    /// <summary>
+    /// Reads only, but exposes something the read-only template must not get
+    /// by default — such as who reported whom.
+    /// </summary>
+    private static AdminCapabilityDescriptor SensitiveRead(
+        string key, string moduleKey, string moduleName, string name, string description) =>
+        new(key, moduleKey, moduleName, name, description, IsWriteAccess: false, IsSensitive: true);
 }
