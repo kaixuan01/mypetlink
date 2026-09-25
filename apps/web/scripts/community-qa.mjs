@@ -26,6 +26,7 @@
  *   node apps/web/scripts/community-qa.mjs
  *   node apps/web/scripts/community-qa.mjs --responsive
  *   node apps/web/scripts/community-qa.mjs --headed --fresh-session
+ *   node apps/web/scripts/community-qa.mjs --responsive --fresh-session --cleanup-session
  *
  * The interaction pass uses @quietpaws as a disposable relationship. The
  * development seed deliberately leaves that household unfollowed by the QA
@@ -76,6 +77,46 @@ const args = new Set(process.argv.slice(2));
 const wantResponsive = args.has("--responsive");
 const headless = !args.has("--headed");
 const freshSession = args.has("--fresh-session");
+const cleanupSession = args.has("--cleanup-session");
+const browserDiagnostics = [];
+
+async function newQaPage(context) {
+  const page = await context.newPage();
+  page.on("pageerror", (error) => {
+    browserDiagnostics.push(`Uncaught page error at ${page.url()}: ${error.message}`);
+  });
+  page.on("requestfailed", (request) => {
+    if (request.failure()?.errorText === "net::ERR_ABORTED") {
+      return;
+    }
+    browserDiagnostics.push(
+      `Failed request ${request.method()} ${request.url()}: ${request.failure()?.errorText ?? "unknown error"}`
+    );
+  });
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (response.status() >= 500 && url.searchParams.get("q") !== "d5failure") {
+      browserDiagnostics.push(
+        `HTTP ${response.status()} ${response.request().method()} ${url.pathname}`
+      );
+    }
+  });
+  page.on("console", (message) => {
+    const text = message.text();
+    if (
+      message.type() === "error" &&
+      !text.startsWith("Failed to load resource:")
+    ) {
+      browserDiagnostics.push(`Console error at ${page.url()}: ${text}`);
+    } else if (
+      message.type() === "warning" &&
+      /react|hydration|uncaught/i.test(text)
+    ) {
+      browserDiagnostics.push(`React warning at ${page.url()}: ${text}`);
+    }
+  });
+  return page;
+}
 
 function findBrowserExecutable() {
   return process.platform === "win32"
@@ -141,7 +182,7 @@ async function requireServers() {
  */
 async function signIn(browser, returnTo = "/feed") {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const page = await context.newPage();
+  const page = await newQaPage(context);
 
   await page.goto(
     `${WEB}/login?redirect=${encodeURIComponent(returnTo)}`,
@@ -487,7 +528,7 @@ async function completeDevelopmentSignIn(page, returnTo) {
 
 async function openAnonymousPage(browser, path, viewport = { width: 390, height: 844 }) {
   const context = await browser.newContext({ viewport });
-  const page = await context.newPage();
+  const page = await newQaPage(context);
   await visit(page, path);
   assert(!(await isAuthenticated(page)), `${path} unexpectedly started signed in.`);
   return { context, page };
@@ -782,7 +823,7 @@ async function verifyUnsafeRedirects(browser) {
 
   for (const redirect of unsafe) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const page = await context.newPage();
+    const page = await newQaPage(context);
     try {
       await page.goto(
         `${WEB}/login?redirect=${encodeURIComponent(redirect)}`,
@@ -813,7 +854,7 @@ async function fulfillExpiredSession(route) {
 
 async function verifySessionExpiry(browser, momentRoute, momentTitle) {
   const inlineContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const inlinePage = await inlineContext.newPage();
+  const inlinePage = await newQaPage(inlineContext);
   let likeAttempts = 0;
 
   try {
@@ -840,7 +881,7 @@ async function verifySessionExpiry(browser, momentRoute, momentTitle) {
   }
 
   const routeContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const routePage = await routeContext.newPage();
+  const routePage = await newQaPage(routeContext);
   const returnTo = "/feed?source=c5-expired";
   try {
     await routePage.goto(`${WEB}${expectedLoginPath(returnTo)}`, {
@@ -867,7 +908,7 @@ async function verifySessionExpiry(browser, momentRoute, momentTitle) {
 async function verifyCommentDraftRestore(browser, momentRoute) {
   const returnTo = `${momentRoute}#comments`;
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await context.newPage();
+  const page = await newQaPage(context);
   const draft = `Draft QA ${Date.now()} keep me 🐾`;
   let commentPosts = 0;
   page.on("request", (request) => {
@@ -996,7 +1037,7 @@ async function verifyC5AnonymousFlows(browser) {
 
 async function verifyAnonymousResponsive(browser) {
   const context = await browser.newContext();
-  const page = await context.newPage();
+  const page = await newQaPage(context);
   const results = [];
 
   try {
@@ -1164,7 +1205,7 @@ async function authenticatedShellNotes(page, route, width) {
 
 async function verifyAnonymousShellResponsive(browser, momentRoute) {
   const context = await browser.newContext();
-  const page = await context.newPage();
+  const page = await newQaPage(context);
   const results = [];
   const routes = [
     { active: "Explore", name: "explore", path: "/explore" },
@@ -1250,7 +1291,7 @@ async function verifyModeTransitions(browser) {
       storageState: SESSION_FILE,
       viewport: { width: viewport.width, height: viewport.height },
     });
-    const page = await context.newPage();
+    const page = await newQaPage(context);
 
     try {
       await visit(page, "/dashboard");
@@ -1294,7 +1335,7 @@ async function verifyModeTransitions(browser) {
 
 async function verifyDirectMomentExit(browser, momentRoute) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await context.newPage();
+  const page = await newQaPage(context);
 
   try {
     await visit(page, momentRoute);
@@ -1339,7 +1380,7 @@ async function verifySharePaths(browser, momentRoute, storageState = SESSION_FIL
 
   let nativeResult;
   try {
-    const page = await nativeContext.newPage();
+    const page = await newQaPage(nativeContext);
     await visit(page, momentRoute);
     await page.getByTestId("moment-detail").waitFor();
     const title = (await page.getByTestId("moment-title").innerText()).trim();
@@ -1376,7 +1417,7 @@ async function verifySharePaths(browser, momentRoute, storageState = SESSION_FIL
 
   let fallbackResult;
   try {
-    const page = await fallbackContext.newPage();
+    const page = await newQaPage(fallbackContext);
     await visit(page, momentRoute);
     await page.getByTestId("moment-detail").waitFor();
     const before = page.url();
@@ -1653,6 +1694,210 @@ async function verifyCommentCrud(page, momentRoute, momentTitle) {
   }
 }
 
+/**
+ * One real browser -> API -> SQL -> browser mention cycle. Broader privacy and
+ * multi-recipient cases stay deterministic in the isolated API suites, while
+ * this proves that the shipped composer and renderer agree with that contract
+ * without a mocked Comment response.
+ */
+async function verifyRealCommentMention(browser, page, momentRoute) {
+  await visit(page, `${momentRoute}#comments`);
+  const authorLink = page.getByTestId("shared-by-identity");
+  const authorHref = await authorLink.getAttribute("href");
+  const authorHandle = authorHref?.split("/").pop();
+  assert(authorHandle, "The real mention Moment did not expose its author handle.");
+
+  const heading = page.getByRole("heading", { name: /Comments/ });
+  const baselineCount = commentCountFromHeading(await heading.innerText());
+  assert(baselineCount !== null, "The real mention baseline Comment count was unavailable.");
+
+  const composer = page.getByLabel("Add a comment");
+  const prefix = authorHandle.slice(0, Math.min(2, authorHandle.length));
+  const start = `太可爱了 🐶 @${prefix}`;
+  const discoverableHandle = authorHandle.toLowerCase() === "rahmanpets"
+    ? "teohfamily"
+    : "rahmanpets";
+  const discoverablePrefix = discoverableHandle.slice(0, 2);
+  const finalBody = `太可爱了 🐶 @${authorHandle} and @${discoverableHandle} Milo 😂`;
+  let commentId = null;
+  let anonymousContext = null;
+  let postCount = 0;
+  const countPosts = (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname ===
+        `/api/v1/social/moments/${momentRoute.split("/").pop()}/comments`
+    ) {
+      postCount += 1;
+    }
+  };
+  page.on("request", countPosts);
+
+  try {
+    const suggestionsResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        responsePath(response).endsWith("/comments/mention-suggestions") &&
+        new URL(response.url()).searchParams.get("q")?.toLowerCase() === prefix.toLowerCase()
+    );
+    await composer.fill(start);
+    const response = await suggestionsResponse;
+    assert(response.ok(), `Real mention suggestions returned HTTP ${response.status()}.`);
+    const suggestionPayload = await responseData(response);
+    const serializedSuggestions = JSON.stringify(suggestionPayload);
+    assert(
+      !/userId|ownerId|actorId|mentionedUserId/i.test(serializedSuggestions),
+      "Real mention suggestions exposed an internal identity field."
+    );
+    const authorOption = page
+      .getByRole("option")
+      .filter({ hasText: `@${authorHandle}` });
+    await authorOption.waitFor();
+    assert(
+      (await authorOption.innerText()).toLowerCase().includes("author"),
+      "The Moment author was not labelled with author context."
+    );
+    await authorOption.click();
+    const selectedAuthorValue = `太可爱了 🐶 @${authorHandle} `;
+    await page.waitForFunction(
+      ({ expected }) => document.querySelector("#comment-body")?.value === expected,
+      { expected: selectedAuthorValue }
+    );
+    assert(
+      (await composer.inputValue()) === selectedAuthorValue,
+      "Real mention selection did not preserve Unicode text or insert the current handle."
+    );
+
+    const discoverableResponse = page.waitForResponse(
+      (item) =>
+        item.request().method() === "GET" &&
+        responsePath(item).endsWith("/comments/mention-suggestions") &&
+        new URL(item.url()).searchParams.get("q")?.toLowerCase() === discoverablePrefix
+    );
+    await composer.fill(`太可爱了 🐶 @${authorHandle} and @${discoverablePrefix}`);
+    const discoverableSuggestions = await responseData(await discoverableResponse);
+    const discoverable = discoverableSuggestions.items.find(
+      (item) => item.household.handle.toLowerCase() === discoverableHandle
+    );
+    assert(discoverable, "A discoverable unrelated household was absent from real suggestions.");
+    assert(
+      !/userId|ownerId|actorId|mentionedUserId/i.test(JSON.stringify(discoverable)),
+      "A real discoverable suggestion exposed an internal identity field."
+    );
+    const discoverableOption = page
+      .getByRole("option")
+      .filter({ hasText: `@${discoverableHandle}` });
+    await discoverableOption.waitFor();
+    await discoverableOption.click();
+    const expectedDiscoverableValue = finalBody.replace("Milo 😂", "");
+    await page.waitForFunction(
+      ({ expected }) => document.querySelector("#comment-body")?.value === expected,
+      { expected: expectedDiscoverableValue }
+    );
+    const selectedDiscoverableValue = await composer.inputValue();
+    assert(
+      selectedDiscoverableValue === expectedDiscoverableValue,
+      `The real discoverable mention did not preserve text around its token: ${JSON.stringify(selectedDiscoverableValue)}.`
+    );
+    await composer.fill(finalBody);
+
+    const createResponse = page.waitForResponse(
+      (item) =>
+        item.request().method() === "POST" &&
+        responsePath(item) ===
+          `/api/v1/social/moments/${momentRoute.split("/").pop()}/comments`
+    );
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const createdResponse = await createResponse;
+    assert(createdResponse.ok(), `Real mention Comment returned HTTP ${createdResponse.status()}.`);
+    const created = await responseData(createdResponse);
+    commentId = created.comment.id;
+    assert(created.comment.body === finalBody, "The API rewrote the real mention Comment body.");
+    assert(created.comment.mentions.length === 2, "The two real mentions did not both resolve.");
+    assert(
+      created.comment.mentions[0].household.handle.toLowerCase() === authorHandle.toLowerCase(),
+      "The real mention resolved to the wrong household."
+    );
+    assert(postCount === 1, `Real mention posted ${postCount} Comments instead of one.`);
+
+    const row = page.locator(`#comment-${commentId}`);
+    await row.waitFor();
+    assert((await row.innerText()).includes(finalBody), "The posted Unicode Comment changed on screen.");
+    const link = row.getByRole("link", { name: `@${authorHandle}` });
+    assert(
+      (await link.getAttribute("href")) === `/u/${authorHandle}`,
+      "The real mention did not link to the author's current Community Profile."
+    );
+    assert(
+      (await row.getByRole("link", { name: `@${discoverableHandle}` }).getAttribute("href")) ===
+        `/u/${discoverableHandle}`,
+      "The real discoverable mention did not link to its current Community Profile."
+    );
+    assert(
+      commentCountFromHeading(await heading.innerText()) === baselineCount + 1,
+      "The real mention changed the visible Comment count by more than one."
+    );
+
+    const anonymous = await openAnonymousPage(
+      browser,
+      `${momentRoute}#comment-${commentId}`
+    );
+    anonymousContext = anonymous.context;
+    const anonymousRow = anonymous.page.locator(`#comment-${commentId}`);
+    await anonymousRow.waitFor();
+    assert(
+      (await anonymousRow.getByRole("link", { name: `@${authorHandle}` }).getAttribute("href")) ===
+        `/u/${authorHandle}`,
+      "Anonymous projection did not expose the eligible public mention link."
+    );
+    assert(
+      (await anonymousRow.getByRole("link", { name: `@${discoverableHandle}` }).getAttribute("href")) ===
+        `/u/${discoverableHandle}`,
+      "Anonymous projection did not preserve the discoverable mention link."
+    );
+    assert(
+      (await anonymous.page.getByLabel("Add a comment").count()) === 0 &&
+        (await anonymous.page.getByRole("link", { name: "Sign in to comment" }).count()) === 1,
+      "Anonymous mention viewing changed the existing Comment write gate."
+    );
+
+    await deleteOwnCommentThroughUi(page, momentRoute, commentId);
+    commentId = null;
+    await anonymous.page.reload({ waitUntil: "domcontentloaded" });
+    await anonymous.page.getByTestId("moment-detail").waitFor();
+    assert(
+      (await anonymous.page.locator(`#comment-${created.comment.id}`).count()) === 0,
+      "A deleted mention Comment remained visible through its deep link."
+    );
+    assert(
+      (await anonymous.page.getByText("This Moment isn’t available any more.").count()) === 0,
+      "A deleted Comment deep link incorrectly made the whole Moment unavailable."
+    );
+
+    await visit(page, `${momentRoute}#comments`);
+    assert(
+      commentCountFromHeading(await page.getByRole("heading", { name: /Comments/ }).innerText()) ===
+        baselineCount,
+      "Real mention cleanup did not restore the baseline Comment count."
+    );
+
+    return {
+      authorHandle,
+      discoverableHandle,
+      anonymous: true,
+      bodyPreserved: true,
+      cleaned: true,
+      postCount,
+    };
+  } finally {
+    page.off("request", countPosts);
+    await anonymousContext?.close();
+    if (commentId) {
+      await deleteOwnCommentThroughUi(page, momentRoute, commentId).catch(() => {});
+    }
+  }
+}
+
 async function resolveBlockQaMoment(page) {
   await visit(page, `/u/${BLOCK_QA.handle}`);
   const card = page
@@ -1773,18 +2018,33 @@ async function verifyCommentMentions(browser, momentRoute) {
     storageState: SESSION_FILE,
     viewport: { width: 390, height: 844 },
   });
-  const page = await context.newPage();
+  const page = await newQaPage(context);
   const anchors = [];
+  const suggestionQueries = [];
   let postedBody = null;
+  let slowSuggestionStarted;
+  const slowSuggestion = new Promise((resolve) => {
+    slowSuggestionStarted = resolve;
+  });
 
   try {
     await page.route(`**/api/v1/public/moments/${momentId}/comments**`, async (route) => {
       const url = new URL(route.request().url());
       if (url.searchParams.has("anchor")) anchors.push(url.searchParams.get("anchor"));
+      const responseComment = postedBody === body
+        ? comment
+        : postedBody
+          ? {
+              ...comment,
+              id: "5f0c2d1e-7a3b-4c11-8d2e-000000000041",
+              body: postedBody,
+              mentions: [],
+            }
+          : null;
       await route.fulfill({
         body: JSON.stringify({
           data: {
-            items: postedBody ? [comment] : [],
+            items: responseComment ? [responseComment] : [],
             nextCursor: null,
             commentCount: postedBody ? 1 : 0,
             viewer: {
@@ -1802,8 +2062,36 @@ async function verifyCommentMentions(browser, momentRoute) {
       `**/api/v1/social/moments/${momentId}/comments/mention-suggestions**`,
       async (route) => {
         const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+        suggestionQueries.push(query);
+        if (query === "d5failure") {
+          await route.fulfill({
+            body: JSON.stringify({ error: { code: "temporary_failure" } }),
+            contentType: "application/json",
+            status: 500,
+          });
+          return;
+        }
+        if (query === "d5rate") {
+          await route.fulfill({
+            body: JSON.stringify({ error: { code: "rate_limit_exceeded" } }),
+            contentType: "application/json",
+            status: 429,
+          });
+          return;
+        }
+        if (query === "d5slow") {
+          slowSuggestionStarted();
+          await new Promise((resolve) => setTimeout(resolve, 700));
+        }
+        const items = query === "d5none"
+          ? []
+          : query === "d5new"
+            ? [candidates[1]]
+            : query === "d5slow"
+              ? [candidates[0]]
+              : candidates;
         await route.fulfill({
-          body: JSON.stringify({ data: { query, items: candidates } }),
+          body: JSON.stringify({ data: { query, items } }),
           contentType: "application/json",
           status: 200,
         });
@@ -1816,15 +2104,98 @@ async function verifyCommentMentions(browser, momentRoute) {
         Object.keys(payload ?? {}).join(",") === "body",
         "Comment composer sent hidden mention identity data."
       );
+      const responseComment = postedBody === body
+        ? comment
+        : {
+            ...comment,
+            id: "5f0c2d1e-7a3b-4c11-8d2e-000000000041",
+            body: postedBody,
+            mentions: [],
+          };
       await route.fulfill({
-        body: JSON.stringify({ data: { comment, commentCount: 1 } }),
+        body: JSON.stringify({ data: { comment: responseComment, commentCount: 1 } }),
         contentType: "application/json",
         status: 200,
       });
     });
 
     await visit(page, `${momentRoute}#comments`);
-    const composer = page.getByLabel("Add a comment");
+    let composer = page.getByLabel("Add a comment");
+
+    // Running-text exclusions are privacy boundaries too: none may even ask
+    // the suggestion endpoint whether the apparent handle exists.
+    for (const invalid of [
+      "Email kai@company.com",
+      "URL https://x.com/@rahmanpets",
+      "Invalid @@rahmanpets",
+    ]) {
+      const before = suggestionQueries.length;
+      await composer.fill(invalid);
+      await page.waitForTimeout(350);
+      assert(
+        suggestionQueries.length === before,
+        `Invalid mention context queried suggestions for: ${invalid}`
+      );
+    }
+
+    // A quick run of keystrokes becomes one request for the settled token.
+    const debounceStart = suggestionQueries.length;
+    await composer.fill("@d");
+    await page.waitForTimeout(60);
+    await composer.fill("@d5");
+    await page.waitForTimeout(60);
+    await composer.fill("@d5none");
+    await page.getByText("No matching households.", { exact: true }).waitFor();
+    assert(
+      suggestionQueries.slice(debounceStart).join(",") === "d5none",
+      `Mention debounce sent ${suggestionQueries.slice(debounceStart).join(",") || "no"} requests.`
+    );
+
+    // A slow result cannot replace the newer token's result.
+    await composer.fill("@d5slow");
+    await slowSuggestion;
+    await composer.fill("@d5new");
+    await page.getByRole("option", { name: /Collaborator Household/ }).waitFor();
+    await page.waitForTimeout(800);
+    assert(
+      (await page.getByRole("option", { name: /Collaborator Household/ }).count()) === 1 &&
+        (await page.getByRole("option", { name: /Author Household/ }).count()) === 0,
+      "A stale mention response replaced the newer suggestions."
+    );
+
+    await composer.fill("@d5failure");
+    await page.getByText("Suggestions unavailable right now.", { exact: true }).waitFor();
+    assert((await composer.inputValue()) === "@d5failure", "Suggestion failure lost Comment text.");
+    const failedPost = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        responsePath(response) === `/api/v1/social/moments/${momentId}/comments`
+    );
+    await composer.press("Control+Enter");
+    const failedPostResponse = await failedPost;
+    assert(failedPostResponse.ok(), "Suggestion failure prevented a manual Comment post.");
+    assert(
+      failedPostResponse.request().postDataJSON()?.body === "@d5failure",
+      "Manual post after suggestion failure changed the Comment text."
+    );
+    await page.locator("#comment-5f0c2d1e-7a3b-4c11-8d2e-000000000041").waitFor();
+    postedBody = null;
+    await visit(page, `${momentRoute}#comments`);
+    composer = page.getByLabel("Add a comment");
+
+    const rateStart = suggestionQueries.length;
+    await composer.fill("@d5rate");
+    await page.getByText("Suggestions unavailable right now.", { exact: true }).waitFor();
+    await page.waitForTimeout(500);
+    assert(
+      suggestionQueries.slice(rateStart).filter((query) => query === "d5rate").length === 1,
+      "Rate-limited suggestions retried indefinitely."
+    );
+    assert(
+      !(await page.locator("#comment-mention-status").innerText()).toLowerCase().includes("rate"),
+      "Suggestion rate limiting leaked technical copy."
+    );
+
     await composer.fill("Hello @a");
     const options = page.getByRole("option");
     await options.first().waitFor();
@@ -1837,10 +2208,40 @@ async function verifyCommentMentions(browser, momentRoute) {
     const suggestionText = (await options.allTextContents()).join(" ");
     assert(!suggestionText.includes("blockedhouse"), "Blocked household appeared in suggestions.");
     assert(!suggestionText.includes("selfhouse"), "The current household appeared in suggestions.");
-    await options.nth(1).click();
+    assert((await composer.getAttribute("role")) === "combobox", "Composer lost combobox semantics.");
+    assert((await composer.getAttribute("aria-expanded")) === "true", "Open suggestions were not announced.");
+    const activeOption = await composer.getAttribute("aria-activedescendant");
+    assert(activeOption && activeOption === await options.first().getAttribute("id"),
+      "The active mention option was not exposed to assistive technology.");
+    await composer.press("ArrowDown");
+    await composer.press("Enter");
     assert(
       (await composer.inputValue()) === "Hello @collabprivate ",
-      "Choosing a suggestion did not replace only the active token."
+      "Keyboard selection did not replace only the active token."
+    );
+    assert(
+      await composer.evaluate((element) => element.selectionStart === element.value.length),
+      "Mention selection did not put the caret after the inserted space."
+    );
+    await composer.fill("Hello @au");
+    await options.first().waitFor();
+    await page.waitForFunction(
+      () => document.querySelector("#comment-body")?.getAttribute("aria-expanded") === "true"
+    );
+    await composer.press("Escape");
+    await page.waitForFunction(
+      () => document.querySelector("#comment-body")?.getAttribute("aria-expanded") === "false"
+    );
+    assert((await composer.getAttribute("aria-expanded")) === "false", "Escape did not close suggestions.");
+    await composer.fill("Hello @a");
+    await options.first().waitFor();
+    await page.waitForFunction(
+      () => document.querySelector("#comment-body")?.getAttribute("aria-expanded") === "true"
+    );
+    await composer.press("Tab");
+    assert(
+      !(await composer.evaluate((element) => element === document.activeElement)),
+      "Mention autocomplete trapped normal Tab navigation."
     );
 
     await composer.fill(body);
@@ -1934,17 +2335,33 @@ async function verifyCommentsResponsive(browser, momentRoute) {
           ? "First line\nSecond line with family emoji 👩‍👩‍👧‍👦"
           : index === 2
             ? "Hello @savedname 🐾"
+          : index === 3
+            ? "Thanks @savedone — meet @savedtwo."
           : `Comment ${index + 1}`,
     createdAt: new Date(Date.UTC(2026, 8, 24, 12, index)).toISOString(),
     author,
     viewerDeleteAction: "delete",
-    mentions: index === 2
-      ? [{
-          start: 6,
-          length: 10,
-          household: { ...author, handle: "currentname" },
-        }]
-      : [],
+    mentions:
+      index === 2
+        ? [{
+            start: 6,
+            length: 10,
+            household: { ...author, handle: "currentname" },
+          }]
+        : index === 3
+          ? [
+              {
+                start: 7,
+                length: 9,
+                household: { ...author, handle: "currentone" },
+              },
+              {
+                start: 24,
+                length: 9,
+                household: { ...author, handle: "currenttwo" },
+              },
+            ]
+          : [],
   }));
   const older = {
     id: "responsive-older",
@@ -1970,7 +2387,7 @@ async function verifyCommentsResponsive(browser, momentRoute) {
       storageState: SESSION_FILE,
       viewport: { width: w, height: h },
     });
-    const page = await context.newPage();
+    const page = await newQaPage(context);
     const anchorsSent = [];
 
     try {
@@ -2017,14 +2434,21 @@ async function verifyCommentsResponsive(browser, momentRoute) {
         `**/api/v1/social/moments/${momentId}/comments/mention-suggestions**`,
         async (route) => {
           const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+          const handles = [
+            ["responsivehouseholdlong", "Responsive QA Household With A Very Long Name", "author"],
+            ["responsivecollaborator", "Responsive Collaborator Household", "collaborator"],
+            ["responsivecommenter", "Responsive Commenter Household", "commenter"],
+            ["responsivefollowing", "Responsive Followed Household", "following"],
+            ["responsivediscovery", "Responsive Discoverable Household", "discoverable"],
+          ];
           await route.fulfill({
             body: JSON.stringify({
               data: {
                 query,
-                items: [{
-                  household: { ...author, handle: "responsivehouse" },
-                  context: "author",
-                }],
+                items: handles.map(([handle, displayName, context]) => ({
+                  household: { ...author, displayName, handle },
+                  context,
+                })),
               },
             }),
             contentType: "application/json",
@@ -2032,6 +2456,38 @@ async function verifyCommentsResponsive(browser, momentRoute) {
           });
         }
       );
+      await page.route("**/api/v1/social/notifications", async (route) => {
+        await route.fulfill({
+          body: JSON.stringify({
+            data: {
+              items: [{
+                id: `responsive-activity-${w}`,
+                type: "MomentCommentMentioned",
+                createdAt: "2026-09-24T13:01:00.000Z",
+                isRead: false,
+                actor: { ...author, handle: "responsivehouseholdlong" },
+                petName: null,
+                petPublicSlug: null,
+                momentId,
+                commentId: linked.id,
+                momentTitle: "Responsive Mention QA",
+                momentSubjectNames: [],
+              }],
+              nextCursor: null,
+              unreadCount: 1,
+            },
+          }),
+          contentType: "application/json",
+          status: 200,
+        });
+      });
+      await page.route("**/api/v1/social/notifications/read", async (route) => {
+        await route.fulfill({
+          body: JSON.stringify({ data: { unreadCount: 0 } }),
+          contentType: "application/json",
+          status: 200,
+        });
+      });
 
       // Deep link to a Comment older than the first page.
       await visit(page, `${momentRoute}#comment-${linked.id}`);
@@ -2123,6 +2579,9 @@ async function verifyCommentsResponsive(browser, momentRoute) {
       await removeDialog.getByRole("button", { name: "Cancel" }).click();
 
       const composer = page.getByLabel("Add a comment");
+      await composer.evaluate((element) =>
+        element.scrollIntoView({ block: "center", behavior: "instant" })
+      );
       const savedMention = page.locator("#comment-responsive-3").getByRole("link", {
         name: "@savedname",
       });
@@ -2130,17 +2589,36 @@ async function verifyCommentsResponsive(browser, momentRoute) {
         (await savedMention.getAttribute("href")) === "/u/currentname",
         `${w}x${h}: saved mention text did not link to the current handle.`
       );
+      const multipleMentions = page.locator("#comment-responsive-4 p").getByRole("link");
+      assert(
+        (await multipleMentions.allTextContents()).join(",") === "@savedone,@savedtwo",
+        `${w}x${h}: multiple linked mentions did not preserve their visible text.`
+      );
       await composer.fill("Hello @re");
       const option = page.getByRole("option", { name: /Responsive QA Household/ });
       await option.waitFor();
+      assert((await page.getByRole("option").count()) === 5,
+        `${w}x${h}: the multi-result mention panel did not render five options.`);
       const optionBox = await option.boundingBox();
+      const panelBox = await page.getByRole("listbox", { name: "Households to mention" }).locator("..").boundingBox();
+      const bottomNav = page.getByTestId("mobile-bottom-nav");
+      const bottomNavBox = (await bottomNav.count()) > 0 ? await bottomNav.boundingBox() : null;
       assert(
         optionBox && optionBox.height >= 44 && optionBox.x >= 0 && optionBox.x + optionBox.width <= w + 1,
         `${w}x${h}: mention suggestion was clipped or smaller than 44px.`
       );
+      assert(
+        panelBox && panelBox.x >= 0 && panelBox.x + panelBox.width <= w + 1 &&
+          panelBox.y >= 0 && panelBox.y + panelBox.height <= h + 1,
+        `${w}x${h}: the mention panel escaped the viewport (${JSON.stringify(panelBox)}).`
+      );
+      assert(
+        !bottomNavBox || panelBox.y + panelBox.height <= bottomNavBox.y || panelBox.y >= bottomNavBox.y + bottomNavBox.height,
+        `${w}x${h}: the mention panel hid behind the bottom navigation.`
+      );
       await option.click();
       assert(
-        (await composer.inputValue()) === "Hello @responsivehouse ",
+        (await composer.inputValue()) === "Hello @responsivehouseholdlong ",
         `${w}x${h}: mention selection did not update the composer.`
       );
       await composer.fill(`${"n".repeat(448)}🐾`);
@@ -2202,6 +2680,27 @@ async function verifyCommentsResponsive(browser, momentRoute) {
         undersized.length === 0,
         `${w}x${h}: undersized Comment controls ${JSON.stringify(undersized)}.`
       );
+
+      await visit(page, "/notifications");
+      const activity = page.getByTestId("activity-row");
+      await activity.waitFor();
+      assert(
+        (await activity.innerText()).includes("mentioned you in a comment."),
+        `${w}x${h}: mention Activity copy was missing.`
+      );
+      assert(
+        (await activity.getAttribute("href")) === `${momentRoute}#comment-${linked.id}`,
+        `${w}x${h}: mention Activity lost its Comment deep link.`
+      );
+      assert(
+        (await activity.getAttribute("aria-label"))?.includes("View this comment"),
+        `${w}x${h}: mention Activity did not describe its destination.`
+      );
+      const activityOverflow = await overflowReport(page);
+      assert(
+        !activityOverflow.scrolls,
+        `${w}x${h}: mention Activity caused horizontal overflow.`
+      );
       results.push(`${w}x${h}`);
     } finally {
       await context.close();
@@ -2209,6 +2708,43 @@ async function verifyCommentsResponsive(browser, momentRoute) {
   }
 
   return results;
+}
+
+async function removeQaSession(browser) {
+  if (!(await exists(SESSION_FILE))) return { revoked: false, removed: true };
+
+  const context = await browser.newContext({
+    storageState: SESSION_FILE,
+    viewport: { width: 1280, height: 900 },
+  });
+  const page = await newQaPage(context);
+  let revoked = false;
+  try {
+    await visit(page, "/feed");
+    if (await isAuthenticated(page)) {
+      const logout = page.getByRole("button", { name: "Log out", exact: true }).first();
+      await logout.waitFor();
+      const response = page.waitForResponse(
+        (item) =>
+          item.request().method() === "POST" &&
+          responsePath(item) === "/api/v1/auth/logout",
+        { timeout: 10000 }
+      ).catch(() => null);
+      await logout.click();
+      await page.waitForFunction(
+        (key) => !window.localStorage.getItem(key),
+        SESSION_KEY,
+        { timeout: 10000 }
+      );
+      const logoutResponse = await response;
+      revoked = Boolean(logoutResponse?.ok());
+    }
+  } finally {
+    await context.close();
+    await rm(SESSION_FILE, { force: true });
+  }
+
+  return { revoked, removed: !(await exists(SESSION_FILE)) };
 }
 
 async function main() {
@@ -2245,7 +2781,7 @@ async function main() {
       storageState: SESSION_FILE,
       viewport: { width: 1280, height: 900 },
     });
-    const page = await context.newPage();
+    const page = await newQaPage(context);
 
     const routes = await resolveRoutes(page);
     const viewer = await describeViewer(page);
@@ -2285,11 +2821,13 @@ async function main() {
     );
     const commentBlock = await verifyCommentBlockFlow(browser, page);
     const commentDraft = await verifyCommentDraftRestore(browser, c5.moment.route);
+    const realMention = await verifyRealCommentMention(browser, page, c5.moment.route);
     const commentMentions = await verifyCommentMentions(browser, c5.moment.route);
     process.stdout.write(
       `  OK    Create/reload/delete; card link=${commentCrud.cardLinked}; count=${commentCrud.countUpdated}\n` +
         `  OK    Block hid Comment from pair and third viewer; unblock restored=${commentBlock.restored}\n` +
         `  OK    Expired-session draft restored after sign-in -> ${commentDraft.returnTo}; extra posts=${commentDraft.extraPosts}\n` +
+        `  OK    Real mentions -> author @${realMention.authorHandle}, discoverable @${realMention.discoverableHandle}; body=${realMention.bodyPreserved}; anonymous=${realMention.anonymous}; posts=${realMention.postCount}; cleaned=${realMention.cleaned}\n` +
         `  OK    Mentions contexts=${commentMentions.contexts.join(",")}; blocked/self suggestions absent; links=${commentMentions.linkedMentions}/5; rename+self+Activity deep link\n\n`
     );
 
@@ -2393,6 +2931,17 @@ async function main() {
       }
     }
 
+    if (browserDiagnostics.length > 0) {
+      failures += browserDiagnostics.length;
+      process.stdout.write(
+        `\nBrowser diagnostics (${browserDiagnostics.length})\n${browserDiagnostics
+          .map((issue) => `  FAIL  ${issue}`)
+          .join("\n")}\n`
+      );
+    } else {
+      process.stdout.write("\nBrowser diagnostics\n  OK    No unexpected console, React, request, or HTTP 5xx errors.\n");
+    }
+
     await context.close();
 
     process.stdout.write(
@@ -2402,11 +2951,21 @@ async function main() {
     );
     process.exitCode = failures === 0 ? 0 : 1;
   } finally {
+    if (cleanupSession) {
+      const cleanup = await removeQaSession(browser).catch(async (error) => {
+        await rm(SESSION_FILE, { force: true });
+        process.stderr.write(`Session cleanup warning: ${error.message}\n`);
+        return { revoked: false, removed: !(await exists(SESSION_FILE)) };
+      });
+      process.stdout.write(
+        `QA session cleanup: token revoked=${cleanup.revoked}; artifact removed=${cleanup.removed}.\n`
+      );
+    }
     await browser.close();
   }
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error.message}\n`);
+  process.stderr.write(`${error.stack ?? error.message}\n`);
   process.exitCode = 1;
 });

@@ -152,6 +152,11 @@ public sealed class CommentMentionHttpFlowTests
             (await alice.DeleteAsync($"/api/v1/social/moments/{world.MomentId}/comments/{first}")).StatusCode);
         Assert.Equal(0, await MentionActivityCountAsync(erin));
         Assert.Equal(0, (await Data(await erin.GetAsync("/api/v1/social/notifications/unread"))).GetProperty("unreadCount").GetInt32());
+
+        var anchored = await Data(await bob.GetAsync(
+            $"/api/v1/public/moments/{world.MomentId}/comments?anchor={first}"));
+        Assert.Empty(anchored.GetProperty("items").EnumerateArray());
+        Assert.Equal(0, anchored.GetProperty("commentCount").GetInt32());
     }
 
     [Fact]

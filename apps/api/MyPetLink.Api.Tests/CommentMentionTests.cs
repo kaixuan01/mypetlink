@@ -351,6 +351,43 @@ public sealed class CommentMentionTests
     }
 
     [Fact]
+    public async Task MentioningAnAcceptedCollaboratorNotifiesWithoutChangingTheirPermissions()
+    {
+        using var harness = await CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+        var pet = await harness.Db.Pets
+            .Where(item => item.OwnerUserId == Erin)
+            .Select(item => new { item.Id, item.Slug })
+            .SingleAsync();
+        var invitation = await harness.Collaborations.InviteAsync(
+            Alice,
+            momentId,
+            new CreateMomentCollaborationRequest("erinhome", [pet.Slug]));
+        var collaborationId = invitation.Items.Single().Id;
+        await harness.Collaborations.AcceptAsync(
+            Erin,
+            collaborationId,
+            new AcceptMomentCollaborationRequest([pet.Slug]));
+        var subjectCount = await harness.Db.MomentPets.CountAsync(item => item.MomentId == momentId);
+
+        var created = await Comment(harness, Bob, momentId, "Welcome @ErinHome");
+
+        Assert.Equal("ErinHome", Assert.Single(created.Comment.Mentions).Household.Handle);
+        Assert.Equal(created.Comment.Id, Assert.Single(await ActivityAsync(harness, Erin, Mentioned)).CommentId);
+        var denied = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Comments.DeleteAsync(Erin, momentId, created.Comment.Id));
+        Assert.Equal(StatusCodes.Status404NotFound, denied.StatusCode);
+
+        harness.Db.ChangeTracker.Clear();
+        Assert.Equal(
+            MomentCollaborationStatus.Accepted,
+            (await harness.Db.MomentCollaborations.SingleAsync(item => item.Id == collaborationId)).Status);
+        Assert.Equal(subjectCount, await harness.Db.MomentPets.CountAsync(item => item.MomentId == momentId));
+        Assert.Equal(1, await harness.Db.MomentPets.CountAsync(item =>
+            item.MomentId == momentId && item.CollaborationId == collaborationId && item.PetId == pet.Id));
+    }
+
+    [Fact]
     public async Task AMentionChangesNothingOutsideTheConversation()
     {
         using var harness = await CreateAsync();
