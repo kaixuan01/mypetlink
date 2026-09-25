@@ -877,6 +877,58 @@ two characters are typed, discoverable households by prefix. An undiscoverable
 household appears only through one of those relationships. Block-aware in both
 directions, with the caller and the Moment's author.
 
+## 12g. Phase 2E Community moderation (E1 foundation)
+
+Reporting and moderation are Community-only. The operational rules are in
+[`../operations/community-moderation-runbook.md`](../operations/community-moderation-runbook.md);
+this section is the architecture.
+
+**Reports.** `CommunityReports` holds one household's report about a Comment,
+a Moment or a Household (Community Profile) — three targets only. Typed
+nullable keys (`CommentId`, `MomentId`) plus `ReportedUserId` for the
+responsible household, never a bare polymorphic id; `CK_CommunityReports_Target`
+allows exactly the key each target type needs. Reason is a controlled set
+(`SpamOrScam`, `HarassmentOrBullying`, `InappropriateContent`,
+`AnimalWelfareConcern`, `Impersonation`, `PrivacyConcern`, `Other`);
+details are optional plain text normalized like a Comment body, required for
+`Other`. Open/Resolved with a Resolution (`Dismissed`, `CommentRemoved`,
+`MomentHidden`, `HouseholdRestricted`) set only when resolved, RowVersion,
+and a filtered unique index allowing one open report per reporter per target.
+Each report carries a minimal public evidence snapshot (handle, display name,
+Moment title, Comment/caption/bio text, avatar reference) because the content
+may not survive review. Restrict keys throughout; nothing cascades.
+
+**Hidden by MyPetLink.** `PetMemories.ModeratedAt`/`ModeratedByUserId` is a
+moderation state separate from Visibility, archive and delete, so no owner
+action clears it. Every predicate that decides a Moment is public excludes it:
+`SociallyVisible` (and everything built on it), `VisibleComments`,
+`VisibleCollaboratorSubjects`, the Share Profile's Moments/Timeline query in
+`PublicProfileService`, and Explore's last-Moment signal. It reads like any
+unavailable Moment. `MemoryResponse.HiddenByMyPetLinkAt` tells the owner.
+
+**Community restriction.** `OwnerSocialProfiles.CommunityRestrictedAt`/
+`CommunityRestrictedByUserId`/`CommunityEnabledBeforeRestriction`. Restricting
+forces `IsSocialEnabled` off — which every one of the ~32 Community identity
+checks already requires, so no visibility rule needed a new clause — and
+`CK_OwnerSocialProfiles_CommunityRestriction` keeps it off while restricted.
+`OwnerSocialProfileService`, the only place the switch is ever turned on,
+refuses with `403 community_restricted`. The owner's own choice is kept and
+restored on lift, including a switch-off made meanwhile, and discoverability
+is not cleared while Community is off by MyPetLink. It is never an account
+suspension: sign-in, Owner Portal, pets, Share/Safety Profiles, Smart Tags,
+Lost Mode and orders are untouched (the Share Profile's optional "shared by"
+Community link disappears, as whenever Community is off).
+
+**Transitions and audit.** `CommunityModeration` holds the only state
+changes (hide/unhide, restrict/lift). Moderator actions will append to the
+existing `AuditLog` with the action names in `CommunityModerationAudit`.
+
+**Access.** `community_reports.view` (a sensitive read, so the Read Only /
+Auditor template never gets it automatically), `community_reports.resolve`,
+`community_moderation.enforce`: Administrator all three, Owner Support view and
+resolve, Super Admin by grant-all. `AddCommunityModeration` adds the same
+grants to existing built-in roles.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
@@ -886,7 +938,9 @@ Deliberately absent, to be added only in later phases:
   mentions in Moment captions
 - A collaborator section on household profiles ("With friends"), collaboration
   in Feed for a collaborator's followers, and private-Moment collaboration
-- Reporting and moderation workflows
+- Reporting and moderation beyond the Phase 2E scope: anonymous reporting,
+  appeals, automated thresholds, trust scores, media scanning, automated media
+  purge, report export, and full account suspension from Admin
 - Pet-level follow — evaluated, deferred; revisit with real engagement data
 - Any social email — a new consent category, not built
 
