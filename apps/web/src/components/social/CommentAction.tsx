@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
-import { momentPath } from "@/lib/routes";
+import { momentNavigationPath } from "@/lib/momentNavigation";
 
 export function CommentAction({
   momentId,
   momentTitle,
   commentCount,
   inPage = false,
+  returnTo,
 }: {
   momentId: string;
   momentTitle: string;
@@ -19,6 +20,7 @@ export function CommentAction({
    * why fragment entries on a Moment page are avoided).
    */
   inPage?: boolean;
+  returnTo?: string;
 }) {
   const label = `${commentCount} ${commentCount === 1 ? "comment" : "comments"}`;
 
@@ -27,7 +29,7 @@ export function CommentAction({
       aria-label={`Comments on ${momentTitle}. ${label}.`}
       className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-sm font-extrabold text-pet-muted transition hover:bg-pet-cream hover:text-pet-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
       data-testid="moment-comment-action"
-      href={`${momentPath(momentId)}#comments`}
+      href={`${momentNavigationPath(momentId, returnTo)}#comments`}
       onClick={
         inPage
           ? (event) => {

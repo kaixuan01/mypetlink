@@ -99,6 +99,12 @@ afterEach(() => {
 });
 
 describe("PetProfileMomentsTab", () => {
+  it("returns a Moment to this pet's Share Profile", async () => {
+    render(<PetProfileMomentsTab petName="Mochi" publicSlug="mochi-pubmochi" />);
+    expect((await screen.findByRole("link", { name: "Beach day" })).getAttribute("href"))
+      .toBe("/moments/moment-Beach%20day?returnTo=%2Fp%2Fmochi-pubmochi");
+  });
+
   it("reads the social listing for this pet", async () => {
     render(<PetProfileMomentsTab petName="Mochi" publicSlug="pubmochi" />);
 

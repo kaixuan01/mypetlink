@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   // A visitor who followed a shared link: the case a Moment page exists for,
   // and the one that must not depend on a session.
   signedIn: { current: false as boolean | null },
+  query: "",
 }));
 
 vi.mock("@/services/momentCommentService", async () => {
@@ -35,6 +36,7 @@ vi.mock("@/services/momentCommentService", async () => {
 });
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(mocks.query),
   usePathname: () => "/moments/moment-1",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
@@ -117,6 +119,7 @@ function moment(
 }
 
 beforeEach(() => {
+  mocks.query = "";
   mocks.signedIn.current = false;
   mocks.getOwnerSocialProfile.mockResolvedValue({ data: { handle: "viewerhome", isSocialEnabled: true, canEnableSocial: true } });
   mocks.getPublicMoment.mockResolvedValue(moment());
@@ -134,6 +137,49 @@ afterEach(() => {
 });
 
 describe("Moment detail", () => {
+  it.each([
+    ["/explore", "Back to Explore", "/explore"],
+    ["/explore?species=Cat", "Back to Explore", "/explore?species=Cat"],
+    ["/feed", "Back to Home", "/feed"],
+    ["/search?q=Big%20Boss", "Back to Search", "/search?q=Big%20Boss"],
+    ["/notifications", "Back to Activity", "/notifications"],
+    ["/u/tanfamily", "Back to The Tan Family", "/u/tanfamily"],
+    ["/community/profile", "Back to My profile", "/community/profile"],
+    ["/p/mochi-pubmochi", "Back to Share Profile", "/p/mochi-pubmochi"],
+  ])("returns an anonymous visitor to %s with matching copy", async (returnTo, label, href) => {
+    mocks.query = new URLSearchParams({ returnTo }).toString();
+    render(<MomentDetailView momentId="moment-1" />);
+    await screen.findByTestId("moment-detail");
+    expect(screen.getByRole("link", { name: label }).getAttribute("href")).toBe(href);
+  });
+
+  it.each(["https://evil.test", "//evil.test", "/\\evil.test", "/feed/../admin", "/u/%2f%2fevil.test", "javascript:alert(1)"])("ignores unsafe context %s and URL-provided labels", async (returnTo) => {
+    mocks.query = new URLSearchParams({ returnTo, returnLabel: "Bank sign in" }).toString();
+    render(<MomentDetailView momentId="moment-1" />);
+    await screen.findByTestId("moment-detail");
+    expect(screen.getByTestId("moment-back").getAttribute("href")).toBe("/u/tanfamily");
+    expect(screen.getByTestId("moment-back").textContent).toBe("Back to The Tan Family");
+  });
+
+  it("uses Explore when the source household identity is unavailable", async () => {
+    mocks.query = "returnTo=%2Fu%2Ftanfamily";
+    mocks.getPublicMoment.mockResolvedValue(moment({ author: null }));
+    render(<MomentDetailView momentId="moment-1" />);
+    await screen.findByTestId("moment-detail");
+    expect(screen.getByTestId("moment-back").getAttribute("href")).toBe("/explore");
+  });
+
+  it("returns to the collaborating household that supplied the link", async () => {
+    mocks.query = "returnTo=%2Fu%2Fcollabhome";
+    mocks.getPublicMoment.mockResolvedValue(moment({ collaborations: [{
+      household: { handle: "collabhome", displayName: "The Lee Family", avatarUrl: null, avatarThumbnailUrl: null },
+      pets: [],
+    }] }));
+    render(<MomentDetailView momentId="moment-1" />);
+    await screen.findByTestId("moment-detail");
+    expect(screen.getByRole("link", { name: "Back to The Lee Family" }).getAttribute("href")).toBe("/u/collabhome");
+  });
+
   it.each([
     ["author", "tanfamily", false],
     ["collaborator", "collabhome", true],

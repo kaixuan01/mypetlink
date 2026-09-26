@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { SocialExploreView } from "@/components/social/SocialExploreView";
 import { createMarketingMetadata } from "@/lib/seo";
@@ -27,7 +28,9 @@ export const metadata: Metadata = createMarketingMetadata({
 export default function ExplorePage() {
   return (
     <SocialLayout>
-      <SocialExploreView />
+      <Suspense fallback={null}>
+        <SocialExploreView />
+      </Suspense>
     </SocialLayout>
   );
 }

@@ -6,6 +6,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { MomentPagesFooter } from "@/components/social/MomentPagesFooter";
 import { MomentCardSkeleton } from "@/components/social/SocialSkeletons";
 import { isCollaboratorPet } from "@/lib/momentCollaboration";
+import { petPublicProfilePath } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import { getPublicPetMoments } from "@/services/publicSocialService";
@@ -90,6 +91,7 @@ export function PetProfileMomentsTab({
         // no byline. A Moment the pet joined through another household's
         // invitation is theirs, and says so.
         <SocialMomentCard
+          returnTo={petPublicProfilePath(publicSlug)}
           authorPrefix="Moment by"
           key={moment.id}
           moment={moment}

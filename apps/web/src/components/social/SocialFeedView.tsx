@@ -155,6 +155,7 @@ export function SocialFeedView() {
             </h2>
           ) : null}
           <SocialMomentStream
+            returnTo={socialRoutes.feed}
             analyticsSource="feed"
             endText="You&rsquo;re all caught up."
             hasMore={hasMore}

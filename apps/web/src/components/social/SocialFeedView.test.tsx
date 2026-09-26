@@ -134,6 +134,12 @@ afterEach(() => {
 });
 
 describe("SocialFeedView", () => {
+  it("carries Home context on its Moment links", async () => {
+    render(<SocialFeedView />);
+    expect((await screen.findByRole("link", { name: "Beach day" })).getAttribute("href"))
+      .toBe("/moments/moment-Beach%20day?returnTo=%2Ffeed");
+  });
+
   it("shows the Moments the feed returned, newest first as given", async () => {
     render(<SocialFeedView />);
 

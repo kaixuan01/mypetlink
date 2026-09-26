@@ -433,6 +433,7 @@ export function OwnerSocialProfileView({
         </h2>
 
         <PublicMomentGrid
+          returnTo={audience === "own" ? ownerRoutes.socialProfile : ownerSocialProfilePath(profile.handle)}
           emptyAction={
             isOwnProfile ? (
               <CTAButton href={socialRoutes.feed}>Share a Moment</CTAButton>

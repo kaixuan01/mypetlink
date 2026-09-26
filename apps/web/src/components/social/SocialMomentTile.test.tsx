@@ -79,6 +79,12 @@ function renderTile(overrides: Partial<PublicMomentListItem> = {}, showAuthor = 
 
 afterEach(cleanup);
 
+it("keeps profile context on both the tile and its Comments action", () => {
+  render(<SocialMomentTile moment={moment()} onLikeChange={vi.fn()} returnTo="/u/tanfamily" signedIn={false} />);
+  expect(screen.getByRole("link", { name: "Beach day" }).getAttribute("href")).toBe(`/moments/${momentId}?returnTo=%2Fu%2Ftanfamily`);
+  expect(screen.getByTestId("moment-comment-action").getAttribute("href")).toBe(`/moments/${momentId}?returnTo=%2Fu%2Ftanfamily#comments`);
+});
+
 describe("opening a Moment from the grid", () => {
   it("makes the whole tile lead to the Moment", () => {
     renderTile();

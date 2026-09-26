@@ -9,7 +9,8 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { AccountRowSkeleton } from "@/components/social/SocialSkeletons";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
-import { momentPath, ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
+import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
+import { momentNavigationPath } from "@/lib/momentNavigation";
 import { setUnreadActivityCount } from "@/lib/useUnreadActivity";
 import {
   getSocialNotifications,
@@ -312,7 +313,7 @@ function activityCopy(item: SocialNotification): {
       return item.momentId
         ? {
             predicate: "commented on your Moment.",
-            destination: `${momentPath(item.momentId)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
+            destination: `${momentNavigationPath(item.momentId, socialRoutes.notifications)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
             destinationLabel: "View this comment",
             icon: "comment",
           }
@@ -321,7 +322,7 @@ function activityCopy(item: SocialNotification): {
       return item.momentId
         ? {
             predicate: "mentioned you in a comment.",
-            destination: `${momentPath(item.momentId)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
+            destination: `${momentNavigationPath(item.momentId, socialRoutes.notifications)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
             destinationLabel: "View this comment",
             icon: "comment",
           }
@@ -332,7 +333,7 @@ function activityCopy(item: SocialNotification): {
           ? `invited ${collaborationPets} to collaborate on a Moment.`
           : "invited your household to collaborate on a Moment.",
         ...(item.momentId
-          ? { destination: momentPath(item.momentId), destinationLabel: "Open the invitation" }
+          ? { destination: momentNavigationPath(item.momentId, socialRoutes.notifications), destinationLabel: "Open the invitation" }
           : profile),
         icon: "users",
       };
@@ -342,7 +343,7 @@ function activityCopy(item: SocialNotification): {
           ? `joined your Moment with ${collaborationPets}.`
           : "joined your Moment.",
         ...(item.momentId
-          ? { destination: momentPath(item.momentId), destinationLabel: "View this Moment" }
+          ? { destination: momentNavigationPath(item.momentId, socialRoutes.notifications), destinationLabel: "View this Moment" }
           : profile),
         icon: "users",
       };
@@ -352,7 +353,7 @@ function activityCopy(item: SocialNotification): {
       if (item.momentId) {
         return {
           predicate,
-          destination: momentPath(item.momentId),
+          destination: momentNavigationPath(item.momentId, socialRoutes.notifications),
           destinationLabel: "View this Moment",
           icon: "heart",
         };

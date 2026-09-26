@@ -164,6 +164,13 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
  * visitor is never offered a control that belongs to somebody else.
  */
 describe("own profile versus visitor", () => {
+  it.each(["own", "public"] as const)("keeps the %s profile as the Moment origin", async (audience) => {
+    render(<OwnerSocialProfileView audience={audience} handle="tanfamily" />);
+    const link = await screen.findByRole("link", { name: "Moment 0" });
+    expect(new URL(link.getAttribute("href")!, "https://mypetlink.test").searchParams.get("returnTo"))
+      .toBe(audience === "own" ? "/community/profile" : "/u/tanfamily");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/u/tanfamily");

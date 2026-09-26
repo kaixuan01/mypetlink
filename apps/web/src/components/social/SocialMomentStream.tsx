@@ -24,6 +24,7 @@ type SocialMomentStreamProps = {
   showAuthor?: boolean;
   /** Which screen this is, for engagement measurement. Never a view event. */
   analyticsSource: AnalyticsSocialSource;
+  returnTo?: string;
   /** Shown once there is nothing further, where the surface wants to say so. */
   endText?: string;
 };
@@ -53,6 +54,7 @@ export function SocialMomentStream({
   now,
   showAuthor = true,
   analyticsSource,
+  returnTo,
   endText,
 }: SocialMomentStreamProps) {
   return (
@@ -60,6 +62,7 @@ export function SocialMomentStream({
       <div className="mt-5 grid gap-4" data-testid="social-moment-stream">
         {moments.map((moment) => (
           <SocialMomentCard
+            returnTo={returnTo}
             analyticsSource={analyticsSource}
             key={moment.id}
             moment={moment}

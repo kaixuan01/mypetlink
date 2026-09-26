@@ -6,6 +6,7 @@ import { MomentShareButton } from "@/components/social/MomentShareButton";
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState({}, "", "/");
   vi.restoreAllMocks();
   Object.defineProperty(navigator, "share", {
     configurable: true,
@@ -38,6 +39,7 @@ describe("Moment sharing", () => {
   });
 
   it("copies the same Community URL when native sharing is unavailable", async () => {
+    window.history.replaceState({}, "", "/moments/moment-one?returnTo=%2Fexplore#comments");
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

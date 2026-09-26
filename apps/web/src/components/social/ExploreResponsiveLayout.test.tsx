@@ -220,7 +220,7 @@ describe("the suggestion card", () => {
 
     expect(within(first).getByText("Mochi")).toBeTruthy();
     expect(first.textContent).toContain("@tanfamily");
-    expect(within(first).getByTestId("follow-button-signin")).toBeTruthy();
+    expect(await within(first).findByTestId("follow-button-signin")).toBeTruthy();
   });
 });
 

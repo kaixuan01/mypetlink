@@ -227,7 +227,7 @@ describe("SocialNotificationsView", () => {
     // beside it describes. It used to have to settle for the pet's profile,
     // because a Moment had nowhere of its own to be.
     expect(rows[1].getAttribute("href")).toBe(
-      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c"
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications"
     );
     expect(rows[1].getAttribute("aria-label")).toContain("View this Moment");
   });
@@ -255,7 +255,7 @@ describe("SocialNotificationsView", () => {
     const row = (await screen.findAllByTestId("activity-row"))[0];
     expect(row.textContent).toContain("commented on your Moment");
     expect(row.getAttribute("href")).toBe(
-      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comment-comment-1"
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications#comment-comment-1"
     );
     expect(row.getAttribute("aria-label")).toContain("View this comment");
   });
@@ -267,7 +267,7 @@ describe("SocialNotificationsView", () => {
 
     const row = (await screen.findAllByTestId("activity-row"))[0];
     expect(row.getAttribute("href")).toBe(
-      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comments"
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications#comments"
     );
   });
 
@@ -279,7 +279,7 @@ describe("SocialNotificationsView", () => {
     const row = (await screen.findAllByTestId("activity-row"))[0];
     expect(row.textContent).toContain("mentioned you in a comment.");
     expect(row.getAttribute("href")).toBe(
-      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comment-comment-mention-1"
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications#comment-comment-mention-1"
     );
     expect(row.getAttribute("aria-label")).toContain("View this comment");
   });
@@ -291,7 +291,7 @@ describe("SocialNotificationsView", () => {
 
     const row = (await screen.findAllByTestId("activity-row"))[0];
     expect(row.getAttribute("href")).toBe(
-      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c#comments"
+      "/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications#comments"
     );
   });
 
@@ -304,7 +304,7 @@ describe("SocialNotificationsView", () => {
 
     const row = (await screen.findAllByTestId("activity-row"))[0];
     expect(row.textContent).toContain("invited Mochi & Milo to collaborate on a Moment.");
-    expect(row.getAttribute("href")).toBe("/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c");
+    expect(row.getAttribute("href")).toBe("/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications");
     expect(row.getAttribute("aria-label")).toContain("Open the invitation");
     // Answering happens on the Moment, never inline in Activity.
     expect(within(row).queryByRole("button")).toBeNull();

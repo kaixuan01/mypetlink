@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
@@ -15,8 +16,8 @@ import { MomentCollaborators } from "@/components/social/MomentCollaborators";
 import { MomentCollaborationPanel } from "@/components/social/MomentCollaborationPanel";
 import { MomentReportMenu } from "@/components/social/MomentReportMenu";
 import { allMomentPets } from "@/lib/momentCollaboration";
-import { Icon } from "@/components/ui/Icon";
-import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
+import { socialRoutes } from "@/lib/routes";
+import { momentBackDestination } from "@/lib/momentNavigation";
 import {
   formatMomentPublishedExact,
   formatMomentPublishedLabel,
@@ -59,10 +60,8 @@ type Phase =
  * question of whose page this is: a signed-in owner keeps their ordinary
  * Community chrome, and a visitor who followed a shared link gets a brand header
  * and a way in rather than owner navigation they cannot use. Nothing goes
- * full-screen and nothing is hidden, so there is no special back behaviour to
- * learn. The page offers a deterministic link to the sharing household (or
- * Explore while that identity is unavailable); the browser's own Back action
- * still returns to the exact feed or grid somebody came from.
+ * full-screen and nothing is hidden. Internal links carry a validated browsing
+ * destination; shared links fall back to the visible household or Explore.
  *
  * The media is the shared carousel every other Moment surface uses, so swipe,
  * arrows, keyboard order, the full-screen lightbox and the rule that only one
@@ -168,9 +167,9 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
   return (
     <SocialLayout>
       <div className="mx-auto w-full max-w-2xl pb-4">
-        <BackControl
-          author={phase.state === "ready" ? phase.moment.author : null}
-        />
+        <Suspense fallback={null}>
+          <BackControl moment={phase.state === "ready" ? phase.moment : null} />
+        </Suspense>
 
         {phase.state === "loading" ? <MomentSkeleton /> : null}
         {phase.state === "unavailable" ? <MomentUnavailable /> : null}
@@ -215,35 +214,27 @@ function readEdgeMomentTitle(momentId: string) {
 /**
  * A truthful, deterministic way back into Community.
  *
- * `history.length` cannot tell a real in-app predecessor from the browser's
- * initial `about:blank` entry. Treating it as one sent a directly opened shared
- * Moment out of MyPetLink. The explicit control therefore names a real route;
- * browser Back remains available for the exact feed or grid context.
+ * Context survives refreshes and new tabs. Neither browser history nor an
+ * arbitrary URL or display label decides where the link goes.
  */
 function BackControl({
-  author,
+  moment,
 }: {
-  author: PublicMomentListItem["author"] | null;
+  moment: PublicMomentListItem | null;
 }) {
+  const searchParams = useSearchParams();
+  const destination = momentBackDestination(searchParams.get("returnTo"), moment);
   const className =
     "inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3 text-sm font-extrabold text-pet-ink transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal";
-
-  if (!author) {
-    return (
-      <Link className={`-ml-3 ${className}`} href={socialRoutes.explore}>
-        <Icon aria-hidden="true" className="h-4 w-4" name="search" />
-        Explore MyPetLink
-      </Link>
-    );
-  }
 
   return (
     <Link
       className={`-ml-3 ${className}`}
-      href={ownerSocialProfilePath(author.handle)}
+      data-testid="moment-back"
+      href={destination.href}
     >
       <BackIcon className="h-4 w-4" />
-      <span className="min-w-0 truncate">Back to {author.displayName}</span>
+      <span className="min-w-0 truncate">{destination.label}</span>
     </Link>
   );
 }

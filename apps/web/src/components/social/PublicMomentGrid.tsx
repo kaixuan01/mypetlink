@@ -31,6 +31,7 @@ type PublicMomentGridProps = {
   /** True where the grid mixes households — Explore — and false on one's own profile. */
   showAuthor?: boolean;
   analyticsSource?: AnalyticsSocialSource;
+  returnTo?: string;
 };
 
 /**
@@ -62,6 +63,7 @@ export function PublicMomentGrid({
   onLikeChange,
   showAuthor = false,
   analyticsSource = "direct",
+  returnTo,
 }: PublicMomentGridProps) {
   if (moments.length === 0) {
     // Compact on purpose. A full-height card here dominated a profile that is
@@ -85,6 +87,7 @@ export function PublicMomentGrid({
         {moments.map((moment) => (
           <li key={moment.id}>
             <SocialMomentTile
+              returnTo={returnTo}
               analyticsSource={analyticsSource}
               moment={moment}
               onLikeChange={onLikeChange}

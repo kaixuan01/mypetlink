@@ -161,6 +161,7 @@ export function getPublicProfilePath(pet: Pick<Pet, "slug" | "publicCode">) {
 export const socialRoutes = {
   feed: "/feed",
   explore: "/explore",
+  exploreFor: (species: string) => `/explore?species=${encodeURIComponent(species)}`,
   search: "/search",
   notifications: "/notifications",
   searchFor: (query: string) => `/search?q=${encodeURIComponent(query)}`,

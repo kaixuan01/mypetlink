@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
@@ -17,6 +18,8 @@ import {
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { trackEvent } from "@/lib/analytics";
+import { sanitizeMomentReturnTo } from "@/lib/momentNavigation";
+import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -40,7 +43,11 @@ import {
  */
 export function SocialExploreView() {
   const signedIn = useSignedIn();
-  const [species, setSpecies] = useState(allSpeciesValue);
+  const searchParams = useSearchParams();
+  const [species, setSpecies] = useState(() => {
+    const safe = sanitizeMomentReturnTo(socialRoutes.exploreFor(searchParams.get("species") ?? ""));
+    return new URLSearchParams(safe?.split("?")[1]).get("species") ?? allSpeciesValue;
+  });
   // Overlay state, not a route. Explore keeps its scroll position and its
   // loaded Moments underneath, and closing search is not a navigation for the
   // back button to have an opinion about.
@@ -356,6 +363,7 @@ export function SocialExploreView() {
             // The same card the home feed draws. Explore differs in which
             // Moments it selects, not in what a Moment is.
             <SocialMomentStream
+              returnTo={species === allSpeciesValue ? socialRoutes.explore : socialRoutes.exploreFor(species)}
               analyticsSource="explore"
               hasMore={hasMore}
               loadingMore={loadingMore}

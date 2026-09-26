@@ -12,10 +12,12 @@ const mocks = vi.hoisted(() => ({
   getSuggestedPets: vi.fn(),
   getExploreMoments: vi.fn(),
   getSocialSpecies: vi.fn(),
+  query: "",
   followOwner: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(mocks.query),
   usePathname: () => "/explore",
 }));
 
@@ -115,6 +117,7 @@ function signIn() {
 }
 
 beforeEach(() => {
+  mocks.query = "";
   mocks.getSocialSpecies.mockResolvedValue(species);
   mocks.getSuggestedPets.mockResolvedValue([
     pet("Mochi", "tanfamily"),
@@ -130,6 +133,21 @@ afterEach(() => {
 });
 
 describe("SocialExploreView", () => {
+  it("carries Explore context on its Moment links", async () => {
+    render(<SocialExploreView />);
+    expect((await screen.findByRole("link", { name: "Beach day" })).getAttribute("href"))
+      .toBe("/moments/moment-Beach%20day?returnTo=%2Fexplore");
+  });
+
+  it("restores the pet filter and carries it to the next Moment", async () => {
+    mocks.query = "species=Cat";
+    render(<SocialExploreView />);
+    expect((await screen.findByRole("link", { name: "Beach day" })).getAttribute("href"))
+      .toBe("/moments/moment-Beach%20day?returnTo=%2Fexplore%3Fspecies%3DCat");
+    expect(mocks.getExploreMoments).toHaveBeenCalledWith("Cat", undefined);
+    expect(mocks.getSuggestedPets).toHaveBeenCalledWith("Cat");
+  });
+
   it("leads with pets", async () => {
     render(<SocialExploreView />);
 

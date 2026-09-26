@@ -13,7 +13,7 @@ import {
   MomentMedia,
   MomentSubjects,
 } from "@/components/social/SocialMomentParts";
-import { momentPath } from "@/lib/routes";
+import { momentNavigationPath } from "@/lib/momentNavigation";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
 import type { PublicMomentListItem } from "@/services/publicSocialService";
 
@@ -34,6 +34,7 @@ type SocialMomentCardProps = {
   authorPrefix?: string;
   /** Which screen this card is on, for engagement measurement. */
   analyticsSource?: AnalyticsSocialSource;
+  returnTo?: string;
   className?: string;
 };
 
@@ -60,6 +61,7 @@ export function SocialMomentCard({
   showAuthor = true,
   authorPrefix,
   analyticsSource = "direct",
+  returnTo,
   className = "",
 }: SocialMomentCardProps) {
   const media = useMemo(
@@ -93,7 +95,7 @@ export function SocialMomentCard({
           autoplayVideoWhenVisible
           caption={moment.caption ?? undefined}
           media={media}
-          openHref={momentPath(moment.id)}
+          openHref={momentNavigationPath(moment.id, returnTo)}
           title={moment.title}
         />
       ) : (
@@ -103,7 +105,7 @@ export function SocialMomentCard({
         // what a grid tile, whose title always carried one, never suffered.
         <Link
           className="block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pet-teal"
-          href={momentPath(moment.id)}
+          href={momentNavigationPath(moment.id, returnTo)}
         >
           <MomentMedia aspect="auto" moment={moment} />
         </Link>
@@ -121,6 +123,7 @@ export function SocialMomentCard({
             viewerHasLiked={moment.viewerHasLiked}
           />
           <CommentAction
+            returnTo={returnTo}
             commentCount={moment.commentCount ?? 0}
             momentId={moment.id}
             momentTitle={moment.title}
@@ -140,7 +143,7 @@ export function SocialMomentCard({
             <h3 className="mt-1 text-sm font-black" data-testid="moment-title">
               <Link
                 className="text-pet-ink transition after:absolute after:inset-0 after:content-[''] hover:text-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
-                href={momentPath(moment.id)}
+                href={momentNavigationPath(moment.id, returnTo)}
               >
                 {moment.title}
               </Link>
@@ -160,7 +163,7 @@ export function SocialMomentCard({
               aria-hidden="true"
               className="absolute inset-0"
               data-testid="moment-card-body-open"
-              href={momentPath(moment.id)}
+              href={momentNavigationPath(moment.id, returnTo)}
               tabIndex={-1}
             />
           ) : null}
@@ -199,6 +202,7 @@ export function SocialMomentTile({
   onLikeChange,
   showAuthor = false,
   analyticsSource = "direct",
+  returnTo,
 }: SocialMomentTileProps) {
   return (
     <figure
@@ -216,7 +220,7 @@ export function SocialMomentTile({
             // is exactly the uneven-tile problem this is here to solve.
             className="line-clamp-2 min-h-[2.5rem] text-pet-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
             data-testid="moment-title"
-            href={momentPath(moment.id)}
+            href={momentNavigationPath(moment.id, returnTo)}
           >
             {moment.title}
           </Link>
@@ -253,6 +257,7 @@ export function SocialMomentTile({
             viewerHasLiked={moment.viewerHasLiked}
           />
           <CommentAction
+            returnTo={returnTo}
             commentCount={moment.commentCount ?? 0}
             momentId={moment.id}
             momentTitle={moment.title}

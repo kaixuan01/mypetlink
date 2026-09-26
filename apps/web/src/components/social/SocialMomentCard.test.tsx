@@ -79,6 +79,15 @@ afterEach(() => {
 });
 
 describe("Moment card navigation", () => {
+  it("carries Explore context on the photo, title and Comments links", () => {
+    render(<SocialMomentCard moment={moment()} onLikeChange={vi.fn()} returnTo="/explore" signedIn={false} />);
+    const card = screen.getByTestId("social-moment-card");
+    const links = [...card.querySelectorAll("a")].filter((link) => link.getAttribute("href")?.startsWith(momentHref));
+    expect(links.length).toBeGreaterThanOrEqual(3);
+    for (const link of links) expect(link.getAttribute("href")).toContain(`${momentHref}?returnTo=%2Fexplore`);
+    expect(screen.getByTestId("moment-comment-action").getAttribute("href")).toBe(`${momentHref}?returnTo=%2Fexplore#comments`);
+  });
+
   it("opens the Moment from its title", () => {
     renderCard();
 
