@@ -159,6 +159,23 @@ public sealed class CommunityModerationTests
     }
 
     [Fact]
+    public async Task OnlyARestrictionStopsFollowAndLikeNotCommunitySimplyOff()
+    {
+        // Dave has Community off by his own choice and is not restricted:
+        // following and liking behave exactly as they did before Phase 2E.
+        using var harness = await CreateAsync();
+        var dave = SocialSurfaceHarness.DaveId;
+        var aliceMoment = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 20);
+
+        Assert.True((await harness.Graph.GetRelationshipAsync(dave, "tanfamily")).CanFollow);
+        await harness.Graph.FollowAsync(dave, "tanfamily");
+        await harness.Likes.LikeAsync(dave, aliceMoment);
+
+        Assert.True(await harness.Db.OwnerFollows.AnyAsync(item => item.FollowerUserId == dave));
+        Assert.True(await harness.Db.MomentLikes.AnyAsync(item => item.UserId == dave && item.MomentId == aliceMoment));
+    }
+
+    [Fact]
     public async Task ARestrictedHouseholdCannotTurnCommunityBackOn()
     {
         using var harness = await CreateAsync();
