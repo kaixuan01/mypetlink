@@ -46,6 +46,7 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
         CancellationToken cancellationToken = default)
     {
         var actorId = RequireUserId(currentUserId);
+        await CommunityModeration.RequireNotRestrictedAsync(_dbContext, actorId, cancellationToken);
         var moment = await RequireLikeableMomentAsync(actorId, momentId, cancellationToken);
 
         var alreadyLiked = await _dbContext.MomentLikes.AnyAsync(

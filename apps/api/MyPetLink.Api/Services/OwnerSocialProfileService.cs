@@ -122,7 +122,25 @@ public sealed class OwnerSocialProfileService : SkeletonService, IOwnerSocialPro
             profile.AllowFollowers = request.AllowFollowers.Value;
         }
 
-        if (request.IsSocialEnabled.HasValue)
+        var restricted = CommunityModeration.IsRestricted(profile);
+
+        if (request.IsSocialEnabled.HasValue && restricted)
+        {
+            // Community is paused by MyPetLink. It cannot be switched back on
+            // from here, and this is the only place it is ever switched on.
+            // Switching it off is still the owner's choice, and is remembered
+            // for when the restriction is lifted.
+            if (request.IsSocialEnabled.Value)
+            {
+                throw new ApiException(
+                    StatusCodes.Status403Forbidden,
+                    "community_restricted",
+                    CommunityModeration.RestrictedMessage);
+            }
+
+            profile.CommunityEnabledBeforeRestriction = false;
+        }
+        else if (request.IsSocialEnabled.HasValue)
         {
             if (request.IsSocialEnabled.Value && !MeetsEnableRequirements(profile))
             {
@@ -142,8 +160,10 @@ public sealed class OwnerSocialProfileService : SkeletonService, IOwnerSocialPro
 
         // Discoverability is meaningless while the profile is off, and leaving
         // it set would mean switching social back on silently republishes the
-        // account to discovery. Clear it with the parent switch instead.
-        if (!profile.IsSocialEnabled)
+        // account to discovery. Clear it with the parent switch instead —
+        // except while restricted: then Community is off by MyPetLink, not by
+        // the owner, and their discoverability choice is kept for the lift.
+        if (!profile.IsSocialEnabled && !restricted)
         {
             profile.IsDiscoverable = false;
         }

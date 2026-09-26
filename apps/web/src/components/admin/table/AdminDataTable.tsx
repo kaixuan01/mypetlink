@@ -307,7 +307,7 @@ export function AdminDataTable<T>({
               {onRowOpen ? (
                 <td className="px-4 py-3 text-right">
                   <button
-                    className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex min-h-11 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50 sm:min-h-8"
                     onClick={() => onRowOpen(row)}
                     type="button"
                   >
@@ -409,7 +409,7 @@ export function AdminDataTable<T>({
             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
               Rows
               <select
-                className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 outline-none"
+                className="min-h-11 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 outline-none sm:min-h-8"
                 onChange={(event) => onPageSizeChange(Number(event.target.value))}
                 value={pageSize}
               >
@@ -424,7 +424,7 @@ export function AdminDataTable<T>({
           <div className="flex items-center gap-1.5">
             <button
               aria-label="Previous page"
-              className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex min-h-11 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-8"
               disabled={page <= 1 || loading}
               onClick={() => onPageChange(page - 1)}
               type="button"
@@ -436,7 +436,7 @@ export function AdminDataTable<T>({
             </span>
             <button
               aria-label="Next page"
-              className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex min-h-11 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-8"
               disabled={page >= totalPages || loading}
               onClick={() => onPageChange(page + 1)}
               type="button"

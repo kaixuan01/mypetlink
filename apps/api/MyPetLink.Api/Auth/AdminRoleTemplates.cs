@@ -94,6 +94,20 @@ public static class AdminRoleTemplates
                 C.SalesCommissionsExport,
                 C.PayoutsView,
                 C.PayoutsManage,
+                C.CommunityReportsView,
+                C.CommunityReportsResolve,
+                C.CommunityModerationEnforce,
+            ]);
+
+        // Owner Support reads and decides Community reports — dismissing, or
+        // removing a reported Comment — but hiding Moments and pausing a
+        // household are held back for Administrator and Super Admin. Kept off
+        // the shared legacy baseline so Operations does not inherit it.
+        var ownerSupport = Combine(
+            LegacySharedAdminAccess,
+            [
+                C.CommunityReportsView,
+                C.CommunityReportsResolve,
             ]);
 
         return
@@ -134,11 +148,11 @@ public static class AdminRoleTemplates
                 Guid.Parse("b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04"),
                 OwnerSupportCode,
                 "Owner Support",
-                "Customer-facing operational work across orders, Smart Tags, owners and pets. "
-                + "No sales, commission, payout or access management.",
+                "Customer-facing operational work across orders, Smart Tags, owners and pets, "
+                + "and reviewing Community reports. No sales, commission, payout or access management.",
                 GrantsAllCapabilities: false,
                 SortOrder: 40,
-                LegacySharedAdminAccess),
+                ownerSupport),
 
             new AdminRoleTemplate(
                 Guid.Parse("b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d05"),

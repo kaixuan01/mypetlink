@@ -9,6 +9,7 @@ import {
 } from "react";
 import { CommentBodyWithMentions } from "@/components/social/CommentBodyWithMentions";
 import { CommentMentionComposer } from "@/components/social/CommentMentionComposer";
+import { CommunityReportDialog } from "@/components/social/CommunityReportDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { ownerLoginPath } from "@/lib/authRedirect";
@@ -71,6 +72,7 @@ export function MomentComments({
   const [draftRestored, setDraftRestored] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<MomentComment | null>(null);
+  const [reporting, setReporting] = useState<MomentComment | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteErrorId, setDeleteErrorId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -360,6 +362,8 @@ export function MomentComments({
                   now={loadedAt}
                   onCloseMenu={closeMenu}
                   onConfirm={() => setConfirming(comment)}
+                  onReport={() => { setMenuId(null); setReporting(comment); }}
+                  canReport={viewer.canComment && Boolean(viewer.identity) && viewer.identity?.handle.toLowerCase() !== comment.author.handle.toLowerCase()}
                   onMenu={() =>
                     setMenuId((current) => (current === comment.id ? null : comment.id))
                   }
@@ -475,6 +479,11 @@ export function MomentComments({
             : "Delete your comment?"
         }
       />
+      {reporting ? <CommunityReportDialog
+        onClose={() => { const id = reporting.id; setReporting(null); requestAnimationFrame(() => menuTriggerRefs.current.get(id)?.focus()); }}
+        open
+        report={{ type: "comment", target: reporting.id, household: reporting.author }}
+      /> : null}
     </section>
   );
 }
@@ -488,6 +497,8 @@ function CommentRow({
   onCloseMenu,
   onMenu,
   onConfirm,
+  onReport,
+  canReport,
   setMenuTrigger,
 }: {
   comment: MomentComment;
@@ -498,6 +509,8 @@ function CommentRow({
   onCloseMenu: () => void;
   onMenu: () => void;
   onConfirm: () => void;
+  onReport: () => void;
+  canReport: boolean;
   setMenuTrigger: (element: HTMLButtonElement | null) => void;
 }) {
   const action = comment.viewerDeleteAction === "remove" ? "Remove comment" : "Delete comment";
@@ -553,7 +566,7 @@ function CommentRow({
             </time>
           </div>
 
-          {comment.viewerDeleteAction ? (
+          {comment.viewerDeleteAction || canReport ? (
             <div className="relative shrink-0">
               <button
                 aria-controls={menuOpen ? menuPanelId : undefined}
@@ -575,13 +588,18 @@ function CommentRow({
                   id={menuPanelId}
                   ref={menuRef}
                 >
-                  <button
+                  {canReport ? <button
+                    className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-black text-pet-ink hover:bg-pet-cream"
+                    onClick={onReport}
+                    type="button"
+                  >Report comment</button> : null}
+                  {comment.viewerDeleteAction ? <button
                     className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-black text-pet-coral hover:bg-pet-cream"
                     onClick={onConfirm}
                     type="button"
                   >
                     {action}
-                  </button>
+                  </button> : null}
                 </div>
               ) : null}
             </div>

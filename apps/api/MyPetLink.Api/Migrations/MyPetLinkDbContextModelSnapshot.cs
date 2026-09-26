@@ -953,6 +953,120 @@ namespace MyPetLink.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.CommunityReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CommentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("MomentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("ReportedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid?>("SnapshotAvatarMediaFileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SnapshotDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("SnapshotHandle")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("SnapshotText")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("SnapshotTitle")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("MomentId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("SnapshotAvatarMediaFileId");
+
+                    b.HasIndex("ReportedUserId", "CreatedAt");
+
+                    b.HasIndex("ReporterUserId", "CreatedAt");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.HasIndex("ReporterUserId", "TargetType", "CommentId", "MomentId", "ReportedUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CommunityReports_OpenPerReporterAndTarget")
+                        .HasFilter("[Status] = N'Open'");
+
+                    b.ToTable("CommunityReports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CommunityReports_Details", "[Reason] <> N'Other' OR ([Details] IS NOT NULL AND LEN([Details]) > 0)");
+
+                            t.HasCheckConstraint("CK_CommunityReports_Review", "([Status] = N'Open' AND [Resolution] IS NULL AND [ReviewedAt] IS NULL AND [ReviewedByUserId] IS NULL) OR ([Status] = N'Resolved' AND [Resolution] IS NOT NULL AND [ReviewedAt] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CommunityReports_Snapshot", "([SnapshotTitle] IS NULL OR [TargetType] = N'Moment') AND ([SnapshotAvatarMediaFileId] IS NULL OR [TargetType] = N'Household') AND [ReporterUserId] <> [ReportedUserId]");
+
+                            t.HasCheckConstraint("CK_CommunityReports_Target", "([TargetType] = N'Comment' AND [CommentId] IS NOT NULL AND [MomentId] IS NULL) OR ([TargetType] = N'Moment' AND [MomentId] IS NOT NULL AND [CommentId] IS NULL) OR ([TargetType] = N'Household' AND [CommentId] IS NULL AND [MomentId] IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.DeliveryRate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4543,6 +4657,15 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<bool?>("CommunityEnabledBeforeRestriction")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("CommunityRestrictedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CommunityRestrictedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -4592,6 +4715,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("AvatarMediaFileId");
 
+                    b.HasIndex("CommunityRestrictedByUserId");
+
                     b.HasIndex("NormalizedDisplayName");
 
                     b.HasIndex("NormalizedHandle")
@@ -4603,7 +4728,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("IsSocialEnabled", "IsDiscoverable", "UpdatedAt");
 
-                    b.ToTable("OwnerSocialProfiles", (string)null);
+                    b.ToTable("OwnerSocialProfiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OwnerSocialProfiles_CommunityRestriction", "([CommunityRestrictedAt] IS NULL AND [CommunityRestrictedByUserId] IS NULL AND [CommunityEnabledBeforeRestriction] IS NULL) OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedByUserId] IS NOT NULL AND [CommunityEnabledBeforeRestriction] IS NOT NULL AND [IsSocialEnabled] = 0)");
+                        });
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.PaymentProof", b =>
@@ -4979,6 +5107,12 @@ namespace MyPetLink.Api.Migrations
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("ModeratedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ModeratedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateOnly?>("MomentDate")
                         .HasColumnType("date");
 
@@ -5018,6 +5152,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("CoverMediaFileId");
 
+                    b.HasIndex("ModeratedByUserId");
+
                     b.HasIndex("AuthorUserId", "PublishedAt");
 
                     b.HasIndex("PetId", "CreatedAt");
@@ -5028,7 +5164,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("PetId", "Visibility");
 
-                    b.ToTable("PetMemories", (string)null);
+                    b.ToTable("PetMemories", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PetMemories_Moderation", "([ModeratedAt] IS NULL AND [ModeratedByUserId] IS NULL) OR ([ModeratedAt] IS NOT NULL AND [ModeratedByUserId] IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.PetPublicProfile", b =>
@@ -7368,6 +7507,53 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("UpdatedByAdminUser");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.CommunityReport", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.MomentComment", "Comment")
+                        .WithMany()
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.PetMemory", "Moment")
+                        .WithMany()
+                        .HasForeignKey("MomentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.User", "ReportedUser")
+                        .WithMany()
+                        .HasForeignKey("ReportedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.User", "ReporterUser")
+                        .WithMany()
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.MediaFile", "SnapshotAvatarMediaFile")
+                        .WithMany()
+                        .HasForeignKey("SnapshotAvatarMediaFileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Moment");
+
+                    b.Navigation("ReportedUser");
+
+                    b.Navigation("ReporterUser");
+
+                    b.Navigation("ReviewedByUser");
+
+                    b.Navigation("SnapshotAvatarMediaFile");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.DeliveryStateRateOverride", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.AdminUser", "UpdatedByAdminUser")
@@ -8542,6 +8728,11 @@ namespace MyPetLink.Api.Migrations
                         .HasForeignKey("AvatarMediaFileId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MyPetLink.Api.Entities.User", "CommunityRestrictedByUser")
+                        .WithMany()
+                        .HasForeignKey("CommunityRestrictedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MyPetLink.Api.Entities.User", "User")
                         .WithOne("SocialProfile")
                         .HasForeignKey("MyPetLink.Api.Entities.OwnerSocialProfile", "UserId")
@@ -8549,6 +8740,8 @@ namespace MyPetLink.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("AvatarMediaFile");
+
+                    b.Navigation("CommunityRestrictedByUser");
 
                     b.Navigation("User");
                 });
@@ -8635,6 +8828,11 @@ namespace MyPetLink.Api.Migrations
                         .HasForeignKey("CoverMediaFileId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MyPetLink.Api.Entities.User", "ModeratedByUser")
+                        .WithMany()
+                        .HasForeignKey("ModeratedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MyPetLink.Api.Entities.Pet", "Pet")
                         .WithMany("Memories")
                         .HasForeignKey("PetId")
@@ -8644,6 +8842,8 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("AuthorUser");
 
                     b.Navigation("CoverMediaFile");
+
+                    b.Navigation("ModeratedByUser");
 
                     b.Navigation("Pet");
                 });

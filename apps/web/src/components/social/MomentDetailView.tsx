@@ -13,6 +13,7 @@ import { SharedByIdentity } from "@/components/social/SharedByIdentity";
 import { MomentSubjects } from "@/components/social/SocialMomentParts";
 import { MomentCollaborators } from "@/components/social/MomentCollaborators";
 import { MomentCollaborationPanel } from "@/components/social/MomentCollaborationPanel";
+import { MomentReportMenu } from "@/components/social/MomentReportMenu";
 import { allMomentPets } from "@/lib/momentCollaboration";
 import { Icon } from "@/components/ui/Icon";
 import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
@@ -31,6 +32,7 @@ import { formatPageTitle } from "@/lib/pageTitles";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useSignedIn } from "@/lib/useSignedIn";
+import { getOwnerSocialProfile } from "@/services/ownerSocialService";
 import {
   getPublicMoment,
   PublicProfileUnavailableError,
@@ -68,6 +70,13 @@ type Phase =
  */
 export function MomentDetailView({ momentId }: { momentId: string }) {
   const signedIn = useSignedIn();
+  const [ownHandle, setOwnHandle] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!signedIn) return;
+    let active = true;
+    getOwnerSocialProfile().then((result) => { if (active) setOwnHandle(result.data.isSocialEnabled && result.data.canEnableSocial ? result.data.handle : null); }).catch(() => { if (active) setOwnHandle(null); });
+    return () => { active = false; };
+  }, [signedIn]);
   const [phase, setPhase] = useState<Phase>({ state: "loading" });
   /** Bumped by Retry; the load effect keys off it. */
   const [attempt, setAttempt] = useState(0);
@@ -172,6 +181,7 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
               moment={phase.moment}
               onLikeChange={onLikeChange}
               signedIn={signedIn}
+              ownHandle={ownHandle}
             />
             <MomentCollaborationPanel
               momentId={phase.moment.id}
@@ -242,6 +252,7 @@ function MomentArticle({
   moment,
   onLikeChange,
   signedIn,
+  ownHandle,
 }: {
   moment: PublicMomentListItem;
   onLikeChange: (
@@ -249,6 +260,7 @@ function MomentArticle({
     state: { likeCount: number; viewerHasLiked: boolean }
   ) => void;
   signedIn: boolean | null;
+  ownHandle: string | null | undefined;
 }) {
   const media = useMemo(
     () => toViewerMedia(moment.media, moment.title),
@@ -270,7 +282,10 @@ function MomentArticle({
         household is who shared it.
       */}
       <header className="flex flex-col gap-3 p-4 pb-3">
-        <MomentSubjects subjects={allMomentPets(moment)} />
+        <div className="flex items-start justify-between gap-2">
+          <MomentSubjects subjects={allMomentPets(moment)} />
+          <MomentReportMenu moment={moment} ownHandle={ownHandle} signedIn={signedIn} />
+        </div>
         {moment.author ? <SharedByIdentity author={moment.author} /> : null}
         <MomentCollaborators collaborations={moment.collaborations ?? []} />
       </header>

@@ -83,7 +83,8 @@ public static class MomentCommentBodyRules
         return normalized;
     }
 
-    private static bool HasVisibleContent(string value)
+    /// <summary>Whether normalized text has anything a reader would see. Shared with report details.</summary>
+    internal static bool HasVisibleContent(string value)
     {
         foreach (var rune in value.EnumerateRunes())
         {

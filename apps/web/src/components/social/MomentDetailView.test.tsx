@@ -18,6 +18,7 @@ import {
 const mocks = vi.hoisted(() => ({
   getPublicMoment: vi.fn(),
   getMomentComments: vi.fn(),
+  getOwnerSocialProfile: vi.fn(),
   // A visitor who followed a shared link: the case a Moment page exists for,
   // and the one that must not depend on a session.
   signedIn: { current: false as boolean | null },
@@ -39,6 +40,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/useSignedIn", () => ({ useSignedIn: () => mocks.signedIn.current }));
+vi.mock("@/components/auth/AuthGuard", () => ({ AuthGuard: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("@/services/ownerSocialService", async () => {
+  const actual = await vi.importActual<typeof import("@/services/ownerSocialService")>("@/services/ownerSocialService");
+  return { ...actual, getOwnerSocialProfile: (...args: unknown[]) => mocks.getOwnerSocialProfile(...args) };
+});
 
 vi.mock("@/services/publicSocialService", async () => {
   const actual = await vi.importActual<
@@ -111,6 +117,8 @@ function moment(
 }
 
 beforeEach(() => {
+  mocks.signedIn.current = false;
+  mocks.getOwnerSocialProfile.mockResolvedValue({ data: { handle: "viewerhome", isSocialEnabled: true, canEnableSocial: true } });
   mocks.getPublicMoment.mockResolvedValue(moment());
   mocks.getMomentComments.mockResolvedValue({
     items: [],
@@ -126,6 +134,26 @@ afterEach(() => {
 });
 
 describe("Moment detail", () => {
+  it.each([
+    ["author", "tanfamily", false],
+    ["collaborator", "collabhome", true],
+    ["viewer", "viewerhome", true],
+  ] as const)("shows Moment report only to a signed-in non-author %s", async (_role, handle, visible) => {
+    mocks.signedIn.current = true;
+    mocks.getOwnerSocialProfile.mockResolvedValue({ data: { handle, isSocialEnabled: true, canEnableSocial: true } });
+    render(<MomentDetailView momentId="moment-1" />);
+    await screen.findByTestId("moment-detail");
+    if (visible) {
+      const trigger = await screen.findByRole("button", { name: "Moment actions" });
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Report Moment" }));
+      expect(screen.getByRole("dialog", { name: "Report Moment" })).toBeTruthy();
+    } else {
+      await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
+      expect(screen.queryByRole("button", { name: "Moment actions" })).toBeNull();
+    }
+  });
+
   it("shows the Moment, its pets, its household and when it was shared", async () => {
     render(<MomentDetailView momentId="9c1f8a2e-1111-4a2b-8c3d-4e5f60718293" />);
 

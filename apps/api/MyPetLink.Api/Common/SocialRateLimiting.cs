@@ -54,6 +54,9 @@ public static class SocialRateLimitPolicies
     /// more expensive than a check.
     /// </summary>
     public const string ProfileMutation = "social-profile-mutation";
+
+    /// <summary>Reporting a Comment, Moment or household to MyPetLink.</summary>
+    public const string Report = "social-report";
 }
 
 /// <summary>
@@ -142,6 +145,17 @@ public sealed class SocialRateLimitingOptions
     /// ~200 per hour. Generous on purpose: undoing is the recovery path, and a
     /// limit that blocks recovery is worse than the churn it prevents.
     /// </summary>
+    /// <summary>
+    /// Reports. Generous enough for somebody reporting a real pile-on, low
+    /// enough that reporting cannot be used to flood the moderation queue.
+    /// </summary>
+    public RequestRateLimitOptions Report { get; init; } = new()
+    {
+        PermitLimit = 10,
+        WindowSeconds = 3600,
+        QueueLimit = 0
+    };
+
     public RequestRateLimitOptions Withdraw { get; init; } = new()
     {
         PermitLimit = 200,

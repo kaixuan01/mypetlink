@@ -64,6 +64,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MomentLike> MomentLikes => Set<MomentLike>();
     public DbSet<MomentComment> MomentComments => Set<MomentComment>();
     public DbSet<MomentCommentMention> MomentCommentMentions => Set<MomentCommentMention>();
+    public DbSet<CommunityReport> CommunityReports => Set<CommunityReport>();
     public DbSet<MomentCollaboration> MomentCollaborations => Set<MomentCollaboration>();
     public DbSet<MomentCollaborationPet> MomentCollaborationPets => Set<MomentCollaborationPet>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
@@ -1612,7 +1613,14 @@ public sealed class MyPetLinkDbContext : DbContext
     {
         modelBuilder.Entity<OwnerSocialProfile>(entity =>
         {
-            entity.ToTable("OwnerSocialProfiles");
+            // A restriction is all-or-nothing, and while it stands Community is
+            // off. Every Community visibility rule already requires
+            // IsSocialEnabled, so this one invariant is what makes a
+            // restriction take effect everywhere at once.
+            entity.ToTable("OwnerSocialProfiles", table => table.HasCheckConstraint(
+                "CK_OwnerSocialProfiles_CommunityRestriction",
+                "([CommunityRestrictedAt] IS NULL AND [CommunityRestrictedByUserId] IS NULL AND [CommunityEnabledBeforeRestriction] IS NULL) "
+                + "OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedByUserId] IS NOT NULL AND [CommunityEnabledBeforeRestriction] IS NOT NULL AND [IsSocialEnabled] = 0)"));
             entity.Property(item => item.Handle).HasMaxLength(OwnerHandleRules.MaxLength);
             entity.Property(item => item.NormalizedHandle).HasMaxLength(OwnerHandleRules.MaxLength);
             entity.Property(item => item.DisplayName).HasMaxLength(OwnerSocialDisplayNameRules.MaxLength);
@@ -1644,6 +1652,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.AvatarMediaFile)
                 .WithMany()
                 .HasForeignKey(item => item.AvatarMediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CommunityRestrictedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CommunityRestrictedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -1930,6 +1942,117 @@ public sealed class MyPetLinkDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<CommunityReport>(entity =>
+        {
+            entity.ToTable("CommunityReports", table =>
+            {
+                // Exactly the typed key the target type calls for; a Household
+                // report is identified by ReportedUserId alone.
+                table.HasCheckConstraint(
+                    "CK_CommunityReports_Target",
+                    "([TargetType] = N'Comment' AND [CommentId] IS NOT NULL AND [MomentId] IS NULL) "
+                    + "OR ([TargetType] = N'Moment' AND [MomentId] IS NOT NULL AND [CommentId] IS NULL) "
+                    + "OR ([TargetType] = N'Household' AND [CommentId] IS NULL AND [MomentId] IS NULL)");
+
+                // Open means undecided; Resolved means somebody decided, when,
+                // and what. Nothing in between.
+                table.HasCheckConstraint(
+                    "CK_CommunityReports_Review",
+                    "([Status] = N'Open' AND [Resolution] IS NULL AND [ReviewedAt] IS NULL AND [ReviewedByUserId] IS NULL) "
+                    + "OR ([Status] = N'Resolved' AND [Resolution] IS NOT NULL AND [ReviewedAt] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL)");
+
+                // "Other" says nothing on its own.
+                table.HasCheckConstraint(
+                    "CK_CommunityReports_Details",
+                    "[Reason] <> N'Other' OR ([Details] IS NOT NULL AND LEN([Details]) > 0)");
+
+                // A title is only evidence for a Moment, an avatar only for a
+                // profile; and nobody reports themselves.
+                table.HasCheckConstraint(
+                    "CK_CommunityReports_Snapshot",
+                    "([SnapshotTitle] IS NULL OR [TargetType] = N'Moment') "
+                    + "AND ([SnapshotAvatarMediaFileId] IS NULL OR [TargetType] = N'Household') "
+                    + "AND [ReporterUserId] <> [ReportedUserId]");
+            });
+
+            entity.Property(item => item.TargetType)
+                .HasConversion(new SafeNamedEnumStringConverter<CommunityReportTargetType>(
+                    CommunityReportTargetType.Unknown))
+                .HasMaxLength(16);
+            entity.Property(item => item.Reason)
+                .HasConversion(new SafeNamedEnumStringConverter<CommunityReportReason>(
+                    CommunityReportReason.Unknown))
+                .HasMaxLength(32);
+            entity.Property(item => item.Status)
+                .HasConversion(new SafeNamedEnumStringConverter<CommunityReportStatus>(
+                    CommunityReportStatus.Unknown))
+                .HasMaxLength(16);
+            entity.Property(item => item.Resolution)
+                .HasConversion(new SafeNamedEnumStringConverter<CommunityReportResolution>(
+                    CommunityReportResolution.Unknown))
+                .HasMaxLength(32);
+            entity.Property(item => item.Details).HasMaxLength(CommunityReportDetailsRules.MaxLength);
+            entity.Property(item => item.SnapshotHandle).HasMaxLength(OwnerHandleRules.MaxLength).IsRequired();
+            entity.Property(item => item.SnapshotDisplayName)
+                .HasMaxLength(OwnerSocialDisplayNameRules.MaxLength)
+                .IsRequired();
+            entity.Property(item => item.SnapshotTitle).HasMaxLength(160);
+            entity.Property(item => item.SnapshotText).HasMaxLength(2000);
+            entity.Property(item => item.ReviewNote).HasMaxLength(1000);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+
+            // One open report per reporter per target. Filtered to Open so a
+            // resolved report is history and a later, genuine report is still
+            // possible. Every target column is in the key: SQL Server treats
+            // NULLs as equal in a unique index, so the nullable typed keys
+            // still identify the target exactly.
+            entity.HasIndex(item => new
+                {
+                    item.ReporterUserId,
+                    item.TargetType,
+                    item.CommentId,
+                    item.MomentId,
+                    item.ReportedUserId
+                })
+                .IsUnique()
+                .HasDatabaseName("IX_CommunityReports_OpenPerReporterAndTarget")
+                .HasFilter("[Status] = N'Open'");
+
+            // The moderation queue, newest first within a status.
+            entity.HasIndex(item => new { item.Status, item.CreatedAt });
+
+            // Everything reported about one household, for review context.
+            entity.HasIndex(item => new { item.ReportedUserId, item.CreatedAt });
+
+            // One reporter's history, for review context and abuse of reporting.
+            entity.HasIndex(item => new { item.ReporterUserId, item.CreatedAt });
+
+            entity.HasOne(item => item.ReporterUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReporterUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ReportedUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReportedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Comment)
+                .WithMany()
+                .HasForeignKey(item => item.CommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Moment)
+                .WithMany()
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SnapshotAvatarMediaFile)
+                .WithMany()
+                .HasForeignKey(item => item.SnapshotAvatarMediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<OwnerNotification>(entity =>
         {
             entity.ToTable("OwnerNotifications");
@@ -1985,7 +2108,10 @@ public sealed class MyPetLinkDbContext : DbContext
     {
         modelBuilder.Entity<PetMemory>(entity =>
         {
-            entity.ToTable("PetMemories");
+            // Hidden by MyPetLink records who hid it, always.
+            entity.ToTable("PetMemories", table => table.HasCheckConstraint(
+                "CK_PetMemories_Moderation",
+                "([ModeratedAt] IS NULL AND [ModeratedByUserId] IS NULL) OR ([ModeratedAt] IS NOT NULL AND [ModeratedByUserId] IS NOT NULL)"));
             entity.Property(item => item.Title).HasMaxLength(160);
             entity.Property(item => item.Type).HasMaxLength(80);
             entity.Property(item => item.Visibility).HasConversion<string>().HasMaxLength(32);
@@ -2011,6 +2137,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.CoverMediaFile)
                 .WithMany()
                 .HasForeignKey(item => item.CoverMediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ModeratedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.ModeratedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

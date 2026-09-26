@@ -70,6 +70,28 @@ public static class AdminCapabilities
     /// </summary>
     public const string OwnerSocialHandleAssign = "owners.social_handle.assign";
 
+    // --- Community moderation -------------------------------------------------
+    // Three separate powers: reading reports, deciding them, and enforcing
+    // against content or a household. Community-only — none of them reaches an
+    // account's sign-in, pets, Share or Safety Profiles, Smart Tags or orders.
+
+    /// <summary>
+    /// The report queue and its detail: who reported, what they said, and the
+    /// reported content itself. Sensitive although it only reads — reporter
+    /// identity and abusive content — so the read-only template never gets it
+    /// automatically.
+    /// </summary>
+    public const string CommunityReportsView = "community_reports.view";
+
+    /// <summary>Deciding a report: dismissing it, or removing a reported Comment.</summary>
+    public const string CommunityReportsResolve = "community_reports.resolve";
+
+    /// <summary>
+    /// Hiding and unhiding a Moment, and restricting a household's Community
+    /// participation and lifting it.
+    /// </summary>
+    public const string CommunityModerationEnforce = "community_moderation.enforce";
+
     // --- Merchant sales -------------------------------------------------------
     // "Reseller" and "merchant" are the same record in this system, so sales.*
     // deliberately governs both rather than adding a parallel resellers.* key.

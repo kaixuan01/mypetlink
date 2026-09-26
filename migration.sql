@@ -10244,3 +10244,263 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD [ModeratedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD [ModeratedByUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [OwnerSocialProfiles] ADD [CommunityEnabledBeforeRestriction] bit NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [OwnerSocialProfiles] ADD [CommunityRestrictedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [OwnerSocialProfiles] ADD [CommunityRestrictedByUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE TABLE [CommunityReports] (
+        [Id] uniqueidentifier NOT NULL,
+        [ReporterUserId] uniqueidentifier NOT NULL,
+        [TargetType] nvarchar(16) NOT NULL,
+        [CommentId] uniqueidentifier NULL,
+        [MomentId] uniqueidentifier NULL,
+        [ReportedUserId] uniqueidentifier NOT NULL,
+        [Reason] nvarchar(32) NOT NULL,
+        [Details] nvarchar(500) NULL,
+        [SnapshotHandle] nvarchar(30) NOT NULL,
+        [SnapshotDisplayName] nvarchar(60) NOT NULL,
+        [SnapshotTitle] nvarchar(160) NULL,
+        [SnapshotText] nvarchar(2000) NULL,
+        [SnapshotAvatarMediaFileId] uniqueidentifier NULL,
+        [Status] nvarchar(16) NOT NULL,
+        [Resolution] nvarchar(32) NULL,
+        [ReviewNote] nvarchar(1000) NULL,
+        [ReviewedAt] datetimeoffset NULL,
+        [ReviewedByUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_CommunityReports] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_CommunityReports_Details] CHECK ([Reason] <> N'Other' OR ([Details] IS NOT NULL AND LEN([Details]) > 0)),
+        CONSTRAINT [CK_CommunityReports_Review] CHECK (([Status] = N'Open' AND [Resolution] IS NULL AND [ReviewedAt] IS NULL AND [ReviewedByUserId] IS NULL) OR ([Status] = N'Resolved' AND [Resolution] IS NOT NULL AND [ReviewedAt] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL)),
+        CONSTRAINT [CK_CommunityReports_Snapshot] CHECK (([SnapshotTitle] IS NULL OR [TargetType] = N'Moment') AND ([SnapshotAvatarMediaFileId] IS NULL OR [TargetType] = N'Household') AND [ReporterUserId] <> [ReportedUserId]),
+        CONSTRAINT [CK_CommunityReports_Target] CHECK (([TargetType] = N'Comment' AND [CommentId] IS NOT NULL AND [MomentId] IS NULL) OR ([TargetType] = N'Moment' AND [MomentId] IS NOT NULL AND [CommentId] IS NULL) OR ([TargetType] = N'Household' AND [CommentId] IS NULL AND [MomentId] IS NULL)),
+        CONSTRAINT [FK_CommunityReports_MediaFiles_SnapshotAvatarMediaFileId] FOREIGN KEY ([SnapshotAvatarMediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityReports_MomentComments_CommentId] FOREIGN KEY ([CommentId]) REFERENCES [MomentComments] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityReports_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityReports_Users_ReportedUserId] FOREIGN KEY ([ReportedUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityReports_Users_ReporterUserId] FOREIGN KEY ([ReporterUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityReports_Users_ReviewedByUserId] FOREIGN KEY ([ReviewedByUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_ModeratedByUserId] ON [PetMemories] ([ModeratedByUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [PetMemories] ADD CONSTRAINT [CK_PetMemories_Moderation] CHECK (([ModeratedAt] IS NULL AND [ModeratedByUserId] IS NULL) OR ([ModeratedAt] IS NOT NULL AND [ModeratedByUserId] IS NOT NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerSocialProfiles_CommunityRestrictedByUserId] ON [OwnerSocialProfiles] ([CommunityRestrictedByUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [OwnerSocialProfiles] ADD CONSTRAINT [CK_OwnerSocialProfiles_CommunityRestriction] CHECK (([CommunityRestrictedAt] IS NULL AND [CommunityRestrictedByUserId] IS NULL AND [CommunityEnabledBeforeRestriction] IS NULL) OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedByUserId] IS NOT NULL AND [CommunityEnabledBeforeRestriction] IS NOT NULL AND [IsSocialEnabled] = 0))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_CommentId] ON [CommunityReports] ([CommentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_MomentId] ON [CommunityReports] ([MomentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_CommunityReports_OpenPerReporterAndTarget] ON [CommunityReports] ([ReporterUserId], [TargetType], [CommentId], [MomentId], [ReportedUserId]) WHERE [Status] = N''Open''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_ReportedUserId_CreatedAt] ON [CommunityReports] ([ReportedUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_ReporterUserId_CreatedAt] ON [CommunityReports] ([ReporterUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_ReviewedByUserId] ON [CommunityReports] ([ReviewedByUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_SnapshotAvatarMediaFileId] ON [CommunityReports] ([SnapshotAvatarMediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityReports_Status_CreatedAt] ON [CommunityReports] ([Status], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [OwnerSocialProfiles] ADD CONSTRAINT [FK_OwnerSocialProfiles_Users_CommunityRestrictedByUserId] FOREIGN KEY ([CommunityRestrictedByUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD CONSTRAINT [FK_PetMemories_Users_ModeratedByUserId] FOREIGN KEY ([ModeratedByUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    IF EXISTS (SELECT 1 FROM [AdminRoles] WHERE [Id] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Code] = N'administrator')
+       AND NOT EXISTS (SELECT 1 FROM [AdminRoleCapabilities] WHERE [AdminRoleId] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Capability] = N'community_reports.view')
+        INSERT INTO [AdminRoleCapabilities] ([Id], [AdminRoleId], [Capability], [CreatedAt])
+        VALUES ('c2e1a9d4-5b7f-4e30-9a61-2e0b8f4c7a01', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02', N'community_reports.view', SYSDATETIMEOFFSET());
+
+    IF EXISTS (SELECT 1 FROM [AdminRoles] WHERE [Id] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Code] = N'administrator')
+       AND NOT EXISTS (SELECT 1 FROM [AdminRoleCapabilities] WHERE [AdminRoleId] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Capability] = N'community_reports.resolve')
+        INSERT INTO [AdminRoleCapabilities] ([Id], [AdminRoleId], [Capability], [CreatedAt])
+        VALUES ('c2e1a9d4-5b7f-4e30-9a61-2e0b8f4c7a02', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02', N'community_reports.resolve', SYSDATETIMEOFFSET());
+
+    IF EXISTS (SELECT 1 FROM [AdminRoles] WHERE [Id] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Code] = N'administrator')
+       AND NOT EXISTS (SELECT 1 FROM [AdminRoleCapabilities] WHERE [AdminRoleId] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Capability] = N'community_moderation.enforce')
+        INSERT INTO [AdminRoleCapabilities] ([Id], [AdminRoleId], [Capability], [CreatedAt])
+        VALUES ('c2e1a9d4-5b7f-4e30-9a61-2e0b8f4c7a03', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02', N'community_moderation.enforce', SYSDATETIMEOFFSET());
+
+    IF EXISTS (SELECT 1 FROM [AdminRoles] WHERE [Id] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04' AND [Code] = N'owner-support')
+       AND NOT EXISTS (SELECT 1 FROM [AdminRoleCapabilities] WHERE [AdminRoleId] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04' AND [Capability] = N'community_reports.view')
+        INSERT INTO [AdminRoleCapabilities] ([Id], [AdminRoleId], [Capability], [CreatedAt])
+        VALUES ('c2e1a9d4-5b7f-4e30-9a61-2e0b8f4c7a04', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04', N'community_reports.view', SYSDATETIMEOFFSET());
+
+    IF EXISTS (SELECT 1 FROM [AdminRoles] WHERE [Id] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04' AND [Code] = N'owner-support')
+       AND NOT EXISTS (SELECT 1 FROM [AdminRoleCapabilities] WHERE [AdminRoleId] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04' AND [Capability] = N'community_reports.resolve')
+        INSERT INTO [AdminRoleCapabilities] ([Id], [AdminRoleId], [Capability], [CreatedAt])
+        VALUES ('c2e1a9d4-5b7f-4e30-9a61-2e0b8f4c7a05', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d04', N'community_reports.resolve', SYSDATETIMEOFFSET());
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260925074959_AddCommunityModeration'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260925074959_AddCommunityModeration', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

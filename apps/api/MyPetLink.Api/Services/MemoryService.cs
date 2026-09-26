@@ -728,7 +728,8 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.UpdatedAt,
             memory.ArchivedAt,
             additionalPetIds,
-            memory.PublishedAt);
+            memory.PublishedAt,
+            memory.ModeratedAt);
     }
 
     /// <summary>

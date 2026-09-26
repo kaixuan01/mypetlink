@@ -230,7 +230,8 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             throw CommentNotFound();
         }
 
-        // The same per-author/Moment lock as CreateAsync. Retargeting or
+        // The same per-author/Moment lock as CreateAsync, taken by
+        // MomentCommentRemoval inside this transaction. Retargeting or
         // withdrawing the author's unread Activity reads "their latest active
         // Comment" and then writes the row a concurrent create is coalescing
         // into; without one lock for both, a delete could remove the row that
@@ -248,40 +249,14 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                     cancellationToken)
                 : null;
 
-            if (transaction is not null && _dbContext.Database.IsSqlServer())
-            {
-                await AcquireCommentPairLockAsync(
+            if (await MomentCommentRemoval.StageAsync(
+                    _dbContext,
+                    _notifications,
                     transaction,
-                    target.AuthorUserId,
-                    momentId,
-                    cancellationToken);
-            }
-
-            var comment = await _dbContext.MomentComments
-                .SingleAsync(item => item.Id == commentId, cancellationToken);
-
-            if (!comment.DeletedAt.HasValue)
+                    actorId,
+                    commentId,
+                    cancellationToken))
             {
-                comment.Body = "";
-                comment.DeletedAt = DateTimeOffset.UtcNow;
-                comment.DeletedByUserId = actorId;
-
-                // The spans pointed into the body just wiped; they go with it.
-                _dbContext.MomentCommentMentions.RemoveRange(
-                    await _dbContext.MomentCommentMentions
-                        .Where(mention => mention.CommentId == commentId)
-                        .ToListAsync(cancellationToken));
-
-                await _notifications.StageCommentNotificationWithdrawal(
-                    comment.AuthorUserId,
-                    momentId,
-                    commentId,
-                    cancellationToken);
-                await _notifications.StageCommentMentionNotificationWithdrawal(
-                    comment.AuthorUserId,
-                    momentId,
-                    commentId,
-                    cancellationToken);
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
 
@@ -444,12 +419,11 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         Guid momentId,
         CancellationToken cancellationToken)
     {
-        return SqlApplicationLock.AcquireAsync(
+        return MomentCommentRemoval.AcquirePairLockAsync(
             _dbContext,
             transaction,
-            $"mypetlink:moment-comment:{authorUserId:N}:{momentId:N}",
-            "comment_temporarily_unavailable",
-            "We couldn’t post your comment right now. Please try again.",
+            authorUserId,
+            momentId,
             cancellationToken);
     }
 
@@ -772,4 +746,94 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         string Handle,
         string DisplayName,
         MediaFile? Avatar);
+}
+
+/// <summary>
+/// The one way a Comment is removed — by its author, by the Moment's author,
+/// or by a MyPetLink moderator. The body is wiped, its mention rows go with it,
+/// and its unread Activity is withdrawn or retargeted, all staged on the
+/// caller's unit of work so the caller saves it together with anything else
+/// that belongs to the same decision (a moderator's report resolutions and
+/// audit row). The visible Comment count is read-time, so it drops as soon as
+/// that save commits.
+/// </summary>
+public static class MomentCommentRemoval
+{
+    /// <summary>
+    /// Stages the removal inside the caller's transaction, under the same
+    /// per-author/Moment lock Comment creation takes. Returns false, staging
+    /// nothing, when the Comment was already removed: removal never happens
+    /// twice and never brings content back.
+    /// </summary>
+    public static async Task<bool> StageAsync(
+        MyPetLinkDbContext dbContext,
+        IOwnerNotificationService notifications,
+        IDbContextTransaction? transaction,
+        Guid actorId,
+        Guid commentId,
+        CancellationToken cancellationToken)
+    {
+        // Author and Moment never change, so reading them before the lock is
+        // safe; everything that can change is read after it.
+        var pair = await dbContext.MomentComments
+            .AsNoTracking()
+            .Where(item => item.Id == commentId)
+            .Select(item => new { item.AuthorUserId, item.MomentId })
+            .SingleAsync(cancellationToken);
+
+        if (transaction is not null && dbContext.Database.IsSqlServer())
+        {
+            await AcquirePairLockAsync(dbContext, transaction, pair.AuthorUserId, pair.MomentId, cancellationToken);
+        }
+
+        var comment = await dbContext.MomentComments
+            .SingleAsync(item => item.Id == commentId, cancellationToken);
+
+        if (comment.DeletedAt.HasValue)
+        {
+            return false;
+        }
+
+        comment.Body = "";
+        comment.DeletedAt = DateTimeOffset.UtcNow;
+        comment.DeletedByUserId = actorId;
+
+        // The spans pointed into the body just wiped; they go with it.
+        dbContext.MomentCommentMentions.RemoveRange(
+            await dbContext.MomentCommentMentions
+                .Where(mention => mention.CommentId == commentId)
+                .ToListAsync(cancellationToken));
+
+        await notifications.StageCommentNotificationWithdrawal(
+            comment.AuthorUserId,
+            comment.MomentId,
+            commentId,
+            cancellationToken);
+        await notifications.StageCommentMentionNotificationWithdrawal(
+            comment.AuthorUserId,
+            comment.MomentId,
+            commentId,
+            cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Serializes everything that reads or writes one author's Comments on one
+    /// Moment: creating, removing, and the Activity row they share.
+    /// </summary>
+    public static Task AcquirePairLockAsync(
+        MyPetLinkDbContext dbContext,
+        IDbContextTransaction transaction,
+        Guid authorUserId,
+        Guid momentId,
+        CancellationToken cancellationToken)
+    {
+        return SqlApplicationLock.AcquireAsync(
+            dbContext,
+            transaction,
+            $"mypetlink:moment-comment:{authorUserId:N}:{momentId:N}",
+            "comment_temporarily_unavailable",
+            "We couldn’t post your comment right now. Please try again.",
+            cancellationToken);
+    }
 }

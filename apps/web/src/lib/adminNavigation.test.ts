@@ -30,6 +30,7 @@ describe("adminNavigation", () => {
       "Catalog",
       "Tag Operations",
       "Customers",
+      "Community",
       "Configuration",
       "Access Management",
       "System",
@@ -112,6 +113,14 @@ describe("adminNavigation", () => {
     expect(
       withInvoicesOnly.flatMap((group) => group.items.map((item) => item.label))
     ).toContain("Merchant Sales");
+  });
+
+  it("shows Community Reports only with its view capability", () => {
+    const labels = (access: AdminAccessCapabilities) => visibleAdminNavGroups(access)
+      .flatMap((group) => group.items.map((item) => item.label));
+    expect(labels(accessWith(adminCapabilities.communityReportsView))).toContain("Community Reports");
+    expect(labels(accessWith(adminCapabilities.communityReportsResolve))).not.toContain("Community Reports");
+    expect(requiredCapabilitiesForPath("/admin/community-reports")).toEqual([adminCapabilities.communityReportsView]);
   });
 
   it("hides Access Management from somebody who cannot see it", () => {

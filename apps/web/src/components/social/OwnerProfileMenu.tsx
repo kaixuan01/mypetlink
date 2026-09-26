@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { CommunityReportDialog } from "@/components/social/CommunityReportDialog";
+import { HouseholdBlockDialog } from "@/components/social/HouseholdBlockDialog";
 import { Icon } from "@/components/ui/Icon";
 import {
   getCurrentLocalDestination,
@@ -11,7 +13,6 @@ import {
 import { ownerSocialProfilePath } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import {
-  blockOwner,
   unblockOwner,
   type OwnerRelationship,
 } from "@/services/socialGraphService";
@@ -22,6 +23,7 @@ type OwnerProfileMenuProps = {
   relationship: OwnerRelationship;
   onChange: (relationship: OwnerRelationship) => void;
   signedIn: boolean | null;
+  reportEligible: boolean;
   /** Test seam; production falls back to a normal same-origin login navigation. */
   onAuthenticationRequired?: (loginPath: string) => void;
 };
@@ -44,10 +46,12 @@ export function OwnerProfileMenu({
   relationship,
   onChange,
   signedIn,
+  reportEligible,
   onAuthenticationRequired = navigateToLogin,
 }: OwnerProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<"block" | "unblock" | null>(null);
+  const [reporting, setReporting] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -85,15 +89,12 @@ export function OwnerProfileMenu({
   }, [open]);
 
   const run = useCallback(
-    async (action: "block" | "unblock") => {
+    async () => {
       setPending(true);
       setError(null);
 
       try {
-        const confirmed =
-          action === "block"
-            ? await blockOwner(handle)
-            : await unblockOwner(handle);
+        const confirmed = await unblockOwner(handle);
         onChange(confirmed);
         setConfirming(null);
       } catch (caught) {
@@ -134,7 +135,7 @@ export function OwnerProfileMenu({
           aria-expanded={open}
           aria-haspopup="menu"
           aria-label={`More options for ${displayName}`}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-pet-border bg-white text-pet-muted transition hover:bg-pet-cream focus:outline-none focus:ring-2 focus:ring-pet-teal"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-pet-border bg-white text-pet-muted transition hover:bg-pet-cream focus:outline-none focus:ring-2 focus:ring-pet-teal"
           data-testid="owner-profile-menu-trigger"
           onClick={() => setOpen((current) => !current)}
           ref={triggerRef}
@@ -164,8 +165,15 @@ export function OwnerProfileMenu({
                 Sign in to block @{handle}
               </Link>
             ) : (
+              <>
+              {reportEligible && !blocked ? <button
+                className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-bold text-pet-ink transition hover:bg-pet-cream focus:bg-pet-cream focus:outline-none"
+                onClick={() => { setOpen(false); setReporting(true); }}
+                role="menuitem"
+                type="button"
+              >Report household</button> : null}
               <button
-                className="flex min-h-10 w-full items-center rounded-xl px-3 text-left text-sm font-bold text-pet-ink transition hover:bg-pet-cream focus:bg-pet-cream focus:outline-none"
+                className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-bold text-pet-ink transition hover:bg-pet-cream focus:bg-pet-cream focus:outline-none"
                 onClick={() => {
                   setOpen(false);
                   setError(null);
@@ -176,44 +184,43 @@ export function OwnerProfileMenu({
               >
                 {blocked ? `Unblock @${handle}` : `Block @${handle}`}
               </button>
+              </>
             )}
           </div>
         ) : null}
       </div>
 
+      {reporting ? <CommunityReportDialog
+        canBlock={!relationship.hasBlocked}
+        onBlocked={onChange}
+        onClose={() => { setReporting(false); requestAnimationFrame(() => triggerRef.current?.focus()); }}
+        open
+        report={{ type: "household", target: handle, household: { handle, displayName } }}
+      /> : null}
+      <HouseholdBlockDialog
+        displayName={displayName}
+        handle={handle}
+        onAuthenticationRequired={() => onAuthenticationRequired(ownerLoginPath(getCurrentLocalDestination(ownerSocialProfilePath(handle))))}
+        onBlocked={onChange}
+        onClose={() => setConfirming(null)}
+        open={confirming === "block"}
+      />
       <ConfirmDialog
         cancelLabel="Keep as is"
         confirmDisabled={pending}
-        confirmLabel={confirming === "unblock" ? "Unblock" : "Block"}
-        destructive={confirming === "block"}
-        message={
-          confirming === "unblock"
-            ? `${displayName} will be able to see your profile and Moments again. They will not start following you again on their own.`
-            : `${displayName} won't be able to see your profile or your Moments, and you won't see theirs. If either of you follows the other, that stops now.`
-        }
+        confirmLabel="Unblock"
+        message={`${displayName} will be able to see your profile and Moments again. They will not start following you again on their own.`}
         onCancel={() => {
           if (!pending) {
             setConfirming(null);
             setError(null);
           }
         }}
-        onConfirm={() => confirming && void run(confirming)}
-        open={confirming !== null}
-        title={
-          confirming === "unblock"
-            ? `Unblock ${displayName}?`
-            : `Block ${displayName}?`
-        }
+        onConfirm={() => void run()}
+        open={confirming === "unblock"}
+        title={`Unblock ${displayName}?`}
       >
         <div className="space-y-3">
-          {confirming === "block" ? (
-            <p className="rounded-2xl bg-pet-cream p-3 text-sm font-semibold leading-6 text-pet-ink">
-              This only affects sharing. Your pets&rsquo; Safety Profiles keep
-              working exactly as they are, so anyone who finds a lost pet can
-              still reach you.
-            </p>
-          ) : null}
-
           {error ? (
             <p
               className="text-sm font-bold text-[#a63c2e]"

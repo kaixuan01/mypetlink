@@ -1,7 +1,8 @@
 # MyPetLink Social — foundation architecture
 
 **Status:** Community Phase 1 and Phase 2A Moment Comments are implemented.
-Replies, Comment likes, mentions, reporting and moderation remain future work.
+Phase 2E reporting and Admin moderation (E1–E4A) are implemented; the Admin
+moderation screens are not. Replies and Comment likes remain future work.
 
 This document describes what exists in the codebase today. The product proposal
 that preceded it is a separate artefact; where the two disagree, this file is
@@ -452,6 +453,7 @@ Nine social policies are now registered in `Program.cs` from
 | `social-collaboration-invite` | 20 / hour | inviting a household to collaborate on a Moment (accept/decline use `social-profile-mutation`; revoke/leave use `social-withdraw`; candidate search uses `social-search`) |
 | `social-moment-create` | 20 / hour | Phase 1E |
 | `social-search` | 30 / min | Phase 1J; also Comment mention suggestions |
+| `social-report` | 10 / hour | **`POST /social/reports`** — reporting a Comment, Moment or household |
 | `social-handle-availability` | 20 / min | **`GET /social/handles/{handle}/available`** |
 | `social-profile-mutation` | 20 / hour | **`PUT /social/me/profile`, `POST /social/me/handle`** |
 | `social-withdraw` | 200 / hour | unfollow, unlike, unblock, delete/remove Comment, **`PUT /social/me/pets/{petId}`** |
@@ -877,6 +879,191 @@ two characters are typed, discoverable households by prefix. An undiscoverable
 household appears only through one of those relationships. Block-aware in both
 directions, with the caller and the Moment's author.
 
+## 12g. Phase 2E Community moderation (E1 foundation)
+
+Reporting and moderation are Community-only. The operational rules are in
+[`../operations/community-moderation-runbook.md`](../operations/community-moderation-runbook.md);
+this section is the architecture.
+
+**Reports.** `CommunityReports` holds one household's report about a Comment,
+a Moment or a Household (Community Profile) — three targets only. Typed
+nullable keys (`CommentId`, `MomentId`) plus `ReportedUserId` for the
+responsible household, never a bare polymorphic id; `CK_CommunityReports_Target`
+allows exactly the key each target type needs. Reason is a controlled set
+(`SpamOrScam`, `HarassmentOrBullying`, `InappropriateContent`,
+`AnimalWelfareConcern`, `Impersonation`, `PrivacyConcern`, `Other`);
+details are optional plain text normalized like a Comment body, required for
+`Other`. Open/Resolved with a Resolution (`Dismissed`, `CommentRemoved`,
+`MomentHidden`, `HouseholdRestricted`) set only when resolved, RowVersion,
+and a filtered unique index allowing one open report per reporter per target.
+Each report carries a minimal public evidence snapshot (handle, display name,
+Moment title, Comment/caption/bio text, avatar reference) because the content
+may not survive review. Restrict keys throughout; nothing cascades.
+
+**Hidden by MyPetLink.** `PetMemories.ModeratedAt`/`ModeratedByUserId` is a
+moderation state separate from Visibility, archive and delete, so no owner
+action clears it. Every predicate that decides a Moment is public excludes it:
+`SociallyVisible` (and everything built on it), `VisibleComments`,
+`VisibleCollaboratorSubjects`, the Share Profile's Moments/Timeline query in
+`PublicProfileService`, and Explore's last-Moment signal. It reads like any
+unavailable Moment. `MemoryResponse.HiddenByMyPetLinkAt` tells the owner.
+
+**Community restriction.** `OwnerSocialProfiles.CommunityRestrictedAt`/
+`CommunityRestrictedByUserId`/`CommunityEnabledBeforeRestriction`. Restricting
+forces `IsSocialEnabled` off — which every one of the ~32 Community identity
+checks already requires, so no visibility rule needed a new clause — and
+`CK_OwnerSocialProfiles_CommunityRestriction` keeps it off while restricted.
+`OwnerSocialProfileService`, the only place the switch is ever turned on,
+refuses with `403 community_restricted`. Following and liking do not need the
+follower's own Community switch, so they check the restriction explicitly
+(`CommunityModeration.RequireNotRestrictedAsync`, same `403`); unfollowing and
+unliking are never refused. The owner's own choice is kept and
+restored on lift, including a switch-off made meanwhile, and discoverability
+is not cleared while Community is off by MyPetLink. It is never an account
+suspension: sign-in, Owner Portal, pets, Share/Safety Profiles, Smart Tags,
+Lost Mode and orders are untouched (the Share Profile's optional "shared by"
+Community link disappears, as whenever Community is off).
+
+**Transitions and audit.** `CommunityModeration` holds the only state
+changes (hide/unhide, restrict/lift). Moderator actions (E4A) append to the
+existing `AuditLog` with the action names in `CommunityModerationAudit`.
+
+**Access.** `community_reports.view` (a sensitive read, so the Read Only /
+Auditor template never gets it automatically), `community_reports.resolve`,
+`community_moderation.enforce`: Administrator all three, Owner Support view and
+resolve, Super Admin by grant-all. `AddCommunityModeration` adds the same
+grants to existing built-in roles.
+
+### Report submission (E2)
+
+`POST /api/v1/social/reports` — signed in, `social-report` (10 per hour per
+user; the limiter runs before any target is looked up), `no-store`.
+
+Request, all strings:
+
+| Field | Meaning |
+| --- | --- |
+| `targetType` | `comment`, `moment` or `household` (case-insensitive) |
+| `target` | the Comment id, the Moment id, or the household's @handle |
+| `reason` | exactly one of `SpamOrScam`, `HarassmentOrBullying`, `InappropriateContent`, `AnimalWelfareConcern`, `Impersonation`, `PrivacyConcern`, `Other` (case-insensitive); anything else is refused, never mapped to Other |
+| `details` | optional plain text, normalized like a Comment body, up to 500 characters; required for `Other` |
+
+Nothing else is read. The reporter is the session's account; the reported
+household and the evidence snapshot are resolved on the server from one read
+of the target, and a request cannot supply either.
+
+Response: `{ "accepted": true }` — the same for a first report and for a
+repeat of one still open. No report id, status, reporter, reported household
+or evidence is returned, and there is no endpoint to list one's reports.
+
+- **Who may report:** an Active account with a complete, enabled Community
+  identity (`401`, `403 account_inactive`, `403 community_profile_required`).
+  A restricted household has Community off, so it cannot report.
+- **What:** only a target the reporter can currently see under the normal rule
+  for that surface — `VisibleComments` on a Moment `VisibleTo` them;
+  `VisibleTo` for a Moment; for a household, its current handle with
+  Community on, a complete identity, an Active account and no block either
+  way. Everything else — missing, deleted, private, archived, hidden by
+  MyPetLink, blocked either way, Community off, restricted, inactive,
+  incomplete, a malformed id — is one identical `404 report_target_unavailable`.
+- **Who is reported:** a Comment's author, a Moment's author (never a
+  collaborator or another pet's owner), the household itself. Reporting your
+  own content is `422 report_own_content`. A Moment's author may report a
+  Comment on their own Moment.
+- **Idempotent:** one Open report per reporter per target. A repeat — double
+  tap, retry after a timeout, concurrent requests — leaves the existing report
+  untouched (reason, details, snapshot, time) and answers identically; a race
+  is settled by the filtered unique index. A resolved report is history, and a
+  new genuine report may follow it.
+- **Evidence:** handle, display name, and the Comment text / Moment title and
+  caption / profile bio and avatar reference, exactly as that one read saw
+  them — never rewritten afterwards.
+- **No side effect:** submitting blocks nobody and hides, removes, restricts
+  and notifies nothing; no audit row is written (the audit log records
+  moderator decisions, not reports).
+
+### Admin moderation (E4A)
+
+`AdminCommunityReportsController` at `api/v1/admin/community-reports`; every
+response is `no-store`. The queue and detail are `AdminCommunityReportQueryService`,
+the actions `AdminCommunityModerationService`. Admin endpoints are not on any
+social rate limit.
+
+| Endpoint | Capability (in addition to `community_reports.view`) |
+| --- | --- |
+| `GET /` — the queue | — |
+| `GET /{id}` — the detail | — |
+| `POST /{id}/dismiss` | `community_reports.resolve` |
+| `POST /{id}/remove-comment` | `community_reports.resolve` |
+| `POST /{id}/hide-moment`, `POST /{id}/unhide-moment` | `community_moderation.enforce` |
+| `POST /{id}/restrict-household`, `POST /{id}/lift-restriction` | `community_moderation.enforce` |
+
+**Queue.** Server-side paging (`page`, `pageSize` ≤ 100). Filters: `status`
+(`Open`/`Resolved`), `targetType`, `reason` (exact names, anything else is
+`400 validation_failed`), `reportedOwnerId`, `createdFrom`/`createdTo`. Open
+first, then newest. Each row carries the snapshot handle and name, the
+reported household and the reporter as they are now (id, handle, display
+name, Community on/restricted, account active — never e-mail, phone, finder
+or Safety details), and `openReportsOnTarget`, counted for the whole page in
+one grouped query.
+
+**Detail.** The report (reason, details, status, resolution, internal note,
+reviewer's name, `rowVersion`), the evidence exactly as stored, and — beside
+it, never merged — the target now: the Comment (body, removed, by whom, still
+publicly visible) and the Moment it is on; or the Moment (title, caption,
+visibility, archived, hidden, publicly visible, and its media by id and
+public URL — never object keys or bucket details); and the household's
+current Community state. Prior reports: the same target and the same
+reported household, 20 each, newest first, with totals. The reads are
+privileged: blocks, Community switch-offs, removal, hiding and restriction
+do not hide anything from a moderator, and none of this widens a public
+query. `availableActions` lists what the state allows; `involvesYou` marks a
+report the moderator's own household made. Reports about the moderator's own
+household are left out of their queue and their detail answers not found, so
+no operator learns who reported them; the actions refuse both cases with
+`403 moderation_conflict_of_interest`.
+
+**Actions.** The request is `{ note, rowVersion }` and nothing else is read.
+The note is required on every action (plain text, the Comment safe-text rule,
+up to 1000 characters). `rowVersion` is the report's, from the detail, and is
+required by the four actions that decide it. The moderator is the session's
+account; status, resolution and every "by" field are the server's.
+
+- A decision (Dismiss, Remove Comment, Hide Moment, Restrict household)
+  resolves **every Open report on the same target** — `CommunityReportTargets`
+  — with the same resolution, note, moderator and time. Nothing else: reports
+  about the same household's other Comments, Moments or profile stay open.
+- **Remove Comment** is `MomentCommentRemoval.StageAsync`, the one removal an
+  author or Moment author's delete also uses (body wiped, mentions removed,
+  unread Activity withdrawn or retargeted, count drops), with the moderator as
+  `DeletedByUserId`. Already removed → the reports are still decided
+  `CommentRemoved` and the answer is `AlreadyInEffect`; nothing is recreated.
+- **Hide Moment** sets the E1 moderation state. Activity (likes, Comments,
+  mentions, collaborations) about a hidden Moment is filtered out at read time
+  in `OwnerNotificationService.VisibleNotifications`, so it never deep-links
+  to a Moment nobody can open and it returns if the Moment is unhidden.
+  Hiding an already hidden Moment decides the reports (`AlreadyInEffect`).
+- **Restrict household** restricts the report's `ReportedUserId` — for a
+  Comment or Moment report, its author — and resolves that target's reports
+  `HouseholdRestricted` (the decision taken on them). Household reports about
+  the same household are a different target and stay open; deciding them
+  while the restriction stands converges (`AlreadyInEffect`).
+- **Unhide** and **Lift** restore through `CommunityModeration` and change no
+  report: decided reports stay decided. `409 moment_not_hidden` /
+  `409 household_not_restricted` when there is nothing to reverse.
+- A report already decided is `409 community_report_already_resolved`; an
+  action that does not fit the report's target is
+  `422 moderation_action_not_applicable`; a report involving the moderator's
+  own household is `403 moderation_conflict_of_interest`.
+- One transaction per action: the change, the report decisions and one
+  `AuditLog` row (`CommunityModerationAudit` names; old and new state, the
+  report and every report it resolved, the note) commit together. Actions on
+  one target serialize on a SQL Server application lock (target first, then
+  household); the clicked report saves against the client's row version and
+  every other row against the version read, so a concurrent moderator,
+  owner edit or Community switch makes the loser answer `409` with nothing
+  written. Nobody is notified.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
@@ -886,7 +1073,9 @@ Deliberately absent, to be added only in later phases:
   mentions in Moment captions
 - A collaborator section on household profiles ("With friends"), collaboration
   in Feed for a collaborator's followers, and private-Moment collaboration
-- Reporting and moderation workflows
+- Reporting and moderation beyond the Phase 2E scope: anonymous reporting,
+  appeals, automated thresholds, trust scores, media scanning, automated media
+  purge, report export, and full account suspension from Admin
 - Pet-level follow — evaluated, deferred; revisit with real engagement data
 - Any social email — a new consent category, not built
 

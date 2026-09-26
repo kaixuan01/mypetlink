@@ -131,6 +131,16 @@ export const adminNavGroups: AdminNavGroup[] = [
     ],
   },
   {
+    id: "community",
+    label: "Community",
+    items: [{
+      href: adminRoutes.communityReports,
+      label: "Community Reports",
+      icon: "shield",
+      requiredAnyCapabilities: [adminCapabilities.communityReportsView],
+    }],
+  },
+  {
     id: "configuration",
     label: "Configuration",
     items: [

@@ -29,6 +29,7 @@ import {
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useSignedIn } from "@/lib/useSignedIn";
+import { getOwnerSocialProfile } from "@/services/ownerSocialService";
 import {
   getOwnerRelationship,
   noRelationship,
@@ -82,7 +83,18 @@ export function OwnerSocialProfileView({
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
+  const [relationshipResolvedHandle, setRelationshipResolvedHandle] = useState("");
+  const [reportEligible, setReportEligible] = useState(false);
   const signedIn = useSignedIn();
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let active = true;
+    getOwnerSocialProfile()
+      .then(({ data }) => { if (active) setReportEligible(data.isSocialEnabled && data.canEnableSocial); })
+      .catch(() => { if (active) setReportEligible(false); });
+    return () => { active = false; };
+  }, [signedIn]);
 
   // A direct production request may already carry the household name from the
   // edge. Hold that exact title while the browser asks for the same profile,
@@ -166,10 +178,10 @@ export function OwnerSocialProfileView({
 
     getOwnerRelationship(handle)
       .then((loaded) => {
-        if (active) setRelationship(loaded);
+        if (active) { setRelationship(loaded); setRelationshipResolvedHandle(handle); }
       })
       .catch(() => {
-        if (active) setRelationship(noRelationship);
+        if (active) { setRelationship(noRelationship); setRelationshipResolvedHandle(handle); }
       });
 
     return () => {
@@ -342,7 +354,8 @@ export function OwnerSocialProfileView({
                 handle={profile.handle}
                 onChange={setRelationship}
                 relationship={relationship}
-                signedIn={signedIn}
+                reportEligible={reportEligible}
+                signedIn={signedIn && relationshipResolvedHandle.toLowerCase() !== handle.toLowerCase() ? null : signedIn}
               />
             </>
           )}

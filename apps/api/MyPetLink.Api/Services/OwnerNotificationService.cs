@@ -587,10 +587,11 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     /// <summary>
     /// The notifications this recipient may currently see.
     ///
-    /// Four things remove one: an actor who has left social, an actor whose
+    /// Five things remove one: an actor who has left social, an actor whose
     /// social identity is incomplete, an actor whose account is not Active
     /// (the same rule that takes their Community Profile, Moments and Comments
-    /// off Community), and a block in either direction. All four are read-time:
+    /// off Community), a block in either direction, and a Moment hidden by
+    /// MyPetLink. All five are read-time:
     /// rows are never deleted for them, so reinstatement restores the history. The block
     /// case is the one that matters — activity must never become the back door
     /// that hands somebody a blocked account's handle and a link to their
@@ -618,6 +619,11 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 && item.ActorUser.SocialProfile.DisplayName != null
                 && item.ActorUser.SocialProfile.DisplayName != ""
                 && item.Type != OwnerNotificationType.Unknown
+                // A Moment hidden by MyPetLink takes all of its Activity with
+                // it — likes, Comments, mentions and collaborations — so none
+                // of it links to a Moment nobody can open. Read-time like the
+                // rest: unhiding brings back whatever is otherwise still valid.
+                && (item.MomentId == null || item.Moment!.ModeratedAt == null)
                 && (item.Type == OwnerNotificationType.NewFollower
                     || item.Type == OwnerNotificationType.MomentLiked
                     || item.Type == OwnerNotificationType.MomentCommented

@@ -42,7 +42,7 @@ const base: OwnerRelationship = {
 
 function renderMenu(
   relationship: Partial<OwnerRelationship> = {},
-  options: { signedIn?: boolean | null } = {}
+  options: { signedIn?: boolean | null; reportEligible?: boolean } = {}
 ) {
   const onChange = vi.fn();
   const view = render(
@@ -52,6 +52,7 @@ function renderMenu(
       onAuthenticationRequired={mocks.push}
       onChange={onChange}
       relationship={{ ...base, ...relationship }}
+      reportEligible={options.reportEligible ?? true}
       signedIn={"signedIn" in options ? options.signedIn! : true}
     />
   );
@@ -69,6 +70,22 @@ afterEach(() => {
 });
 
 describe("OwnerProfileMenu", () => {
+  it("offers Report separately before Block for another household", () => {
+    renderMenu();
+    openMenu();
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Report household", "Block @tanfamily"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Report household" }));
+    expect(screen.getByRole("dialog", { name: "Report household" })).toBeTruthy();
+    expect(mocks.blockOwner).not.toHaveBeenCalled();
+  });
+
+  it("does not offer reporting before the viewer has an enabled Community identity", () => {
+    renderMenu({}, { reportEligible: false });
+    openMenu();
+    expect(screen.queryByRole("menuitem", { name: "Report household" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Block @tanfamily" })).toBeTruthy();
+  });
+
   it("keeps blocking out of the page's own actions", () => {
     renderMenu();
 
@@ -81,7 +98,7 @@ describe("OwnerProfileMenu", () => {
   it("asks before blocking, and says what blocking does not touch", () => {
     renderMenu();
     openMenu();
-    fireEvent.click(screen.getByRole("menuitem"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Block @tanfamily" }));
 
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText(/Block The Tan Family\?/)).toBeTruthy();
@@ -102,7 +119,7 @@ describe("OwnerProfileMenu", () => {
 
     const { onChange } = renderMenu();
     openMenu();
-    fireEvent.click(screen.getByRole("menuitem"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Block @tanfamily" }));
     fireEvent.click(screen.getByRole("button", { name: "Block" }));
 
     await waitFor(() => expect(mocks.blockOwner).toHaveBeenCalledWith("tanfamily"));
@@ -118,7 +135,7 @@ describe("OwnerProfileMenu", () => {
 
     const { onChange } = renderMenu();
     openMenu();
-    fireEvent.click(screen.getByRole("menuitem"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Block @tanfamily" }));
     fireEvent.click(screen.getByRole("button", { name: "Block" }));
 
     await screen.findByTestId("owner-profile-menu-error");
@@ -138,7 +155,7 @@ describe("OwnerProfileMenu", () => {
 
     expect(screen.getByRole("menuitem").textContent).toBe("Unblock @tanfamily");
 
-    fireEvent.click(screen.getByRole("menuitem"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Unblock @tanfamily" }));
 
     expect(screen.getByText(/will not start following you again/i)).toBeTruthy();
 
@@ -163,6 +180,7 @@ describe("OwnerProfileMenu", () => {
     const link = screen.getByTestId("owner-profile-block-signin");
 
     expect(link.textContent).toBe("Sign in to block @tanfamily");
+    expect(screen.queryByRole("menuitem", { name: "Report household" })).toBeNull();
     expect(link.getAttribute("href")).toBe(
       "/login?redirect=%2Fu%2Ftanfamily%3Fsource%3Dshared"
     );
@@ -177,7 +195,7 @@ describe("OwnerProfileMenu", () => {
 
     renderMenu();
     openMenu();
-    fireEvent.click(screen.getByRole("menuitem"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Block @tanfamily" }));
     fireEvent.click(screen.getByRole("button", { name: "Block" }));
 
     await waitFor(() =>

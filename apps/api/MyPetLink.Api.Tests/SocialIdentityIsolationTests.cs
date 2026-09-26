@@ -65,7 +65,8 @@ public sealed class SocialIdentityIsolationTests
             typeof(PublicMomentCollaborationResponse),
             typeof(MomentCommentMentionResponse),
             typeof(CommentMentionSuggestionsResponse),
-            typeof(CommentMentionSuggestionResponse)
+            typeof(CommentMentionSuggestionResponse),
+            typeof(CommunityReportReceivedResponse)
         };
 
         var offenders = new List<string>();
@@ -112,7 +113,8 @@ public sealed class SocialIdentityIsolationTests
                 typeof(PublicMomentCollaborationResponse),
                 typeof(MomentCommentMentionResponse),
                 typeof(CommentMentionSuggestionsResponse),
-                typeof(CommentMentionSuggestionResponse)
+                typeof(CommentMentionSuggestionResponse),
+                typeof(CommunityReportReceivedResponse)
             }
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)

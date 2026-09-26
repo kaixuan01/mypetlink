@@ -36,6 +36,20 @@ public sealed class PetMemory : AuditableEntity
     /// </summary>
     public DateTimeOffset? PublishedAt { get; set; }
 
+    /// <summary>
+    /// Hidden by MyPetLink. Set only by a moderator and cleared only by one: it
+    /// is deliberately separate from Visibility, archiving and deletion, which
+    /// all belong to the owner, so no owner action can undo it. While set, the
+    /// Moment is absent from every public surface — Community and the pet's
+    /// Share Profile alike — and is still the owner's to see and delete in the
+    /// Owner Portal.
+    /// </summary>
+    public DateTimeOffset? ModeratedAt { get; set; }
+
+    /// <summary>The Admin Portal user who hid it. Set exactly when <see cref="ModeratedAt"/> is.</summary>
+    public Guid? ModeratedByUserId { get; set; }
+    public User? ModeratedByUser { get; set; }
+
     // Like and comment counters are deliberately absent until the phases that
     // write them. MomentLike exists as schema only; nothing increments anything
     // yet, and a counter with no writer is a value that silently reads zero.

@@ -70,9 +70,9 @@ routes, both reachable by everyone by design:
 | Role | Covers |
 | --- | --- |
 | **Super Admin** | Everything, including access management. Only a Super Admin can grant or remove Super Admin. |
-| **Administrator** | Every operational area, plus commission accounting and payout preparation. Not payout settlement, commission reversal, commission rules, or access management. |
+| **Administrator** | Every operational area, plus commission accounting, payout preparation and Community moderation. Not payout settlement, commission reversal, commission rules, or access management. |
 | **Operations** | Orders, shipping, inventory, Smart Tags, customer support information, business configuration, and sales performance visibility. |
-| **Owner Support** | Customer-facing operational work. No sales, commission, payout or access management. |
+| **Owner Support** | Customer-facing operational work, and reviewing Community reports (not hiding Moments or restricting households). No sales, commission, payout or access management. |
 | **Sales** | Resellers, salespeople, referral credit, quotations, merchant orders, and commission visibility. No stock creation, payment approval or payouts. |
 | **Marketing** | Promotions, product and plan visibility, and the sample experience. No broad sales data, payment proofs, payouts, stock costs or access management. |
 | **Finance** | Payment approval, invoices and receipts, commission accounting, payout preparation and financial reporting. No payout settlement, commission reversal, commission-rule changes, stock creation, Smart Tag operations or access management. |
@@ -215,7 +215,11 @@ for the deployment steps.
 2. Describe it in `AdminCapabilityCatalog.cs` — the name and description are
    what an administrator reads when assigning it. Mark it `Sensitive` if it
    releases money, creates stock, changes who can administer the system, or
-   sends customer data out of the portal.
+   sends customer data out of the portal. A capability that only reads but
+   must not reach the Read Only / Auditor role automatically — such as
+   `community_reports.view`, which exposes reporter identity — uses
+   `SensitiveRead`: that template is built from every read that is not
+   sensitive.
 3. Put `[Authorize(Policy = AdminCapabilities.YourKey)]` on the endpoint.
 4. Add it to `adminCapabilities` in `apps/web/src/lib/adminCapabilities.ts` and
    gate the matching navigation entry or action.
