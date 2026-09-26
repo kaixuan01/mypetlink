@@ -141,12 +141,27 @@ the reviewer sees even after the content is edited, deleted or removed. No
 e-mail address, phone number, finder, Safety Profile or private detail is ever
 copied into a report, and media is referenced, not copied.
 
-Report records and their snapshots are kept as moderation history. **Retention
-is an open decision that must be made before Community moderation goes to
-Production (Phase 2E E6):** there is no approved retention period yet, and
-nothing deletes or anonymises old reports automatically. Until one is agreed
-by product and operations (with legal advice where needed), do not delete
-reports by hand.
+## Retention (Early Launch decision)
+
+This is a temporary product and operations decision, recorded at the Phase 2E
+release audit (E6). It is not a legal conclusion.
+
+- **Kept during Early Launch.** Community moderation reports and their evidence
+  — reporter, reason, details, snapshot, decision and internal note — are
+  retained for the Early Launch period. The audit history of moderation
+  decisions is kept with them.
+- **Nothing is deleted or anonymised automatically.** No retention, deletion or
+  anonymisation job runs. Do not delete or edit reports by hand.
+- **Review no later than 31 March 2027**, or earlier if operational or privacy
+  requirements change. That review decides, for resolved reports, whether to:
+  - keep retaining them;
+  - delete them after a defined period; or
+  - anonymise selected reporter or evidence fields.
+- **Still to do outside this decision:** how reports are described in the
+  privacy policy and treated under PDPA (including access and deletion
+  requests) is an operational and legal follow-up. There is no account
+  deletion flow yet; when one is designed it must decide what happens to
+  reports made by, or about, the account.
 
 ## Admin access
 
@@ -203,3 +218,51 @@ There is no automated purge in V1.
 If a report suggests someone is in immediate danger, or an animal is being
 harmed right now, act on the content first (hide or restrict) and escalate to
 the operator immediately rather than waiting for the normal queue.
+
+## Releasing Phase 2E
+
+Pushing `main` deploys the API and the web app within minutes; the database
+migration is **not** applied automatically. The new API reads the moderation
+columns in every Community query, so it cannot run against the old schema. The
+old API runs safely against the new schema (the change is additive). The order
+is therefore fixed:
+
+1. Back up Production, then apply the root `migration.sql` in one `sqlcmd`
+   session with `migration-session-settings.sql` (see
+   `docs/deployment/release-checklist.md`).
+2. Verify the schema and grants: `CommunityReports` exists; `PetMemories` has
+   `ModeratedAt`/`ModeratedByUserId`; `OwnerSocialProfiles` has the three
+   restriction columns; no Moment is hidden, no household restricted, no
+   report exists; and exactly five new grants — Administrator
+   `community_reports.view`, `community_reports.resolve`,
+   `community_moderation.enforce`; Owner Support `community_reports.view`,
+   `community_reports.resolve`. Auditor is unchanged.
+3. Only then merge and push `main`.
+4. Wait for the API and web deployments, and confirm the API health endpoint
+   and the web app respond.
+5. Run the smoke checklist below.
+
+**Between steps 1 and 4, do not edit the Administrator or Owner Support role
+in Access Management.** The old Admin Portal does not know the new
+capabilities, so saving either role from it would remove the grants the
+migration added. After deployment, check the five grants again.
+
+### Production smoke checklist
+
+Use only controlled MyPetLink QA accounts and QA-owned content.
+
+- As a QA household with Community on: open Feed and a QA Moment; report a
+  QA-owned Comment (or the QA Moment) with any reason; see the private
+  confirmation; the content is still shown.
+- As an Administrator: open Admin → Community Reports; the QA report is listed
+  with the right reported household and reporter; open it; Evidence and
+  Current state both render as plain text; Dismiss it with an internal note;
+  the report shows Dismissed and the audit history has one
+  `CommunityReportDismissed` row.
+- As Owner Support: the queue opens; Hide Moment and Restrict household are
+  not offered.
+- Do not Hide, Remove, Restrict or Lift anything that belongs to a customer.
+  Exercise those only on dedicated QA content, if at all.
+- Unchanged surfaces: a QA pet's Share Profile, its Safety Profile, a QA
+  Smart Tag through `/q`, `/n` and `/t`, and the Owner Portal (dashboard,
+  pets, a Moment, orders) all load normally with no moderation wording.
