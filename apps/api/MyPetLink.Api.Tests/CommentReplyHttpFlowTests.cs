@@ -264,6 +264,33 @@ public sealed class CommentReplyHttpFlowTests
     }
 
     [Fact]
+    public async Task EmojiTravelsThroughTheRequestAndResponseUnchanged()
+    {
+        await using var world = await World.CreateAsync();
+        using var gina = world.As(Gina);
+
+        foreach (var (body, parentId) in new (string, Guid?)[]
+        {
+            ("😎😎", world.ParentId),
+            ("Bosskuuuuu 😍", world.ParentId),
+            ("👨‍👩‍👧‍👦 👍🏽", null)
+        })
+        {
+            var response = await gina.PostAsJsonAsync(
+                $"/api/v1/social/moments/{world.MomentId}/comments",
+                new { body, parentCommentId = parentId });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var comment = Data(await response.Content.ReadAsStringAsync()).GetProperty("comment");
+            Assert.Equal(body, comment.GetProperty("body").GetString(), StringComparer.Ordinal);
+
+            var id = comment.GetProperty("id").GetGuid();
+            var row = await world.ReadAsync(db => db.MomentComments.AsNoTracking().SingleAsync(item => item.Id == id));
+            Assert.Equal(body, row.Body, StringComparer.Ordinal);
+            Assert.Equal(parentId, row.ParentCommentId);
+        }
+    }
+
+    [Fact]
     public async Task EveryUnavailableParentLooksTheSameAndAReplyIsNeverAParent()
     {
         await using var world = await World.CreateAsync();

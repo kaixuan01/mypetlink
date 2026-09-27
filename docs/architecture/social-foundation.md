@@ -1234,6 +1234,12 @@ forces every such race both ways on SQL Server).
 null, normalized body, 60 seconds)`, under the existing per-author/Moment
 application lock, so the same words at top level and under two different
 parents are three Comments, and a double submit in one thread is one.
+"The same body" is an exact (ordinal) match. The database's default collation
+gives emoji outside the Basic Multilingual Plane no weight, so SQL Server alone
+would call `hello 😎` equal to `hello` and `😎` equal to an empty string; the
+guard confirms every SQL candidate in code, and `CK_MomentComments_DeletionState`
+measures `DATALENGTH([Body])` rather than comparing with `N''`
+(`CommentUnicodeRelationalTests`).
 
 **Rate limit.** Replies spend the same `social-comment` allowance as
 Comments (20 per 10 minutes per account) — one route, one policy, one bucket.

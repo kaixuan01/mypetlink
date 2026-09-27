@@ -244,8 +244,11 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
 
             // A retry is the same text by the same author in the same place:
             // the same thread, or top level. The pair lock above covers both.
+            // "The same text" is exact. SQL Server's comparison only narrows
+            // the candidates: its default collation ignores case, trailing
+            // spaces and emoji, so "hello 😎" would match "hello" there.
             var now = DateTimeOffset.UtcNow;
-            var duplicate = await _dbContext.MomentComments
+            var candidates = await _dbContext.MomentComments
                 .Where(comment => comment.AuthorUserId == actorId
                     && comment.MomentId == momentId
                     && comment.ParentCommentId == parentId
@@ -254,7 +257,10 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                     && comment.Body == body)
                 .OrderByDescending(comment => comment.CreatedAt)
                 .ThenByDescending(comment => comment.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+                .Select(comment => new { comment.Id, comment.Body })
+                .ToListAsync(cancellationToken);
+            var duplicate = candidates.FirstOrDefault(
+                candidate => string.Equals(candidate.Body, body, StringComparison.Ordinal));
 
             if (duplicate is not null)
             {

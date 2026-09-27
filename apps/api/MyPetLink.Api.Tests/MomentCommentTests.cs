@@ -32,6 +32,38 @@ public sealed class MomentCommentTests
         Assert.Throws<ApiException>(() => MomentCommentBodyRules.RequireValid("\u200B\u2066"));
     }
 
+    [Theory]
+    [InlineData("\uD83D\uDE0E")]
+    [InlineData("\uD83D\uDE0E\uD83D\uDE0E")]
+    [InlineData("hello \uD83D\uDE0E")]
+    [InlineData("\u4E2D\u6587 \uD83D\uDE0E")]
+    [InlineData("\u2764\uFE0F")]
+    [InlineData("\uD83D\uDC36\uD83D\uDC31")]
+    [InlineData("\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66")]
+    [InlineData("\uD83D\uDC4D\uD83C\uDFFD")]
+    public void BodyRules_KeepEveryEmojiExactlyAsTyped(string body)
+    {
+        Assert.Equal(body, MomentCommentBodyRules.RequireValid(body));
+    }
+
+    [Fact]
+    public void BodyRules_CountTheLimitInUtf16CodeUnitsWithoutSplittingAnEmoji()
+    {
+        // \uD83D\uDE0E is two UTF-16 code units, as a browser textarea's maxLength counts it.
+        var full = string.Concat(Enumerable.Repeat("\uD83D\uDE0E", 250));
+        Assert.Equal(full, MomentCommentBodyRules.RequireValid(full));
+        Assert.Equal(
+            "comment_body_too_long",
+            Assert.Throws<ApiException>(() => MomentCommentBodyRules.RequireValid(full + "a")).Code);
+        Assert.Equal(
+            "comment_body_too_long",
+            Assert.Throws<ApiException>(() =>
+                MomentCommentBodyRules.RequireValid(new string('a', 499) + "\uD83D\uDE0E")).Code);
+        Assert.Equal(
+            "comment_body_required",
+            Assert.Throws<ApiException>(() => MomentCommentBodyRules.RequireValid("\uFE0F")).Code);
+    }
+
     [Fact]
     public async Task AnonymousCanReadButNeedsSignInToComment()
     {

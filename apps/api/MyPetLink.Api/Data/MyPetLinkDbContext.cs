@@ -1894,9 +1894,13 @@ public sealed class MyPetLinkDbContext : DbContext
         {
             entity.ToTable("MomentComments", table =>
             {
+                // DATALENGTH, not [Body] <> N'': the database's default
+                // collation gives emoji outside the Basic Multilingual Plane
+                // no weight, so N'😎' = N'' there and an emoji-only Comment
+                // would be refused.
                 table.HasCheckConstraint(
                     "CK_MomentComments_DeletionState",
-                    "([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND [Body] <> N'') OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND [Body] = N'')");
+                    "([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND DATALENGTH([Body]) > 0) OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND DATALENGTH([Body]) = 0)");
 
                 // The one Reply rule a single row can state. "The parent is a
                 // top-level Comment on the same Moment" spans two rows, so it

@@ -10574,3 +10574,37 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927172348_AllowEmojiOnlyCommentBodies'
+)
+BEGIN
+    ALTER TABLE [MomentComments] DROP CONSTRAINT [CK_MomentComments_DeletionState];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927172348_AllowEmojiOnlyCommentBodies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [MomentComments] ADD CONSTRAINT [CK_MomentComments_DeletionState] CHECK (([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND DATALENGTH([Body]) > 0) OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND DATALENGTH([Body]) = 0))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927172348_AllowEmojiOnlyCommentBodies'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260927172348_AllowEmojiOnlyCommentBodies', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
