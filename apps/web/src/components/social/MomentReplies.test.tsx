@@ -77,6 +77,30 @@ describe("One-level Reply threads", () => {
     expect(screen.queryByRole("button", { name: /View.*replies/ })).toBeNull();
   });
 
+  it("offers Reply on a Comment with no Replies yet to every eligible viewer and posts to that Comment", async () => {
+    const empty = { ...parent, replyCount: 0 };
+    const roles: [string, MomentComment][] = [
+      ["a signed-in viewer", { ...empty, viewerDeleteAction: null }],
+      ["the Moment's author", { ...empty, viewerDeleteAction: "remove" }],
+      ["the Comment's own author", { ...empty, author: viewer.identity, viewerDeleteAction: "delete" }],
+    ];
+    for (const [role, comment] of roles) {
+      vi.resetAllMocks();
+      auth();
+      mocks.get.mockResolvedValue(page([comment], 1));
+      mocks.create.mockResolvedValue({ comment: { ...reply, body: `Reply from ${role}` }, commentCount: 2, parentCommentId: parentId, parentReplyCount: 1 });
+      mount();
+      const action = await screen.findByRole("button", { name: `Reply to ${comment.author.displayName}` });
+      expect(action.textContent, role).toBe("Reply");
+      expect(screen.queryByRole("button", { name: /View.*replies/ }), role).toBeNull();
+      fireEvent.click(action);
+      fireEvent.change(await screen.findByLabelText("Add a reply"), { target: { value: `Reply from ${role}` } });
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      await waitFor(() => expect(mocks.create, role).toHaveBeenCalledWith("moment-1", `Reply from ${role}`, parentId));
+      cleanup();
+    }
+  });
+
   it("keeps the parent usable during loading, announces completion and retries inline", async () => {
     const pending = deferred<ReturnType<typeof replyPage>>();
     mocks.replies.mockReturnValueOnce(pending.promise).mockRejectedValueOnce(new Error("offline")).mockResolvedValue(replyPage());
