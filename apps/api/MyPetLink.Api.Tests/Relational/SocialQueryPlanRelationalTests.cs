@@ -216,6 +216,247 @@ public sealed class SocialQueryPlanRelationalTests
         Assert.Equal(forOne, forThirty);
     }
 
+    /// <summary>
+    /// Every Comment read on a Reply-heavy database — a thread, one thread's
+    /// Replies, and the batched Comment counts on a page of Moment cards —
+    /// seeks the thread index and never scans the Comments table.
+    ///
+    /// The card count is the one this guards hardest. With the parent rule
+    /// written as a correlated EXISTS inside an OR, SQL Server stopped seeking
+    /// by the page's Moment ids and scanned every Comment instead: about 447,000
+    /// logical reads for a 30-card page against about 4,400 before Replies. The
+    /// parent is now a join on its primary key, and a scan here fails the test.
+    /// </summary>
+    [RelationalFact]
+    public async Task ReplyReads_SeekTheThreadIndexAndNeverScanComments()
+    {
+        var capture = new CapturingCommandInterceptor();
+        await using var scope = await RelationalDatabase.CreateAsync(capture);
+        await SeedAsync(scope, withMoments: true);
+        var seeded = await SeedCommentsAsync(scope);
+
+        await using var context = scope.NewContext();
+        var r2 = Options.Create(new CloudflareR2Options());
+        var comments = new MomentCommentService(context, new OwnerNotificationService(context, r2), r2);
+        var discovery = new SocialDiscoveryService(context, r2, NewProjection(context));
+
+        var reads = new (string Label, Func<Task> Read)[]
+        {
+            ("thread", () => comments.GetAsync(seeded.HotMomentId, ViewerId, null, null)),
+            ("replies", () => comments.GetRepliesAsync(seeded.HotMomentId, seeded.BusyParentId, ViewerId, null, null)),
+            ("cards", () => discovery.GetLatestMomentsAsync(ViewerId, null, null, 30))
+        };
+
+        foreach (var (label, read) in reads)
+        {
+            capture.Reset();
+            await read();
+            var commentCommands = capture.Commands
+                .Where(command => command.CommandText.Contains("[MomentComments]", StringComparison.Ordinal))
+                .ToArray();
+            Assert.NotEmpty(commentCommands);
+            _output.WriteLine($"{label}: {capture.Commands.Count} round trips");
+
+            var all = new List<string>();
+            foreach (var command in commentCommands)
+            {
+                var accesses = Accesses(await ExplainAsync(context, command), "MomentComments");
+                _output.WriteLine($"  {await LogicalReadsAsync(context, command)}");
+                _output.WriteLine($"  MomentComments: {string.Join("; ", accesses)}");
+
+                Assert.DoesNotContain(accesses, access => access.Contains("Scan", StringComparison.Ordinal));
+                all.AddRange(accesses);
+            }
+
+            // The page, the counts and the Reply counts all ride the thread
+            // index; a mention lookup only touches Comments by primary key.
+            Assert.Contains(
+                "Index Seek [MomentComments] [IX_MomentComments_MomentId_ParentCommentId_CreatedAt_Id]",
+                all);
+        }
+    }
+
+    [RelationalFact]
+    public async Task ReplyCounts_AreOneBatchedQueryWhateverThePageSize()
+    {
+        var capture = new CapturingCommandInterceptor();
+        await using var scope = await RelationalDatabase.CreateAsync(capture);
+        await SeedAsync(scope, withMoments: true);
+        var seeded = await SeedCommentsAsync(scope);
+
+        await using var context = scope.NewContext();
+        var r2 = Options.Create(new CloudflareR2Options());
+        var comments = new MomentCommentService(context, new OwnerNotificationService(context, r2), r2);
+
+        async Task<(int Trips, int ReplyCountQueries, int Items)> Measure(int pageSize)
+        {
+            capture.Reset();
+            var page = await comments.GetAsync(seeded.HotMomentId, ViewerId, null, pageSize);
+            return (
+                capture.Commands.Count,
+                capture.Commands.Count(command =>
+                    command.CommandText.Contains("GROUP BY [m].[ParentCommentId]", StringComparison.Ordinal)),
+                page.Items.Count);
+        }
+
+        var one = await Measure(1);
+        var full = await Measure(20);
+        _output.WriteLine($"thread round trips: 1 item = {one.Trips}, {full.Items} items = {full.Trips}");
+
+        Assert.Equal(20, full.Items);
+        Assert.Equal(one.Trips, full.Trips);
+        Assert.Equal(1, one.ReplyCountQueries);
+        Assert.Equal(1, full.ReplyCountQueries);
+
+        capture.Reset();
+        await comments.GetRepliesAsync(seeded.HotMomentId, seeded.BusyParentId, ViewerId, null, 1);
+        var replyTrips = capture.Commands.Count;
+        capture.Reset();
+        await comments.GetRepliesAsync(seeded.HotMomentId, seeded.BusyParentId, ViewerId, null, 30);
+        Assert.Equal(replyTrips, capture.Commands.Count);
+    }
+
+    private const int CommentedMoments = 2_000;
+
+    private sealed record SeededComments(Guid HotMomentId, Guid BusyParentId);
+
+    /// <summary>
+    /// Comments on every Moment — ten top-level Comments, each with two
+    /// Replies, about 60,000 rows in all — so a page of cards reads a sliver of
+    /// the table, as it does in production; and one busy Moment, the newest,
+    /// with 150 top-level Comments, 40 of them with threads of up to 30
+    /// Replies, some deleted.
+    /// </summary>
+    private static async Task<SeededComments> SeedCommentsAsync(RelationalScope scope)
+    {
+        await using var context = scope.NewContext();
+        var moments = await context.PetMemories.AsNoTracking()
+            .OrderByDescending(moment => moment.PublishedAt)
+            .Select(moment => new { moment.Id, moment.AuthorUserId })
+            .Take(CommentedMoments)
+            .ToListAsync();
+        var authors = await context.Users.AsNoTracking()
+            .Where(user => user.Id != ViewerId)
+            .Select(user => user.Id)
+            .Take(300)
+            .ToListAsync();
+        var start = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
+        var random = new Random(20260927);
+        var rows = new List<MomentComment>();
+
+        MomentComment Add(Guid momentId, Guid? parentId, int minutes, bool deleted = false)
+        {
+            var authorId = authors[random.Next(authors.Count)];
+            var row = new MomentComment
+            {
+                MomentId = momentId,
+                ParentCommentId = parentId,
+                AuthorUserId = authorId,
+                Body = deleted ? "" : $"Comment {rows.Count}",
+                CreatedAt = start.AddMinutes(minutes),
+                DeletedAt = deleted ? start.AddMinutes(minutes + 1) : null,
+                DeletedByUserId = deleted ? authorId : null
+            };
+            rows.Add(row);
+            return row;
+        }
+
+        foreach (var moment in moments.Skip(1))
+        {
+            for (var index = 0; index < 10; index += 1)
+            {
+                var parent = Add(moment.Id, null, index * 10);
+                Add(moment.Id, parent.Id, index * 10 + 1);
+                Add(moment.Id, parent.Id, index * 10 + 2);
+            }
+        }
+
+        var hot = moments[0].Id;
+        Guid busy = Guid.Empty;
+        for (var index = 0; index < 150; index += 1)
+        {
+            var parent = Add(hot, null, index * 100, deleted: index % 25 == 24);
+            if (index % 150 < 40)
+            {
+                var replies = index == 7 ? 30 : 1 + index % 12;
+                for (var reply = 0; reply < replies; reply += 1)
+                {
+                    Add(hot, parent.Id, index * 100 + reply, deleted: reply % 9 == 8);
+                }
+            }
+
+            if (index == 7)
+            {
+                busy = parent.Id;
+            }
+        }
+
+        context.MomentComments.AddRange(rows);
+        await context.SaveChangesAsync();
+        await context.Database.ExecuteSqlRawAsync("UPDATE STATISTICS [MomentComments]");
+        return new SeededComments(hot, busy);
+    }
+
+    /// <summary>
+    /// Every access the plan makes to one table: the physical operator and the
+    /// index it uses.
+    /// </summary>
+    private static IReadOnlyList<string> Accesses(string planXml, string table)
+    {
+        var plan = System.Xml.Linq.XDocument.Parse(planXml);
+        return plan.Descendants()
+            .Where(element => element.Name.LocalName == "RelOp")
+            .Select(relOp => new
+            {
+                Op = (string?)relOp.Attribute("PhysicalOp"),
+                Access = relOp.Elements().FirstOrDefault(child =>
+                    child.Name.LocalName is "IndexScan" or "TableScan")
+            })
+            .Where(item => item.Access is not null)
+            .Select(item => new
+            {
+                item.Op,
+                Object = item.Access!.Elements().FirstOrDefault(child => child.Name.LocalName == "Object")
+            })
+            .Where(item => (string?)item.Object?.Attribute("Table") == $"[{table}]")
+            .Select(item => $"{item.Op} {(string?)item.Object!.Attribute("Table")} {(string?)item.Object!.Attribute("Index")}")
+            .ToArray();
+    }
+
+    /// <summary>Logical reads per table for one captured command, from STATISTICS IO.</summary>
+    private static async Task<string> LogicalReadsAsync(MyPetLinkDbContext context, CapturedCommand command)
+    {
+        var batch = new System.Text.StringBuilder("SET STATISTICS IO ON;\n");
+        foreach (var parameter in command.Parameters)
+        {
+            batch.AppendLine(Declare(parameter));
+        }
+
+        batch.AppendLine(command.CommandText);
+        var messages = new List<string>();
+        await using var connection = new SqlConnection(context.Database.GetConnectionString());
+        connection.InfoMessage += (_, args) => messages.Add(args.Message);
+        await connection.OpenAsync();
+        await using var run = connection.CreateCommand();
+        run.CommandText = batch.ToString();
+        await using (var reader = await run.ExecuteReaderAsync())
+        {
+            do
+            {
+                while (await reader.ReadAsync())
+                {
+                }
+            }
+            while (await reader.NextResultAsync());
+        }
+
+        var reads = Regex.Matches(string.Join("\n", messages), @"Table '([^']+)'\. Scan count (\d+), logical reads (\d+)")
+            .Select(match => (Table: match.Groups[1].Value, Reads: int.Parse(match.Groups[3].Value)))
+            .ToArray();
+        return $"logical reads total={reads.Sum(item => item.Reads)}; "
+            + string.Join(", ", reads.Where(item => item.Reads > 0).Select(item => $"{item.Table}={item.Reads}"));
+    }
+
     // ---- plumbing -------------------------------------------------------
 
     private static SocialMomentProjection NewProjection(MyPetLinkDbContext context)
