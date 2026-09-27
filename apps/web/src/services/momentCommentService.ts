@@ -42,7 +42,8 @@ export type CommentMentionSuggestions = {
 
 export type MomentCommentViewer = {
   canComment: boolean;
-  requirement: "signIn" | "communityProfile" | null;
+  /** Why this viewer cannot comment. "communityRestricted" means Community access is paused — never a setup prompt. */
+  requirement: "signIn" | "communityProfile" | "communityRestricted" | null;
   identity: PublicOwnerAttribution | null;
 };
 
@@ -85,11 +86,15 @@ export type MomentCommentErrorReason =
   | "rate-limit"
   | "session"
   | "community-profile"
+  | "community-restricted"
   | "forbidden"
   | "unavailable"
   | "parent-unavailable"
   | "parent-invalid"
   | "error";
+
+/** Shown to a household whose Community access MyPetLink has paused. Deliberately says nothing about why. */
+export const COMMUNITY_PAUSED_MESSAGE = "Community access is currently paused.";
 
 export class MomentCommentError extends Error {
   constructor(
@@ -265,6 +270,9 @@ function mapCommentError(error: unknown): MomentCommentError {
       "community-profile",
       "Set up your Community profile to comment."
     );
+  }
+  if (apiError.code === "community_restricted") {
+    return new MomentCommentError("community-restricted", COMMUNITY_PAUSED_MESSAGE);
   }
   if (apiError.status === 403) {
     return new MomentCommentError("forbidden", apiError.message);

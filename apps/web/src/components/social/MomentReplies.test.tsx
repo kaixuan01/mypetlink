@@ -134,6 +134,45 @@ describe("One-level Reply threads", () => {
     expect(within(dialog).getByText("This reply will be permanently removed.")).toBeTruthy();
   });
 
+  it("tells each household the real reason it cannot comment or reply", async () => {
+    const cases: [string, typeof viewer | { canComment: false; requirement: "signIn" | "communityProfile" | "communityRestricted"; identity: null }, string | null][] = [
+      ["eligible", viewer, null],
+      ["anonymous", { canComment: false, requirement: "signIn", identity: null }, "Sign in to comment"],
+      ["no or switched-off Community profile", { canComment: false, requirement: "communityProfile", identity: null }, "Set up your Community profile to comment"],
+      ["restricted", { canComment: false, requirement: "communityRestricted", identity: null }, "Community access is currently paused."],
+    ];
+    for (const [who, state, text] of cases) {
+      vi.resetAllMocks();
+      mocks.get.mockResolvedValue({ ...page(), viewer: state });
+      mount();
+      await screen.findByText("Parent text");
+      if (text) expect(screen.getByText(text), who).toBeTruthy();
+      else expect(screen.getByLabelText("Add a comment"), who).toBeTruthy();
+      expect(Boolean(screen.queryByRole("button", { name: "Reply to Amy" })), who).toBe(state.canComment);
+      if (who === "restricted") {
+        expect(screen.queryByText(/Set up your Community profile|Sign in to comment/)).toBeNull();
+        expect(screen.queryByLabelText("Add a comment")).toBeNull();
+      }
+      cleanup();
+    }
+  });
+
+  it.each(["comment", "reply"] as const)("shows the paused message, not a setup prompt, when a %s is refused for a restriction", async (kind) => {
+    auth();
+    mocks.create.mockRejectedValue(new MomentCommentError("community-restricted", "Community access is currently paused."));
+    mount();
+    await screen.findByText("Parent text");
+    if (kind === "reply") fireEvent.click(screen.getByRole("button", { name: "Reply to Amy" }));
+    fireEvent.change(await screen.findByLabelText(kind === "reply" ? "Add a reply" : "Add a comment"), { target: { value: "Hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Community access is currently paused.")).toBeTruthy();
+    expect(mocks.create.mock.calls[0].slice(0, 2)).toEqual(["moment-1", "Hello"]);
+    expect(mocks.create.mock.calls[0][2] ?? null).toBe(kind === "reply" ? parentId : null);
+    expect(screen.queryByText(/Set up your Community profile/)).toBeNull();
+    expect(screen.queryByText(/Couldn’t post reply|couldn’t post your comment/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reply to Amy" })).toBeNull();
+  });
+
   it("keeps the parent usable during loading, announces completion and retries inline", async () => {
     const pending = deferred<ReturnType<typeof replyPage>>();
     mocks.replies.mockReturnValueOnce(pending.promise).mockRejectedValueOnce(new Error("offline")).mockResolvedValue(replyPage());

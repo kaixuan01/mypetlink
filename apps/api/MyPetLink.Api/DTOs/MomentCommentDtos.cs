@@ -59,7 +59,10 @@ public sealed record CommentMentionSuggestionResponse(
 
 public sealed record MomentCommentViewerResponse(
     bool CanComment,
-    /// <summary>"signIn", "communityProfile", or null.</summary>
+    /// <summary>
+    /// "signIn", "communityProfile", "communityRestricted" (Community access is
+    /// paused by MyPetLink — never "set up your profile"), or null.
+    /// </summary>
     string? Requirement,
     PublicOwnerAttributionResponse? Identity);
 

@@ -607,6 +607,10 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                 "This account cannot comment.");
         }
 
+        // A restriction turns Community off, so it would otherwise read as a
+        // missing profile and invite the household to set one up.
+        await CommunityModeration.RequireNotRestrictedAsync(_dbContext, actorId, cancellationToken);
+
         if (!state.HasProfile)
         {
             throw new ApiException(
@@ -646,7 +650,12 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
 
         if (profile is null)
         {
-            return new MomentCommentViewerResponse(false, "communityProfile", null);
+            return new MomentCommentViewerResponse(
+                false,
+                await CommunityModeration.IsRestrictedAsync(_dbContext, viewerId.Value, cancellationToken)
+                    ? "communityRestricted"
+                    : "communityProfile",
+                null);
         }
 
         return new MomentCommentViewerResponse(

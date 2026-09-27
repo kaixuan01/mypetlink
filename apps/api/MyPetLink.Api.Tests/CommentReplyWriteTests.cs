@@ -195,21 +195,28 @@ public sealed class CommentReplyWriteTests
         var anonymous = await Codes(null);
         Assert.Equal("401|unauthorized", anonymous.Reply);
 
-        var communityOff = await Codes(Dave);
+        var noProfile = await Codes(Dave);
+        Assert.Equal("403|community_profile_required", noProfile.Reply);
+
+        // Switched off by the household itself: turning it back on is theirs to do.
+        (await harness.Db.OwnerSocialProfiles.SingleAsync(profile => profile.UserId == Bob)).IsSocialEnabled = false;
+        await harness.Db.SaveChangesAsync();
+        var communityOff = await Codes(Bob);
         Assert.Equal("403|community_profile_required", communityOff.Reply);
 
+        // Paused by MyPetLink: never "set up your profile".
         var carol = await harness.Db.OwnerSocialProfiles.SingleAsync(profile => profile.UserId == Carol);
         CommunityModeration.RestrictHousehold(carol, Alice, DateTimeOffset.UtcNow);
         await harness.Db.SaveChangesAsync();
         var restricted = await Codes(Carol);
-        Assert.Equal("403|community_profile_required", restricted.Reply);
+        Assert.Equal("403|community_restricted", restricted.Reply);
 
         (await harness.Db.Users.FindAsync(Erin))!.Status = UserStatus.Suspended;
         await harness.Db.SaveChangesAsync();
         var suspended = await Codes(Erin);
         Assert.Equal("403|account_inactive", suspended.Reply);
 
-        foreach (var (comment, reply) in new[] { anonymous, communityOff, restricted, suspended })
+        foreach (var (comment, reply) in new[] { anonymous, noProfile, communityOff, restricted, suspended })
         {
             Assert.Equal(comment, reply);
         }

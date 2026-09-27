@@ -131,7 +131,8 @@ describe("Moment Comment service", () => {
     [404, "social_moment_not_found", "unavailable"],
     [404, "comment_not_found", "parent-unavailable"],
     [422, "comment_reply_parent_invalid", "parent-invalid"],
-    [403, "community_restricted", "forbidden"],
+    [403, "community_restricted", "community-restricted"],
+    [403, "account_inactive", "forbidden"],
     [403, "community_profile_required", "community-profile"],
   ] as const) {
     it(`maps ${status} ${code} to ${expectedReason}`, async () => {

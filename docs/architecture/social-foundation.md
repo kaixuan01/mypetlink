@@ -925,7 +925,11 @@ checks already requires, so no visibility rule needed a new clause — and
 refuses with `403 community_restricted`. Following and liking do not need the
 follower's own Community switch, so they check the restriction explicitly
 (`CommunityModeration.RequireNotRestrictedAsync`, same `403`); unfollowing and
-unliking are never refused. The owner's own choice is kept and
+unliking are never refused. Commenting and replying would be refused anyway by
+the switch, but check the restriction first so the household is told
+`community_restricted` ("Community access is currently paused.") rather than
+`community_profile_required`, and the Comments viewer reports
+`communityRestricted` instead of the setup prompt. The owner's own choice is kept and
 restored on lift, including a switch-off made meanwhile, and discoverability
 is not cleared while Community is off by MyPetLink. It is never an account
 suspension: sign-in, Owner Portal, pets, Share/Safety Profiles, Smart Tags,

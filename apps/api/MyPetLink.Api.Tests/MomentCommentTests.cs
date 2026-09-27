@@ -99,6 +99,42 @@ public sealed class MomentCommentTests
     }
 
     [Fact]
+    public async Task TheViewerRequirementNamesTheRealReasonSomebodyCannotComment()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(Alice, Mochi, "Beach day", 10);
+
+        async Task<(bool CanComment, string? Requirement)> ViewerAsync(Guid? viewerId)
+        {
+            var viewer = (await harness.Comments.GetAsync(momentId, viewerId, null, null)).Viewer;
+            return (viewer.CanComment, viewer.Requirement);
+        }
+
+        Assert.Equal((false, "signIn"), await ViewerAsync(null));
+        Assert.Equal((true, null), await ViewerAsync(Bob));
+        Assert.Equal((false, "communityProfile"), await ViewerAsync(Dave));
+
+        var bob = await harness.Db.OwnerSocialProfiles.SingleAsync(profile => profile.UserId == Bob);
+        bob.IsSocialEnabled = false;
+        await harness.Db.SaveChangesAsync();
+        Assert.Equal((false, "communityProfile"), await ViewerAsync(Bob));
+
+        var carol = await harness.Db.OwnerSocialProfiles.SingleAsync(profile => profile.UserId == Carol);
+        CommunityModeration.RestrictHousehold(carol, Alice, DateTimeOffset.UtcNow);
+        await harness.Db.SaveChangesAsync();
+        Assert.Equal((false, "communityRestricted"), await ViewerAsync(Carol));
+        var refused = await Assert.ThrowsAsync<ApiException>(() => harness.Comments.CreateAsync(
+            Carol, momentId, new CreateMomentCommentRequest("Hello")));
+        Assert.Equal("community_restricted", refused.Code);
+        Assert.Equal(CommunityModeration.RestrictedMessage, refused.Message);
+
+        // Lifting it restores exactly what the household had.
+        CommunityModeration.LiftRestriction(carol);
+        await harness.Db.SaveChangesAsync();
+        Assert.Equal((true, null), await ViewerAsync(Carol));
+    }
+
+    [Fact]
     public async Task AnonymousAndInactiveAccountsCannotCreateComments()
     {
         using var harness = await SocialSurfaceHarness.CreateAsync();
