@@ -224,6 +224,61 @@ Activity type. A web app that predates F4 does not list it, while the unread
 badge — counted by the API — already includes it, so the badge would promise a
 row the list never shows.
 
+### Releasing Phase 2F (Comment Replies)
+
+One branch carries F2–F5 (API, web and docs) and exactly one migration,
+`AddCommentReplies`. Pushing `main` deploys the API and the web together within
+minutes and does **not** apply the migration, and the new API cannot read
+Comments without `ParentCommentId`. The order is therefore fixed:
+
+1. Confirm a restorable Production backup and record its timestamp.
+2. Apply the root `migration.sql` in one `sqlcmd` session with
+   `migration-session-settings.sql` (`-I -b -V 11`; see
+   `docs/deployment/release-checklist.md`). Check the exit code.
+3. Verify, before any push:
+   - `__EFMigrationsHistory` gained exactly `20260927043459_AddCommentReplies`;
+   - `MomentComments.ParentCommentId` exists, nullable;
+   - `FK_MomentComments_MomentComments_ParentCommentId` (`NO_ACTION`) and
+     `CK_MomentComments_NotOwnParent` exist and are trusted;
+   - `IX_MomentComments_MomentId_ParentCommentId_CreatedAt_Id` (filtered
+     `DeletedAt IS NULL`) and `IX_MomentComments_ParentCommentId` exist, and
+     `IX_MomentComments_MomentId_CreatedAt_Id` is gone;
+   - existing Comments are unchanged: the Comment, mention, report and
+     Activity row counts match the pre-migration counts, and
+     `SELECT COUNT(*) FROM MomentComments WHERE ParentCommentId IS NOT NULL`
+     is `0`.
+   The API still running at this point is the old build; it is safe on the new
+   schema.
+4. Merge `feat/comment-replies` into `main` and push. The API and web deploy
+   together; no new environment variable is needed and no feature flag
+   changes. Social OFF builds show no Reply entry point.
+5. Wait for both deployments; confirm the API health endpoint and the web app.
+6. Run the smoke below.
+7. From the first Reply onward the rollback floor is F2 (above).
+
+No step of this release deletes, backfills or rewrites existing data.
+
+**Production smoke (QA-owned households and content only).**
+
+- As QA household one, on a QA-owned public Moment: write a top-level
+  Comment.
+- As QA household two: open the Moment, Reply to it. The Reply appears under
+  the Comment, "View 1 reply" / the Comment count reflect it.
+- As household one: Activity shows "… replied to your comment."; the link opens
+  the Moment with the thread expanded and the Reply highlighted.
+- As household one: Reply to household two's Reply. The composer says
+  "Replying to @…"; the new Reply appears in the same thread at the same depth.
+  If read access to the database is permitted, its `ParentCommentId` is the
+  top-level Comment.
+- Signed out: the thread and its Replies are readable; no Reply, report or
+  delete control is offered.
+- Delete the disposable Replies and the Comment as their authors; the counts
+  return to where they started.
+- Optional: report a QA Reply and **Dismiss** the report in Admin → Community
+  Reports; the detail labels the target Reply and shows its parent comment.
+- Do not Block, Restrict, Hide or Remove anything that belongs to a customer,
+  and do not change customer data to test.
+
 ---
 
 ## Manual smoke test
