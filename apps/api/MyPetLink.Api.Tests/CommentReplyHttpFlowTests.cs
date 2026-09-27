@@ -190,36 +190,207 @@ public sealed class CommentReplyHttpFlowTests
     }
 
     [Fact]
-    public async Task PostingStillWritesOnlyTopLevelCommentsWhateverTheClientSends()
+    public async Task PostingWithoutAParentStillWritesATopLevelComment()
     {
         await using var world = await World.CreateAsync();
         using var gina = world.As(Gina);
-        using var anonymous = world.As(null);
 
+        foreach (var payload in new object[] { new { body = "Just a comment" }, new { body = "Explicitly top level", parentCommentId = (Guid?)null } })
+        {
+            var created = await gina.PostAsJsonAsync($"/api/v1/social/moments/{world.MomentId}/comments", payload);
+            Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+            var data = Data(await created.Content.ReadAsStringAsync());
+            Assert.Equal(JsonValueKind.Null, data.GetProperty("comment").GetProperty("parentCommentId").ValueKind);
+            Assert.Equal(JsonValueKind.Null, data.GetProperty("parentCommentId").ValueKind);
+            Assert.Equal(JsonValueKind.Null, data.GetProperty("parentReplyCount").ValueKind);
+        }
+
+        using var anonymous = world.As(null);
+        var thread = Data(await Raw(anonymous, $"/api/v1/public/moments/{world.MomentId}/comments"));
+        Assert.Equal(3, thread.GetProperty("items").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task AReplyIsWrittenFromTheBodyAndParentAloneAndReturnsItsCounts()
+    {
+        await using var world = await World.CreateAsync();
+        using var gina = world.As(Gina);
+        var otherMomentId = await world.AddMomentAsync(MemoryVisibility.Public);
+        var before = DateTimeOffset.UtcNow;
+
+        // Everything a client might try to decide for itself is ignored.
         var created = await gina.PostAsJsonAsync(
             $"/api/v1/social/moments/{world.MomentId}/comments",
-            new { body = "Trying to reply", parentCommentId = world.ParentId, parentId = world.ParentId });
+            new
+            {
+                body = "Replying properly",
+                parentCommentId = world.ParentId,
+                authorUserId = Bob,
+                userId = Bob,
+                momentId = otherMomentId,
+                createdAt = "2020-01-01T00:00:00Z",
+                deletedAt = "2020-01-01T00:00:00Z",
+                deletedByUserId = Bob,
+                recipientUserId = Carol,
+                reportedUserId = Carol
+            });
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
-        var comment = Data(await created.Content.ReadAsStringAsync()).GetProperty("comment");
-        Assert.Equal(JsonValueKind.Null, comment.GetProperty("parentCommentId").ValueKind);
-        Assert.Equal(0, comment.GetProperty("replyCount").GetInt32());
+        var data = Data(await created.Content.ReadAsStringAsync());
+        var comment = data.GetProperty("comment");
+        Assert.Equal(world.ParentId, comment.GetProperty("parentCommentId").GetGuid());
+        Assert.Equal("GinaHome", comment.GetProperty("author").GetProperty("handle").GetString());
+        Assert.Equal(world.ParentId, data.GetProperty("parentCommentId").GetGuid());
+        Assert.Equal(3, data.GetProperty("parentReplyCount").GetInt32());
+        Assert.Equal(4, data.GetProperty("commentCount").GetInt32());
 
-        var row = await world.ReadAsync(db => db.MomentComments.AsNoTracking()
-            .SingleAsync(item => item.Id == comment.GetProperty("id").GetGuid()));
-        Assert.Null(row.ParentCommentId);
+        var id = comment.GetProperty("id").GetGuid();
+        var row = await world.ReadAsync(db => db.MomentComments.AsNoTracking().SingleAsync(item => item.Id == id));
+        Assert.Equal((world.MomentId, world.ParentId, Gina), (row.MomentId, row.ParentCommentId!.Value, row.AuthorUserId));
+        Assert.Null(row.DeletedAt);
+        Assert.True(row.CreatedAt >= before.AddSeconds(-5));
 
-        var thread = Data(await Raw(anonymous, $"/api/v1/public/moments/{world.MomentId}/comments"));
-        var items = thread.GetProperty("items").EnumerateArray().ToArray();
-        Assert.Equal(2, items.Length);
-        Assert.Equal(2, items.Single(item => item.GetProperty("id").GetGuid() == world.ParentId)
-            .GetProperty("replyCount").GetInt32());
+        var raw = await created.Content.ReadAsStringAsync();
+        foreach (var internalId in InternalIds)
+        {
+            Assert.DoesNotContain(internalId.ToString(), raw, StringComparison.OrdinalIgnoreCase);
+        }
 
-        // And anonymous callers still cannot post at all.
+        // Anonymous callers cannot write one.
         Assert.Equal(
             HttpStatusCode.Unauthorized,
-            (await anonymous.PostAsJsonAsync(
+            (await world.As(null).PostAsJsonAsync(
                 $"/api/v1/social/moments/{world.MomentId}/comments",
                 new { body = "Hello", parentCommentId = world.ParentId })).StatusCode);
+    }
+
+    [Fact]
+    public async Task EveryUnavailableParentLooksTheSameAndAReplyIsNeverAParent()
+    {
+        await using var world = await World.CreateAsync();
+        using var gina = world.As(Gina);
+        var otherMomentId = await world.AddMomentAsync(MemoryVisibility.Public);
+        var elsewhere = await world.AddCommentAsync(otherMomentId, null, Bob, "Elsewhere");
+        var deleted = await world.AddCommentAsync(world.MomentId, null, Erin, "Deleted");
+        var blockedAuthor = await world.AddCommentAsync(world.MomentId, null, Carol, "By Carol");
+        await world.SeedAsync(async db =>
+        {
+            var row = await db.MomentComments.SingleAsync(comment => comment.Id == deleted);
+            row.Body = "";
+            row.DeletedAt = DateTimeOffset.UtcNow;
+            row.DeletedByUserId = Erin;
+            db.OwnerBlocks.Add(new OwnerBlock { BlockerUserId = Carol, BlockedUserId = Gina });
+        });
+
+        var errors = new List<string>();
+        foreach (var parent in new[] { Guid.NewGuid(), elsewhere, deleted, blockedAuthor })
+        {
+            var response = await gina.PostAsJsonAsync(
+                $"/api/v1/social/moments/{world.MomentId}/comments",
+                new { body = "Hi", parentCommentId = parent });
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            errors.Add(Error(await response.Content.ReadAsStringAsync()));
+        }
+
+        Assert.All(errors, error => Assert.Equal(errors[0], error));
+        Assert.Contains("comment_not_found", errors[0]);
+
+        var nested = await gina.PostAsJsonAsync(
+            $"/api/v1/social/moments/{world.MomentId}/comments",
+            new { body = "Too deep", parentCommentId = world.ErinReplyId });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, nested.StatusCode);
+        Assert.Contains("comment_reply_parent_invalid", Error(await nested.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task CommentsAndRepliesShareOneRateLimit()
+    {
+        await using var world = await World.CreateAsync();
+        using var gina = world.As(Gina);
+
+        // The default social-comment allowance: 20 in 10 minutes, whichever
+        // kind of Comment it is spent on.
+        for (var index = 0; index < 19; index += 1)
+        {
+            var payload = index % 2 == 0
+                ? (object)new { body = $"Comment {index}" }
+                : new { body = $"Reply {index}", parentCommentId = world.ParentId };
+            var response = await gina.PostAsJsonAsync($"/api/v1/social/moments/{world.MomentId}/comments", payload);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var last = await gina.PostAsJsonAsync(
+            $"/api/v1/social/moments/{world.MomentId}/comments",
+            new { body = "The twentieth", parentCommentId = world.ParentId });
+        Assert.Equal(HttpStatusCode.OK, last.StatusCode);
+
+        foreach (var payload in new object[]
+                 {
+                     new { body = "One reply too many", parentCommentId = world.ParentId },
+                     new { body = "One comment too many" }
+                 })
+        {
+            var refused = await gina.PostAsJsonAsync($"/api/v1/social/moments/{world.MomentId}/comments", payload);
+            Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task DeletingAndReportingAReplyUseTheCommentRoutes()
+    {
+        await using var world = await World.CreateAsync();
+        using var gina = world.As(Gina);
+        using var alice = world.As(Alice);
+        using var bob = world.As(Bob);
+
+        var created = Data(await (await gina.PostAsJsonAsync(
+            $"/api/v1/social/moments/{world.MomentId}/comments",
+            new { body = "Reportable reply", parentCommentId = world.ParentId })).Content.ReadAsStringAsync());
+        var replyId = created.GetProperty("comment").GetProperty("id").GetGuid();
+
+        var report = await alice.PostAsJsonAsync(
+            "/api/v1/social/reports",
+            new { targetType = "Comment", target = replyId.ToString(), reason = "SpamOrScam" });
+        Assert.Equal(HttpStatusCode.OK, report.StatusCode);
+        var stored = await world.ReadAsync(db => db.CommunityReports.AsNoTracking().SingleAsync());
+        Assert.Equal((replyId, Gina, "Reportable reply"), (stored.CommentId!.Value, stored.ReportedUserId, stored.SnapshotText));
+
+        // The parent's author has no say over it; its author does.
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await bob.DeleteAsync($"/api/v1/social/moments/{world.MomentId}/comments/{replyId}")).StatusCode);
+        var deleted = await gina.DeleteAsync($"/api/v1/social/moments/{world.MomentId}/comments/{replyId}");
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        var data = Data(await deleted.Content.ReadAsStringAsync());
+        Assert.Equal(world.ParentId, data.GetProperty("parentCommentId").GetGuid());
+        Assert.Equal(2, data.GetProperty("parentReplyCount").GetInt32());
+        Assert.Equal(3, data.GetProperty("commentCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task RepliedActivityDeepLinksToTheReplyThroughItsThread()
+    {
+        await using var world = await World.CreateAsync();
+        using var gina = world.As(Gina);
+        using var bob = world.As(Bob);
+
+        var created = Data(await (await gina.PostAsJsonAsync(
+            $"/api/v1/social/moments/{world.MomentId}/comments",
+            new { body = "Replying to Bob", parentCommentId = world.ParentId })).Content.ReadAsStringAsync());
+        var replyId = created.GetProperty("comment").GetProperty("id").GetGuid();
+
+        var activity = Data(await Raw(bob, "/api/v1/social/notifications")).GetProperty("items")
+            .EnumerateArray()
+            .Single(item => item.GetProperty("type").GetString() == "MomentCommentReplied");
+        Assert.Equal(world.MomentId, activity.GetProperty("momentId").GetGuid());
+        Assert.Equal(replyId, activity.GetProperty("commentId").GetGuid());
+        Assert.Equal("GinaHome", activity.GetProperty("actor").GetProperty("handle").GetString());
+
+        // /moments/{momentId}#comment-{replyId}
+        var thread = Data(await Raw(bob, $"/api/v1/public/moments/{world.MomentId}/comments?anchor={replyId}"));
+        Assert.Equal(world.ParentId, thread.GetProperty("anchorParentCommentId").GetGuid());
+        var replies = Data(await Raw(
+            bob, $"/api/v1/public/moments/{world.MomentId}/comments/{world.ParentId}/replies?anchor={replyId}"));
+        Assert.Contains(replyId, replies.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
     }
 
     // ---- helpers ----------------------------------------------------------
