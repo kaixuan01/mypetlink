@@ -1070,10 +1070,10 @@ account; status, resolution and every "by" field are the server's.
 ## 12h. Phase 2F Comment Replies
 
 > **Status.** F2 made the schema and every read path understand Replies
-> before any could exist. **F3 enables writing them** through the existing
-> Comment endpoint, with their Activity (see *Writing Replies* below). The web
-> app offers no Reply control yet (F4), so until then a Reply can only be
-> written through the API.
+> before any could exist. F3 writes them through the existing Comment
+> endpoint, with their Activity (see *Writing Replies* below), and F4 adds the
+> web Reply experience. F5 verified the whole feature against a live local API
+> and SQL Server ([`community-comment-replies-f5.md`](../testing/community-comment-replies-f5.md)).
 
 **Model.** A Reply is a `MomentComment` with `ParentCommentId` set; a
 top-level Comment has it null. There is no Reply table or entity — "Reply" is
@@ -1316,8 +1316,10 @@ plain text; capabilities and API actions are unchanged.
 
 F4 component/service coverage and an eight-width, contract-fixture browser smoke
 are recorded in [`community-comment-replies-f4.md`](../testing/community-comment-replies-f4.md).
-The full live-backend browser/privacy audit and subsequent release work remain
-F5/F6. F4 makes no backend, schema or deployment changes.
+F4 makes no backend, schema or deployment changes. The live-backend
+browser/privacy audit is F5's
+([`community-comment-replies-f5.md`](../testing/community-comment-replies-f5.md));
+release acceptance and rollout remain F6.
 
 ## 13. Deliberately deferred Community work
 
