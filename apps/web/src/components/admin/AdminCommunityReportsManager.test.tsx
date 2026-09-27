@@ -132,6 +132,53 @@ describe("Community report queue", () => {
 describe("Community report detail", () => {
   beforeEach(() => { mock.reportId = summary.id; });
 
+  const replyDetail = { ...detail, currentComment: { ...detail.currentComment!, parentCommentId: "parent", body: "same here!", parentComment: { author: household, body: "<b>Parent text</b>", removed: false, publiclyVisible: true, createdAt: summary.createdAt } } };
+
+  it("shows the Reply with plain-text parent context and separates current state from preserved evidence", async () => {
+    mock.get.mockResolvedValue(replyDetail);
+    render(<AdminCommunityReportsManager />);
+    const parent = await screen.findByTestId("reply-parent-context");
+    expect(within(parent).getByText("Parent comment author")).toBeTruthy();
+    expect(within(parent).getByText("<b>Parent text</b>")).toBeTruthy();
+    expect(parent.querySelector("b")).toBeNull();
+    const current = screen.getByRole("heading", { name: /Reported content · Current state/ }).closest("section")!;
+    expect(within(current).getByText("same here!")).toBeTruthy();
+    const evidence = screen.getByRole("heading", { name: "Evidence at time of report" }).closest("section")!;
+    expect(within(evidence).getByText("Reply text at report")).toBeTruthy();
+    expect(within(evidence).queryByText("same here!")).toBeNull();
+    expect(within(evidence).getByText("<img src=x onerror=alert(1)>")).toBeTruthy();
+    expect(evidence.querySelector("img")).toBeNull();
+  });
+
+  it("labels removal as Remove reply while retaining the existing action and capability checks", async () => {
+    mock.get.mockResolvedValue(replyDetail);
+    grant(adminCapabilities.communityReportsView, adminCapabilities.communityReportsResolve);
+    render(<AdminCommunityReportsManager />);
+    const action = await screen.findByRole("button", { name: "Remove reply" });
+    expect(action).toHaveProperty("disabled", false);
+    fireEvent.click(action);
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Reviewed Reply evidence." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove reply" }));
+    await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, "RemoveComment", "Reviewed Reply evidence.", "AQID"));
+  });
+
+  it("keeps Reply removal unavailable without resolve access", async () => {
+    mock.get.mockResolvedValue(replyDetail);
+    grant(adminCapabilities.communityReportsView);
+    render(<AdminCommunityReportsManager />);
+    await screen.findByTestId("reply-parent-context");
+    expect(screen.queryByRole("button", { name: "Remove reply" })).toBeNull();
+  });
+
+  it.each(["removed", "missing"])("handles a %s parent without presenting old body as current", async (kind) => {
+    mock.get.mockResolvedValue({ ...replyDetail, currentComment: { ...replyDetail.currentComment, parentComment: kind === "missing" ? null : { ...replyDetail.currentComment.parentComment, removed: true, publiclyVisible: false } } });
+    render(<AdminCommunityReportsManager />);
+    const context = await screen.findByTestId("reply-parent-context");
+    expect(within(context).queryByText("<b>Parent text</b>")).toBeNull();
+    expect(within(context).getByText(kind === "missing" ? "Parent comment no longer available." : /Parent comment removed/)).toBeTruthy();
+  });
+
   it.each(["Comment", "Moment", "Household"] as const)("separates report, current state and evidence for %s", async (targetType) => {
     mock.get.mockResolvedValue({ ...detail, targetType });
     render(<AdminCommunityReportsManager />);

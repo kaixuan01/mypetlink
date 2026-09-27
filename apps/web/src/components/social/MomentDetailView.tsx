@@ -188,6 +188,7 @@ export function MomentDetailView({ momentId }: { momentId: string }) {
               signedIn={signedIn}
             />
             <MomentComments
+              key={phase.moment.id}
               initialCount={phase.moment.commentCount ?? 0}
               momentId={phase.moment.id}
               onCountChange={onCommentCountChange}

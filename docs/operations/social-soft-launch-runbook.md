@@ -191,6 +191,94 @@ are additive. A previous web can be redeployed while the Comment-capable API and
 migration remain. Do not down-migrate merely to hide Comments; use the existing
 `NEXT_PUBLIC_SOCIAL_ENABLED` Community gate.
 
+### Comment Replies: roll back to the Reply-aware API, never past it
+
+`AddCommentReplies` (Phase 2F F2) adds a nullable
+`MomentComments.ParentCommentId`, its foreign key, a CHECK and an index swap.
+It is additive: an older API runs against it and writes top-level Comments as
+before. The F2 API needs the column, so **apply `migration.sql` before pushing
+F2**.
+
+The F2 API only *reads* Replies. **F3 writes them** (no further migration), so
+from the first Reply onward the rollback floor rises:
+
+> **After the first Reply exists, the minimum safe API is F2.**
+
+- **While no Reply exists**: rolling the API back to the pre-F2 build is safe.
+  Check with
+  `SELECT COUNT(*) FROM MomentComments WHERE ParentCommentId IS NOT NULL` — it
+  must be `0`. Run the check at the moment of rollback, not from memory: once
+  F3 is live, anybody can write a Reply through the API.
+- **Once Replies exist**: roll the API back to the **F2 build, never a pre-F2
+  build**. A pre-F2 API does not know Replies — it lists them as top-level
+  Comments and ignores the rules that hide a Reply whose parent is removed,
+  blocked or hidden, so hidden Replies would reappear publicly. If the API must
+  go back past F2, the restore point from the pre-deploy checklist is the only
+  safe route.
+- **F3 → F2 is safe.** F2 reads every Reply correctly and ignores
+  `parentCommentId` again, so new posts become top-level Comments; it reads the
+  `MomentCommentReplied` Activity type as unknown and hides it.
+
+**Ship F3 with F4, not ahead of it.** F3 adds the `MomentCommentReplied`
+Activity type. A web app that predates F4 does not list it, while the unread
+badge — counted by the API — already includes it, so the badge would promise a
+row the list never shows.
+
+### Releasing Phase 2F (Comment Replies)
+
+One branch carries F2–F5 (API, web and docs) and exactly one migration,
+`AddCommentReplies`. Pushing `main` deploys the API and the web together within
+minutes and does **not** apply the migration, and the new API cannot read
+Comments without `ParentCommentId`. The order is therefore fixed:
+
+1. Confirm a restorable Production backup and record its timestamp.
+2. Apply the root `migration.sql` in one `sqlcmd` session with
+   `migration-session-settings.sql` (`-I -b -V 11`; see
+   `docs/deployment/release-checklist.md`). Check the exit code.
+3. Verify, before any push:
+   - `__EFMigrationsHistory` gained exactly `20260927043459_AddCommentReplies`;
+   - `MomentComments.ParentCommentId` exists, nullable;
+   - `FK_MomentComments_MomentComments_ParentCommentId` (`NO_ACTION`) and
+     `CK_MomentComments_NotOwnParent` exist and are trusted;
+   - `IX_MomentComments_MomentId_ParentCommentId_CreatedAt_Id` (filtered
+     `DeletedAt IS NULL`) and `IX_MomentComments_ParentCommentId` exist, and
+     `IX_MomentComments_MomentId_CreatedAt_Id` is gone;
+   - existing Comments are unchanged: the Comment, mention, report and
+     Activity row counts match the pre-migration counts, and
+     `SELECT COUNT(*) FROM MomentComments WHERE ParentCommentId IS NOT NULL`
+     is `0`.
+   The API still running at this point is the old build; it is safe on the new
+   schema.
+4. Merge `feat/comment-replies` into `main` and push. The API and web deploy
+   together; no new environment variable is needed and no feature flag
+   changes. Social OFF builds show no Reply entry point.
+5. Wait for both deployments; confirm the API health endpoint and the web app.
+6. Run the smoke below.
+7. From the first Reply onward the rollback floor is F2 (above).
+
+No step of this release deletes, backfills or rewrites existing data.
+
+**Production smoke (QA-owned households and content only).**
+
+- As QA household one, on a QA-owned public Moment: write a top-level
+  Comment.
+- As QA household two: open the Moment, Reply to it. The Reply appears under
+  the Comment, "View 1 reply" / the Comment count reflect it.
+- As household one: Activity shows "… replied to your comment."; the link opens
+  the Moment with the thread expanded and the Reply highlighted.
+- As household one: Reply to household two's Reply. The composer says
+  "Replying to @…"; the new Reply appears in the same thread at the same depth.
+  If read access to the database is permitted, its `ParentCommentId` is the
+  top-level Comment.
+- Signed out: the thread and its Replies are readable; no Reply, report or
+  delete control is offered.
+- Delete the disposable Replies and the Comment as their authors; the counts
+  return to where they started.
+- Optional: report a QA Reply and **Dismiss** the report in Admin → Community
+  Reports; the detail labels the target Reply and shows its parent comment.
+- Do not Block, Restrict, Hide or Remove anything that belongs to a customer,
+  and do not change customer data to test.
+
 ---
 
 ## Manual smoke test

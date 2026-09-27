@@ -23,6 +23,16 @@ type StoredCommentDraft = {
   userId: string;
   body: string;
   savedAt: string;
+  parentCommentId?: string | null;
+  replyToCommentId?: string | null;
+  topLevelBody?: string;
+};
+
+export type RecoveredCommentDraft = {
+  body: string;
+  parentCommentId: string | null;
+  replyToCommentId: string | null;
+  topLevelBody: string;
 };
 
 /** The tab's session storage, or null where the browser refuses it. */
@@ -36,7 +46,7 @@ export function commentDraftStorage(): DraftStorage | null {
 
 export function saveCommentDraft(
   storage: DraftStorage | null,
-  draft: { momentId: string; userId: string; body: string },
+  draft: { momentId: string; userId: string; body: string; parentCommentId?: string | null; replyToCommentId?: string | null; topLevelBody?: string },
   now = new Date()
 ) {
   const body = draft.body.slice(0, MAX_BODY_LENGTH);
@@ -52,6 +62,9 @@ export function saveCommentDraft(
         momentId: draft.momentId,
         userId: draft.userId,
         body,
+        parentCommentId: draft.parentCommentId ?? null,
+        replyToCommentId: draft.replyToCommentId ?? null,
+        topLevelBody: draft.topLevelBody?.slice(0, MAX_BODY_LENGTH) ?? "",
         savedAt: now.toISOString(),
       } satisfies StoredCommentDraft)
     );
@@ -67,7 +80,7 @@ export function saveCommentDraft(
  * A stale, unreadable or other-account draft is discarded. A draft for a
  * different Moment is left alone for that Moment and not returned here.
  */
-export function takeCommentDraft(
+export function takeCommentDraftContext(
   storage: DraftStorage | null,
   target: { momentId: string; userId: string | null | undefined },
   now = new Date()
@@ -93,6 +106,10 @@ export function takeCommentDraft(
       age < 0 ||
       age > COMMENT_DRAFT_MAX_AGE_MS ||
       parsed.userId !== target.userId
+      || (parsed.parentCommentId != null && (typeof parsed.parentCommentId !== "string" || !parsed.parentCommentId.trim()))
+      || (parsed.replyToCommentId != null && (typeof parsed.replyToCommentId !== "string" || !parsed.replyToCommentId.trim()))
+      || (parsed.replyToCommentId != null && parsed.parentCommentId == null)
+      || (parsed.topLevelBody != null && typeof parsed.topLevelBody !== "string")
     ) {
       storage.removeItem(COMMENT_DRAFT_STORAGE_KEY);
       return null;
@@ -103,7 +120,12 @@ export function takeCommentDraft(
     }
 
     storage.removeItem(COMMENT_DRAFT_STORAGE_KEY);
-    return parsed.body.slice(0, MAX_BODY_LENGTH);
+    return {
+      body: parsed.body.slice(0, MAX_BODY_LENGTH),
+      parentCommentId: parsed.parentCommentId ?? null,
+      replyToCommentId: parsed.replyToCommentId ?? null,
+      topLevelBody: parsed.topLevelBody?.slice(0, MAX_BODY_LENGTH) ?? "",
+    } satisfies RecoveredCommentDraft;
   } catch {
     try {
       storage.removeItem(COMMENT_DRAFT_STORAGE_KEY);
@@ -112,6 +134,16 @@ export function takeCommentDraft(
     }
     return null;
   }
+}
+
+/** Legacy callers may recover a Comment, but must never promote a Reply. */
+export function takeCommentDraft(
+  storage: DraftStorage | null,
+  target: { momentId: string; userId: string | null | undefined },
+  now = new Date(),
+) {
+  const draft = takeCommentDraftContext(storage, target, now);
+  return draft && !draft.parentCommentId ? draft.body : null;
 }
 
 /** Whether a recoverable draft is waiting for this Moment (read-only). */

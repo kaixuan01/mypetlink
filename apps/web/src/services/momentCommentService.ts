@@ -10,6 +10,9 @@ export type MomentComment = {
   author: PublicOwnerAttribution;
   viewerDeleteAction: MomentCommentDeleteAction;
   mentions?: MomentCommentMention[];
+  /** Absent only when talking to a pre-Replies deployment. */
+  parentCommentId?: string | null;
+  replyCount?: number;
 };
 
 /** UTF-16 offsets into the immutable Comment body, including the leading @. */
@@ -48,16 +51,33 @@ export type MomentCommentPage = {
   nextCursor: string | null;
   commentCount: number;
   viewer: MomentCommentViewer;
+  anchorParentCommentId?: string | null;
 };
+
+export type MomentReplyPage = {
+  parentCommentId: string;
+  items: MomentComment[];
+  nextCursor: string | null;
+  replyCount: number;
+};
+
+/** F2's additive thread contract, not a count-based product switch. */
+export function supportsCommentReplies(comment: MomentComment) {
+  return comment.parentCommentId === null && typeof comment.replyCount === "number";
+}
 
 export type CreateMomentCommentResult = {
   comment: MomentComment;
   commentCount: number;
+  parentCommentId?: string | null;
+  parentReplyCount?: number | null;
 };
 
 export type DeleteMomentCommentResult = {
   commentId: string;
   commentCount: number;
+  parentCommentId?: string | null;
+  parentReplyCount?: number | null;
 };
 
 export type MomentCommentErrorReason =
@@ -65,7 +85,10 @@ export type MomentCommentErrorReason =
   | "rate-limit"
   | "session"
   | "community-profile"
+  | "forbidden"
   | "unavailable"
+  | "parent-unavailable"
+  | "parent-invalid"
   | "error";
 
 export class MomentCommentError extends Error {
@@ -120,6 +143,7 @@ export async function getMomentComments(
         requirement: "signIn",
         identity: null,
       },
+      anchorParentCommentId: response.data?.anchorParentCommentId ?? null,
     };
   } catch (error) {
     throw mapCommentError(error);
@@ -128,14 +152,36 @@ export async function getMomentComments(
 
 export async function createMomentComment(
   momentId: string,
-  body: string
+  body: string,
+  parentCommentId?: string
 ): Promise<CreateMomentCommentResult> {
   try {
     const response = await apiRequest<CreateMomentCommentResult>(
       `/api/v1/social/moments/${encodeURIComponent(momentId)}/comments`,
-      { method: "POST", body: { body } }
+      { method: "POST", body: { body, ...(parentCommentId ? { parentCommentId } : {}) } }
     );
     if (!response.data) throw new Error("Missing Comment response.");
+    return response.data;
+  } catch (error) {
+    throw mapCommentError(error);
+  }
+}
+
+export async function getMomentReplies(
+  momentId: string,
+  parentCommentId: string,
+  cursor?: string,
+  options: { anchor?: string | null } = {},
+): Promise<MomentReplyPage> {
+  const params = new URLSearchParams({ limit: "10" });
+  if (cursor) params.set("cursor", cursor);
+  else if (options.anchor) params.set("anchor", options.anchor);
+  try {
+    const response = await apiRequest<MomentReplyPage>(
+      `/api/v1/public/moments/${encodeURIComponent(momentId)}/comments/${encodeURIComponent(parentCommentId)}/replies?${params}`,
+      { cache: "no-store" },
+    );
+    if (!response.data) throw new Error("Missing Reply page.");
     return response.data;
   } catch (error) {
     throw mapCommentError(error);
@@ -202,6 +248,7 @@ function mapCommentError(error: unknown): MomentCommentError {
     return new MomentCommentError("session", "Sign in to comment.");
   }
   if (apiError.status === 404) {
+    if (apiError.code === "comment_not_found") return new MomentCommentError("parent-unavailable", "This comment is no longer available.");
     return new MomentCommentError(
       "unavailable",
       "This Moment isn’t available any more."
@@ -219,7 +266,11 @@ function mapCommentError(error: unknown): MomentCommentError {
       "Set up your Community profile to comment."
     );
   }
+  if (apiError.status === 403) {
+    return new MomentCommentError("forbidden", apiError.message);
+  }
   if (apiError.status === 422) {
+    if (apiError.code === "comment_reply_parent_invalid") return new MomentCommentError("parent-invalid", "This comment is no longer available. Please try again.");
     return new MomentCommentError("validation", apiError.message);
   }
 

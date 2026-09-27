@@ -1892,12 +1892,26 @@ public sealed class MyPetLinkDbContext : DbContext
 
         modelBuilder.Entity<MomentComment>(entity =>
         {
-            entity.ToTable("MomentComments", table => table.HasCheckConstraint(
-                "CK_MomentComments_DeletionState",
-                "([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND [Body] <> N'') OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND [Body] = N'')"));
+            entity.ToTable("MomentComments", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MomentComments_DeletionState",
+                    "([DeletedAt] IS NULL AND [DeletedByUserId] IS NULL AND [Body] <> N'') OR ([DeletedAt] IS NOT NULL AND [DeletedByUserId] IS NOT NULL AND [Body] = N'')");
+
+                // The one Reply rule a single row can state. "The parent is a
+                // top-level Comment on the same Moment" spans two rows, so it
+                // is enforced by SocialVisibility.VisibleComments on every read.
+                table.HasCheckConstraint(
+                    "CK_MomentComments_NotOwnParent",
+                    "[ParentCommentId] IS NULL OR [ParentCommentId] <> [Id]");
+            });
             entity.Property(item => item.Body).HasMaxLength(500).IsRequired();
 
-            entity.HasIndex(item => new { item.MomentId, item.CreatedAt, item.Id })
+            // Every thread read: a Moment's top-level page (ParentCommentId IS
+            // NULL), one thread's Replies, the Reply counts for a page of
+            // parents, anchors, and the Moment's total count on its MomentId
+            // prefix.
+            entity.HasIndex(item => new { item.MomentId, item.ParentCommentId, item.CreatedAt, item.Id })
                 .HasFilter("[DeletedAt] IS NULL");
             entity.HasIndex(item => new { item.AuthorUserId, item.CreatedAt });
             entity.HasIndex(item => item.DeletedByUserId);
@@ -1913,6 +1927,13 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.DeletedByUser)
                 .WithMany()
                 .HasForeignKey(item => item.DeletedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Comments are tombstoned, never deleted, so nothing ever cascades
+            // from a parent to its Replies.
+            entity.HasOne(item => item.ParentComment)
+                .WithMany()
+                .HasForeignKey(item => item.ParentCommentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

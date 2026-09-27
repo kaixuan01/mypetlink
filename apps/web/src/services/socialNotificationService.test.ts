@@ -11,6 +11,14 @@ beforeEach(() => {
 });
 
 describe("Social activity compatibility", () => {
+  it("keeps Reply Activity returned by the server and its unread count", async () => {
+    const actor = { handle: "ben", displayName: "Ben", avatarUrl: null, avatarThumbnailUrl: null };
+    mocks.apiRequest.mockResolvedValue({ data: { items: [{ id: "reply-activity", type: "MomentCommentReplied", createdAt: "2026-09-24T00:00:00Z", isRead: false, actor, momentId: "moment", commentId: "reply" }], nextCursor: null, unreadCount: 1 } });
+    const page = await getSocialNotifications();
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ type: "MomentCommentReplied", commentId: "reply", actor, isRead: false });
+    expect(page.unreadCount).toBe(1);
+  });
   it("skips unknown activity instead of presenting it as a Like", async () => {
     mocks.apiRequest.mockResolvedValue({
       data: {

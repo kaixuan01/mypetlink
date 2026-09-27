@@ -130,6 +130,9 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
         var comment = r.CommentId is { } commentId
             ? await LoadCommentAsync(commentId, cancellationToken)
             : null;
+        var parent = comment?.ParentCommentId is { } parentId
+            ? await LoadCommentAsync(parentId, cancellationToken)
+            : null;
         var momentId = r.MomentId ?? comment?.MomentId;
         var moment = momentId is { } id
             ? await LoadMomentAsync(id, cancellationToken)
@@ -138,6 +141,7 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
         var households = await LoadHouseholdsAsync(
             new[] { r.ReporterUserId, r.ReportedUserId }
                 .Concat(comment is null ? Array.Empty<Guid>() : new[] { comment.AuthorUserId })
+                .Concat(parent is null ? Array.Empty<Guid>() : new[] { parent.AuthorUserId })
                 .Concat(moment is null ? Array.Empty<Guid>() : new[] { moment.AuthorUserId }),
             cancellationToken);
 
@@ -208,7 +212,15 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
                     ? DescribeRemover(comment.DeletedByUserId, comment.AuthorUserId, comment.MomentAuthorUserId)
                     : null,
                 comment.PubliclyVisible,
-                households[comment.AuthorUserId]),
+                households[comment.AuthorUserId],
+                comment.ParentCommentId,
+                parent is null ? null : new AdminCommunityParentCommentResponse(
+                    parent.Id,
+                    parent.DeletedAt.HasValue ? null : parent.Body,
+                    parent.CreatedAt,
+                    parent.DeletedAt.HasValue,
+                    parent.PubliclyVisible,
+                    households[parent.AuthorUserId])),
             moment is null ? null : new AdminCommunityCurrentMomentResponse(
                 moment.Id,
                 moment.Title,
@@ -336,8 +348,14 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
         DateTimeOffset CreatedAt,
         DateTimeOffset? DeletedAt,
         Guid? DeletedByUserId,
-        bool PubliclyVisible);
+        bool PubliclyVisible,
+        Guid? ParentCommentId);
 
+    /// <summary>
+    /// A Comment or Reply as it is now. Publicly visible means what an
+    /// anonymous reader would see, so a Reply under a removed or hidden parent
+    /// reads as not visible even while its own row is intact.
+    /// </summary>
     private async Task<CommentRow?> LoadCommentAsync(Guid commentId, CancellationToken cancellationToken)
     {
         var publiclyVisible = _dbContext.MomentComments.VisibleComments(_dbContext, null);
@@ -353,7 +371,8 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
                 comment.CreatedAt,
                 comment.DeletedAt,
                 comment.DeletedByUserId,
-                publiclyVisible.Any(visible => visible.Id == comment.Id)))
+                publiclyVisible.Any(visible => visible.Id == comment.Id),
+                comment.ParentCommentId))
             .SingleOrDefaultAsync(cancellationToken);
     }
 

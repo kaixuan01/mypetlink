@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type RefObject,
   type SyntheticEvent,
+  type ReactNode,
 } from "react";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -75,6 +76,10 @@ export function CommentMentionComposer({
   inputRef,
   onChange,
   onSubmit,
+  label = "Add a comment",
+  helpText = "Ctrl or ⌘ + Enter to send",
+  errorText,
+  children,
 }: {
   momentId: string;
   value: string;
@@ -83,8 +88,17 @@ export function CommentMentionComposer({
   inputRef: RefObject<HTMLTextAreaElement | null>;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  label?: string;
+  helpText?: string;
+  errorText?: string | null;
+  children?: ReactNode;
 }) {
-  const listboxId = useId();
+  const prefix = useId();
+  const bodyId = `${prefix}-comment-body`;
+  const helpId = `${prefix}-comment-help`;
+  const errorId = `${prefix}-comment-error`;
+  const statusId = `${prefix}-comment-mention-status`;
+  const listboxId = `${prefix}-comment-mentions`;
   const [token, setToken] = useState<ActiveMentionToken | null>(null);
   const [suggestions, setSuggestions] = useState<CommentMentionSuggestion[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -196,16 +210,17 @@ export function CommentMentionComposer({
 
   return (
     <div className="relative">
+      <label className="text-sm font-black text-pet-ink" htmlFor={bodyId}>{label}</label>
       <textarea
         aria-activedescendant={activeId}
         aria-autocomplete="list"
         aria-controls={listboxId}
-        aria-describedby="comment-help comment-error comment-mention-status"
+        aria-describedby={`${helpId} ${errorId} ${statusId}`}
         aria-expanded={open}
         aria-invalid={hasError}
         className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-pet-border bg-white px-3 py-3 text-base font-semibold text-pet-ink outline-none focus:border-pet-teal"
         disabled={disabled}
-        id="comment-body"
+        id={bodyId}
         maxLength={500}
         onChange={(event) => {
           onChange(event.target.value);
@@ -278,7 +293,7 @@ export function CommentMentionComposer({
           <p
             aria-live="polite"
             className="px-3 py-2 text-xs font-semibold text-pet-muted"
-            id="comment-mention-status"
+            id={statusId}
           >
             {selectionTooLong
               ? "Shorten your comment to add this mention."
@@ -292,8 +307,13 @@ export function CommentMentionComposer({
           </p>
         </div>
       ) : (
-        <span className="sr-only" id="comment-mention-status" />
+        <span className="sr-only" id={statusId} />
       )}
+      <div className="mt-2 flex min-h-11 flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-bold text-pet-muted" id={helpId}>{helpText}</span>
+        {children}
+      </div>
+      <p className="mt-1 text-sm font-bold text-pet-coral" id={errorId} role={errorText ? "alert" : undefined}>{errorText}</p>
     </div>
   );
 }

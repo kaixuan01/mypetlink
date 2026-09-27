@@ -440,7 +440,10 @@ public enum OwnerNotificationType
     MomentCommented,
     MomentCollaborationRequested,
     MomentCollaborationAccepted,
-    MomentCommentMentioned
+    MomentCommentMentioned,
+
+    /// <summary>"X replied to your comment." Stored by name, so an older build reads it as Unknown and hides it.</summary>
+    MomentCommentReplied
 }
 
 /// <summary>
