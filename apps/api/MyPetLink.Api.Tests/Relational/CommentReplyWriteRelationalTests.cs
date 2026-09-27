@@ -267,7 +267,7 @@ public sealed class CommentReplyWriteRelationalTests
 
         if (order == "restrictedFirst")
         {
-            Assert.Equal("community_profile_required", outcome.Error);
+            Assert.Equal("community_restricted", outcome.Error);
             await AssertNoRepliesAsync(scope, world);
         }
         else
@@ -278,7 +278,7 @@ public sealed class CommentReplyWriteRelationalTests
 
         // And nothing more gets through while the restriction stands.
         var again = await Assert.ThrowsAsync<ApiException>(() => ReplyAsync(scope, Carol, world, "Trying again"));
-        Assert.Equal("community_profile_required", again.Code);
+        Assert.Equal("community_restricted", again.Code);
     }
 
     [RelationalTheory]
