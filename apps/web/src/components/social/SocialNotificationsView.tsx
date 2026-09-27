@@ -307,6 +307,15 @@ function activityCopy(item: SocialNotification): {
   };
 
   switch (item.type) {
+    case "MomentCommentReplied":
+      return item.momentId
+        ? {
+            predicate: "replied to your comment.",
+            destination: `${momentNavigationPath(item.momentId, socialRoutes.notifications)}${item.commentId ? `#comment-${item.commentId}` : "#comments"}`,
+            destinationLabel: "View this reply",
+            icon: "comment",
+          }
+        : { predicate: "replied to your comment.", icon: "comment", ...profile };
     case "NewFollower":
       return { predicate: "started following you.", icon: "users", ...profile };
     case "MomentCommented":

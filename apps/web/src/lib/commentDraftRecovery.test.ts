@@ -6,6 +6,7 @@ import {
   hasCommentDraft,
   saveCommentDraft,
   takeCommentDraft,
+  takeCommentDraftContext,
 } from "@/lib/commentDraftRecovery";
 
 function memoryStorage() {
@@ -21,6 +22,31 @@ function memoryStorage() {
 const now = new Date("2026-09-24T08:00:00Z");
 
 describe("comment draft recovery", () => {
+  it("preserves Reply context and the separate Comment draft, but legacy recovery never promotes it", () => {
+    const storage = memoryStorage();
+    const draft = { momentId: "m1", userId: "u1", body: "Reply", parentCommentId: "parent", replyToCommentId: "reply", topLevelBody: "Comment" };
+    saveCommentDraft(storage, draft, now);
+    expect(takeCommentDraftContext(storage, draft, now)).toEqual({ body: "Reply", parentCommentId: "parent", replyToCommentId: "reply", topLevelBody: "Comment" });
+    saveCommentDraft(storage, draft, now);
+    expect(takeCommentDraft(storage, draft, now)).toBeNull();
+  });
+
+  it.each([
+    { parentCommentId: 42 }, { parentCommentId: "" }, { parentCommentId: null, replyToCommentId: "reply" },
+    { parentCommentId: "parent", replyToCommentId: {} }, { parentCommentId: "parent", topLevelBody: [] },
+  ])("discards malformed Reply context %j without recovering as a Comment", (context) => {
+    const storage = memoryStorage();
+    storage.setItem(COMMENT_DRAFT_STORAGE_KEY, JSON.stringify({ momentId: "m1", userId: "u1", body: "Reply", savedAt: now.toISOString(), ...context }));
+    expect(takeCommentDraftContext(storage, { momentId: "m1", userId: "u1" }, now)).toBeNull();
+    expect(storage.values.size).toBe(0);
+  });
+
+  it("never gives another Moment a Reply's parent or text", () => {
+    const storage = memoryStorage();
+    saveCommentDraft(storage, { momentId: "m1", userId: "u1", body: "Reply", parentCommentId: "p1" }, now);
+    expect(takeCommentDraftContext(storage, { momentId: "m2", userId: "u1" }, now)).toBeNull();
+    expect(takeCommentDraftContext(storage, { momentId: "m1", userId: "u1" }, now)?.parentCommentId).toBe("p1");
+  });
   it("returns a draft once, to the same account on the same Moment", () => {
     const storage = memoryStorage();
     saveCommentDraft(storage, { momentId: "m1", userId: "u1", body: "Hello Mochi" }, now);

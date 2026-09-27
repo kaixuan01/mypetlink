@@ -1,10 +1,10 @@
 # MyPetLink Social — foundation architecture
 
 **Status:** Community Phase 1 and Phase 2A Moment Comments are implemented.
-Phase 2E reporting and Admin moderation (E1–E4A) are implemented; the Admin
-moderation screens are not. One-level Comment Replies can be read and written
-through the API, with their Activity (Phase 2F F2–F3, §12h); the web Reply
-thread and composer are not built yet. Comment likes remain future work.
+Phase 2E reporting and Admin moderation (E1–E4B) are implemented, including
+the moderation screens. One-level Comment Replies can be read and written
+through the API and web, with their Activity (Phase 2F F2–F4, §12h).
+Comment likes remain future work.
 
 This document describes what exists in the codebase today. The product proposal
 that preceded it is a separate artefact; where the two disagree, this file is
@@ -1268,19 +1268,63 @@ the unread badge together, and no row is deleted for it.
 Comment removes a Reply — its mention rows and unread Activity go with it, and
 its thread's counts drop.
 
-Not yet built (F4–F6): the web thread, Reply composer and Reply Activity copy
-(the web ignores `MomentCommentReplied` until then, while the unread badge
-already counts it — so F3 must not reach Production ahead of F4), Admin
-display of the parent context, and browser QA.
+### Web Reply experience (F4)
+
+`MomentComments` renders one semantic nested list beneath each expanded
+top-level Comment. Replies read oldest first, ten per request, with cached
+expand/collapse and an inline retry. Top-level Comments retain their existing
+chronological presentation. A just-posted Reply stays after the paging control
+until older pages reach it; incoming rows are merged and deduplicated by id.
+The API's `commentCount`, `replyCount` and `parentReplyCount` remain authoritative.
+Confirmed local writes cannot be overwritten by an older pending page. A lower
+public thread count restarts its cached page and rechecks the total; an
+unavailable parent or a successful Block refresh removes its cached thread.
+There is no client-side privacy predicate.
+
+The existing composer moves between bottom Comment mode and one root's Reply
+mode. It preserves the separate top-level draft and the Reply text when targets
+change. Reply-to-Reply always sends the root id, labels the selected household,
+and offers an `@handle` prefill only for an empty, untouched, non-self draft.
+Removing that prefill never causes it to be reinserted. Cancel clears Reply text,
+restores the Comment draft and returns focus to the trigger where available.
+The mention composer and safe body renderer are reused, with per-instance
+`useId` labels, help, errors, status and suggestion ids.
+
+Only an interrupted sign-in saves a draft, in the existing tab-scoped session
+slot, bound to its account and Moment and expiring after 30 minutes. Reply
+context stores the root, optional selected Reply and separate Comment body.
+Recovery verifies that root in the public Comments for the same Moment and
+restores Reply mode; an unavailable root drops the Reply with neutral feedback.
+Legacy Comment recovery cannot promote a saved Reply. Moment changes remount
+the Comments component so in-memory drafts and request state cannot cross them.
+
+Row actions use the existing API permission field: Delete reply for its author,
+Remove reply for the Moment author, and Report reply for eligible other readers.
+Neither the parent author nor a collaborator gains removal permission. Reporting
+continues to send `targetType=comment` and the Reply id. Anonymous readers can
+expand threads and get no interactive Reply/report/removal controls.
+
+`MomentCommentReplied` is now retained by the Activity service and says that the
+household replied to your comment. Its existing `#comment-{replyId}` link uses
+the top page's `anchorParentCommentId` then the bounded Replies anchor read,
+expands the thread and focuses/highlights the row. An inaccessible anchor lands
+on Comments without disclosing a Reply's existence. Activity return navigation
+is preserved. Admin details label the Comment target as Reply, show the current
+parent's author/body/availability separately from report-time evidence, and
+present Remove reply while still calling `RemoveComment`. All bodies remain
+plain text; capabilities and API actions are unchanged.
+
+F4 component/service coverage and an eight-width, contract-fixture browser smoke
+are recorded in [`community-comment-replies-f4.md`](../testing/community-comment-replies-f4.md).
+The full live-backend browser/privacy audit and subsequent release work remain
+F5/F6. F4 makes no backend, schema or deployment changes.
 
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
 
-- The web Reply thread and composer (Phase 2F F4; the API exists, §12h)
 - Comment likes, editing or media
-- The web mention UI (rendering spans, composer suggestions, Activity copy) and
-  mentions in Moment captions
+- Mentions in Moment captions
 - A collaborator section on household profiles ("With friends"), collaboration
   in Feed for a collaborator's followers, and private-Moment collaboration
 - Reporting and moderation beyond the Phase 2E scope: anonymous reporting,

@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { CommentBodyWithMentions } from "@/components/social/CommentBodyWithMentions";
 import { CommentMentionComposer } from "@/components/social/CommentMentionComposer";
@@ -18,7 +19,7 @@ import {
   commentDraftStorage,
   hasCommentDraft,
   saveCommentDraft,
-  takeCommentDraft,
+  takeCommentDraftContext,
 } from "@/lib/commentDraftRecovery";
 import { formatRelativeAge } from "@/lib/momentPublishedTime";
 import { useDismissableMenu } from "@/lib/useDismissableMenu";
@@ -31,6 +32,8 @@ import {
   createMomentComment,
   deleteMomentComment,
   getMomentComments,
+  getMomentReplies,
+  supportsCommentReplies,
   linkedCommentId,
   MomentCommentError,
   type MomentComment,
@@ -39,6 +42,34 @@ import {
 import { readStoredAuthSession } from "@/services/authStorage";
 
 type LoadState = "loading" | "ready" | "error" | "unavailable";
+
+type ReplyTarget = {
+  parentId: string;
+  target: MomentComment;
+  isReply: boolean;
+};
+type ReplyThread = {
+  expanded: boolean;
+  items: MomentComment[];
+  posted: MomentComment[];
+  nextCursor: string | null;
+  loaded: boolean;
+  loading: boolean;
+  error: boolean;
+};
+const emptyThread = (): ReplyThread => ({
+  expanded: true,
+  items: [],
+  posted: [],
+  nextCursor: null,
+  loaded: false,
+  loading: false,
+  error: false,
+});
+function mergeComments(items: MomentComment[], added: MomentComment[]) {
+  return [...new Map([...items, ...added].map((comment) => [comment.id, comment])).values()]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
 
 export function MomentComments({
   momentId,
@@ -52,6 +83,14 @@ export function MomentComments({
   const sectionRef = useRef<HTMLElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const replyTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
+  const replyRequests = useRef(new Set<string>());
+  const writeRevision = useRef(new Map<string, number>());
+  const countRevision = useRef(0);
+  const removedIds = useRef(new Set<string>());
+  const generation = useRef(0);
+  const postingRef = useRef(false);
+  const replyDraftTouched = useRef(false);
   const menuTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
   const handledHashRef = useRef<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
@@ -66,6 +105,11 @@ export function MomentComments({
   const [loadMorePending, setLoadMorePending] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
   const [draft, setDraft] = useState("");
+  const [replyDraft, setReplyDraft] = useState("");
+  const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
+  const [replyUnavailable, setReplyUnavailable] = useState(false);
+  const [threads, setThreads] = useState<Record<string, ReplyThread>>({});
+  const [recoveryNotice, setRecoveryNotice] = useState("");
   const [posting, setPosting] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [draftKept, setDraftKept] = useState(false);
@@ -90,6 +134,9 @@ export function MomentComments({
 
   useEffect(() => {
     let active = true;
+    generation.current += 1;
+    replyRequests.current.clear();
+    const revision = countRevision.current;
 
     // A `#comment-{id}` link asks the first page to reach down to that
     // Comment; the API bounds how far, and ignores anything this viewer
@@ -98,26 +145,77 @@ export function MomentComments({
       typeof window === "undefined" ? null : linkedCommentId(window.location.hash);
 
     getMomentComments(momentId, undefined, { anchor })
-      .then((page) => {
+      .then(async (loaded) => {
         if (!active) return;
+        let page = loaded;
+        const restored = page.viewer.canComment ? takeCommentDraftContext(commentDraftStorage(), {
+          momentId, userId: readStoredAuthSession()?.user.id,
+        }) : null;
+        if (restored?.parentCommentId && !page.items.some((item) => item.id === restored.parentCommentId)) {
+          try { page = await getMomentComments(momentId, undefined, { anchor: restored.parentCommentId }); }
+          catch { /* A saved parent is never promoted into a Comment. */ }
+          if (!active) return;
+        }
+        const freshThreads: Record<string, ReplyThread> = {};
+        const anchorParent = page.anchorParentCommentId ?? restored?.parentCommentId;
+        const parent = page.items.find((item) => item.id === anchorParent && supportsCommentReplies(item));
+        let restoredTarget: MomentComment | undefined;
+        if (parent) {
+          try {
+            const replies = await getMomentReplies(momentId, parent.id, undefined, { anchor: page.anchorParentCommentId ? anchor : restored?.replyToCommentId });
+            if (!active) return;
+            freshThreads[parent.id] = { ...emptyThread(), items: replies.items, nextCursor: replies.nextCursor, loaded: true };
+            page = { ...page, items: page.items.map((item) => item.id === parent.id ? { ...item, replyCount: replies.replyCount } : item) };
+            restoredTarget = replies.items.find((item) => item.id === restored?.replyToCommentId);
+          } catch (error) {
+            if (!active) return;
+            if (error instanceof MomentCommentError && error.reason === "parent-unavailable") {
+              page = { ...page, items: page.items.filter((item) => item.id !== parent.id) };
+              try {
+                const latest = await getMomentComments(momentId);
+                if (!active) return;
+                page = { ...latest, items: latest.items.filter((item) => item.id !== parent.id) };
+              } catch {
+                // Keep the parent hidden even if the total cannot be rechecked.
+              }
+            } else freshThreads[parent.id] = { ...emptyThread(), error: true };
+          }
+        }
+        if (!active) return;
+        setThreads(freshThreads);
+        setLoadMorePending(false);
+        setLoadMoreError(false);
         // The API pages from the newest end; the conversation reads forward.
         setItems([...page.items].reverse());
         setNextCursor(page.nextCursor);
         setViewer(page.viewer);
-        updateCount(page.commentCount);
+        if (revision === countRevision.current) updateCount(page.commentCount);
         setLoadedAt(Date.now());
         // A Comment interrupted by an ended session comes back only to the
         // same account on the same Moment, and is never sent on its own.
         const storage = commentDraftStorage();
         if (page.viewer.canComment) {
-          const restored = takeCommentDraft(storage, {
-            momentId,
-            userId: readStoredAuthSession()?.user.id,
-          });
           if (restored) {
-            setDraft(restored);
-            setDraftRestored(true);
-            setAnnouncement("Your unsent comment was restored.");
+            if (restored.parentCommentId) {
+              setDraft(restored.topLevelBody);
+              const visibleParent = page.items.find((item) => item.id === restored.parentCommentId && supportsCommentReplies(item));
+              if (visibleParent) {
+                setReplyTarget({ parentId: visibleParent.id, target: restoredTarget ?? visibleParent, isReply: Boolean(restoredTarget) });
+                setReplyDraft(restored.body);
+                replyDraftTouched.current = true;
+                setReplyUnavailable(false);
+                setDraftRestored(true);
+                setAnnouncement("Your unsent reply was restored.");
+              } else {
+                setReplyTarget(null);
+                setReplyDraft("");
+                setRecoveryNotice("The comment you were replying to is no longer available.");
+              }
+            } else {
+              setDraft(restored.body);
+              setDraftRestored(true);
+              setAnnouncement("Your unsent comment was restored.");
+            }
           }
         } else {
           setDraftKept(hasCommentDraft(storage, momentId));
@@ -135,6 +233,7 @@ export function MomentComments({
 
     return () => {
       active = false;
+      generation.current += 1;
     };
   }, [momentId, reloadToken, updateCount]);
 
@@ -182,55 +281,165 @@ export function MomentComments({
 
   const loadEarlier = useCallback(async () => {
     if (!nextCursor || loadMorePending) return;
+    const epoch = generation.current;
+    const revision = countRevision.current;
     setLoadMorePending(true);
     setLoadMoreError(false);
     try {
       const page = await getMomentComments(momentId, nextCursor);
+      if (epoch !== generation.current) return;
       const older = [...page.items].reverse();
       setItems((current) => {
         const existing = new Set(current.map((item) => item.id));
-        return [...older.filter((item) => !existing.has(item.id)), ...current];
+        return [...older.filter((item) => !existing.has(item.id) && !removedIds.current.has(item.id)), ...current];
       });
       setNextCursor(page.nextCursor);
       setViewer(page.viewer);
-      updateCount(page.commentCount);
+      if (revision === countRevision.current) updateCount(page.commentCount);
     } catch {
-      setLoadMoreError(true);
+      if (epoch === generation.current) setLoadMoreError(true);
     } finally {
-      setLoadMorePending(false);
+      if (epoch === generation.current) setLoadMorePending(false);
     }
   }, [loadMorePending, momentId, nextCursor, updateCount]);
 
+  const loadReplies = async (parentId: string, cursor?: string) => {
+    if (replyRequests.current.has(parentId)) return;
+    const epoch = generation.current;
+    const revision = writeRevision.current.get(parentId) ?? 0;
+    replyRequests.current.add(parentId);
+    setThreads((current) => ({ ...current, [parentId]: { ...(current[parentId] ?? emptyThread()), loading: true, error: false } }));
+    try {
+      let page = await getMomentReplies(momentId, parentId, cursor);
+      if (epoch !== generation.current) return;
+      // A lower public count means cached rows may no longer be readable.
+      // Restart that thread from the current public page instead of retaining
+      // rows from an older visibility state alongside the next page.
+      const reconcile = Boolean(cursor) && page.replyCount < (items.find((item) => item.id === parentId)?.replyCount ?? 0)
+        && revision === (writeRevision.current.get(parentId) ?? 0);
+      if (reconcile) {
+        setThreads((current) => current[parentId] ? { ...current, [parentId]: { ...current[parentId], items: [], posted: [], nextCursor: null, loaded: false } } : current);
+        page = await getMomentReplies(momentId, parentId);
+        if (epoch !== generation.current) return;
+        // Replies reads carry a thread count only. Recheck the total after a
+        // visibility change without reloading the Moment or dropping the UI.
+        const countAtRead = countRevision.current;
+        try {
+          const comments = await getMomentComments(momentId, undefined, { anchor: parentId });
+          if (epoch !== generation.current) return;
+          if (countAtRead === countRevision.current) updateCount(comments.commentCount);
+        } catch {
+          // The refreshed Reply page is still usable; retain the last known total.
+        }
+        if (epoch !== generation.current) return;
+      }
+      setThreads((current) => {
+        if (!current[parentId]) return current;
+        const thread = current[parentId];
+        return { ...current, [parentId]: {
+          ...thread,
+          items: mergeComments(cursor && !reconcile ? thread.items : [], page.items).filter((item) => !removedIds.current.has(item.id)),
+          posted: cursor && !reconcile ? thread.posted : thread.posted.filter((item) => !page.items.some((reply) => reply.id === item.id)),
+          nextCursor: page.nextCursor, loaded: true, loading: false, error: false,
+        } };
+      });
+      if (revision === (writeRevision.current.get(parentId) ?? 0)) setItems((current) => current.map((item) => item.id === parentId ? { ...item, replyCount: page.replyCount } : item));
+      setAnnouncement(`${page.items.length} ${page.items.length === 1 ? "reply" : "replies"} loaded.`);
+    } catch (error) {
+      if (epoch !== generation.current) return;
+      if (error instanceof MomentCommentError && error.reason === "parent-unavailable") {
+        setItems((current) => current.filter((item) => item.id !== parentId));
+        setThreads((current) => { const next = { ...current }; delete next[parentId]; return next; });
+        if (replyTarget?.parentId === parentId) setReplyUnavailable(true);
+        setReloadToken((value) => value + 1);
+      } else setThreads((current) => current[parentId] ? { ...current, [parentId]: { ...current[parentId], loading: false, error: true } } : current);
+    } finally {
+      if (epoch === generation.current) replyRequests.current.delete(parentId);
+    }
+  };
+
+  const toggleReplies = (parent: MomentComment) => {
+    const thread = threads[parent.id];
+    setThreads((current) => ({ ...current, [parent.id]: { ...(current[parent.id] ?? emptyThread()), expanded: !current[parent.id]?.expanded } }));
+    if (!thread?.expanded && !thread?.loaded) void loadReplies(parent.id);
+  };
+
+  const beginReply = (parent: MomentComment, target: MomentComment) => {
+    if (!viewer.canComment || postingRef.current) return;
+    const isReply = target.id !== parent.id;
+    setReplyTarget({ parentId: parent.id, target, isReply });
+    setReplyUnavailable(false);
+    setComposerError(null);
+    setDraftRestored(false);
+    if (isReply && target.author.handle.toLowerCase() !== viewer.identity?.handle.toLowerCase() && !replyDraft.trim() && !replyDraftTouched.current) setReplyDraft(`@${target.author.handle} `);
+    setThreads((current) => ({ ...current, [parent.id]: { ...(current[parent.id] ?? { ...emptyThread(), loaded: (parent.replyCount ?? 0) === 0 }), expanded: true } }));
+    if (!threads[parent.id]?.loaded && (parent.replyCount ?? 0) > 0) void loadReplies(parent.id);
+    requestAnimationFrame(() => { textareaRef.current?.focus({ preventScroll: true }); textareaRef.current?.scrollIntoView({ block: "nearest" }); });
+  };
+
+  const cancelReply = () => {
+    const triggerId = replyTarget?.target.id;
+    const parentId = replyTarget?.parentId;
+    setReplyTarget(null);
+    setReplyDraft("");
+    replyDraftTouched.current = false;
+    setReplyUnavailable(false);
+    setComposerError(null);
+    setDraftRestored(false);
+    requestAnimationFrame(() => (replyTriggerRefs.current.get(triggerId ?? "") ?? replyTriggerRefs.current.get(parentId ?? ""))?.focus());
+  };
+
   const submit = useCallback(async () => {
-    if (posting || !draft.trim() || !viewer.canComment) return;
+    const body = replyTarget ? replyDraft : draft;
+    if (postingRef.current || !body.trim() || !viewer.canComment || (replyTarget && (replyUnavailable || !items.some((item) => item.id === replyTarget.parentId)))) return;
+    postingRef.current = true;
+    const epoch = generation.current;
     setPosting(true);
     setComposerError(null);
     // Read before posting: an ended session is cleared on the way to the
     // error, and the draft must stay bound to the account that wrote it.
     const authorUserId = readStoredAuthSession()?.user.id ?? null;
     try {
-      const result = await createMomentComment(momentId, draft);
-      setItems((current) =>
+      const result = replyTarget ? await createMomentComment(momentId, body, replyTarget.parentId) : await createMomentComment(momentId, body);
+      if (epoch !== generation.current) return;
+      if (replyTarget) {
+        const parentId = replyTarget.parentId;
+        writeRevision.current.set(parentId, (writeRevision.current.get(parentId) ?? 0) + 1);
+        setThreads((current) => ({ ...current, [parentId]: {
+          ...(current[parentId] ?? emptyThread()), expanded: true,
+          posted: mergeComments(current[parentId]?.posted ?? [], [result.comment]),
+        } }));
+        setItems((current) => current.map((item) => item.id === parentId ? { ...item, replyCount: result.parentReplyCount ?? item.replyCount } : item));
+        setReplyDraft("");
+        replyDraftTouched.current = false;
+      } else {
+        setItems((current) =>
         current.some((item) => item.id === result.comment.id)
           ? current
           : [...current, result.comment]
       );
+        setDraft("");
+      }
+      countRevision.current += 1;
       updateCount(result.commentCount);
-      setDraft("");
       setDraftRestored(false);
       clearCommentDraft(commentDraftStorage());
-      setAnnouncement("Comment posted.");
+      setAnnouncement(replyTarget ? "Reply posted." : "Comment posted.");
       requestAnimationFrame(() => textareaRef.current?.focus());
     } catch (error) {
+      if (epoch !== generation.current) return;
       if (error instanceof MomentCommentError) {
-        setComposerError(error.message);
+        setComposerError(error.reason === "error" && replyTarget ? "Couldn’t post reply. Please try again." : error.message);
         if (error.reason === "session") {
           if (authorUserId) {
             setDraftKept(
               saveCommentDraft(commentDraftStorage(), {
                 momentId,
                 userId: authorUserId,
-                body: draft,
+                body,
+                parentCommentId: replyTarget?.parentId,
+                replyToCommentId: replyTarget?.isReply ? replyTarget.target.id : null,
+                topLevelBody: replyTarget ? draft : "",
               })
             );
           }
@@ -243,29 +452,46 @@ export function MomentComments({
           });
         } else if (error.reason === "unavailable") {
           setState("unavailable");
+        } else if (error.reason === "parent-unavailable" || error.reason === "parent-invalid") {
+          setReplyUnavailable(true);
+          setReloadToken((value) => value + 1);
         }
       } else {
-        setComposerError("We couldn’t post your comment. Please try again.");
+        setComposerError(replyTarget ? "Couldn’t post reply. Please try again." : "We couldn’t post your comment. Please try again.");
       }
     } finally {
       setPosting(false);
+      postingRef.current = false;
     }
-  }, [draft, momentId, posting, updateCount, viewer.canComment]);
+  }, [draft, replyDraft, replyTarget, replyUnavailable, items, momentId, updateCount, viewer.canComment]);
 
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = async () => {
     if (!confirming || deleting) return;
     setDeleting(true);
     setDeleteErrorId(null);
     const index = items.findIndex((item) => item.id === confirming.id);
-    const focusId = items[index + 1]?.id ?? items[index - 1]?.id ?? null;
+    const focusId = confirming.parentCommentId ?? items[index + 1]?.id ?? items[index - 1]?.id ?? null;
+    const epoch = generation.current;
     try {
       const result = await deleteMomentComment(momentId, confirming.id);
+      if (epoch !== generation.current) return;
       const action = confirming.viewerDeleteAction;
       setItems((current) => current.filter((item) => item.id !== confirming.id));
+      removedIds.current.add(confirming.id);
+      const parentId = result.parentCommentId ?? confirming.parentCommentId;
+      if (parentId) {
+        writeRevision.current.set(parentId, (writeRevision.current.get(parentId) ?? 0) + 1);
+        setThreads((current) => current[parentId] ? { ...current, [parentId]: { ...current[parentId], items: current[parentId].items.filter((item) => item.id !== confirming.id), posted: current[parentId].posted.filter((item) => item.id !== confirming.id) } } : current);
+        setItems((current) => current.map((item) => item.id === parentId ? { ...item, replyCount: result.parentReplyCount ?? item.replyCount } : item));
+      } else {
+        setThreads((current) => { const next = { ...current }; delete next[confirming.id]; return next; });
+        if (replyTarget?.parentId === confirming.id) setReplyUnavailable(true);
+      }
+      countRevision.current += 1;
       updateCount(result.commentCount);
       setConfirming(null);
       setMenuId(null);
-      setAnnouncement(action === "remove" ? "Comment removed." : "Comment deleted.");
+      setAnnouncement(`${parentId ? "Reply" : "Comment"} ${action === "remove" ? "removed" : "deleted"}.`);
       requestAnimationFrame(() => {
         if (focusId) {
           document.getElementById(`comment-${focusId}`)?.focus();
@@ -274,6 +500,7 @@ export function MomentComments({
         }
       });
     } catch {
+      if (epoch !== generation.current) return;
       const triggerId = confirming.id;
       setDeleteErrorId(confirming.id);
       setConfirming(null);
@@ -282,10 +509,71 @@ export function MomentComments({
     } finally {
       setDeleting(false);
     }
-  }, [confirming, deleting, items, momentId, updateCount]);
+  };
 
-  const closeMenu = useCallback(() => setMenuId(null), []);
+  const closeMenu = () => setMenuId(null);
   const loginHref = ownerLoginPath(`${momentPath(momentId)}#comments`);
+  const body = replyTarget ? replyDraft : draft;
+  const parentMissing = Boolean(replyTarget) && !items.some((item) => item.id === replyTarget?.parentId);
+  const activeComposerError = parentMissing ? "This comment is no longer available." : composerError;
+  const composer = (
+    <div className="mt-5 border-t border-pet-border pt-4" data-testid="active-comment-composer">
+      {viewer.canComment ? (
+        <div className="flex gap-3">
+          <HouseholdAvatar author={viewer.identity} compact={Boolean(replyTarget)} />
+          <div className="min-w-0 flex-1">
+            {replyTarget ? <p className="mb-2 break-words text-sm font-black text-pet-ink">{replyTarget.isReply ? `Replying to @${replyTarget.target.author.handle}` : `Reply to ${replyTarget.target.author.displayName}`}</p> : null}
+            {draftRestored ? <p className="mt-1 text-sm font-semibold text-pet-muted">Your unsent {replyTarget ? "reply" : "comment"} is back. Press Send when you’re ready.</p> : null}
+            <CommentMentionComposer
+              key={replyTarget ? `${replyTarget.parentId}:${replyTarget.target.id}` : "comment"}
+              disabled={posting}
+              hasError={Boolean(activeComposerError)}
+              errorText={activeComposerError}
+              helpText={body.length >= 400 ? `${body.length} / 500` : "Ctrl or ⌘ + Enter to send"}
+              label={replyTarget ? "Add a reply" : "Add a comment"}
+              inputRef={textareaRef}
+              momentId={momentId}
+              onChange={replyTarget ? (value) => { replyDraftTouched.current = true; setReplyDraft(value); } : setDraft}
+              onSubmit={() => void submit()}
+              value={body}
+            >
+              <div className="flex flex-wrap gap-2">
+                {replyTarget ? <button className="min-h-11 rounded-full px-3 text-sm font-black text-pet-muted" disabled={posting} onClick={cancelReply} type="button">Cancel reply</button> : null}
+                <button className="min-h-11 rounded-full bg-pet-teal px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={posting || !body.trim() || parentMissing || (Boolean(replyTarget) && replyUnavailable)} onClick={() => void submit()} type="button">{posting ? "Posting…" : "Send"}</button>
+              </div>
+            </CommentMentionComposer>
+          </div>
+        </div>
+      ) : viewer.requirement === "communityProfile" ? (
+        <Link className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal" href={ownerRoutes.socialProfile}>Set up your Community profile to comment</Link>
+      ) : (
+        <>
+          {draftKept ? <p className="mb-3 text-sm font-semibold text-pet-muted">We’ve kept your {replyTarget ? "reply" : "comment"}. Sign in to finish posting it.</p> : null}
+          <Link className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal" href={loginHref}>Sign in to comment</Link>
+        </>
+      )}
+    </div>
+  );
+
+  function renderRow(comment: MomentComment, parent: MomentComment = comment, children?: ReactNode) {
+    return <CommentRow
+      comment={comment}
+      deleteError={deleteErrorId === comment.id}
+      highlighted={highlightId === comment.id}
+      key={comment.id}
+      menuOpen={menuId === comment.id}
+      now={loadedAt}
+      onCloseMenu={closeMenu}
+      onConfirm={() => setConfirming(comment)}
+      onReport={() => { setMenuId(null); setReporting(comment); }}
+      canReport={viewer.canComment && Boolean(viewer.identity) && viewer.identity?.handle.toLowerCase() !== comment.author.handle.toLowerCase()}
+      canReply={viewer.canComment && Boolean(viewer.identity) && supportsCommentReplies(parent)}
+      onReply={() => beginReply(parent, comment)}
+      setReplyTrigger={(element) => { if (element) replyTriggerRefs.current.set(comment.id, element); else replyTriggerRefs.current.delete(comment.id); }}
+      onMenu={() => setMenuId((current) => current === comment.id ? null : comment.id)}
+      setMenuTrigger={(element) => { if (element) menuTriggerRefs.current.set(comment.id, element); else menuTriggerRefs.current.delete(comment.id); }}
+    >{children}</CommentRow>;
+  }
 
   return (
     <section
@@ -352,97 +640,37 @@ export function MomentComments({
             <p className="mt-5 text-sm font-semibold text-pet-muted">No comments yet.</p>
           ) : (
             <ol className="mt-4 space-y-4" data-testid="comment-list">
-              {items.map((comment) => (
-                <CommentRow
-                  comment={comment}
-                  deleteError={deleteErrorId === comment.id}
-                  highlighted={highlightId === comment.id}
-                  key={comment.id}
-                  menuOpen={menuId === comment.id}
-                  now={loadedAt}
-                  onCloseMenu={closeMenu}
-                  onConfirm={() => setConfirming(comment)}
-                  onReport={() => { setMenuId(null); setReporting(comment); }}
-                  canReport={viewer.canComment && Boolean(viewer.identity) && viewer.identity?.handle.toLowerCase() !== comment.author.handle.toLowerCase()}
-                  onMenu={() =>
-                    setMenuId((current) => (current === comment.id ? null : comment.id))
-                  }
-                  setMenuTrigger={(element) => {
-                    if (element) menuTriggerRefs.current.set(comment.id, element);
-                    else menuTriggerRefs.current.delete(comment.id);
-                  }}
-                />
-              ))}
+              {items.map((comment) => {
+                const thread = threads[comment.id];
+                const posted = (thread?.posted ?? []).filter((reply) => !thread?.items.some((item) => item.id === reply.id));
+                const remaining = Math.max(0, (comment.replyCount ?? 0) - (thread?.items.length ?? 0) - posted.length);
+                return renderRow(comment, comment, <div className="ml-11 min-w-0 sm:ml-14" data-testid="comment-thread-context">
+                  {supportsCommentReplies(comment) && ((comment.replyCount ?? 0) > 0 || thread?.expanded) ? <button
+                    aria-controls={`replies-${comment.id}`}
+                    aria-expanded={Boolean(thread?.expanded)}
+                    aria-label={`${thread?.expanded ? "Hide replies" : `View ${comment.replyCount} ${comment.replyCount === 1 ? "reply" : "replies"}`} to ${comment.author.displayName}'s comment`}
+                    className="min-h-11 rounded-full pr-3 text-sm font-black text-pet-teal"
+                    onClick={() => toggleReplies(comment)} type="button"
+                  >{thread?.expanded ? "Hide replies" : `View ${comment.replyCount} ${comment.replyCount === 1 ? "reply" : "replies"}`}</button> : null}
+                  <div aria-busy={Boolean(thread?.loading)} hidden={!thread?.expanded} id={`replies-${comment.id}`}>
+                    {thread?.expanded ? <>
+                      <ol aria-label={`Replies to ${comment.author.displayName}'s comment`} className="space-y-3" data-testid="reply-list">
+                        {thread.items.map((reply) => renderRow(reply, comment))}
+                        {thread.nextCursor && !thread.error ? <li><button className="min-h-11 rounded-full pr-3 text-sm font-black text-pet-teal" disabled={thread.loading} onClick={() => void loadReplies(comment.id, thread.nextCursor!)} type="button">{thread.loading ? "Loading replies…" : remaining > 0 ? `View ${remaining} more ${remaining === 1 ? "reply" : "replies"}` : "View more replies"}</button></li> : null}
+                        {posted.map((reply) => renderRow(reply, comment))}
+                      </ol>
+                      {thread.loading && !thread.loaded ? <p className="py-3 text-sm font-semibold text-pet-muted" role="status">Loading replies…</p> : null}
+                      {thread.error ? <div className="py-2"><p className="text-sm font-semibold text-pet-muted" role="alert">We couldn’t load replies.</p><button className="min-h-11 rounded-full pr-3 text-sm font-black text-pet-teal" onClick={() => void loadReplies(comment.id, thread.loaded ? thread.nextCursor ?? undefined : undefined)} type="button">Try again</button></div> : null}
+                    </> : null}
+                  </div>
+                  {replyTarget?.parentId === comment.id ? composer : null}
+                </div>);
+              })}
             </ol>
           )}
 
-          <div className="mt-5 border-t border-pet-border pt-4">
-            {viewer.canComment ? (
-              <div className="flex gap-3">
-                <HouseholdAvatar author={viewer.identity} />
-                <div className="min-w-0 flex-1">
-                  <label className="text-sm font-black text-pet-ink" htmlFor="comment-body">
-                    Add a comment
-                  </label>
-                  {draftRestored ? (
-                    <p className="mt-1 text-sm font-semibold text-pet-muted">
-                      Your unsent comment is back. Press Send when you’re ready.
-                    </p>
-                  ) : null}
-                  <CommentMentionComposer
-                    disabled={posting}
-                    hasError={Boolean(composerError)}
-                    inputRef={textareaRef}
-                    momentId={momentId}
-                    onChange={setDraft}
-                    onSubmit={() => void submit()}
-                    value={draft}
-                  />
-                  <div className="mt-2 flex min-h-11 items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-pet-muted" id="comment-help">
-                      {draft.length >= 400 ? `${draft.length} / 500` : "Ctrl or ⌘ + Enter to send"}
-                    </span>
-                    <button
-                      className="min-h-11 rounded-full bg-pet-teal px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={posting || !draft.trim()}
-                      onClick={() => void submit()}
-                      type="button"
-                    >
-                      {posting ? "Posting…" : "Send"}
-                    </button>
-                  </div>
-                  <p
-                    className="mt-1 text-sm font-bold text-pet-coral"
-                    id="comment-error"
-                    role={composerError ? "alert" : undefined}
-                  >
-                    {composerError}
-                  </p>
-                </div>
-              </div>
-            ) : viewer.requirement === "communityProfile" ? (
-              <Link
-                className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal"
-                href={ownerRoutes.socialProfile}
-              >
-                Set up your Community profile to comment
-              </Link>
-            ) : (
-              <>
-                {draftKept ? (
-                  <p className="mb-3 text-sm font-semibold text-pet-muted">
-                    We’ve kept your comment. Sign in to finish posting it.
-                  </p>
-                ) : null}
-                <Link
-                  className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal"
-                  href={loginHref}
-                >
-                  Sign in to comment
-                </Link>
-              </>
-            )}
-          </div>
+          {recoveryNotice ? <p className="mt-3 text-sm font-semibold text-pet-muted" role="status">{recoveryNotice}</p> : null}
+          {!replyTarget || !items.some((item) => item.id === replyTarget.parentId) ? composer : null}
         </>
       ) : null}
 
@@ -458,11 +686,11 @@ export function MomentComments({
               ? "Removing…"
               : "Deleting…"
             : confirming?.viewerDeleteAction === "remove"
-              ? "Remove comment"
-              : "Delete comment"
+              ? `Remove ${confirming?.parentCommentId ? "reply" : "comment"}`
+              : `Delete ${confirming?.parentCommentId ? "reply" : "comment"}`
         }
         destructive
-        message="This comment will be permanently removed."
+        message={`This ${confirming?.parentCommentId ? "reply" : "comment"} will be permanently removed.`}
         onCancel={() => {
           const triggerId = confirming?.id;
           setConfirming(null);
@@ -475,14 +703,15 @@ export function MomentComments({
         open={Boolean(confirming)}
         title={
           confirming?.viewerDeleteAction === "remove"
-            ? "Remove this comment?"
-            : "Delete your comment?"
+            ? `Remove this ${confirming?.parentCommentId ? "reply" : "comment"}?`
+            : `Delete your ${confirming?.parentCommentId ? "reply" : "comment"}?`
         }
       />
       {reporting ? <CommunityReportDialog
         onClose={() => { const id = reporting.id; setReporting(null); requestAnimationFrame(() => menuTriggerRefs.current.get(id)?.focus()); }}
         open
-        report={{ type: "comment", target: reporting.id, household: reporting.author }}
+        report={{ type: "comment", target: reporting.id, household: reporting.author, isReply: Boolean(reporting.parentCommentId) }}
+        onBlocked={() => setReloadToken((value) => value + 1)}
       /> : null}
     </section>
   );
@@ -500,6 +729,10 @@ function CommentRow({
   onReport,
   canReport,
   setMenuTrigger,
+  canReply,
+  onReply,
+  setReplyTrigger,
+  children,
 }: {
   comment: MomentComment;
   now: number;
@@ -512,8 +745,14 @@ function CommentRow({
   onReport: () => void;
   canReport: boolean;
   setMenuTrigger: (element: HTMLButtonElement | null) => void;
+  canReply: boolean;
+  onReply: () => void;
+  setReplyTrigger: (element: HTMLButtonElement | null) => void;
+  children?: ReactNode;
 }) {
-  const action = comment.viewerDeleteAction === "remove" ? "Remove comment" : "Delete comment";
+  const isReply = Boolean(comment.parentCommentId);
+  const noun = isReply ? "reply" : "comment";
+  const action = `${comment.viewerDeleteAction === "remove" ? "Remove" : "Delete"} ${noun}`;
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuPanelId = `comment-actions-${comment.id}`;
@@ -532,16 +771,18 @@ function CommentRow({
 
   return (
     <li
-      className={`flex scroll-mt-24 gap-3 rounded-xl motion-safe:transition-[outline-color] ${
+      className={`scroll-mt-24 rounded-xl motion-safe:transition-[outline-color] ${
         highlighted
           ? "outline-2 outline-offset-4 outline-pet-teal"
           : "outline-none"
       }`}
       data-highlighted={highlighted || undefined}
+      data-testid={isReply ? "reply-row" : "comment-row"}
       id={`comment-${comment.id}`}
       tabIndex={-1}
     >
-      <HouseholdAvatar author={comment.author} />
+      <div className={`flex ${isReply ? "gap-2" : "gap-3"}`}>
+      <HouseholdAvatar author={comment.author} compact={isReply} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
@@ -571,7 +812,7 @@ function CommentRow({
               <button
                 aria-controls={menuOpen ? menuPanelId : undefined}
                 aria-expanded={menuOpen}
-                aria-label={`Comment actions for ${comment.author.displayName}`}
+                aria-label={`${isReply ? "Reply" : "Comment"} actions for ${comment.author.displayName}`}
                 className="grid h-11 w-11 place-items-center rounded-full text-pet-muted hover:bg-pet-cream"
                 onClick={onMenu}
                 ref={(element) => {
@@ -592,7 +833,7 @@ function CommentRow({
                     className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-black text-pet-ink hover:bg-pet-cream"
                     onClick={onReport}
                     type="button"
-                  >Report comment</button> : null}
+                  >Report {noun}</button> : null}
                   {comment.viewerDeleteAction ? <button
                     className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-black text-pet-coral hover:bg-pet-cream"
                     onClick={onConfirm}
@@ -608,23 +849,28 @@ function CommentRow({
         <p className="mt-1 whitespace-pre-line break-words text-sm font-semibold leading-6 text-pet-ink">
           <CommentBodyWithMentions body={comment.body} mentions={comment.mentions} />
         </p>
+        {canReply ? <button aria-label={`Reply to ${comment.author.displayName}`} className="min-h-11 rounded-full pr-3 text-xs font-black text-pet-muted hover:text-pet-teal" onClick={onReply} ref={setReplyTrigger} type="button">Reply</button> : null}
         {deleteError ? (
           <p className="mt-1 text-sm font-bold text-pet-coral" role="alert">
-            We couldn’t remove this comment. Please try again.
+            We couldn’t remove this {noun}. Please try again.
           </p>
         ) : null}
       </div>
+      </div>
+      {children}
     </li>
   );
 }
 
 function HouseholdAvatar({
   author,
+  compact = false,
 }: {
   author: MomentCommentViewer["identity"];
+  compact?: boolean;
 }) {
   return (
-    <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream">
+    <span className={`grid ${compact ? "h-8 w-8" : "h-11 w-11"} shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream`}>
       {author?.avatarThumbnailUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img alt="" className="h-full w-full object-cover" src={author.avatarThumbnailUrl} />

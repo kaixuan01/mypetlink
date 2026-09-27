@@ -40,6 +40,14 @@ const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const date = /^\d{4}-\d{2}-\d{2}$/;
 const actionOrder: ModerationAction[] = ["Dismiss", "RemoveComment", "HideMoment", "UnhideMoment", "RestrictHousehold", "LiftRestriction"];
 
+function reportTargetLabel(report: CommunityReportDetail) {
+  return report.targetType === "Comment" && report.currentComment?.parentCommentId ? "Reply" : report.targetType;
+}
+
+function moderationActionLabel(action: ModerationAction, report?: CommunityReportDetail | null) {
+  return action === "RemoveComment" && report?.currentComment?.parentCommentId ? "Remove reply" : moderationActions[action].label;
+}
+
 export function availableModerationActions(detail: CommunityReportDetail, access: ReturnType<typeof getAdminCapabilities>): ModerationAction[] {
   if (detail.involvesYou) return [];
   return actionOrder.filter((action) =>
@@ -180,8 +188,8 @@ export function AdminCommunityReportsManager() {
       const result = await actOnCommunityReport(activeReport.id, action, note, activeReport.rowVersion);
       setPending(null);
       setNotice(result.outcome === "AlreadyInEffect"
-        ? `${action === "RemoveComment" ? "The Comment was already removed" : "The change was already in effect"}; the report was resolved accordingly.`
-        : `${moderationActions[action].label} completed.${result.reportsResolved > 0 ? ` ${result.reportsResolved} report${result.reportsResolved === 1 ? "" : "s"} resolved.` : ""}`);
+        ? `${action === "RemoveComment" ? `The ${activeReport.currentComment?.parentCommentId ? "reply" : "Comment"} was already removed` : "The change was already in effect"}; the report was resolved accordingly.`
+        : `${moderationActionLabel(action, activeReport)} completed.${result.reportsResolved > 0 ? ` ${result.reportsResolved} report${result.reportsResolved === 1 ? "" : "s"} resolved.` : ""}`);
       refresh();
     } catch (error) {
       const message = moderationErrorMessage(error);
@@ -260,9 +268,9 @@ export function AdminCommunityReportsManager() {
       )}
       <ConfirmDialog
         open={Boolean(pending && activeReport)}
-        title={pending ? moderationActions[pending].label : "Confirm action"}
-        message={pending && activeReport ? `${moderationActions[pending].explanation} Target: ${activeReport.targetType} reported on ${formatAdminDateTime(activeReport.createdAt)}.` : ""}
-        confirmLabel={busy ? "Working…" : pending ? moderationActions[pending].label : "Confirm"}
+        title={pending ? moderationActionLabel(pending, activeReport) : "Confirm action"}
+        message={pending && activeReport ? `${pending === "RemoveComment" && activeReport.currentComment?.parentCommentId ? "This reply will no longer be publicly visible. Evidence stays in the report, and all open reports about this same reply will be resolved." : moderationActions[pending].explanation} Target: ${reportTargetLabel(activeReport)} reported on ${formatAdminDateTime(activeReport.createdAt)}.` : ""}
+        confirmLabel={busy ? "Working…" : pending ? moderationActionLabel(pending, activeReport) : "Confirm"}
         confirmDisabled={busy || !note.trim()}
         destructive={pending ? moderationActions[pending].destructive : false}
         onCancel={() => { if (!busy) setPending(null); }}
@@ -305,7 +313,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
         <>
           <AdminSection title="Report">
             <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-              <AdminDetailItem label="Target" value={report.targetType} />
+              <AdminDetailItem label="Target" value={reportTargetLabel(report)} />
               <AdminDetailItem label="Reason" value={reasonLabel(report.reason)} />
               <div className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-xs font-bold uppercase text-slate-500">Status</p>{stateBadge(report.status)}</div>
               <AdminDetailItem label="Reported at" value={formatAdminDateTime(report.createdAt)} />
@@ -330,16 +338,26 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
               <HouseholdState report={report} />
               {report.targetType === "Comment" ? (
                 <>
-                  <h3 className="font-black text-slate-900">Comment</h3>
+                  <h3 className="font-black text-slate-900">{reportTargetLabel(report)}</h3>
                   {report.currentComment ? (
                     <div className="grid gap-2">
-                      <AdminDetailItem label="Current comment author" value={householdName(report.currentComment.author.displayName, report.currentComment.author.handle)} />
-                      <p className="text-sm font-bold">{report.currentComment.removed ? "Comment already removed" : "Comment present"} · {report.currentComment.publiclyVisible ? "Publicly visible" : "Not publicly visible"}</p>
+                      <AdminDetailItem label={`Current ${reportTargetLabel(report).toLowerCase()} author`} value={householdName(report.currentComment.author.displayName, report.currentComment.author.handle)} />
+                      <p className="text-sm font-bold">{reportTargetLabel(report)} {report.currentComment.removed ? "already removed" : "present"} · {report.currentComment.publiclyVisible ? "Publicly visible" : "Not publicly visible"}</p>
                       {!report.currentComment.removed ? <PlainText label="Current body" value={report.currentComment.body} /> : null}
                       {report.currentComment.removed ? <AdminDetailItem label="Removed by" value={report.currentComment.removedBy ?? "Unavailable"} /> : null}
                       {report.currentComment.removedAt ? <AdminDetailItem label="Removed at" value={formatAdminDateTime(report.currentComment.removedAt)} /> : null}
                     </div>
                   ) : <p className="text-sm text-slate-600">Comment no longer available.</p>}
+                  {report.currentComment?.parentCommentId ? (
+                    <div className="grid gap-2 rounded-xl border border-slate-200 p-3" data-testid="reply-parent-context">
+                      <h3 className="font-black text-slate-900">Parent comment</h3>
+                      {report.currentComment.parentComment ? <>
+                        <AdminDetailItem label="Parent comment author" value={householdName(report.currentComment.parentComment.author.displayName, report.currentComment.parentComment.author.handle)} />
+                        <p className="text-sm font-bold">{report.currentComment.parentComment.removed ? "Parent comment removed" : "Parent comment present"} · {report.currentComment.parentComment.publiclyVisible ? "Publicly visible" : "Not publicly visible"}</p>
+                        {!report.currentComment.parentComment.removed && report.currentComment.parentComment.body != null ? <PlainText label="Parent comment body" value={report.currentComment.parentComment.body} /> : null}
+                      </> : <p className="text-sm text-slate-600">Parent comment no longer available.</p>}
+                    </div>
+                  ) : null}
                   <h3 className="font-black text-slate-900">Parent Moment</h3>
                   <MomentState report={report} />
                 </>
@@ -351,7 +369,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
               <AdminDetailItem label="Community name at report" value={report.evidence.displayName} />
               <AdminDetailItem label="Handle at report" value={report.evidence.handle ? `@${report.evidence.handle}` : "Unavailable"} />
               {report.evidence.title ? <PlainText label="Moment title at report" value={report.evidence.title} /> : null}
-              <PlainText label={report.targetType === "Comment" ? "Comment text at report" : report.targetType === "Moment" ? "Moment caption at report" : "Community profile at report"} value={report.evidence.text} />
+              <PlainText label={report.targetType === "Comment" ? `${reportTargetLabel(report)} text at report` : report.targetType === "Moment" ? "Moment caption at report" : "Community profile at report"} value={report.evidence.text} />
               {report.targetType === "Moment" ? <AdminNotice>Only the title and caption were preserved when this report was filed. Media shown in Current state may have changed.</AdminNotice> : null}
               {report.evidence.avatarUrl ? <SafeMedia url={report.evidence.avatarUrl} alt="Community avatar at report" type="image" /> : null}
             </div>
@@ -366,7 +384,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
             <div className="p-4">
               {report.involvesYou ? <p role="alert" className="text-sm font-semibold text-amber-800">You can’t review this report because your household is involved.</p> : null}
               <div className="flex flex-wrap gap-2">
-                {availableModerationActions(report, access).map((action) => <AdminActionButton key={action} tone={moderationActions[action].destructive ? "danger" : "neutral"} onClick={() => onAction(action)}>{moderationActions[action].label}</AdminActionButton>)}
+                {availableModerationActions(report, access).map((action) => <AdminActionButton key={action} tone={moderationActions[action].destructive ? "danger" : "neutral"} onClick={() => onAction(action)}>{moderationActionLabel(action, report)}</AdminActionButton>)}
               </div>
               {!report.involvesYou && availableModerationActions(report, access).length === 0 ? <p className="text-sm text-slate-600">No moderation actions are available for this report.</p> : null}
             </div>

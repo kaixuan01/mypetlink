@@ -11,6 +11,8 @@ import {
   deleteMomentComment,
   getCommentMentionSuggestions,
   getMomentComments,
+  getMomentReplies,
+  supportsCommentReplies,
   linkedCommentId,
   MomentCommentError,
 } from "@/services/momentCommentService";
@@ -20,6 +22,28 @@ beforeEach(() => {
 });
 
 describe("Moment Comment service", () => {
+  it("reads Reply pages ten at a time with optional authentication, cursor or bounded anchor", async () => {
+    const data = { parentCommentId: "parent", items: [], nextCursor: "next", replyCount: 25 };
+    mocks.apiRequest.mockResolvedValue({ data });
+    expect(await getMomentReplies("moment/1", "parent/1", undefined, { anchor: "reply-id" })).toEqual(data);
+    expect(mocks.apiRequest).toHaveBeenLastCalledWith("/api/v1/public/moments/moment%2F1/comments/parent%2F1/replies?limit=10&anchor=reply-id", { cache: "no-store" });
+    await getMomentReplies("moment/1", "parent/1", "next+", { anchor: "ignored" });
+    expect(mocks.apiRequest).toHaveBeenLastCalledWith("/api/v1/public/moments/moment%2F1/comments/parent%2F1/replies?limit=10&cursor=next%2B", { cache: "no-store" });
+  });
+
+  it("sends only body and the root Comment id and preserves authoritative result counts", async () => {
+    const data = { comment: { id: "reply" }, parentCommentId: "parent", parentReplyCount: 31, commentCount: 40 };
+    mocks.apiRequest.mockResolvedValue({ data });
+    expect(await createMomentComment("moment-1", "@ben Hello", "parent")).toEqual(data);
+    expect(mocks.apiRequest).toHaveBeenLastCalledWith("/api/v1/social/moments/moment-1/comments", { method: "POST", body: { body: "@ben Hello", parentCommentId: "parent" } });
+  });
+
+  it("requires the explicit root marker as well as the Reply count to recognize the F2 contract", () => {
+    const row = { id: "parent", body: "text", author: { handle: "amy", displayName: "Amy", avatarUrl: null, avatarThumbnailUrl: null }, createdAt: "now", viewerDeleteAction: null };
+    expect(supportsCommentReplies({ ...row, replyCount: 2 })).toBe(false);
+    expect(supportsCommentReplies({ ...row, parentCommentId: null, replyCount: 0 })).toBe(true);
+    expect(supportsCommentReplies({ ...row, parentCommentId: "parent", replyCount: 0 })).toBe(false);
+  });
   it("uses optional authentication for public reads", async () => {
     mocks.apiRequest.mockResolvedValue({
       data: {
@@ -105,6 +129,9 @@ describe("Moment Comment service", () => {
     [429, "rate_limit_exceeded", "rate-limit"],
     [401, "unauthorized", "session"],
     [404, "social_moment_not_found", "unavailable"],
+    [404, "comment_not_found", "parent-unavailable"],
+    [422, "comment_reply_parent_invalid", "parent-invalid"],
+    [403, "community_restricted", "forbidden"],
     [403, "community_profile_required", "community-profile"],
   ] as const) {
     it(`maps ${status} ${code} to ${expectedReason}`, async () => {

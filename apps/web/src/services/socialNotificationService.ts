@@ -14,6 +14,7 @@ export type SocialNotificationType =
   | "MomentLiked"
   | "MomentCommented"
   | "MomentCommentMentioned"
+  | "MomentCommentReplied"
   | "MomentCollaborationRequested"
   | "MomentCollaborationAccepted";
 
@@ -79,6 +80,7 @@ export function isKnownNotificationType(
     value === "MomentLiked" ||
     value === "MomentCommented" ||
     value === "MomentCommentMentioned" ||
+    value === "MomentCommentReplied" ||
     value === "MomentCollaborationRequested" ||
     value === "MomentCollaborationAccepted"
   );

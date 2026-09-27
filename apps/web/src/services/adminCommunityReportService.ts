@@ -56,6 +56,14 @@ export type CommunityReportDetail = Pick<CommunityReportSummary, "id" | "targetT
     removedAt: string | null;
     removedBy: string | null;
     publiclyVisible: boolean;
+    parentCommentId?: string | null;
+    parentComment?: {
+      author: CommunityHousehold;
+      body: string | null;
+      removed: boolean;
+      publiclyVisible: boolean;
+      createdAt: string;
+    } | null;
   } | null;
   currentMoment: {
     author: CommunityHousehold;

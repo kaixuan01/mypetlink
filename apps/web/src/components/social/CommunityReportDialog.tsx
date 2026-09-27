@@ -16,6 +16,8 @@ type ReportTarget = {
   type: CommunityReportTargetType;
   target: string;
   household?: { handle: string; displayName: string } | null;
+  /** Presentation only: Replies remain Comment report targets. */
+  isReply?: boolean;
 };
 
 export function CommunityReportDialog({
@@ -52,7 +54,7 @@ function ReportForm({ report, onClose, canBlock, onBlocked }: {
   const [blockOpen, setBlockOpen] = useState(false);
   const [blocked, setBlocked] = useState(false);
   useEffect(() => { if (state !== "form") resultRef.current?.focus(); }, [state]);
-  const name = report.type === "comment" ? "comment" : report.type === "moment" ? "Moment" : "household";
+  const name = report.type === "comment" ? report.isReply ? "reply" : "comment" : report.type === "moment" ? "Moment" : "household";
   const title = `Report ${name}`;
 
   function close() { if (!pending && !blockOpen) onClose(); }
@@ -113,7 +115,7 @@ function ReportForm({ report, onClose, canBlock, onBlocked }: {
       >
         {state === "form" ? (
           <form id={formId} onSubmit={(event) => void submit(event)}>
-            {report.household ? <p className="mb-4 text-sm font-semibold text-pet-muted">{report.type === "comment" ? "Comment by" : report.type === "moment" ? "Moment by" : "Community Profile of"} {report.household.displayName} (@{report.household.handle})</p> : null}
+            {report.household ? <p className="mb-4 text-sm font-semibold text-pet-muted">{report.type === "comment" ? report.isReply ? "Reply by" : "Comment by" : report.type === "moment" ? "Moment by" : "Community Profile of"} {report.household.displayName} (@{report.household.handle})</p> : null}
             <fieldset aria-describedby={error && !reason ? errorId : undefined} className="space-y-1">
               <legend className="mb-2 text-sm font-black text-pet-ink">Reason</legend>
               {reportReasons.map((item, index) => (

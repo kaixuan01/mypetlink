@@ -99,6 +99,18 @@ describe("Comment mention token detection", () => {
 });
 
 describe("CommentMentionComposer", () => {
+  it("gives multiple composers unique ids and valid label/description references", () => {
+    render(<><Harness /><Harness /></>);
+    const inputs = screen.getAllByRole("combobox");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0].id).not.toBe(inputs[1].id);
+    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const input of inputs) {
+      expect(document.querySelector(`label[for="${input.id}"]`)).toBeTruthy();
+      for (const id of input.getAttribute("aria-describedby")!.split(" ")) expect(document.getElementById(id)).toBeTruthy();
+    }
+  });
   it("debounces requests and preserves the backend's result order", async () => {
     render(<Harness />);
     const input = screen.getByRole("combobox");

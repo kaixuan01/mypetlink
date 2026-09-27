@@ -127,6 +127,18 @@ afterEach(() => {
 });
 
 describe("SocialNotificationsView", () => {
+  it("renders Reply Activity with household identity, the existing Reply anchor and consistent unread delivery", async () => {
+    const item = { ...comment("ben", "reply-1"), type: "MomentCommentReplied" as const };
+    mocks.getSocialNotifications.mockResolvedValue(page([item], 1));
+    render(<SocialNotificationsView />);
+    const list = await screen.findByTestId("activity-list");
+    expect(within(list).getByText(/replied to your comment\./)).toBeTruthy();
+    expect(within(list).getByText("The ben Family")).toBeTruthy();
+    expect(within(list).getByRole("link", { name: "Unread. The ben Family replied to your comment. View this reply." }).getAttribute("href")).toBe("/moments/8f1d2c3b-4a5e-4f6a-8b9c-0d1e2f3a4b5c?returnTo=%2Fnotifications#comment-reply-1");
+    expect(screen.getAllByTestId("activity-unread-marker")).toHaveLength(1);
+    expect(screen.queryByText(/MomentCommentReplied|Unknown/)).toBeNull();
+    await waitFor(() => expect(mocks.markActivityRead).toHaveBeenCalledWith([item.id]));
+  });
   it("says who did what, in the owner-as-actor voice", async () => {
     render(<SocialNotificationsView />);
 
