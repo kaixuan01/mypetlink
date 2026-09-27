@@ -199,18 +199,30 @@ It is additive: an older API runs against it and writes top-level Comments as
 before. The F2 API needs the column, so **apply `migration.sql` before pushing
 F2**.
 
-The F2 API only *reads* Replies; nothing can write one. So:
+The F2 API only *reads* Replies. **F3 writes them** (no further migration), so
+from the first Reply onward the rollback floor rises:
 
-- **While no Reply exists** (F2 deployed, F3 not yet): rolling the API back to
-  the pre-F2 build is safe. Check with
+> **After the first Reply exists, the minimum safe API is F2.**
+
+- **While no Reply exists**: rolling the API back to the pre-F2 build is safe.
+  Check with
   `SELECT COUNT(*) FROM MomentComments WHERE ParentCommentId IS NOT NULL` — it
-  must be `0`.
-- **Once Replies exist** (after F3 starts writing them): the safe rollback
-  target is the **F2 build, never a pre-F2 build**. A pre-F2 API does not know
-  Replies — it lists them as top-level Comments and ignores the rules that hide
-  a Reply whose parent is removed, blocked or hidden, so hidden Replies would
-  reappear publicly. If the API must go back past F2, the restore point from
-  the pre-deploy checklist is the only safe route.
+  must be `0`. Run the check at the moment of rollback, not from memory: once
+  F3 is live, anybody can write a Reply through the API.
+- **Once Replies exist**: roll the API back to the **F2 build, never a pre-F2
+  build**. A pre-F2 API does not know Replies — it lists them as top-level
+  Comments and ignores the rules that hide a Reply whose parent is removed,
+  blocked or hidden, so hidden Replies would reappear publicly. If the API must
+  go back past F2, the restore point from the pre-deploy checklist is the only
+  safe route.
+- **F3 → F2 is safe.** F2 reads every Reply correctly and ignores
+  `parentCommentId` again, so new posts become top-level Comments; it reads the
+  `MomentCommentReplied` Activity type as unknown and hides it.
+
+**Ship F3 with F4, not ahead of it.** F3 adds the `MomentCommentReplied`
+Activity type. A web app that predates F4 does not list it, while the unread
+badge — counted by the API — already includes it, so the badge would promise a
+row the list never shows.
 
 ---
 

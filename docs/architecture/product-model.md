@@ -160,8 +160,9 @@ Share Profile or Safety Profile into a Community dependency.
 
 A **Reply** is a Comment under a top-level Comment — one level only, never a
 Reply to a Reply. It is not a separate concept in code (a `MomentComment` with
-a parent) and it is counted in the Moment's Comment count. The read model
-exists; creating Replies is not yet available (see
+a parent) and it is counted in the Moment's Comment count. Its parent's author
+hears "replied to your comment". Replies can be read and written through the
+API; the web Reply thread and composer are not built yet (see
 [`social-foundation.md`](social-foundation.md) §12h).
 
 A Moment may have **collaborators**: up to three other households who accepted

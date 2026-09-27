@@ -2,8 +2,9 @@
 
 **Status:** Community Phase 1 and Phase 2A Moment Comments are implemented.
 Phase 2E reporting and Admin moderation (E1–E4A) are implemented; the Admin
-moderation screens are not. Comment Replies have their read model only (Phase
-2F F2, §12h) — nothing can write one yet. Comment likes remain future work.
+moderation screens are not. One-level Comment Replies can be read and written
+through the API, with their Activity (Phase 2F F2–F3, §12h); the web Reply
+thread and composer are not built yet. Comment likes remain future work.
 
 This document describes what exists in the codebase today. The product proposal
 that preceded it is a separate artefact; where the two disagree, this file is
@@ -1066,14 +1067,13 @@ account; status, resolution and every "by" field are the server's.
   owner edit or Community switch makes the loser answer `409` with nothing
   written. Nobody is notified.
 
-## 12h. Phase 2F Comment Replies (F2 read foundation)
+## 12h. Phase 2F Comment Replies
 
-> **F2 creates no Reply functionality.** Nobody can write a Reply: `POST`
-> still writes top-level Comments only and ignores any `parentCommentId` a
-> client sends, no Activity mentions Replies, and the web app shows no Reply
-> control. F2 makes the schema and every read path understand Replies
-> *before* any exist, so the build that starts writing them (F3) has a safe
-> rollback target.
+> **Status.** F2 made the schema and every read path understand Replies
+> before any could exist. **F3 enables writing them** through the existing
+> Comment endpoint, with their Activity (see *Writing Replies* below). The web
+> app offers no Reply control yet (F4), so until then a Reply can only be
+> written through the API.
 
 **Model.** A Reply is a `MomentComment` with `ParentCommentId` set; a
 top-level Comment has it null. There is no Reply table or entity — "Reply" is
@@ -1086,7 +1086,7 @@ counts all key on the Comment id, and Replies reuse every one of them.
 |---|---|
 | Schema | `FK_MomentComments_MomentComments_ParentCommentId` (`NO ACTION`: Comments are tombstoned, never deleted, so nothing cascades) and `CK_MomentComments_NotOwnParent` (`ParentCommentId IS NULL OR ParentCommentId <> Id`). |
 | Read | `SocialVisibility.VisibleComments` shows a Reply only when its parent is a readable **top-level** Comment on the **same Moment**. A Reply to a Reply, to another Moment's Comment or to a missing or deleted parent is never shown, counted, anchored, reported or nested. |
-| Write (F3) | Must refuse any parent that is not a readable top-level Comment on the route's Moment. `ParentCommentId` is set once and never changed. |
+| Write | `MomentCommentService.CreateAsync` refuses any parent that is not a readable top-level Comment on the route's Moment (§ Writing Replies). `ParentCommentId` is set once, at insert, and never changed. |
 
 "The parent is itself top-level" spans two rows, so it cannot be a CHECK; a
 computed-column foreign key could encode it and was rejected as too clever.
@@ -1177,22 +1177,107 @@ existing Comment is top-level.
 
 Release order: back up Production, apply `migration.sql`, verify, then push.
 
-> **Rollback target.** While no Reply rows exist (F2 alone), rolling the API
-> back to the pre-F2 build is safe. **Once F3 has written Replies, roll back
-> to F2 — never to pre-F2.** A pre-F2 API does not know Replies: it would list
-> them as top-level Comments and would ignore R3 and the parent rule, so a
-> Reply hidden by a block or under a removed parent would reappear publicly.
+> **Rollback floor: F2.** While no Reply rows exist, rolling the API back to
+> the pre-F2 build is safe. **Once the first Reply exists, the oldest safe
+> API is F2 — never pre-F2.** A pre-F2 API does not know Replies: it would
+> list them as top-level Comments and would ignore R3 and the parent rule, so
+> a Reply hidden by a block or under a removed parent would reappear publicly.
+> Rolling back from F3 to F2 is safe: F2 reads every Reply correctly and
+> simply stops accepting new ones (a `parentCommentId` is ignored again), and
+> F2 reads the new Activity type as unknown and hides it.
 
-Not yet built (F3–F6): Reply creation and its duplicate/lock scope,
-`MomentCommentReplied` Activity and its dedupe, retargeting unread Comment
-Activity away from Replies, the web thread, composer and Admin parent
-context, and browser QA.
+### Writing Replies (F3)
+
+**Contract.** The one Comment write path, extended:
+
+```
+POST /api/v1/social/moments/{momentId}/comments
+{ "body": "…", "parentCommentId": "…" | null }
+```
+
+`body` and `parentCommentId` are the only client inputs. The author is the
+signed-in account, the Moment is the route's, and everything else — times,
+deletion, recipients, report and moderation data — is the server's. A request
+without `parentCommentId`, or with it null, writes a top-level Comment exactly
+as before. The response adds `parentCommentId` and `parentReplyCount` (the
+thread's Replies readable by the writer; both null for a top-level Comment)
+beside the existing `comment` and `commentCount`. `DELETE` on the same route
+works for Replies and returns the same two fields.
+
+**Who may reply.** Exactly who may comment: `RequireCommentingIdentityAsync`
+(so a restricted household, one with Community off or an incomplete
+identity, or a suspended account is refused with the same code as for a
+Comment) and a Moment the actor can open (`social_moment_not_found`
+otherwise, as for a Comment). Anonymous callers get `401`.
+
+**Parent validation.** Inside the write transaction, after the pair lock and
+immediately before the insert, the parent is read through
+`VisibleComments(actor)` on the route's Moment.
+
+| Parent | Answer |
+|---|---|
+| Missing, deleted, on another Moment, blocked either way with the actor, its author out of Community, or not readable for any other reason | `404 comment_not_found` — "This comment is not available." One answer for all of them. |
+| Readable by the actor but itself a Reply | `422 comment_reply_parent_invalid`. Never quietly swapped for its parent: the caller names the thread. A Reply the actor cannot read gets the `404`, so this cannot probe for one. |
+| A readable top-level Comment on this Moment | Written. |
+
+There is no `ReplyToUserId`. Replying to a Reply is the client's job: it
+sends that Reply's top-level parent and may prefill `@handle`, which the
+ordinary mention parser resolves — or doesn't, if the writer deletes it.
+
+**Races.** Nothing serializes a Reply with its parent's removal, a block, a
+Moment being hidden or a restriction, and nothing needs to: each of those
+also makes the Reply unreadable, so a Reply that commits just after one of
+them is hidden by the same read rule (`CommentReplyWriteRelationalTests`
+forces every such race both ways on SQL Server).
+
+**Retries.** The duplicate guard is `(author, Moment, ParentCommentId or
+null, normalized body, 60 seconds)`, under the existing per-author/Moment
+application lock, so the same words at top level and under two different
+parents are three Comments, and a double submit in one thread is one.
+
+**Rate limit.** Replies spend the same `social-comment` allowance as
+Comments (20 per 10 minutes per account) — one route, one policy, one bucket.
+
+**Activity.** For a Reply by X under A's Comment on M's Moment, mentioning S,
+each household hears **at most once** from that write, in this order:
+
+1. **A** — `MomentCommentReplied`, "X replied to your comment", unless A is X.
+2. **M** — `MomentCommented`, unless M is X or M is A (then M already heard as A).
+3. **S** minus X, A and M — `MomentCommentMentioned`.
+
+`MomentCommentReplied` reuses `OwnerNotifications` (no schema change; the type
+is stored by name, so older builds read it as unknown and hide it). Unread
+rows coalesce per recipient, actor and Moment onto the newest Reply, and only
+with other Reply rows — never with a mention. It deep-links to
+`/moments/{momentId}#comment-{replyId}`, which the F2 anchor resolves through
+the parent.
+
+Removing a Reply retargets each unread row to the replier's newest remaining
+Reply that still earns it, or withdraws it. Two retargets needed care: a
+"commented on your Moment" row, and a mention row, never move onto a Reply to
+the recipient's own Comment — that one already reached them as "replied".
+
+Visibility is read-time and reuses the thread rule: `MomentCommentReplied`
+shows only while the recipient can read the Reply (`VisibleComments`), and a
+`MomentCommented` row about a standing Reply does the same. So removing the
+parent, R3, a restriction or a hidden Moment hides the Reply's Activity and
+the unread badge together, and no row is deleted for it.
+
+**Reports and moderation.** Unchanged: a Reply is a `Comment` report target
+(reported household the Reply's author, evidence its body), and Remove
+Comment removes a Reply — its mention rows and unread Activity go with it, and
+its thread's counts drop.
+
+Not yet built (F4–F6): the web thread, Reply composer and Reply Activity copy
+(the web ignores `MomentCommentReplied` until then, while the unread badge
+already counts it — so F3 must not reach Production ahead of F4), Admin
+display of the parent context, and browser QA.
 
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
 
-- Writing Comment Replies (Phase 2F F3–F4; the read model exists, §12h)
+- The web Reply thread and composer (Phase 2F F4; the API exists, §12h)
 - Comment likes, editing or media
 - The web mention UI (rendering spans, composer suggestions, Activity copy) and
   mentions in Moment captions
