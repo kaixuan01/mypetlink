@@ -69,7 +69,9 @@ public sealed record AdminCommunityMediaResponse(
 /// A Comment as it is now. Removed Comments have an empty body. For a Reply,
 /// <see cref="ParentCommentId"/> and <see cref="ParentComment"/> give the
 /// Comment it answers, because a Reply rarely makes sense on its own; a Reply
-/// is only publicly visible while that parent is.
+/// is only publicly visible while that parent is. For a top-level Comment,
+/// <see cref="ReplyCount"/> is how many Replies readers see under it now —
+/// the thread removing it would hide; it is null for a Reply.
 /// </summary>
 public sealed record AdminCommunityCurrentCommentResponse(
     Guid Id,
@@ -82,7 +84,8 @@ public sealed record AdminCommunityCurrentCommentResponse(
     bool PubliclyVisible,
     AdminCommunityHouseholdResponse Author,
     Guid? ParentCommentId,
-    AdminCommunityParentCommentResponse? ParentComment);
+    AdminCommunityParentCommentResponse? ParentComment,
+    int? ReplyCount = null);
 
 /// <summary>
 /// The Comment a reported Reply answers, as it is now. A removed parent has a

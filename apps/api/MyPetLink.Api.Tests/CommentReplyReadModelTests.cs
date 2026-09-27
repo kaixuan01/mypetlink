@@ -686,6 +686,33 @@ public sealed class CommentReplyReadModelTests
         Assert.False(current.ParentComment.PubliclyVisible);
     }
 
+    [Fact]
+    public async Task AdminSeesHowManyRepliesRemovingATopLevelCommentWouldHide()
+    {
+        using var world = await ModerationWorld.CreateAsync();
+        var parentId = world.CommentId;
+        var first = await SeedCommentAsync(world.Harness, world.MomentId, parentId, SocialSurfaceHarness.CarolId, "First reply", 5);
+        await SeedCommentAsync(world.Harness, world.MomentId, parentId, SocialSurfaceHarness.AliceId, "Second reply", 6);
+        var removed = await SeedCommentAsync(world.Harness, world.MomentId, parentId, SocialSurfaceHarness.CarolId, "Gone", 7);
+        await world.Harness.Comments.DeleteAsync(SocialSurfaceHarness.CarolId, world.MomentId, removed);
+        await world.Harness.Reports.SubmitAsync(
+            SocialSurfaceHarness.AliceId, new CreateCommunityReportRequest("comment", first.ToString(), "SpamOrScam", null));
+        world.Db.ChangeTracker.Clear();
+
+        var topLevelReport = await world.Db.CommunityReports.AsNoTracking().FirstAsync(item => item.CommentId == parentId);
+        var topLevel = (await world.Queries.GetAsync(AdminCommunityModerationTests.ModeratorId, topLevelReport.Id)).CurrentComment!;
+        Assert.Equal(2, topLevel.ReplyCount);
+
+        // A Reply has no thread of its own.
+        var replyReport = await world.Db.CommunityReports.AsNoTracking().SingleAsync(item => item.CommentId == first);
+        Assert.Null((await world.Queries.GetAsync(AdminCommunityModerationTests.ModeratorId, replyReport.Id)).CurrentComment!.ReplyCount);
+
+        // Once the Comment is gone, its thread is no longer shown to anyone.
+        await world.Harness.Comments.DeleteAsync(SocialSurfaceHarness.BobId, world.MomentId, parentId);
+        world.Db.ChangeTracker.Clear();
+        Assert.Equal(0, (await world.Queries.GetAsync(AdminCommunityModerationTests.ModeratorId, topLevelReport.Id)).CurrentComment!.ReplyCount);
+    }
+
     // ---- world --------------------------------------------------------------------
 
     private sealed record Thread(Guid MomentId, Guid ParentId, Guid CarolReplyId, Guid FrankReplyId);

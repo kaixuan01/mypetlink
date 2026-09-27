@@ -14,6 +14,7 @@ import { CommunityReportDialog } from "@/components/social/CommunityReportDialog
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { ownerLoginPath } from "@/lib/authRedirect";
+import { commentRemovalMessage } from "@/lib/commentRemovalCopy";
 import {
   clearCommentDraft,
   commentDraftStorage,
@@ -690,7 +691,11 @@ export function MomentComments({
               : `Delete ${confirming?.parentCommentId ? "reply" : "comment"}`
         }
         destructive
-        message={`This ${confirming?.parentCommentId ? "reply" : "comment"} will be permanently removed.`}
+        message={commentRemovalMessage(
+          confirming?.viewerDeleteAction === "remove" ? "remove" : "delete",
+          Boolean(confirming?.parentCommentId),
+          confirming?.replyCount,
+        )}
         onCancel={() => {
           const triggerId = confirming?.id;
           setConfirming(null);

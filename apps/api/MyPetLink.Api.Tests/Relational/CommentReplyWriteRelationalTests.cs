@@ -486,6 +486,22 @@ public sealed class CommentReplyWriteRelationalTests
         }
     }
 
+    [RelationalFact]
+    public async Task AdminDetailCountsTheRepliesAReportedCommentsRemovalWouldHide()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        var world = await SeedAsync(scope);
+        var reply = await ReplyAsync(scope, Carol, world, "One");
+        await ReplyAsync(scope, Erin, world, "Two");
+        var parentReport = await ReportAsync(scope, Erin, "comment", world.ParentId.ToString());
+        var replyReport = await ReportAsync(scope, Alice, "comment", reply.ToString());
+
+        await using var context = scope.NewContext();
+        var queries = new AdminCommunityReportQueryService(context, Options.Create(new CloudflareR2Options()));
+        Assert.Equal(2, (await queries.GetAsync(Moderator, parentReport.Id)).CurrentComment!.ReplyCount);
+        Assert.Null((await queries.GetAsync(Moderator, replyReport.Id)).CurrentComment!.ReplyCount);
+    }
+
     // ---- world ------------------------------------------------------------------------
 
     private sealed record World(Guid MomentId, Guid ParentId);

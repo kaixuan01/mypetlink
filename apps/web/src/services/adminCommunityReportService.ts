@@ -57,6 +57,8 @@ export type CommunityReportDetail = Pick<CommunityReportSummary, "id" | "targetT
     removedBy: string | null;
     publiclyVisible: boolean;
     parentCommentId?: string | null;
+    /** Publicly visible Replies under a top-level Comment; null for a Reply. */
+    replyCount?: number | null;
     parentComment?: {
       author: CommunityHousehold;
       body: string | null;

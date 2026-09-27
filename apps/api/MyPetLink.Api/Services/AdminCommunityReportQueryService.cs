@@ -220,7 +220,8 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
                     parent.CreatedAt,
                     parent.DeletedAt.HasValue,
                     parent.PubliclyVisible,
-                    households[parent.AuthorUserId])),
+                    households[parent.AuthorUserId]),
+                comment.ReplyCount),
             moment is null ? null : new AdminCommunityCurrentMomentResponse(
                 moment.Id,
                 moment.Title,
@@ -349,7 +350,8 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
         DateTimeOffset? DeletedAt,
         Guid? DeletedByUserId,
         bool PubliclyVisible,
-        Guid? ParentCommentId);
+        Guid? ParentCommentId,
+        int? ReplyCount);
 
     /// <summary>
     /// A Comment or Reply as it is now. Publicly visible means what an
@@ -372,7 +374,11 @@ public sealed class AdminCommunityReportQueryService : SkeletonService, IAdminCo
                 comment.DeletedAt,
                 comment.DeletedByUserId,
                 publiclyVisible.Any(visible => visible.Id == comment.Id),
-                comment.ParentCommentId))
+                comment.ParentCommentId,
+                // The thread removing this Comment would hide, as readers see it now.
+                comment.ParentCommentId == null
+                    ? publiclyVisible.Count(visible => visible.ParentCommentId == comment.Id)
+                    : (int?)null))
             .SingleOrDefaultAsync(cancellationToken);
     }
 

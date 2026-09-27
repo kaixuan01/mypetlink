@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { adminReplyThreadImpact } from "@/lib/commentRemovalCopy";
 import { getAdminCapabilities } from "@/services/authService";
 import { isApiClientError } from "@/services/apiClient";
 import {
@@ -46,6 +47,16 @@ function reportTargetLabel(report: CommunityReportDetail) {
 
 function moderationActionLabel(action: ModerationAction, report?: CommunityReportDetail | null) {
   return action === "RemoveComment" && report?.currentComment?.parentCommentId ? "Remove reply" : moderationActions[action].label;
+}
+
+function moderationActionMessage(action: ModerationAction, report: CommunityReportDetail) {
+  const isReply = Boolean(report.currentComment?.parentCommentId);
+  const explanation = action === "RemoveComment" && isReply
+    ? "This reply will no longer be publicly visible. Evidence stays in the report, and all open reports about this same reply will be resolved."
+    : moderationActions[action].explanation;
+  // Removing one Reply leaves its siblings; removing a Comment hides its thread.
+  const threadImpact = action === "RemoveComment" && !isReply ? adminReplyThreadImpact(report.currentComment?.replyCount) : null;
+  return `${explanation}${threadImpact ? ` ${threadImpact}` : ""} Target: ${reportTargetLabel(report)} reported on ${formatAdminDateTime(report.createdAt)}.`;
 }
 
 export function availableModerationActions(detail: CommunityReportDetail, access: ReturnType<typeof getAdminCapabilities>): ModerationAction[] {
@@ -269,7 +280,7 @@ export function AdminCommunityReportsManager() {
       <ConfirmDialog
         open={Boolean(pending && activeReport)}
         title={pending ? moderationActionLabel(pending, activeReport) : "Confirm action"}
-        message={pending && activeReport ? `${pending === "RemoveComment" && activeReport.currentComment?.parentCommentId ? "This reply will no longer be publicly visible. Evidence stays in the report, and all open reports about this same reply will be resolved." : moderationActions[pending].explanation} Target: ${reportTargetLabel(activeReport)} reported on ${formatAdminDateTime(activeReport.createdAt)}.` : ""}
+        message={pending && activeReport ? moderationActionMessage(pending, activeReport) : ""}
         confirmLabel={busy ? "Working…" : pending ? moderationActionLabel(pending, activeReport) : "Confirm"}
         confirmDisabled={busy || !note.trim()}
         destructive={pending ? moderationActions[pending].destructive : false}
@@ -343,6 +354,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
                     <div className="grid gap-2">
                       <AdminDetailItem label={`Current ${reportTargetLabel(report).toLowerCase()} author`} value={householdName(report.currentComment.author.displayName, report.currentComment.author.handle)} />
                       <p className="text-sm font-bold">{reportTargetLabel(report)} {report.currentComment.removed ? "already removed" : "present"} · {report.currentComment.publiclyVisible ? "Publicly visible" : "Not publicly visible"}</p>
+                      {!report.currentComment.parentCommentId && typeof report.currentComment.replyCount === "number" ? <AdminDetailItem label="Publicly visible replies" value={String(report.currentComment.replyCount)} /> : null}
                       {!report.currentComment.removed ? <PlainText label="Current body" value={report.currentComment.body} /> : null}
                       {report.currentComment.removed ? <AdminDetailItem label="Removed by" value={report.currentComment.removedBy ?? "Unavailable"} /> : null}
                       {report.currentComment.removedAt ? <AdminDetailItem label="Removed at" value={formatAdminDateTime(report.currentComment.removedAt)} /> : null}

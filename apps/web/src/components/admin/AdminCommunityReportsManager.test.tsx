@@ -163,6 +163,35 @@ describe("Community report detail", () => {
     await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, "RemoveComment", "Reviewed Reply evidence.", "AQID"));
   });
 
+  it.each([
+    [0, null],
+    [1, "This comment has 1 reply. Removing the comment will also hide its reply thread."],
+    [3, "This comment has 3 replies. Removing the comment will also hide its reply thread."],
+  ])("shows a top-level Comment's %i publicly visible replies and warns before hiding its thread", async (replyCount, warning) => {
+    mock.get.mockResolvedValue({ ...detail, currentComment: { ...detail.currentComment!, parentCommentId: null, replyCount } });
+    grant(adminCapabilities.communityReportsView, adminCapabilities.communityReportsResolve);
+    render(<AdminCommunityReportsManager />);
+    const current = (await screen.findByRole("heading", { name: /Reported content · Current state/ })).closest("section")!;
+    expect(within(current).getByText("Publicly visible replies")).toBeTruthy();
+    expect(within(current).getByText(String(replyCount))).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove comment" }));
+    const dialog = screen.getByRole("dialog");
+    if (warning) expect(within(dialog).getByText(warning, { exact: false })).toBeTruthy();
+    else expect(dialog.textContent).not.toMatch(/reply thread/);
+    expect(dialog.textContent).not.toMatch(/repl(y|ies)[^.]*deleted/i);
+  });
+
+  it("gives a Reply no reply count and no thread warning", async () => {
+    mock.get.mockResolvedValue({ ...replyDetail, currentComment: { ...replyDetail.currentComment, replyCount: null } });
+    grant(adminCapabilities.communityReportsView, adminCapabilities.communityReportsResolve);
+    render(<AdminCommunityReportsManager />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove reply" }));
+    expect(screen.queryByText("Publicly visible replies")).toBeNull();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/This reply will no longer be publicly visible/)).toBeTruthy();
+    expect(dialog.textContent).not.toMatch(/reply thread/);
+  });
+
   it("keeps Reply removal unavailable without resolve access", async () => {
     mock.get.mockResolvedValue(replyDetail);
     grant(adminCapabilities.communityReportsView);

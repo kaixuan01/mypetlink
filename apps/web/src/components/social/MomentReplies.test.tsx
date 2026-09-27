@@ -101,6 +101,39 @@ describe("One-level Reply threads", () => {
     }
   });
 
+  it("warns that a Comment's Replies stop being shown with it, in the right number, and never says they are deleted", async () => {
+    const cases: ["delete" | "remove", number, string, string][] = [
+      ["delete", 0, "Delete your comment?", "This comment will be permanently removed."],
+      ["delete", 1, "Delete your comment?", "This comment will be permanently removed. Its reply will also no longer be shown."],
+      ["delete", 3, "Delete your comment?", "This comment will be permanently removed. Its 3 replies will also no longer be shown."],
+      ["remove", 0, "Remove this comment?", "This comment will be permanently removed."],
+      ["remove", 1, "Remove this comment?", "This comment has 1 reply. The comment and its reply will no longer be shown."],
+      ["remove", 3, "Remove this comment?", "This comment has 3 replies. The comment and its replies will no longer be shown."],
+    ];
+    for (const [action, replyCount, title, message] of cases) {
+      vi.resetAllMocks();
+      mocks.get.mockResolvedValue(page([{ ...parent, replyCount, viewerDeleteAction: action }], 1 + replyCount));
+      mount();
+      fireEvent.click(await screen.findByRole("button", { name: "Comment actions for Amy" }));
+      fireEvent.click(screen.getByRole("button", { name: `${action === "delete" ? "Delete" : "Remove"} comment` }));
+      const dialog = screen.getByRole("dialog");
+      expect(within(dialog).getByText(title), `${action} ${replyCount}`).toBeTruthy();
+      expect(within(dialog).getByText(message), `${action} ${replyCount}`).toBeTruthy();
+      expect(dialog.textContent).not.toMatch(/repl(y|ies)[^.]*(deleted|permanently)/i);
+      cleanup();
+    }
+  });
+
+  it("warns about nothing more when a single Reply is deleted", async () => {
+    mocks.replies.mockResolvedValue(replyPage([{ ...reply, viewerDeleteAction: "remove" }, later]));
+    mount(); await expand();
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply actions for Ben" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove reply" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Remove this reply?")).toBeTruthy();
+    expect(within(dialog).getByText("This reply will be permanently removed.")).toBeTruthy();
+  });
+
   it("keeps the parent usable during loading, announces completion and retries inline", async () => {
     const pending = deferred<ReturnType<typeof replyPage>>();
     mocks.replies.mockReturnValueOnce(pending.promise).mockRejectedValueOnce(new Error("offline")).mockResolvedValue(replyPage());
