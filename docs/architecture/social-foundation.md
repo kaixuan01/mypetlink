@@ -656,7 +656,12 @@ body or an unscrubbed tombstone.
 
 Repeated unread Comment activity from one actor on one Moment is coalesced to
 the latest active Comment. Deleting that Comment retargets the unread row to the
-actor's latest remaining Comment, or removes it. Read history carries no body
+actor's latest remaining Comment that the recipient can read and has not
+already read about — newer than the newest read row of the same kind from that
+actor on that Moment — or removes it. It never moves onto a Comment a read row
+already delivered, so Activity never lists one Comment twice; read rows are
+never changed. "Replied" and "mentioned" rows follow the same rule
+(`CommentActivityRetargetTests`). Read history carries no body
 preview. A transaction-scoped SQL Server application lock per Comment-author/Moment
 pair makes the 60-second normalized duplicate guard and unread-activity
 coalescing deterministic under concurrent retries without permanently

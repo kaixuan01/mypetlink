@@ -231,15 +231,18 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         foreach (var notification in waiting)
         {
             var recipientId = notification.RecipientUserId;
+            var readThrough = await ReadThroughAsync(
+                notification, OwnerNotificationType.MomentCommented, cancellationToken);
 
             // A Reply to the recipient's own Comment already reached them as
             // "replied to your comment"; it never becomes "commented on your
             // Moment" as well.
             var latest = await _dbContext.MomentComments
+                .VisibleComments(_dbContext, recipientId)
                 .Where(comment => comment.AuthorUserId == actorId
                     && comment.MomentId == momentId
                     && comment.Id != commentId
-                    && comment.DeletedAt == null
+                    && (readThrough == null || comment.CreatedAt > readThrough)
                     && (comment.ParentCommentId == null
                         || comment.ParentComment!.AuthorUserId != recipientId))
                 .OrderByDescending(comment => comment.CreatedAt)
@@ -326,11 +329,14 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         foreach (var notification in waiting)
         {
             var recipientId = notification.RecipientUserId;
+            var readThrough = await ReadThroughAsync(
+                notification, OwnerNotificationType.MomentCommentReplied, cancellationToken);
             var latest = await _dbContext.MomentComments
+                .VisibleComments(_dbContext, recipientId)
                 .Where(comment => comment.AuthorUserId == actorId
                     && comment.MomentId == momentId
                     && comment.Id != commentId
-                    && comment.DeletedAt == null
+                    && (readThrough == null || comment.CreatedAt > readThrough)
                     && comment.ParentCommentId != null
                     && comment.ParentComment!.AuthorUserId == recipientId)
                 .OrderByDescending(comment => comment.CreatedAt)
@@ -432,6 +438,9 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         foreach (var notification in waiting)
         {
             var recipientId = notification.RecipientUserId;
+            var readThrough = await ReadThroughAsync(
+                notification, OwnerNotificationType.MomentCommentMentioned, cancellationToken);
+            var visibleComments = _dbContext.MomentComments.VisibleComments(_dbContext, recipientId);
             // Never onto a Reply to the recipient's own Comment: that one
             // reached them as "replied to your comment".
             var latest = await _dbContext.MomentCommentMentions
@@ -439,7 +448,8 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                     && mention.CommentId != commentId
                     && mention.Comment.AuthorUserId == actorId
                     && mention.Comment.MomentId == momentId
-                    && mention.Comment.DeletedAt == null
+                    && visibleComments.Any(comment => comment.Id == mention.CommentId)
+                    && (readThrough == null || mention.Comment.CreatedAt > readThrough)
                     && (mention.Comment.ParentCommentId == null
                         || mention.Comment.ParentComment!.AuthorUserId != recipientId))
                 .OrderByDescending(mention => mention.Comment.CreatedAt)
@@ -666,6 +676,29 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
 
         return new OwnerNotificationSummaryResponse(
             await CountUnreadAsync(recipientId, cancellationToken));
+    }
+
+    /// <summary>
+    /// How far the recipient has already read this actor's Activity of one
+    /// kind on this Moment: the newest read row of the same kind. Everything up
+    /// to it reached them through that row or an earlier one, so an unread row
+    /// being retargeted only ever moves to something newer. Moving it onto
+    /// anything older would show the recipient the same Comment twice, once
+    /// read and once unread. Nothing newer and visible means the unread row
+    /// goes; read rows are never touched.
+    /// </summary>
+    private Task<DateTimeOffset?> ReadThroughAsync(
+        OwnerNotification unread,
+        OwnerNotificationType type,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.OwnerNotifications
+            .Where(item => item.RecipientUserId == unread.RecipientUserId
+                && item.ActorUserId == unread.ActorUserId
+                && item.MomentId == unread.MomentId
+                && item.Type == type
+                && item.ReadAt != null)
+            .MaxAsync(item => (DateTimeOffset?)item.CreatedAt, cancellationToken);
     }
 
     /// <summary>
