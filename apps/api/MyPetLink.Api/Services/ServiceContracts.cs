@@ -267,9 +267,22 @@ public interface IOwnerNotificationService : ISkeletonService
         Guid actorId, Guid momentId, Guid commentId,
         CancellationToken cancellationToken = default);
 
+    /// <param name="parentAuthorId">
+    /// For a Reply, the parent's author, who hears "replied to your comment"
+    /// instead of a mention.
+    /// </param>
     Task StageCommentMentionNotifications(
         Guid actorId, Guid momentAuthorId, Guid momentId, Guid commentId,
         IReadOnlyCollection<Guid> mentionedUserIds,
+        CancellationToken cancellationToken = default,
+        Guid? parentAuthorId = null);
+
+    Task StageCommentReplyNotification(
+        Guid actorId, Guid recipientId, Guid momentId, Guid replyId,
+        CancellationToken cancellationToken = default);
+
+    Task StageCommentReplyNotificationWithdrawal(
+        Guid actorId, Guid momentId, Guid commentId,
         CancellationToken cancellationToken = default);
 
     Task StageCommentMentionNotificationWithdrawal(

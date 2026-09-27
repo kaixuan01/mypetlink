@@ -21,8 +21,8 @@ namespace MyPetLink.Api.Services;
 ///
 /// Threads are one level deep: a Moment's page lists top-level Comments, each
 /// with its readable Reply count, and a thread's Replies are read on their own,
-/// oldest first. Replies are read-only here — creation writes top-level
-/// Comments only.
+/// oldest first. A Reply is written through the same create path with a
+/// top-level parent on the same Moment; it is never a parent itself.
 /// </summary>
 public sealed class MomentCommentService : SkeletonService, IMomentCommentService
 {
@@ -195,6 +195,7 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
     {
         var actorId = RequireUserId(currentUserId);
         var body = MomentCommentBodyRules.RequireValid(request?.Body);
+        var parentId = request?.ParentCommentId;
         await RequireCommentingIdentityAsync(actorId, cancellationToken);
         var moment = await RequireVisibleMomentAsync(momentId, actorId, cancellationToken);
         // SQL Server takes one transaction-scoped application lock per
@@ -232,10 +233,22 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                     cancellationToken);
             }
 
+            // A Reply's parent is checked inside the transaction, as late as
+            // possible before the insert. Nothing here serializes with the
+            // parent's own removal or with a block, and nothing needs to: a
+            // Reply that commits just after either one is hidden by the same
+            // read rule that hides every Reply without a readable parent.
+            Guid? parentAuthorId = parentId is { } requestedParent
+                ? await RequireReplyParentAsync(requestedParent, momentId, actorId, cancellationToken)
+                : null;
+
+            // A retry is the same text by the same author in the same place:
+            // the same thread, or top level. The pair lock above covers both.
             var now = DateTimeOffset.UtcNow;
             var duplicate = await _dbContext.MomentComments
                 .Where(comment => comment.AuthorUserId == actorId
                     && comment.MomentId == momentId
+                    && comment.ParentCommentId == parentId
                     && comment.DeletedAt == null
                     && comment.CreatedAt >= now - DuplicateWindow
                     && comment.Body == body)
@@ -252,6 +265,7 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                 var comment = new MomentComment
                 {
                     MomentId = momentId,
+                    ParentCommentId = parentId,
                     AuthorUserId = actorId,
                     Body = body,
                     CreatedAt = now
@@ -267,20 +281,40 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
                     actorId,
                     moment.AuthorUserId,
                     cancellationToken);
-                await _notifications.StageCommentNotification(
-                    actorId,
-                    moment.AuthorUserId,
-                    momentId,
-                    moment.PetId,
-                    comment.Id,
-                    cancellationToken);
+
+                // Each household hears about this Comment at most once: the
+                // parent's author that they were replied to, else the
+                // Moment's author that their Moment was commented on, else a
+                // mentioned household that they were mentioned.
+                if (parentAuthorId is { } parentAuthor)
+                {
+                    await _notifications.StageCommentReplyNotification(
+                        actorId,
+                        parentAuthor,
+                        momentId,
+                        comment.Id,
+                        cancellationToken);
+                }
+
+                if (parentAuthorId != moment.AuthorUserId)
+                {
+                    await _notifications.StageCommentNotification(
+                        actorId,
+                        moment.AuthorUserId,
+                        momentId,
+                        moment.PetId,
+                        comment.Id,
+                        cancellationToken);
+                }
+
                 await _notifications.StageCommentMentionNotifications(
                     actorId,
                     moment.AuthorUserId,
                     momentId,
                     comment.Id,
                     mentioned,
-                    cancellationToken);
+                    cancellationToken,
+                    parentAuthorId);
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
 
@@ -291,11 +325,47 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         });
 
         var response = await LoadResponseAsync(
-            commentId, actorId, moment.AuthorUserId, cancellationToken);
+            commentId, momentId, actorId, moment.AuthorUserId, cancellationToken);
 
         return new CreateMomentCommentResponse(
             response,
-            await CountVisibleAsync(momentId, actorId, cancellationToken));
+            await CountVisibleAsync(momentId, actorId, cancellationToken),
+            parentId,
+            parentId is { } parent
+                ? await CountVisibleRepliesAsync(momentId, parent, actorId, cancellationToken)
+                : null);
+    }
+
+    /// <summary>
+    /// The author of the top-level Comment a new Reply is going under, read
+    /// through the same visibility the actor browses with. Missing, deleted,
+    /// blocked either way, on another Moment, on a Moment hidden since — all
+    /// the same 404, so a Reply cannot be used to probe for anything. A Comment
+    /// the actor can see that is itself a Reply is refused rather than
+    /// quietly swapped for its parent: the caller names the thread.
+    /// </summary>
+    private async Task<Guid> RequireReplyParentAsync(
+        Guid parentId,
+        Guid momentId,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        var parent = await _dbContext.MomentComments
+            .VisibleComments(_dbContext, actorId)
+            .Where(comment => comment.Id == parentId && comment.MomentId == momentId)
+            .Select(comment => new { comment.ParentCommentId, comment.AuthorUserId })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw CommentNotFound();
+
+        if (parent.ParentCommentId is not null)
+        {
+            throw new ApiException(
+                StatusCodes.Status422UnprocessableEntity,
+                "comment_reply_parent_invalid",
+                "You can reply to a comment, but not to another reply.");
+        }
+
+        return parent.AuthorUserId;
     }
 
     public async Task<DeleteMomentCommentResponse> DeleteAsync(
@@ -311,6 +381,7 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             .Select(item => new
             {
                 item.AuthorUserId,
+                item.ParentCommentId,
                 MomentAuthorUserId = item.Moment.AuthorUserId
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -360,7 +431,11 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
 
         return new DeleteMomentCommentResponse(
             commentId,
-            await CountVisibleAsync(momentId, actorId, cancellationToken));
+            await CountVisibleAsync(momentId, actorId, cancellationToken),
+            target.ParentCommentId,
+            target.ParentCommentId is { } parent
+                ? await CountVisibleRepliesAsync(momentId, parent, actorId, cancellationToken)
+                : null);
     }
 
     /// <summary>
@@ -588,6 +663,20 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             .CountAsync(comment => comment.MomentId == momentId, cancellationToken);
     }
 
+    /// <summary>The Replies this viewer can read in one thread.</summary>
+    private Task<int> CountVisibleRepliesAsync(
+        Guid momentId,
+        Guid parentId,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.MomentComments
+            .VisibleComments(_dbContext, viewerId)
+            .CountAsync(
+                comment => comment.MomentId == momentId && comment.ParentCommentId == parentId,
+                cancellationToken);
+    }
+
     /// <summary>
     /// Serializes Comment writes for one author on one Moment across every API
     /// instance. Taken by both create and delete with the Comment author's id,
@@ -609,6 +698,7 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
 
     private async Task<MomentCommentResponse> LoadResponseAsync(
         Guid commentId,
+        Guid momentId,
         Guid viewerId,
         Guid momentAuthorUserId,
         CancellationToken cancellationToken)
@@ -619,9 +709,12 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         var row = await Project(source).SingleAsync(cancellationToken);
         var mentions = await LoadMentionsAsync([row.Id], viewerId, cancellationToken);
 
-        // Only top-level Comments are written today, and a Comment written a
-        // moment ago has no Replies yet.
-        return ToResponse(row, viewerId, momentAuthorUserId, mentions, new Dictionary<Guid, int>());
+        // A retry answered with an earlier top-level Comment may already have
+        // Replies under it.
+        var replyCounts = row.ParentCommentId is null
+            ? await LoadReplyCountsAsync(momentId, [row.Id], viewerId, cancellationToken)
+            : new Dictionary<Guid, int>();
+        return ToResponse(row, viewerId, momentAuthorUserId, mentions, replyCounts);
     }
 
     private static IQueryable<CommentProjection> Project(IQueryable<MomentComment> query)
@@ -937,8 +1030,10 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
 }
 
 /// <summary>
-/// The one way a Comment is removed — by its author, by the Moment's author,
-/// or by a MyPetLink moderator. The body is wiped, its mention rows go with it,
+/// The one way a Comment or Reply is removed — by its author, by the Moment's
+/// author, or by a MyPetLink moderator. Removing a top-level Comment removes
+/// that row only: its Replies stay stored and leave every read with their
+/// parent. The body is wiped, its mention rows go with it,
 /// and its unread Activity is withdrawn or retargeted, all staged on the
 /// caller's unit of work so the caller saves it together with anything else
 /// that belongs to the same decision (a moderator's report resolutions and
@@ -998,6 +1093,11 @@ public static class MomentCommentRemoval
             commentId,
             cancellationToken);
         await notifications.StageCommentMentionNotificationWithdrawal(
+            comment.AuthorUserId,
+            comment.MomentId,
+            commentId,
+            cancellationToken);
+        await notifications.StageCommentReplyNotificationWithdrawal(
             comment.AuthorUserId,
             comment.MomentId,
             commentId,

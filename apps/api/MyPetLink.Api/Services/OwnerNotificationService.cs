@@ -228,31 +228,124 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 && item.ReadAt == null)
             .ToListAsync(cancellationToken);
 
-        if (waiting.Count == 0)
+        foreach (var notification in waiting)
+        {
+            var recipientId = notification.RecipientUserId;
+
+            // A Reply to the recipient's own Comment already reached them as
+            // "replied to your comment"; it never becomes "commented on your
+            // Moment" as well.
+            var latest = await _dbContext.MomentComments
+                .Where(comment => comment.AuthorUserId == actorId
+                    && comment.MomentId == momentId
+                    && comment.Id != commentId
+                    && comment.DeletedAt == null
+                    && (comment.ParentCommentId == null
+                        || comment.ParentComment!.AuthorUserId != recipientId))
+                .OrderByDescending(comment => comment.CreatedAt)
+                .ThenByDescending(comment => comment.Id)
+                .Select(comment => (Guid?)comment.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latest.HasValue)
+            {
+                notification.CommentId = latest.Value;
+            }
+            else
+            {
+                _dbContext.OwnerNotifications.Remove(notification);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Stages "X replied to your comment" for the author of the Comment a new
+    /// Reply is under. Nobody is told about replying to themselves. One unread
+    /// row per replier per Moment per recipient is kept and pointed at the
+    /// newest such Reply, exactly as Comment Activity coalesces — and only
+    /// ever with other Reply rows, never with a mention.
+    /// </summary>
+    public async Task StageCommentReplyNotification(
+        Guid actorId,
+        Guid recipientId,
+        Guid momentId,
+        Guid replyId,
+        CancellationToken cancellationToken = default)
+    {
+        if (actorId == recipientId)
         {
             return;
         }
 
-        var latest = await _dbContext.MomentComments
-            .Where(comment => comment.AuthorUserId == actorId
-                && comment.MomentId == momentId
-                && comment.Id != commentId
-                && comment.DeletedAt == null)
-            .OrderByDescending(comment => comment.CreatedAt)
-            .ThenByDescending(comment => comment.Id)
-            .Select(comment => (Guid?)comment.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        var waiting = await _dbContext.OwnerNotifications.SingleOrDefaultAsync(
+            item => item.RecipientUserId == recipientId
+                && item.ActorUserId == actorId
+                && item.MomentId == momentId
+                && item.Type == OwnerNotificationType.MomentCommentReplied
+                && item.ReadAt == null,
+            cancellationToken);
 
-        if (latest.HasValue)
+        if (waiting is not null)
         {
-            foreach (var notification in waiting)
+            waiting.CommentId = replyId;
+            waiting.CreatedAt = DateTimeOffset.UtcNow;
+            return;
+        }
+
+        _dbContext.OwnerNotifications.Add(new OwnerNotification
+        {
+            RecipientUserId = recipientId,
+            ActorUserId = actorId,
+            MomentId = momentId,
+            CommentId = replyId,
+            Type = OwnerNotificationType.MomentCommentReplied
+        });
+    }
+
+    /// <summary>
+    /// Stages the withdrawal of unread "replied to your comment" rows that
+    /// point at a Reply being removed. A recipient the same replier also
+    /// answered elsewhere on this Moment keeps the row, moved to the newest
+    /// such Reply still standing; otherwise the row goes. Whether a row is
+    /// shown at all is decided at read time, through the Reply's visibility.
+    /// </summary>
+    public async Task StageCommentReplyNotificationWithdrawal(
+        Guid actorId,
+        Guid momentId,
+        Guid commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var waiting = await _dbContext.OwnerNotifications
+            .Where(item => item.ActorUserId == actorId
+                && item.MomentId == momentId
+                && item.CommentId == commentId
+                && item.Type == OwnerNotificationType.MomentCommentReplied
+                && item.ReadAt == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var notification in waiting)
+        {
+            var recipientId = notification.RecipientUserId;
+            var latest = await _dbContext.MomentComments
+                .Where(comment => comment.AuthorUserId == actorId
+                    && comment.MomentId == momentId
+                    && comment.Id != commentId
+                    && comment.DeletedAt == null
+                    && comment.ParentCommentId != null
+                    && comment.ParentComment!.AuthorUserId == recipientId)
+                .OrderByDescending(comment => comment.CreatedAt)
+                .ThenByDescending(comment => comment.Id)
+                .Select(comment => (Guid?)comment.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latest.HasValue)
             {
                 notification.CommentId = latest.Value;
             }
-        }
-        else
-        {
-            _dbContext.OwnerNotifications.RemoveRange(waiting);
+            else
+            {
+                _dbContext.OwnerNotifications.Remove(notification);
+            }
         }
     }
 
@@ -260,9 +353,10 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     /// Stages "X mentioned you in a comment" for each household a new Comment
     /// mentions.
     ///
-    /// Nobody is told about their own mention, and the Moment's author is not
-    /// told twice: the Comment already reaches them as "commented on your
-    /// Moment". Like Comment Activity, one unread row per commenter per Moment
+    /// Nobody is told about their own mention, and nobody already told about
+    /// this Comment is told twice: the Moment's author hears "commented on your
+    /// Moment" and, for a Reply, the parent's author hears "replied to your
+    /// comment". Like Comment Activity, one unread row per commenter per Moment
     /// per recipient is kept and pointed at the newest Comment, so a run of
     /// Comments mentioning the same household reads as one line, not five.
     /// </summary>
@@ -272,10 +366,11 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         Guid momentId,
         Guid commentId,
         IReadOnlyCollection<Guid> mentionedUserIds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? parentAuthorId = null)
     {
         var recipients = mentionedUserIds
-            .Where(userId => userId != actorId && userId != momentAuthorId)
+            .Where(userId => userId != actorId && userId != momentAuthorId && userId != parentAuthorId)
             .Distinct()
             .ToArray();
         if (recipients.Length == 0)
@@ -337,12 +432,16 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         foreach (var notification in waiting)
         {
             var recipientId = notification.RecipientUserId;
+            // Never onto a Reply to the recipient's own Comment: that one
+            // reached them as "replied to your comment".
             var latest = await _dbContext.MomentCommentMentions
                 .Where(mention => mention.MentionedUserId == recipientId
                     && mention.CommentId != commentId
                     && mention.Comment.AuthorUserId == actorId
                     && mention.Comment.MomentId == momentId
-                    && mention.Comment.DeletedAt == null)
+                    && mention.Comment.DeletedAt == null
+                    && (mention.Comment.ParentCommentId == null
+                        || mention.Comment.ParentComment!.AuthorUserId != recipientId))
                 .OrderByDescending(mention => mention.Comment.CreatedAt)
                 .ThenByDescending(mention => mention.CommentId)
                 .Select(mention => (Guid?)mention.CommentId)
@@ -591,7 +690,8 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
     /// social identity is incomplete, an actor whose account is not Active
     /// (the same rule that takes their Community Profile, Moments and Comments
     /// off Community), a block in either direction, and a Moment hidden by
-    /// MyPetLink. All five are read-time:
+    /// MyPetLink. Comment Activity about a Reply additionally follows that
+    /// Reply's own visibility. All of it is read-time:
     /// rows are never deleted for them, so reinstatement restores the history. The block
     /// case is the one that matters — activity must never become the back door
     /// that hands somebody a blocked account's handle and a link to their
@@ -604,6 +704,8 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         var visibleMoments = _dbContext.PetMemories.SociallyVisible();
         var visibleMentions = _dbContext.MomentCommentMentions
             .VisibleCommentMentions(_dbContext, recipientId);
+        var visibleComments = _dbContext.MomentComments
+            .VisibleComments(_dbContext, recipientId);
 
         return _dbContext.OwnerNotifications
             .AsNoTracking()
@@ -626,7 +728,24 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 && (item.MomentId == null || item.Moment!.ModeratedAt == null)
                 && (item.Type == OwnerNotificationType.NewFollower
                     || item.Type == OwnerNotificationType.MomentLiked
-                    || item.Type == OwnerNotificationType.MomentCommented
+                    // A top-level Comment's row keeps its history once the
+                    // Comment is gone, as it always has. A row about a Reply
+                    // that is still standing shows only while the recipient
+                    // can read that Reply: its thread may have gone with a
+                    // removed parent, or a block between the Reply's author
+                    // and the parent's may hide it.
+                    || (item.Type == OwnerNotificationType.MomentCommented
+                        && (item.Comment == null
+                            || item.Comment.ParentCommentId == null
+                            || item.Comment.DeletedAt != null
+                            || visibleComments.Any(comment => comment.Id == item.CommentId)))
+                    // "Replied to your comment" says only what the recipient
+                    // could open: the same Comment visibility as the thread.
+                    || (item.Type == OwnerNotificationType.MomentCommentReplied
+                        && item.CommentId != null
+                        && visibleComments.Any(comment =>
+                            comment.Id == item.CommentId
+                            && comment.ParentComment!.AuthorUserId == recipientId))
                     // Collaboration activity says what its collaboration is
                     // right now, or nothing: an invitation only while it can
                     // still be answered, a join only while it still stands.

@@ -1,6 +1,12 @@
 namespace MyPetLink.Api.DTOs;
 
-public sealed record CreateMomentCommentRequest(string? Body);
+/// <summary>
+/// Everything a client may say when writing a Comment. The author is the
+/// signed-in account and the Moment is the route's; nothing else is taken from
+/// the request. <see cref="ParentCommentId"/> absent or null writes a
+/// top-level Comment; set, it writes a Reply under that top-level Comment.
+/// </summary>
+public sealed record CreateMomentCommentRequest(string? Body, Guid? ParentCommentId = null);
 
 /// <summary>
 /// A household-authored Comment or Reply. No account or finder identity, and
@@ -81,10 +87,25 @@ public sealed record MomentCommentReplyPageResponse(
     string? NextCursor,
     int ReplyCount);
 
+/// <summary>
+/// The written Comment and the counts it changed, as this author now sees them.
+/// For a Reply, <see cref="ParentCommentId"/> names its thread and
+/// <see cref="ParentReplyCount"/> is that thread's readable Replies; both are
+/// null for a top-level Comment.
+/// </summary>
 public sealed record CreateMomentCommentResponse(
     MomentCommentResponse Comment,
-    int CommentCount);
+    int CommentCount,
+    Guid? ParentCommentId,
+    int? ParentReplyCount);
 
+/// <summary>
+/// The removed Comment and the counts it changed, as the remover now sees them.
+/// For a Reply, <see cref="ParentCommentId"/> and <see cref="ParentReplyCount"/>
+/// describe its thread; both are null for a top-level Comment.
+/// </summary>
 public sealed record DeleteMomentCommentResponse(
     Guid CommentId,
-    int CommentCount);
+    int CommentCount,
+    Guid? ParentCommentId,
+    int? ParentReplyCount);
