@@ -2,7 +2,8 @@
 
 **Status:** Community Phase 1 and Phase 2A Moment Comments are implemented.
 Phase 2E reporting and Admin moderation (E1–E4A) are implemented; the Admin
-moderation screens are not. Replies and Comment likes remain future work.
+moderation screens are not. Comment Replies have their read model only (Phase
+2F F2, §12h) — nothing can write one yet. Comment likes remain future work.
 
 This document describes what exists in the codebase today. The product proposal
 that preceded it is a separate artefact; where the two disagree, this file is
@@ -632,8 +633,9 @@ Moment author hides that Comment from everybody. Discoverability is not a
 secrecy control. Blocking stores no Comment changes, so unblocking restores an
 otherwise eligible row.
 
-Threads page from the newest end with a stable `(CreatedAt DESC, Id DESC)`
-cursor and render each returned page oldest-to-newest. A `#comment-{id}` link
+Threads page their top-level Comments from the newest end with a stable
+`(CreatedAt DESC, Id DESC)` cursor and render each returned page
+oldest-to-newest (Replies page separately, oldest first — §12h). A `#comment-{id}` link
 (Activity uses one) sends that id as `anchor` with the first read: when the
 Comment passes the same `VisibleComments` rules and sits within the newest
 `MomentCommentService.AnchorWindow` (100) visible Comments, the first page is
@@ -1064,11 +1066,134 @@ account; status, resolution and every "by" field are the server's.
   owner edit or Community switch makes the loser answer `409` with nothing
   written. Nobody is notified.
 
+## 12h. Phase 2F Comment Replies (F2 read foundation)
+
+> **F2 creates no Reply functionality.** Nobody can write a Reply: `POST`
+> still writes top-level Comments only and ignores any `parentCommentId` a
+> client sends, no Activity mentions Replies, and the web app shows no Reply
+> control. F2 makes the schema and every read path understand Replies
+> *before* any exist, so the build that starts writing them (F3) has a safe
+> rollback target.
+
+**Model.** A Reply is a `MomentComment` with `ParentCommentId` set; a
+top-level Comment has it null. There is no Reply table or entity — "Reply" is
+the user-facing word. Mentions, reports, moderation, removal, tombstones and
+counts all key on the Comment id, and Replies reuse every one of them.
+
+**One level, enforced in layers.**
+
+| Layer | Rule |
+|---|---|
+| Schema | `FK_MomentComments_MomentComments_ParentCommentId` (`NO ACTION`: Comments are tombstoned, never deleted, so nothing cascades) and `CK_MomentComments_NotOwnParent` (`ParentCommentId IS NULL OR ParentCommentId <> Id`). |
+| Read | `SocialVisibility.VisibleComments` shows a Reply only when its parent is a readable **top-level** Comment on the **same Moment**. A Reply to a Reply, to another Moment's Comment or to a missing or deleted parent is never shown, counted, anchored, reported or nested. |
+| Write (F3) | Must refuse any parent that is not a readable top-level Comment on the route's Moment. `ParentCommentId` is set once and never changed. |
+
+"The parent is itself top-level" spans two rows, so it cannot be a CHECK; a
+computed-column foreign key could encode it and was rejected as too clever.
+The read rule is the backstop that makes a malformed row harmless.
+
+**Visibility.** A Reply must meet every Comment rule on its own, and its
+parent must meet the same row rules for this viewer. One new rule, **R3**: a
+block in either direction between a Reply's author and its parent's author
+hides that Reply **for everybody** — the same shape as the existing Comment
+author ↔ Moment author rule. Consequences:
+
+| Situation | Result |
+|---|---|
+| Parent author and Reply author block each other (either way) | That Reply disappears for everyone; unblocking restores it. |
+| A reader blocks a Reply's author | Only that reader loses that author's Replies. |
+| A reader blocks the parent's author | That reader loses the parent and therefore its whole thread. |
+| Moment author blocks a Reply's author, or the parent's author | The existing rule: that Reply, or the whole thread, goes for everyone. |
+| A Reply's author, or the parent's, leaves Community or is restricted | Their Replies, or the whole thread, leave every read — the existing identity rule. |
+
+The row rules are one expression, applied to the Comment and to
+`comment.ParentComment` by substitution, so the parent can never be judged
+by different rules. The parent is reached as a join on its primary key, not a
+correlated `EXISTS`: with `EXISTS` inside the `OR`, SQL Server abandoned the
+index seek for batched card counts and scanned every Comment (≈447,000
+logical reads for a 30-card page against ≈4,400 before Replies; ≈8,800 with
+the join). `SocialQueryPlanRelationalTests` fails if any Comment read scans
+the table.
+
+**Reads.**
+
+- `GET /api/v1/public/moments/{momentId}/comments` lists **top-level Comments
+  only** — paging, ordering, anonymous access and the 20-per-page size are
+  unchanged. Each item carries `parentCommentId` (null) and `replyCount`, the
+  Replies *this viewer* can read, computed for the whole page in one grouped
+  query.
+- `GET /api/v1/public/moments/{momentId}/comments/{commentId}/replies` —
+  anonymous, `no-store`, **oldest first** (`CreatedAt ASC, Id ASC`), 10 per
+  page by default, the usual cursor and page-size cap. Items are ordinary
+  Comment responses with `parentCommentId` set and `replyCount` 0; nothing is
+  nested. Anything but a readable top-level Comment on a Moment the viewer can
+  open — missing, deleted, blocked, a Reply, another Moment's, a hidden
+  Moment — is the same `404 comment_not_found`.
+- `commentCount` everywhere (the thread, Moment detail, every card) is every
+  Comment **and Reply** the viewer can read. Today there are no Replies, so
+  every count is unchanged.
+
+**Anchors.** `#comment-{id}` stays the only link format. On the thread, an
+anchor that is a readable Reply widens the first page to its parent (within
+the same `AnchorWindow` of 100) and returns `anchorParentCommentId`; the web
+then reads that thread's Replies with the same anchor, which widens within
+`ReplyAnchorWindow` (100 readable Replies). A hidden, deleted, blocked,
+malformed or out-of-window anchor answers exactly as if none had been sent.
+
+**Removal.** `MomentCommentRemoval` works on a Reply unchanged: its author may
+delete it, the Moment's author may remove it, a moderator may remove it, and it
+tombstones that row only. The parent's author has no say over other people's
+Replies. Removing a parent tombstones the parent alone: its Replies are **not**
+cascaded or scrubbed and no placeholder is shown — the thread simply leaves
+every read, because its parent is no longer readable. This is the same
+precedent as Comments under a deleted Moment. The Reply rows stay stored,
+unreachable; a retention job for both cases is later work.
+
+**Mentions, reports, moderation.** No Reply-specific logic.
+`VisibleCommentMentions` sits on `VisibleComments`, so a Reply's mention links
+and "mentioned you" Activity follow the thread. A Reply is reported as a
+**Comment**: the reported household is the Reply's author and the evidence is
+its body. The Admin report detail adds `parentCommentId` and a `parentComment`
+(author, current body — null once removed — and whether it is publicly
+visible) to the current Comment. A Reply under a removed parent reads as not
+publicly visible. Remove Comment is the one action for both.
+
+**Indexes.** `IX_MomentComments_MomentId_ParentCommentId_CreatedAt_Id`
+(filtered `DeletedAt IS NULL`) replaces `IX_MomentComments_MomentId_CreatedAt_Id`
+and serves the top-level page, a thread's Replies, the grouped Reply counts,
+anchors and the per-Moment total. EF's conventional `IX_MomentComments_ParentCommentId`
+backs the foreign key. Nothing else was added.
+
+**Rollout and rollback.** Migration `AddCommentReplies` is additive: a
+nullable column, the FK, the CHECK, and the index swap. No backfill — every
+existing Comment is top-level.
+
+| Combination | Safe? |
+|---|---|
+| Old API, new schema | Yes. The old API never reads the column and inserts NULL. |
+| F2 API, old schema | **No** — every Comment query reads `ParentCommentId`. Apply `migration.sql` first. |
+| Old web, F2 API | Yes. New response fields are ignored. |
+| F2 web (unchanged), F2 API | Yes. |
+
+Release order: back up Production, apply `migration.sql`, verify, then push.
+
+> **Rollback target.** While no Reply rows exist (F2 alone), rolling the API
+> back to the pre-F2 build is safe. **Once F3 has written Replies, roll back
+> to F2 — never to pre-F2.** A pre-F2 API does not know Replies: it would list
+> them as top-level Comments and would ignore R3 and the parent rule, so a
+> Reply hidden by a block or under a removed parent would reappear publicly.
+
+Not yet built (F3–F6): Reply creation and its duplicate/lock scope,
+`MomentCommentReplied` Activity and its dedupe, retargeting unread Comment
+Activity away from Replies, the web thread, composer and Admin parent
+context, and browser QA.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
 
-- Comment replies, likes, editing or media
+- Writing Comment Replies (Phase 2F F3–F4; the read model exists, §12h)
+- Comment likes, editing or media
 - The web mention UI (rendering spans, composer suggestions, Activity copy) and
   mentions in Moment captions
 - A collaborator section on household profiles ("With friends"), collaboration

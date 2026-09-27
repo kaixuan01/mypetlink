@@ -191,6 +191,27 @@ are additive. A previous web can be redeployed while the Comment-capable API and
 migration remain. Do not down-migrate merely to hide Comments; use the existing
 `NEXT_PUBLIC_SOCIAL_ENABLED` Community gate.
 
+### Comment Replies: roll back to the Reply-aware API, never past it
+
+`AddCommentReplies` (Phase 2F F2) adds a nullable
+`MomentComments.ParentCommentId`, its foreign key, a CHECK and an index swap.
+It is additive: an older API runs against it and writes top-level Comments as
+before. The F2 API needs the column, so **apply `migration.sql` before pushing
+F2**.
+
+The F2 API only *reads* Replies; nothing can write one. So:
+
+- **While no Reply exists** (F2 deployed, F3 not yet): rolling the API back to
+  the pre-F2 build is safe. Check with
+  `SELECT COUNT(*) FROM MomentComments WHERE ParentCommentId IS NOT NULL` — it
+  must be `0`.
+- **Once Replies exist** (after F3 starts writing them): the safe rollback
+  target is the **F2 build, never a pre-F2 build**. A pre-F2 API does not know
+  Replies — it lists them as top-level Comments and ignores the rules that hide
+  a Reply whose parent is removed, blocked or hidden, so hidden Replies would
+  reappear publicly. If the API must go back past F2, the restore point from
+  the pre-deploy checklist is the only safe route.
+
 ---
 
 ## Manual smoke test
