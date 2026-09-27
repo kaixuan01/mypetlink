@@ -151,12 +151,27 @@ public interface IMomentLikeService : ISkeletonService
 /// </summary>
 public interface IMomentCommentService : ISkeletonService
 {
+    /// <summary>A Moment's top-level Comments, newest first.</summary>
     /// <param name="anchorId">
     /// A linked Comment to include in the first page when it is visible and
-    /// recent enough. Ignored with a cursor; never changes what is visible.
+    /// recent enough — or, for a linked Reply, its parent, which the response
+    /// then names. Ignored with a cursor; never changes what is visible.
     /// </param>
     Task<MomentCommentPageResponse> GetAsync(
         Guid momentId, Guid? viewerId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default,
+        Guid? anchorId = null);
+
+    /// <summary>
+    /// One top-level Comment's Replies, oldest first. Anything but a readable
+    /// top-level Comment on a Moment the viewer can open is the same 404.
+    /// </summary>
+    /// <param name="anchorId">
+    /// A linked Reply in this thread to include in the first page when it is
+    /// visible and within the thread's first Replies. Ignored with a cursor.
+    /// </param>
+    Task<MomentCommentReplyPageResponse> GetRepliesAsync(
+        Guid momentId, Guid commentId, Guid? viewerId, string? cursor, int? pageSize,
         CancellationToken cancellationToken = default,
         Guid? anchorId = null);
 

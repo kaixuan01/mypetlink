@@ -10504,3 +10504,73 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    DROP INDEX [IX_MomentComments_MomentId_CreatedAt_Id] ON [MomentComments];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    ALTER TABLE [MomentComments] ADD [ParentCommentId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_MomentComments_MomentId_ParentCommentId_CreatedAt_Id] ON [MomentComments] ([MomentId], [ParentCommentId], [CreatedAt], [Id]) WHERE [DeletedAt] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    CREATE INDEX [IX_MomentComments_ParentCommentId] ON [MomentComments] ([ParentCommentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [MomentComments] ADD CONSTRAINT [CK_MomentComments_NotOwnParent] CHECK ([ParentCommentId] IS NULL OR [ParentCommentId] <> [Id])');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    ALTER TABLE [MomentComments] ADD CONSTRAINT [FK_MomentComments_MomentComments_ParentCommentId] FOREIGN KEY ([ParentCommentId]) REFERENCES [MomentComments] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260927043459_AddCommentReplies'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260927043459_AddCommentReplies', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

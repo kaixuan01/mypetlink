@@ -43,6 +43,32 @@ public sealed class MomentCommentsController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    /// <summary>
+    /// One thread's Replies, oldest first. Anonymous, like the thread itself;
+    /// a signed-in reader's blocks still apply.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("public/moments/{momentId:guid}/comments/{commentId:guid}/replies")]
+    public async Task<IActionResult> GetReplies(
+        Guid momentId,
+        Guid commentId,
+        [FromQuery] string? cursor,
+        [FromQuery] int? limit,
+        [FromQuery] string? anchor,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var response = await _comments.GetRepliesAsync(
+            momentId,
+            commentId,
+            _currentUserService.Current.UserId,
+            cursor,
+            limit,
+            cancellationToken,
+            Guid.TryParse(anchor, out var anchorId) ? anchorId : null);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [Authorize]
     [EnableRateLimiting(SocialRateLimitPolicies.Comment)]
     [HttpPost("social/moments/{momentId:guid}/comments")]

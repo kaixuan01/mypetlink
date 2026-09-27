@@ -245,9 +245,22 @@ public sealed class MomentComment : Entity
     public DateTimeOffset? DeletedAt { get; set; }
     public Guid? DeletedByUserId { get; set; }
 
+    /// <summary>
+    /// Null for a top-level Comment; the top-level Comment this one replies to
+    /// for a Reply. One level only: a Reply's parent is always a top-level
+    /// Comment on the same Moment, and a Reply is never itself a parent.
+    ///
+    /// The database refuses only a Comment naming itself; the cross-row rules
+    /// cannot be a CHECK. <c>SocialVisibility.VisibleComments</c> enforces them
+    /// on every read, so a row that breaks them is never shown to anybody. Set
+    /// once, when the Comment is written, and never changed.
+    /// </summary>
+    public Guid? ParentCommentId { get; set; }
+
     public PetMemory Moment { get; set; } = null!;
     public User AuthorUser { get; set; } = null!;
     public User? DeletedByUser { get; set; }
+    public MomentComment? ParentComment { get; set; }
     public ICollection<MomentCommentMention> Mentions { get; set; } = new List<MomentCommentMention>();
 }
 

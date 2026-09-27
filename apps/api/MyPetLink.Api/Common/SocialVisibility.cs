@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.Entities;
@@ -88,23 +89,40 @@ public static class SocialVisibility
     }
 
     /// <summary>
-    /// Comments readable by a viewer.
+    /// Comments and Replies readable by a viewer — the one definition every
+    /// Comment read uses: threads, Reply pages, counts, anchors, mentions,
+    /// reports and moderation context.
     ///
     /// The author/Moment-author block is global: while either has blocked the
     /// other, their comments on that Moment disappear for everybody. A signed-
     /// in viewer also cannot see comments by an account on either side of a
     /// block with them. Rows are never mutated by these relationships.
+    ///
+    /// A Reply is shown only under its thread. Its parent must be a top-level
+    /// Comment on the same Moment that this viewer can read by the same row
+    /// rules, and no block may stand, either way, between the Reply's author
+    /// and the parent's author — a global rule, like the Moment-author one. So
+    /// a deleted, hidden or blocked parent takes its whole thread with it, and
+    /// a malformed row (a Reply to a Reply, or to another Moment's Comment, or
+    /// to nothing) is never shown, never counted and never nested.
+    ///
+    /// The parent is reached through its navigation — a join on its primary
+    /// key — rather than a correlated EXISTS. With EXISTS inside the OR, SQL
+    /// Server abandoned the index seek for batched card counts and scanned every
+    /// Comment; the join keeps each read a seek. The row rules are written once
+    /// and applied to the parent by substitution, so the two cannot drift.
     /// </summary>
     public static IQueryable<MomentComment> VisibleComments(
         this IQueryable<MomentComment> comments,
         MyPetLinkDbContext dbContext,
         Guid? viewerId)
     {
-        var visible = comments
+        var readable = ReadableCommentRow(dbContext, viewerId);
+
+        return comments
             .AsNoTracking()
             .Where(comment =>
-                comment.DeletedAt == null
-                && comment.Moment.Visibility == MemoryVisibility.Public
+                comment.Moment.Visibility == MemoryVisibility.Public
                 && comment.Moment.ModeratedAt == null
                 && comment.Moment.DeletedAt == null
                 && comment.Moment.ArchivedAt == null
@@ -112,28 +130,116 @@ public static class SocialVisibility
                 && comment.Moment.AuthorUser.DeletedAt == null
                 && comment.Moment.AuthorUser.Status == UserStatus.Active
                 && comment.Moment.AuthorUser.SocialProfile != null
-                && comment.Moment.AuthorUser.SocialProfile.IsSocialEnabled
-                && comment.AuthorUser.DeletedAt == null
-                && comment.AuthorUser.Status == UserStatus.Active
-                && comment.AuthorUser.SocialProfile != null
-                && comment.AuthorUser.SocialProfile.IsSocialEnabled
-                && comment.AuthorUser.SocialProfile.Handle != null
-                && comment.AuthorUser.SocialProfile.Handle != ""
-                && comment.AuthorUser.SocialProfile.DisplayName != null
-                && comment.AuthorUser.SocialProfile.DisplayName != ""
-                && !dbContext.OwnerBlocks.Any(block =>
-                    (block.BlockerUserId == comment.AuthorUserId
-                        && block.BlockedUserId == comment.Moment.AuthorUserId)
-                    || (block.BlockedUserId == comment.AuthorUserId
-                        && block.BlockerUserId == comment.Moment.AuthorUserId)));
+                && comment.Moment.AuthorUser.SocialProfile.IsSocialEnabled)
+            .Where(readable)
+            .Where(InReadableThread(readable, dbContext));
+    }
+
+    /// <summary>
+    /// The rules one Comment row must meet on its own, whatever its place in a
+    /// thread: not deleted, a complete and active author, no block between its
+    /// author and the Moment's author, and — for a signed-in viewer — no block
+    /// between its author and the viewer.
+    /// </summary>
+    private static Expression<Func<MomentComment, bool>> ReadableCommentRow(
+        MyPetLinkDbContext dbContext,
+        Guid? viewerId)
+    {
+        Expression<Func<MomentComment, bool>> readable = comment =>
+            comment.DeletedAt == null
+            && comment.AuthorUser.DeletedAt == null
+            && comment.AuthorUser.Status == UserStatus.Active
+            && comment.AuthorUser.SocialProfile != null
+            && comment.AuthorUser.SocialProfile.IsSocialEnabled
+            && comment.AuthorUser.SocialProfile.Handle != null
+            && comment.AuthorUser.SocialProfile.Handle != ""
+            && comment.AuthorUser.SocialProfile.DisplayName != null
+            && comment.AuthorUser.SocialProfile.DisplayName != ""
+            && !dbContext.OwnerBlocks.Any(block =>
+                (block.BlockerUserId == comment.AuthorUserId
+                    && block.BlockedUserId == comment.Moment.AuthorUserId)
+                || (block.BlockedUserId == comment.AuthorUserId
+                    && block.BlockerUserId == comment.Moment.AuthorUserId));
 
         if (!viewerId.HasValue)
         {
-            return visible;
+            return readable;
         }
 
         var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
-        return visible.Where(comment => !blocked.Contains(comment.AuthorUserId));
+        return CommentPredicate.And(readable, comment => !blocked.Contains(comment.AuthorUserId));
+    }
+
+    /// <summary>
+    /// A top-level Comment, or a Reply whose parent is a readable top-level
+    /// Comment on the same Moment with no block between the two authors (R3).
+    /// </summary>
+    private static Expression<Func<MomentComment, bool>> InReadableThread(
+        Expression<Func<MomentComment, bool>> readable,
+        MyPetLinkDbContext dbContext)
+    {
+        Expression<Func<MomentComment, bool>> underTopLevelParent = comment =>
+            comment.ParentComment!.ParentCommentId == null
+            && comment.ParentComment.MomentId == comment.MomentId
+            && !dbContext.OwnerBlocks.Any(block =>
+                (block.BlockerUserId == comment.AuthorUserId
+                    && block.BlockedUserId == comment.ParentComment.AuthorUserId)
+                || (block.BlockedUserId == comment.AuthorUserId
+                    && block.BlockerUserId == comment.ParentComment.AuthorUserId));
+
+        return CommentPredicate.Or(
+            comment => comment.ParentCommentId == null,
+            CommentPredicate.And(
+                underTopLevelParent,
+                CommentPredicate.OnParent(readable)));
+    }
+
+    /// <summary>
+    /// Composes Comment predicates into one expression EF can translate — the
+    /// only way to state a row rule once and apply it to a row's parent too.
+    /// </summary>
+    private static class CommentPredicate
+    {
+        public static Expression<Func<MomentComment, bool>> And(
+            Expression<Func<MomentComment, bool>> left,
+            Expression<Func<MomentComment, bool>> right) =>
+            Combine(left, right, Expression.AndAlso);
+
+        public static Expression<Func<MomentComment, bool>> Or(
+            Expression<Func<MomentComment, bool>> left,
+            Expression<Func<MomentComment, bool>> right) =>
+            Combine(left, right, Expression.OrElse);
+
+        /// <summary>The same predicate, asked of <c>comment.ParentComment</c>.</summary>
+        public static Expression<Func<MomentComment, bool>> OnParent(
+            Expression<Func<MomentComment, bool>> predicate)
+        {
+            var comment = Expression.Parameter(typeof(MomentComment), "comment");
+            var parent = Expression.Property(comment, nameof(MomentComment.ParentComment));
+            return Expression.Lambda<Func<MomentComment, bool>>(
+                Replace(predicate.Body, predicate.Parameters[0], parent),
+                comment);
+        }
+
+        private static Expression<Func<MomentComment, bool>> Combine(
+            Expression<Func<MomentComment, bool>> left,
+            Expression<Func<MomentComment, bool>> right,
+            Func<Expression, Expression, BinaryExpression> join)
+        {
+            var comment = left.Parameters[0];
+            return Expression.Lambda<Func<MomentComment, bool>>(
+                join(left.Body, Replace(right.Body, right.Parameters[0], comment)),
+                comment);
+        }
+
+        private static Expression Replace(Expression body, ParameterExpression from, Expression to) =>
+            new ParameterReplacer(from, to).Visit(body);
+
+        private sealed class ParameterReplacer(ParameterExpression from, Expression to) : ExpressionVisitor
+        {
+            protected override Expression VisitParameter(ParameterExpression node) =>
+                node == from ? to : base.VisitParameter(node);
+        }
     }
     /// <summary>
     /// Mentions that may be shown to this viewer right now: as a link inside a

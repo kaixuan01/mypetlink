@@ -65,7 +65,12 @@ public sealed record AdminCommunityMediaResponse(
     string? AltText,
     int SortOrder);
 
-/// <summary>A Comment as it is now. Removed Comments have an empty body.</summary>
+/// <summary>
+/// A Comment as it is now. Removed Comments have an empty body. For a Reply,
+/// <see cref="ParentCommentId"/> and <see cref="ParentComment"/> give the
+/// Comment it answers, because a Reply rarely makes sense on its own; a Reply
+/// is only publicly visible while that parent is.
+/// </summary>
 public sealed record AdminCommunityCurrentCommentResponse(
     Guid Id,
     Guid MomentId,
@@ -74,6 +79,20 @@ public sealed record AdminCommunityCurrentCommentResponse(
     bool Removed,
     DateTimeOffset? RemovedAt,
     string? RemovedBy,
+    bool PubliclyVisible,
+    AdminCommunityHouseholdResponse Author,
+    Guid? ParentCommentId,
+    AdminCommunityParentCommentResponse? ParentComment);
+
+/// <summary>
+/// The Comment a reported Reply answers, as it is now. A removed parent has a
+/// null body — its text is gone, as everywhere else.
+/// </summary>
+public sealed record AdminCommunityParentCommentResponse(
+    Guid Id,
+    string? Body,
+    DateTimeOffset CreatedAt,
+    bool Removed,
     bool PubliclyVisible,
     AdminCommunityHouseholdResponse Author);
 

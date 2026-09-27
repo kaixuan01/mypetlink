@@ -18,6 +18,11 @@ namespace MyPetLink.Api.Services;
 /// Creates require a complete Community identity. Deletes retain only the row's
 /// identity and ordering fields and scrub the body in the same transaction as
 /// Activity cleanup.
+///
+/// Threads are one level deep: a Moment's page lists top-level Comments, each
+/// with its readable Reply count, and a thread's Replies are read on their own,
+/// oldest first. Replies are read-only here — creation writes top-level
+/// Comments only.
 /// </summary>
 public sealed class MomentCommentService : SkeletonService, IMomentCommentService
 {
@@ -29,6 +34,17 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
     /// thread loaded down to it; anything older opens at the normal first page.
     /// </summary>
     public const int AnchorWindow = 100;
+
+    /// <summary>Replies per page of one thread, oldest first.</summary>
+    public const int ReplyPageSize = 10;
+
+    /// <summary>
+    /// How deep an anchored Reply read may reach: a link to a Reply within the
+    /// oldest <see cref="ReplyAnchorWindow"/> visible Replies of its thread
+    /// opens with the thread loaded down to it.
+    /// </summary>
+    public const int ReplyAnchorWindow = 100;
+
     public static readonly TimeSpan DuplicateWindow = TimeSpan.FromSeconds(60);
 
     private readonly MyPetLinkDbContext _dbContext;
@@ -56,14 +72,19 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         var moment = await RequireVisibleMomentAsync(momentId, viewerId, cancellationToken);
         var take = SocialCursor.ClampPageSize(pageSize, PageSize);
         var position = SocialCursor.TryDecode(cursor);
-        var query = _dbContext.MomentComments
+        var visible = _dbContext.MomentComments
             .VisibleComments(_dbContext, viewerId)
             .Where(comment => comment.MomentId == momentId);
 
+        // The thread lists top-level Comments only; Replies are read under
+        // their parent, and counted with it.
+        var query = visible.Where(comment => comment.ParentCommentId == null);
+        Guid? anchorParentId = null;
+
         if (position is null && anchorId.HasValue)
         {
-            take = await ResolveAnchoredPageSizeAsync(
-                query, anchorId.Value, take, cancellationToken);
+            (take, anchorParentId) = await ResolveAnchoredPageSizeAsync(
+                visible, query, anchorId.Value, take, cancellationToken);
         }
 
         if (position is not null)
@@ -83,16 +104,87 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         var hasMore = rows.Count > take;
         var page = hasMore ? rows.Take(take).ToList() : rows;
         var last = page.Count > 0 ? page[^1] : null;
-        var mentions = await LoadMentionsAsync(
-            page.Select(row => row.Id).ToArray(), viewerId, cancellationToken);
+        var ids = page.Select(row => row.Id).ToArray();
+        var mentions = await LoadMentionsAsync(ids, viewerId, cancellationToken);
+        var replyCounts = await LoadReplyCountsAsync(momentId, ids, viewerId, cancellationToken);
 
         return new MomentCommentPageResponse(
-            page.Select(row => ToResponse(row, viewerId, moment.AuthorUserId, mentions)).ToArray(),
+            page.Select(row => ToResponse(row, viewerId, moment.AuthorUserId, mentions, replyCounts)).ToArray(),
             hasMore && last is not null
                 ? new SocialCursor(last.CreatedAt, last.Id).Encode()
                 : null,
             await CountVisibleAsync(momentId, viewerId, cancellationToken),
-            await BuildViewerAsync(viewerId, cancellationToken));
+            await BuildViewerAsync(viewerId, cancellationToken),
+            anchorParentId);
+    }
+
+    public async Task<MomentCommentReplyPageResponse> GetRepliesAsync(
+        Guid momentId,
+        Guid commentId,
+        Guid? viewerId,
+        string? cursor,
+        int? pageSize,
+        CancellationToken cancellationToken = default,
+        Guid? anchorId = null)
+    {
+        // One question and one answer: is this a top-level Comment this viewer
+        // can read, on a Moment they can open? A missing, deleted, blocked or
+        // nested parent, a parent on another Moment and a hidden Moment all
+        // answer identically, so the route never says which it was.
+        var visibleMoments = _dbContext.PetMemories.VisibleTo(_dbContext, viewerId);
+        var parent = await _dbContext.MomentComments
+            .VisibleComments(_dbContext, viewerId)
+            .Where(comment =>
+                comment.Id == commentId
+                && comment.MomentId == momentId
+                && comment.ParentCommentId == null
+                && visibleMoments.Any(moment => moment.Id == comment.MomentId))
+            .Select(comment => new { MomentAuthorUserId = comment.Moment.AuthorUserId })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw CommentNotFound();
+
+        var take = SocialCursor.ClampPageSize(pageSize, ReplyPageSize);
+        var position = SocialCursor.TryDecode(cursor);
+        var replies = _dbContext.MomentComments
+            .VisibleComments(_dbContext, viewerId)
+            .Where(comment => comment.MomentId == momentId && comment.ParentCommentId == commentId);
+        var query = replies;
+
+        if (position is null && anchorId.HasValue)
+        {
+            take = await WidenToAnchorAsync(
+                    replies, anchorId.Value, take, newestFirst: false, ReplyAnchorWindow, cancellationToken)
+                ?? take;
+        }
+
+        if (position is not null)
+        {
+            query = query.Where(comment =>
+                comment.CreatedAt > position.PublishedAt
+                || (comment.CreatedAt == position.PublishedAt
+                    && comment.Id.CompareTo(position.Id) > 0));
+        }
+
+        // Oldest first: a thread is a conversation, read forward.
+        var ordered = query
+            .OrderBy(comment => comment.CreatedAt)
+            .ThenBy(comment => comment.Id)
+            .Take(take + 1);
+        var rows = await Project(ordered).ToListAsync(cancellationToken);
+        var hasMore = rows.Count > take;
+        var page = hasMore ? rows.Take(take).ToList() : rows;
+        var last = page.Count > 0 ? page[^1] : null;
+        var mentions = await LoadMentionsAsync(
+            page.Select(row => row.Id).ToArray(), viewerId, cancellationToken);
+        var noReplies = new Dictionary<Guid, int>();
+
+        return new MomentCommentReplyPageResponse(
+            commentId,
+            page.Select(row => ToResponse(row, viewerId, parent.MomentAuthorUserId, mentions, noReplies)).ToArray(),
+            hasMore && last is not null
+                ? new SocialCursor(last.CreatedAt, last.Id).Encode()
+                : null,
+            await replies.CountAsync(cancellationToken));
     }
 
     public async Task<CreateMomentCommentResponse> CreateAsync(
@@ -272,37 +364,125 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
     }
 
     /// <summary>
-    /// Widens the first page just enough to include a linked Comment.
+    /// Widens the first top-level page just enough to include a linked
+    /// Comment — or, for a linked Reply, its parent, which is then named in the
+    /// response so the Reply can be read from that thread.
     ///
     /// The anchor is looked up through the same visibility query as the page
-    /// itself, so a deleted, blocked or otherwise hidden Comment is simply not
-    /// found — and a not-found anchor, like one beyond
-    /// <see cref="AnchorWindow"/>, yields exactly the ordinary first page. The
+    /// itself, so a deleted, blocked or otherwise hidden Comment or Reply —
+    /// including one whose parent is hidden — is simply not found. A not-found
+    /// anchor, like one whose thread lies beyond <see cref="AnchorWindow"/>,
+    /// yields exactly the ordinary first page with no parent named. The
     /// response therefore never says whether a hidden Comment exists.
     /// </summary>
-    private static async Task<int> ResolveAnchoredPageSizeAsync(
+    private static async Task<(int Take, Guid? AnchorParentId)> ResolveAnchoredPageSizeAsync(
         IQueryable<MomentComment> visible,
+        IQueryable<MomentComment> topLevel,
         Guid anchorId,
         int take,
         CancellationToken cancellationToken)
     {
         var anchor = await visible
             .Where(comment => comment.Id == anchorId)
-            .Select(comment => new { comment.CreatedAt, comment.Id })
+            .Select(comment => new { comment.CreatedAt, comment.Id, comment.ParentCommentId })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (anchor is null)
         {
-            return take;
+            return (take, null);
         }
 
-        var newer = await visible.CountAsync(
-            comment => comment.CreatedAt > anchor.CreatedAt
-                || (comment.CreatedAt == anchor.CreatedAt
-                    && comment.Id.CompareTo(anchor.Id) > 0),
-            cancellationToken);
+        // A readable Reply always has a readable parent: VisibleComments
+        // requires it. The parent is where the thread opens.
+        var thread = anchor.ParentCommentId is { } parentId
+            ? await topLevel
+                .Where(comment => comment.Id == parentId)
+                .Select(comment => new { comment.CreatedAt, comment.Id })
+                .SingleOrDefaultAsync(cancellationToken)
+            : new { anchor.CreatedAt, anchor.Id };
 
-        return newer < AnchorWindow ? Math.Max(take, newer + 1) : take;
+        if (thread is null)
+        {
+            return (take, null);
+        }
+
+        var widened = await CountAheadAsync(
+            topLevel, thread.CreatedAt, thread.Id, newestFirst: true, AnchorWindow, take, cancellationToken);
+
+        return widened is { } size ? (size, anchor.ParentCommentId) : (take, null);
+    }
+
+    /// <summary>
+    /// The first-page size that reaches <paramref name="anchorId"/> within
+    /// <paramref name="query"/>'s order, or null when it is not there or lies
+    /// beyond <paramref name="window"/>.
+    /// </summary>
+    private static async Task<int?> WidenToAnchorAsync(
+        IQueryable<MomentComment> query,
+        Guid anchorId,
+        int take,
+        bool newestFirst,
+        int window,
+        CancellationToken cancellationToken)
+    {
+        var anchor = await query
+            .Where(comment => comment.Id == anchorId)
+            .Select(comment => new { comment.CreatedAt, comment.Id })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return anchor is null
+            ? null
+            : await CountAheadAsync(
+                query, anchor.CreatedAt, anchor.Id, newestFirst, window, take, cancellationToken);
+    }
+
+    private static async Task<int?> CountAheadAsync(
+        IQueryable<MomentComment> query,
+        DateTimeOffset createdAt,
+        Guid id,
+        bool newestFirst,
+        int window,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var ahead = newestFirst
+            ? await query.CountAsync(
+                comment => comment.CreatedAt > createdAt
+                    || (comment.CreatedAt == createdAt && comment.Id.CompareTo(id) > 0),
+                cancellationToken)
+            : await query.CountAsync(
+                comment => comment.CreatedAt < createdAt
+                    || (comment.CreatedAt == createdAt && comment.Id.CompareTo(id) < 0),
+                cancellationToken);
+
+        return ahead < window ? Math.Max(take, ahead + 1) : null;
+    }
+
+    /// <summary>
+    /// Readable Replies under each of a page's top-level Comments, in one
+    /// grouped query, through the same visibility rule as the Replies
+    /// themselves. A parent with none is simply absent.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> LoadReplyCountsAsync(
+        Guid momentId,
+        IReadOnlyCollection<Guid> parentIds,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        if (parentIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var parents = parentIds.Select(id => (Guid?)id).ToArray();
+        var rows = await _dbContext.MomentComments
+            .VisibleComments(_dbContext, viewerId)
+            .Where(comment => comment.MomentId == momentId && parents.Contains(comment.ParentCommentId))
+            .GroupBy(comment => comment.ParentCommentId)
+            .Select(group => new { ParentCommentId = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.ParentCommentId!.Value, row => row.Count);
     }
 
     private async Task<VisibleMoment> RequireVisibleMomentAsync(
@@ -438,7 +618,10 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             .Where(comment => comment.Id == commentId);
         var row = await Project(source).SingleAsync(cancellationToken);
         var mentions = await LoadMentionsAsync([row.Id], viewerId, cancellationToken);
-        return ToResponse(row, viewerId, momentAuthorUserId, mentions);
+
+        // Only top-level Comments are written today, and a Comment written a
+        // moment ago has no Replies yet.
+        return ToResponse(row, viewerId, momentAuthorUserId, mentions, new Dictionary<Guid, int>());
     }
 
     private static IQueryable<CommentProjection> Project(IQueryable<MomentComment> query)
@@ -450,14 +633,16 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             comment.AuthorUserId,
             comment.AuthorUser.SocialProfile!.Handle!,
             comment.AuthorUser.SocialProfile.DisplayName!,
-            comment.AuthorUser.SocialProfile.AvatarMediaFile));
+            comment.AuthorUser.SocialProfile.AvatarMediaFile,
+            comment.ParentCommentId));
     }
 
     private MomentCommentResponse ToResponse(
         CommentProjection row,
         Guid? viewerId,
         Guid momentAuthorUserId,
-        IReadOnlyDictionary<Guid, MomentCommentMentionResponse[]> mentions)
+        IReadOnlyDictionary<Guid, MomentCommentMentionResponse[]> mentions,
+        IReadOnlyDictionary<Guid, int> replyCounts)
     {
         var action = viewerId == row.AuthorUserId
             ? "delete"
@@ -471,7 +656,9 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
             row.CreatedAt,
             Attribution(row.Handle, row.DisplayName, row.Avatar),
             action,
-            mentions.TryGetValue(row.Id, out var spans) ? spans : []);
+            mentions.TryGetValue(row.Id, out var spans) ? spans : [],
+            row.ParentCommentId,
+            row.ParentCommentId is null && replyCounts.TryGetValue(row.Id, out var replies) ? replies : 0);
     }
 
     private PublicOwnerAttributionResponse Attribution(string handle, string displayName, MediaFile? avatar) =>
@@ -745,7 +932,8 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
         Guid AuthorUserId,
         string Handle,
         string DisplayName,
-        MediaFile? Avatar);
+        MediaFile? Avatar,
+        Guid? ParentCommentId);
 }
 
 /// <summary>
