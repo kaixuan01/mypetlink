@@ -136,6 +136,40 @@ describe("SocialSearchView", () => {
     expect(screen.getByTestId("search-hint")).toBeTruthy();
   });
 
+  it("searches a handle typed the way it is shown, with its @", async () => {
+    render(<SocialSearchView />);
+
+    type("@MochiAndCoco");
+    await vi.advanceTimersByTimeAsync(600);
+
+    await waitFor(() => expect(mocks.searchSocial).toHaveBeenCalledTimes(1));
+    expect(mocks.searchSocial.mock.calls[0][0]).toBe("MochiAndCoco");
+  });
+
+  it("measures the two-character minimum after the @", async () => {
+    render(<SocialSearchView />);
+
+    type("@m");
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(mocks.searchSocial).not.toHaveBeenCalled();
+    expect(screen.getByTestId("search-hint").textContent).toMatch(
+      /at least 2 letters/
+    );
+  });
+
+  it("echoes the query as typed when an @ search finds nothing", async () => {
+    mocks.searchSocial.mockResolvedValue(results("nobody", [], []));
+    render(<SocialSearchView />);
+
+    type("@nobody");
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect((await screen.findByTestId("search-pets-empty")).textContent).toContain(
+      "No results for “@nobody”"
+    );
+  });
+
   it("searches once for a burst of typing", async () => {
     render(<SocialSearchView />);
 

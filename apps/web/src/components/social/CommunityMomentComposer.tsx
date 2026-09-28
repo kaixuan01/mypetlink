@@ -13,16 +13,34 @@ import {
   momentAdditionalPetOptions,
   momentPrimaryPetOptions,
 } from "@/lib/momentSubjects";
+import {
+  normalizeMomentVisibility,
+  type MomentAudience,
+} from "@/lib/momentVisibility";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import { createPetMoment } from "@/services/momentService";
+import { getOwnerSocialProfile } from "@/services/ownerSocialService";
 import { getPets } from "@/services/petService";
 import type { PetListItem, PetMomentPayload } from "@/types";
 
+/** What was just shared, for the one confirmation the shell shows. */
+export type SharedMomentSummary = {
+  momentId: string;
+  petId: string;
+  /** The audience the owner chose in the editor, as it was sent. */
+  audience: MomentAudience;
+  /**
+   * Whether this owner's Community Profile is on. A Moment shared publicly
+   * has a Community page to open only when it is.
+   */
+  communityProfileActive: boolean;
+};
+
 type CommunityMomentComposerProps = {
   onClose: () => void;
-  /** Fired after a Moment is created, so the surface underneath can refresh. */
-  onCreated?: () => void;
+  /** Fired once a Moment exists, before any collaborator follow-up. */
+  onCreated?: (shared: SharedMomentSummary) => void;
 };
 
 /**
@@ -61,6 +79,18 @@ export function CommunityMomentComposer({
 
   const [pets, setPets] = useState<PetListItem[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  /*
+    Null until known. Community's Share a Moment starts on "Shared publicly"
+    for an owner whose Community Profile is on — that is what they pressed —
+    and on "Only me" for anyone else, because for them "public" would mean
+    their pet's Share Profile, which they may never have meant to publish to.
+    Either way the choice is shown, preselected and changeable, in "Who can
+    see this Moment?"; nothing is decided silently. An unreadable profile is
+    treated as off.
+  */
+  const [communityProfileActive, setCommunityProfileActive] = useState<
+    boolean | null
+  >(null);
   const [primaryPetId, setPrimaryPetId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -77,6 +107,20 @@ export function CommunityMomentComposer({
     // No synchronous reset needed: this component is mounted fresh each time
     // the composer opens, so its state already starts clean.
     let active = true;
+
+    getOwnerSocialProfile()
+      .then((response) => {
+        if (!active) return;
+        const profile = response.data;
+        setCommunityProfileActive(
+          profile.isSocialEnabled &&
+            profile.handle.trim().length > 0 &&
+            profile.displayName.trim().length > 0
+        );
+      })
+      .catch(() => {
+        if (active) setCommunityProfileActive(false);
+      });
 
     getPets()
       .then((response) => {
@@ -148,7 +192,12 @@ export function CommunityMomentComposer({
       const created = await createPetMoment(primaryPet.id, payload);
 
       trackEvent(AnalyticsEvent.MomentCreated, { source: "community" });
-      onCreated?.();
+      onCreated?.({
+        momentId: created.data.id,
+        petId: primaryPet.id,
+        audience: normalizeMomentVisibility(payload.visibility ?? "Private"),
+        communityProfileActive: communityProfileActive === true,
+      });
       // The Moment is shared either way. If an invitation could not be sent
       // the composer stays open only to offer it again, then closes.
       const allSent = await inviteFollowUp.sendAfterCreate(
@@ -179,7 +228,7 @@ export function CommunityMomentComposer({
     return inviteFollowUp.dialog;
   }
 
-  if (pets === null) {
+  if (pets === null || communityProfileActive === null) {
     return (
       <FormDialog
         maxWidthClassName="sm:max-w-2xl"
@@ -283,7 +332,14 @@ export function CommunityMomentComposer({
         primaryPetOptions={
           primaryOptions.length > 1 ? primaryOptions : undefined
         }
-        submitLabel="Share Moment"
+        initialVisibility={communityProfileActive ? "Public" : "Private"}
+        /*
+          The button says what pressing it does with the audience chosen above
+          it: "Share" only when the Moment is actually going to be shared.
+        */
+        submitLabel={(audience) =>
+          audience === "Public" ? "Share Moment" : "Save Moment"
+        }
         submitting={submitting}
       />
 

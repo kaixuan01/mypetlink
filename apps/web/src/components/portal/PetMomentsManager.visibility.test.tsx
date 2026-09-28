@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe("PetMomentsManager two-state owner presentation", () => {
-  it("keeps one chronological gallery with Shared and Only me classification", async () => {
+  it("keeps one chronological gallery with Shared publicly and Only me classification", async () => {
     const { container } = render(
       <PetMomentsManager initialMoments={moments} pet={mockPets[0]} />
     );
@@ -49,10 +49,12 @@ describe("PetMomentsManager two-state owner presentation", () => {
     expect(await screen.findByText("legacy-family")).toBeTruthy();
     expect(summaryValue("Total moments")).toBe("4");
     expect(screen.queryByText("Recent moments")).toBeNull();
-    expect(summaryValue("Shared moments")).toBe("2");
+    expect(summaryValue("Shared publicly")).toBe("2");
     expect(summaryValue("Life Timeline")).toBe("2");
     expect(summaryValue("Only me")).toBe("2");
-    expect(screen.getAllByText("Shared")).toHaveLength(2);
+    // Two badges and the summary label: one word for one choice.
+    expect(screen.getAllByText("Shared publicly")).toHaveLength(3);
+    expect(screen.queryByText("Shared")).toBeNull();
     expect(screen.getAllByText("Only me")).toHaveLength(3);
     expect(screen.queryByText("Family Only")).toBeNull();
     expect(screen.queryByText("Share Profile")).toBeNull();

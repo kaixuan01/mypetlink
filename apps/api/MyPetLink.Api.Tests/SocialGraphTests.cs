@@ -23,6 +23,7 @@ public sealed class SocialGraphTests
     private static readonly Guid BobId = Guid.Parse("a9222222-2222-2222-2222-222222222222");
     private static readonly Guid CarolId = Guid.Parse("a9333333-3333-3333-3333-333333333333");
     private static readonly Guid MochiId = Guid.Parse("a9444444-4444-4444-4444-444444444444");
+    private static readonly Guid DaveId = Guid.Parse("a9555555-5555-5555-5555-555555555555");
 
     [Fact]
     public async Task FollowingAnAccount_MakesTheViewerAFollower()
@@ -318,6 +319,144 @@ public sealed class SocialGraphTests
         Assert.DoesNotContain(
             typeof(OwnerSocialProfile).GetProperties(),
             property => property.Name.Contains("Count", StringComparison.Ordinal));
+    }
+
+    // ---- A count is the length of the list it sits above ----------------
+
+    [Fact]
+    public async Task AnOwnerWithNoCommunityProfile_MayFollowButIsNeitherCountedNorListed()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.AddAccountWithoutCommunityProfileAsync(DaveId);
+
+        // Following does not require a Community Profile, and still does not.
+        var asDave = await harness.Graph.FollowAsync(DaveId, "tanfamily");
+        Assert.True(asDave.IsFollowing);
+        Assert.Single(await harness.Db.OwnerFollows.ToListAsync());
+
+        // Nobody can be shown in the list, so nobody is counted above it.
+        foreach (var viewer in new Guid?[] { null, AliceId, BobId, DaveId })
+        {
+            var relationship = await harness.Graph.GetRelationshipAsync(viewer, "tanfamily");
+            var followers = await harness.Graph.GetFollowersAsync(viewer, "tanfamily", null, 20);
+
+            Assert.Equal(0, relationship.FollowerCount);
+            Assert.Empty(followers.Items);
+        }
+    }
+
+    [Fact]
+    public async Task AnIncompleteCommunityProfile_IsNeitherCountedNorListed()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.FollowAsync(BobId, "tanfamily");
+        await harness.Graph.FollowAsync(CarolId, "tanfamily");
+
+        var carol = await harness.Db.OwnerSocialProfiles.SingleAsync(profile => profile.UserId == CarolId);
+        carol.DisplayName = "";
+        await harness.Db.SaveChangesAsync();
+
+        await AssertCountMatchesListAsync(harness, null, "tanfamily", expected: ["LimFamily"]);
+    }
+
+    [Fact]
+    public async Task FollowerCount_MatchesTheListForEveryReasonAFollowerIsHidden()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.AddFollowersAsync("tanfamily", 4);
+        var switchedOff = FollowerId(0);
+        var suspended = FollowerId(1);
+        var deleted = FollowerId(2);
+
+        await harness.SetSocialAsync(switchedOff, enabled: false);
+        var suspendedUser = await harness.Db.Users.SingleAsync(user => user.Id == suspended);
+        suspendedUser.Status = UserStatus.Suspended;
+        var deletedUser = await harness.Db.Users.SingleAsync(user => user.Id == deleted);
+        deletedUser.DeletedAt = DateTimeOffset.UtcNow;
+        await harness.Db.SaveChangesAsync();
+
+        // Every edge is kept; only the one that can be shown is counted.
+        Assert.Equal(4, await harness.Db.OwnerFollows.CountAsync());
+        await AssertCountMatchesListAsync(harness, null, "tanfamily", expected: ["follower3"]);
+        await AssertCountMatchesListAsync(harness, AliceId, "tanfamily", expected: ["follower3"]);
+    }
+
+    [Fact]
+    public async Task ARestrictedHousehold_IsNotCountedWhileRestricted_AndReturnsWhenLifted()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.FollowAsync(BobId, "tanfamily");
+        await harness.Graph.FollowAsync(CarolId, "tanfamily");
+
+        var bob = await harness.Db.OwnerSocialProfiles.SingleAsync(profile => profile.UserId == BobId);
+        CommunityModeration.RestrictHousehold(bob, AliceId, DateTimeOffset.UtcNow);
+        await harness.Db.SaveChangesAsync();
+
+        await AssertCountMatchesListAsync(harness, null, "tanfamily", expected: ["CarolPets"]);
+
+        CommunityModeration.LiftRestriction(bob);
+        await harness.Db.SaveChangesAsync();
+
+        await AssertCountMatchesListAsync(harness, null, "tanfamily", expected: ["CarolPets", "LimFamily"]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ABlockBetweenTheViewerAndAFollower_RemovesThemFromThatViewersCountAndList(
+        bool viewerIsBlocker)
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.FollowAsync(BobId, "tanfamily");
+        await harness.Graph.FollowAsync(CarolId, "tanfamily");
+        await harness.AddFollowersAsync("limfamily", 1);
+        var viewer = FollowerId(0);
+
+        if (viewerIsBlocker)
+        {
+            await harness.Graph.BlockAsync(viewer, "carolpets", null);
+        }
+        else
+        {
+            await harness.Graph.BlockAsync(CarolId, "follower0", null);
+        }
+
+        // Blocks apply in both directions, for this viewer only.
+        await AssertCountMatchesListAsync(harness, viewer, "tanfamily", expected: ["LimFamily"]);
+        await AssertCountMatchesListAsync(harness, null, "tanfamily", expected: ["CarolPets", "LimFamily"]);
+    }
+
+    [Fact]
+    public async Task FollowingCount_MatchesTheFollowingList()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.FollowAsync(AliceId, "limfamily");
+        await harness.Graph.FollowAsync(AliceId, "carolpets");
+
+        await harness.SetSocialAsync(CarolId, enabled: false);
+
+        var relationship = await harness.Graph.GetRelationshipAsync(null, "tanfamily");
+        var following = await harness.Graph.GetFollowingAsync(null, "tanfamily", null, 20);
+
+        Assert.Equal(1, relationship.FollowingCount);
+        Assert.Equal(["LimFamily"], following.Items.Select(item => item.Handle).ToArray());
+    }
+
+    private static Guid FollowerId(int index) =>
+        Guid.Parse($"a95{index:D5}-1111-1111-1111-111111111111");
+
+    private static async Task AssertCountMatchesListAsync(
+        Harness harness,
+        Guid? viewer,
+        string handle,
+        string[] expected)
+    {
+        var relationship = await harness.Graph.GetRelationshipAsync(viewer, handle);
+        var followers = await harness.Graph.GetFollowersAsync(viewer, handle, null, 20);
+        var listed = followers.Items.Select(item => item.Handle).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(expected.Order(StringComparer.Ordinal).ToArray(), listed);
+        Assert.Equal(listed.Length, relationship.FollowerCount);
     }
 
     [Fact]
@@ -761,6 +900,23 @@ public sealed class SocialGraphTests
         {
             var profile = await Db.OwnerSocialProfiles.SingleAsync(item => item.UserId == userId);
             profile.AllowFollowers = allow;
+            await Db.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// An owner who has never set up Community: an account and an owner
+        /// profile, and no Community identity at all.
+        /// </summary>
+        public async Task AddAccountWithoutCommunityProfileAsync(Guid id)
+        {
+            Db.Users.Add(new User
+            {
+                Id = id,
+                Email = "dave@example.com",
+                NormalizedEmail = "DAVE@EXAMPLE.COM",
+                DisplayName = "Dave Rao",
+                Status = UserStatus.Active
+            });
             await Db.SaveChangesAsync();
         }
 

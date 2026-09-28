@@ -68,6 +68,43 @@ public static class SocialVisibility
     }
 
     /// <summary>
+    /// Accounts that currently present a Community identity to this viewer: an
+    /// Active, undeleted account whose Community Profile is on and complete,
+    /// with no block either way between it and a signed-in viewer. A
+    /// restricted household is excluded because restriction switches its
+    /// Community Profile off.
+    ///
+    /// This is what a follower or following list can show, and so it is also
+    /// what the counts above those lists count. A count that included a follow
+    /// from an owner with no Community Profile announced "12 followers" over a
+    /// list of 8, with no way to explain the other 4 without naming accounts
+    /// that never chose to be named.
+    /// </summary>
+    public static IQueryable<Guid> VisibleCommunityAccountIds(
+        MyPetLinkDbContext dbContext,
+        Guid? viewerId)
+    {
+        var accounts = dbContext.OwnerSocialProfiles
+            .AsNoTracking()
+            .Where(profile =>
+                profile.IsSocialEnabled
+                && profile.Handle != null
+                && profile.Handle != ""
+                && profile.DisplayName != null
+                && profile.DisplayName != ""
+                && profile.User.DeletedAt == null
+                && profile.User.Status == UserStatus.Active);
+
+        if (viewerId.HasValue)
+        {
+            var blocked = SocialBlocks.BlockedAccountIds(dbContext, viewerId.Value);
+            accounts = accounts.Where(profile => !blocked.Contains(profile.UserId));
+        }
+
+        return accounts.Select(profile => profile.UserId);
+    }
+
+    /// <summary>
     /// Social Moments visible to this viewer. Anonymous callers get the public
     /// set; a signed-in caller additionally loses Moments whose author is on
     /// either side of a block with them.

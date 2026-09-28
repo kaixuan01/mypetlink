@@ -15,10 +15,14 @@ import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { DateInput } from "@/components/ui/DateInput";
 import { FormDialog } from "@/components/ui/FormDialog";
 import { MomentPetSelector } from "@/components/portal/MomentPetSelector";
+import {
+  momentAudienceOptions,
+  normalizeMomentVisibility,
+  type MomentAudience,
+} from "@/lib/momentVisibility";
 import type {
   MomentMedia,
   MomentType,
-  MomentVisibility,
   PetListItem,
   PetMoment,
   PetMomentPayload,
@@ -39,39 +43,13 @@ const momentCategories: MomentType[] = [
   "Other",
 ];
 
-type OwnerMomentVisibility = Exclude<MomentVisibility, "Family Only">;
-
 /**
- * Who actually sees a Moment.
- *
- * "Anyone with the link" was wrong, and wrong in the direction that matters:
- * it is the standard phrase for unlisted, so an owner read it as "nobody finds
- * this unless I send it". A Public Moment appears on the pet's Share Profile,
- * on the household's Community Profile, on its own page, in the feed of
- * everyone who follows them, and — once the household and the pet are
- * discoverable — in Explore, where strangers browse.
- *
- * One switch drives all of that: `showOnPublicProfile` is derived from this
- * value, it is not a second choice. So the label has to name the widest
- * audience, not the narrowest.
+ * Who actually sees a Moment — the shared vocabulary in `lib/momentVisibility`,
+ * so a badge, the Moments summary and this editor can never name the same
+ * choice differently.
  */
-const audienceOptions: Array<{
-  value: OwnerMomentVisibility;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "Private",
-    label: "Only me",
-    description: "Keep this Moment private to your owner account.",
-  },
-  {
-    value: "Public",
-    label: "Shared publicly",
-    description:
-      "Appears on your pet's Share Profile and your Community Profile, and may appear in Community feeds or Explore when your profile and pet are discoverable.",
-  },
-];
+type OwnerMomentVisibility = MomentAudience;
+const audienceOptions = momentAudienceOptions;
 
 type MomentEditorValues = {
   title: string;
@@ -123,8 +101,20 @@ type MomentEditorDialogProps = {
    */
   dialogTitle?: string;
   dialogDescription?: string;
-  submitLabel?: string;
+  /**
+   * The primary button. A function when the words depend on the audience
+   * currently chosen, so a button can never say "Share" over "Only me".
+   */
+  submitLabel?: string | ((visibility: OwnerMomentVisibility) => string);
   maxWidthClassName?: string;
+  /**
+   * The audience a NEW Moment starts with. Private unless the caller has a
+   * reason: Community's Share a Moment starts on Shared publicly for an owner
+   * whose Community Profile is on, because that is what they pressed. It is a
+   * visible, changeable default in the audience question below — never a
+   * decision made on the owner's behalf. Ignored when editing.
+   */
+  initialVisibility?: OwnerMomentVisibility;
   initialMoment?: PetMoment;
   submitting: boolean;
   error?: string;
@@ -166,6 +156,7 @@ export function MomentEditorDialog({
   dialogDescription,
   submitLabel,
   maxWidthClassName,
+  initialVisibility = "Private",
   initialMoment,
   submitting,
   error,
@@ -176,8 +167,11 @@ export function MomentEditorDialog({
 }: MomentEditorDialogProps) {
   const [collaboratorInvites, setCollaboratorInvites] = useState<CollaborationInvite[]>([]);
   const initialValues = useMemo(
-    () => (initialMoment ? valuesFromMoment(initialMoment) : emptyValues),
-    [initialMoment]
+    () =>
+      initialMoment
+        ? valuesFromMoment(initialMoment)
+        : { ...emptyValues, visibility: initialVisibility },
+    [initialMoment, initialVisibility]
   );
   const [form, setForm] = useState<MomentEditorValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -260,7 +254,9 @@ export function MomentEditorDialog({
     (mode === "create" ? `Add a Moment for ${petName}` : "Update this Moment");
   const formId = `moment-editor-${mode}-form`;
   const primaryLabel =
-    submitLabel ?? (mode === "create" ? "Add Moment" : "Save Changes");
+    typeof submitLabel === "function"
+      ? submitLabel(form.visibility)
+      : submitLabel ?? (mode === "create" ? "Add Moment" : "Save Changes");
 
   return (
     <FormDialog
@@ -503,17 +499,11 @@ function valuesFromMoment(moment: PetMoment): MomentEditorValues {
     caption: moment.caption,
     media: moment.media ?? [],
     coverMediaId: moment.coverMediaId,
-    visibility: normalizeOwnerVisibility(moment.visibility),
+    visibility: normalizeMomentVisibility(moment.visibility),
     showInLifeTimeline: moment.showInLifeTimeline,
     timelineNote: moment.timelineNote ?? "",
     additionalPetIds: [...(moment.additionalPetIds ?? [])],
   };
-}
-
-function normalizeOwnerVisibility(
-  visibility: MomentVisibility
-): OwnerMomentVisibility {
-  return visibility === "Public" ? "Public" : "Private";
 }
 
 function valuesFingerprint(values: MomentEditorValues) {

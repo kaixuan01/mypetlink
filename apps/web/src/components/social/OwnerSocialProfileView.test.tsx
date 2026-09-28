@@ -62,6 +62,7 @@ vi.mock("@/lib/features", () => ({
   ownerProductFeatures: {},
 }));
 
+import { CommunityComposerProvider } from "@/components/social/CommunityComposerContext";
 import { OwnerSocialProfileView } from "@/components/social/OwnerSocialProfileView";
 import { PublicProfileUnavailableError } from "@/services/publicSocialService";
 import type { OwnerRelationship } from "@/services/socialGraphService";
@@ -220,15 +221,36 @@ describe("own profile versus visitor", () => {
     expect(screen.queryByTestId("edit-community-profile")).toBeNull();
   });
 
-  it("offers the owner a way to share a first Moment when the grid is empty", async () => {
+  it("opens the composer, not another page, from the owner's empty grid", async () => {
+    mocks.getPublicOwnerMoments.mockResolvedValue({ items: [], nextCursor: null });
+    signIn();
+    const openComposer = vi.fn();
+
+    render(
+      <CommunityComposerProvider value={openComposer}>
+        <OwnerSocialProfileView audience="own" handle="tanfamily" />
+      </CommunityComposerProvider>
+    );
+
+    const empty = await screen.findByTestId("moments-empty");
+    expect(empty.textContent).toContain("Share your first pet Moment");
+
+    // It used to be a link to Home, which is not what "Share a Moment" says.
+    expect(within(empty).queryByRole("link", { name: /share a moment/i })).toBeNull();
+    fireEvent.click(within(empty).getByRole("button", { name: "Share a Moment" }));
+    expect(openComposer).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole("button", { name: "Share a Moment" })).toHaveLength(1);
+  });
+
+  it("offers no Share action where there is no composer to open", async () => {
     mocks.getPublicOwnerMoments.mockResolvedValue({ items: [], nextCursor: null });
     signIn();
 
     render(<OwnerSocialProfileView audience="own" handle="tanfamily" />);
 
     const empty = await screen.findByTestId("moments-empty");
-    expect(empty.textContent).toContain("Share your first pet Moment");
-    expect(within(empty).getByRole("link", { name: /share a moment/i })).toBeTruthy();
+    expect(within(empty).queryByRole("button", { name: /share a moment/i })).toBeNull();
+    expect(within(empty).queryByRole("link", { name: /share a moment/i })).toBeNull();
   });
 
   it("gives a visitor no owner call to action on an empty grid", async () => {

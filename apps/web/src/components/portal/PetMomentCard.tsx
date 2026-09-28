@@ -1,7 +1,10 @@
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { Badge } from "@/components/ui/Badge";
 import { mediaCountLabel } from "@/lib/momentMedia";
-import { normalizeMomentVisibility } from "@/lib/momentVisibility";
+import {
+  momentAudienceLabels,
+  normalizeMomentVisibility,
+} from "@/lib/momentVisibility";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 import type { PetMoment } from "@/types";
@@ -84,7 +87,7 @@ export function PetMomentCard({
               data-moment-badges
             >
               <Badge tone={audience === "Public" ? "mint" : "soft"}>
-                {audience === "Public" ? "Shared" : "Only me"}
+                {momentAudienceLabels[audience]}
               </Badge>
               {moment.showInLifeTimeline ? (
                 <Badge tone="teal">In Life Timeline</Badge>

@@ -171,7 +171,13 @@ describe("the Collaborators section while creating", () => {
     );
 
     expect(screen.getByRole("region", { name: "Collaborators" })).toBeTruthy();
-    expect(screen.getByText(/Collaborators can join public Moments/)).toBeTruthy();
+    // Names the audience option exactly as the question above it does; there
+    // is no option called "Public".
+    expect(
+      screen.getByText(
+        "Collaborators can join Moments that are shared publicly. Choose Shared publicly to invite another household."
+      )
+    ).toBeTruthy();
     expect(screen.queryByTestId("invite-household")).toBeNull();
   });
 

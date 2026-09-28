@@ -14,6 +14,7 @@ import { formatPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerSocialProfilePath, petPublicProfilePath } from "@/lib/routes";
 import {
   minimumSearchLength,
+  normalizeSocialSearchQuery,
   searchSocial,
   type SocialOwnerCard,
   type SocialPetCard,
@@ -93,12 +94,15 @@ export function SocialSearchExperience({
   const ownInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = externalInputRef ?? ownInputRef;
 
+  // What was typed, for echoing back, and what is searched: "@tanfamily" is how
+  // a handle is written everywhere it is shown, so it searches "tanfamily".
   const trimmed = term.trim();
-  const tooShort = trimmed.length < minimumSearchLength;
+  const searchQuery = normalizeSocialSearchQuery(term);
+  const tooShort = searchQuery.length < minimumSearchLength;
   // A revision distinguishes re-entering the same text from the earlier
   // request for it. That prevents a cached-looking flash of old results while
   // the new, debounced request is waiting to start.
-  const requestKey = `${queryRevision}:${retryAttempt}:${trimmed}`;
+  const requestKey = `${queryRevision}:${retryAttempt}:${searchQuery}`;
   // Derived, not stored: a box too short to search is a state of the input, not
   // a result the component has to remember.
   const state = tooShort
@@ -114,7 +118,7 @@ export function SocialSearchExperience({
   }, [autoFocus, inputRef]);
 
   useEffect(() => {
-    if (trimmed.length < minimumSearchLength) {
+    if (searchQuery.length < minimumSearchLength) {
       return;
     }
 
@@ -124,7 +128,7 @@ export function SocialSearchExperience({
     // that is already in flight stop mattering the moment the query moves on,
     // so a slow answer to "mo" can never land on top of the answer to "mochi".
     const controller = new AbortController();
-    const query = trimmed;
+    const query = searchQuery;
 
     const timer = window.setTimeout(() => {
       // Announced when the request actually goes out rather than on every
@@ -186,7 +190,7 @@ export function SocialSearchExperience({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [requestKey, trimmed]);
+  }, [requestKey, searchQuery]);
 
   const results = tab === "pets" ? pets : owners;
 

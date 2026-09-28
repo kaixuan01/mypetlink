@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Common;
 
 namespace MyPetLink.Api.Tests;
 
@@ -547,6 +548,72 @@ public sealed class SocialDiscoveryTests
         Assert.Equal(
             lower.Owners.Select(owner => owner.Handle).ToArray(),
             upper.Owners.Select(owner => owner.Handle).ToArray());
+    }
+
+    [Theory]
+    [InlineData("@tanfamily")]
+    [InlineData("@TanFam")]
+    [InlineData("  @tanfam  ")]
+    [InlineData("@ tanfam")]
+    public async Task SearchFindsAHouseholdTypedTheWayItsHandleIsShown(string typed)
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+
+        var results = await harness.Discovery.SearchAsync(null, typed, null, null, null);
+
+        Assert.Contains(results.Owners, owner => owner.Handle == "TanFamily");
+        Assert.DoesNotContain("@", results.Query);
+    }
+
+    [Fact]
+    public async Task SearchRemovesOnlyOneLeadingAt()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+
+        // Not rewritten into a handle: a second "@" is still part of the query,
+        // and no stored handle can contain one.
+        var doubled = await harness.Discovery.SearchAsync(null, "@@tanfam", null, null, null);
+        var inside = await harness.Discovery.SearchAsync(null, "tan@fam", null, null, null);
+
+        Assert.Empty(doubled.Owners);
+        Assert.Empty(inside.Owners);
+    }
+
+    [Fact]
+    public async Task SearchCountsTheMinimumLengthAfterTheAt()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+
+        var results = await harness.Discovery.SearchAsync(null, "@t", null, null, null);
+
+        Assert.Equal("t", results.Query);
+        Assert.Empty(results.Owners);
+        Assert.Empty(results.Pets);
+    }
+
+    [Fact]
+    public async Task SearchWithAnAt_StillHidesAHouseholdThatHidesFromDiscovery()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+
+        // Carol's household has discovery off in the harness. Typing the "@"
+        // is not a way around that.
+        var results = await harness.Discovery.SearchAsync(null, "@carolpets", null, null, null);
+
+        Assert.Empty(results.Owners);
+    }
+
+    [Theory]
+    [InlineData(null, "")]
+    [InlineData("   ", "")]
+    [InlineData("@", "")]
+    [InlineData("@mochi", "mochi")]
+    [InlineData(" @ Mochi ", "Mochi")]
+    [InlineData("@@mochi", "@mochi")]
+    [InlineData("mo@chi", "mo@chi")]
+    public void SearchQueryNormalization_RemovesOneLeadingAt(string? typed, string expected)
+    {
+        Assert.Equal(expected, SocialSearchQuery.Normalize(typed));
     }
 
     [Fact]

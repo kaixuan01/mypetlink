@@ -608,8 +608,9 @@ Community, and it answers the same way whether the finder opened
 **Counts are computed, never stored.** Followers, following and likes are
 indexed `COUNT`s. Comment counts use the same `VisibleComments` query as the
 thread and are grouped for a whole Moment page, so Block rules cannot make a
-card promise rows the viewer cannot open. There is still no counter column
-anywhere in Community (see §12).
+card promise rows the viewer cannot open. Follower and following counts
+likewise count only the accounts their lists can show (§12i). There is still no
+counter column anywhere in Community (see §12).
 
 **Activity is in-app only.** `OwnerNotification` rows carry ids and never
 identity; the actor's handle, name and avatar resolve at read time from their
@@ -1335,6 +1336,66 @@ F4 makes no backend, schema or deployment changes. The live-backend
 browser/privacy audit is F5's
 ([`community-comment-replies-f5.md`](../testing/community-comment-replies-f5.md));
 release acceptance and rollout remain F6.
+
+## 12i. Phase 3A Creation & participation integrity
+
+**A follower count is the length of the list under it.** Followers and
+Following count only accounts `SocialVisibility.VisibleCommunityAccountIds`
+admits for the viewer: an Active, undeleted account whose Community Profile is
+on and complete, with no block either way between it and a signed-in viewer.
+The lists use the same subquery, so "12 followers" can no longer open onto 8
+rows. Every `OwnerFollows` edge is kept; a follow from an owner with no
+Community Profile, one switched off or restricted, a suspended or deleted
+account, or one on either side of a block with the viewer is simply not counted
+until it can be shown. Nothing about a hidden follower is revealed to make the
+numbers agree — the count moves toward the list, never the reverse.
+`SocialGraphTests` pins every case.
+
+**Owners without a Community Profile may still Follow and Like.** That is the
+existing contract, kept. What they do is invisible to the other household until
+they have an identity: their follow is not counted or listed, and neither a
+Follow nor a Like produces Activity (a Like's row is never staged; a Follow's is
+filtered at read time and appears once the follower completes a profile). A Like
+still counts toward the Moment's like total, which has no list to contradict it.
+Commenting and reporting already require a profile and say so where they are
+offered. A one-time "complete your Community profile" nudge after the first
+Follow or Like is **not built**: showing it only once needs remembered state
+(see the Phase 3A report for the options).
+
+**Search accepts a handle as it is shown.** `SocialSearchQuery.Normalize` (API)
+and `normalizeSocialSearchQuery` (web) remove exactly one leading "@" and any
+space after it, then apply the two-character minimum to what is left. Stored
+handle validation is unchanged; "@@x" is not rewritten.
+
+**Share a Moment from Community makes the audience explicit.** The composer is
+the Owner Portal's editor, which still starts new Moments on **Only me**.
+Community's composer starts on **Shared publicly** only for an owner whose
+Community Profile is on — that is what they pressed — and on **Only me** for
+everyone else, because for them "public" would mean the pet's Share Profile. The
+choice is preselected in "Who can see this Moment?", described in full, and the
+primary button follows it ("Share Moment" / "Save Moment"). An unreadable
+profile counts as off. The audience words live once, in
+`lib/momentVisibility.ts`, and every badge and summary uses them.
+
+**After sharing, the page underneath updates in place.** `router.refresh()`
+could not re-run client-side listings. The shell now announces the new Moment
+(`lib/momentChanges.ts`) and `useMomentPages` asks for its first page again and
+prepends anything new, keeping loaded pages, scroll position and likes. The
+server still decides membership, so an Only me Moment enters no public list. One
+confirmation follows, after the composer closes: "Moment shared." with **View
+Moment** when it has a Community page, otherwise a pointer to the pet's Moments
+in My Pets.
+
+**One composer, reachable from a page.** `CommunityComposerContext` lets a page
+inside the shell open the shell's composer. The own-profile empty state's
+"Share a Moment" uses it (it linked to Home before); the sidebar and phone bar
+are the other two entry points, and no page adds a fourth.
+
+**Browsing continuity is Phase 3C.** Returning from a Moment to Home/Explore
+reloads the first page at the top (reproduced: 20 loaded cards at ~11,500px
+came back as 12 cards at ~780px on browser Back, and at the top via "Back to
+Explore"). Keeping cursor pages and scroll position needs list state that
+outlives the route, which is deliberately out of Phase 3A.
 
 ## 13. Deliberately deferred Community work
 

@@ -314,6 +314,13 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
     /// hundred rows. Correctness with no drift beats a cached number that can be
     /// wrong. Revisit if a single account passes roughly 10,000 followers or the
     /// profile query shows the count as a measurable cost.
+    ///
+    /// <b>A count is the length of the list it sits above.</b> Both count only
+    /// accounts <see cref="SocialVisibility.VisibleCommunityAccountIds"/>
+    /// admits for this viewer — the same rule the lists use. A follow from an
+    /// owner with no Community Profile, one that is switched off or
+    /// restricted, a suspended or deleted account, or one either side of a
+    /// block with the viewer is kept, but not counted, until it can be shown.
     /// </summary>
     public async Task<OwnerRelationshipResponse> GetRelationshipAsync(
         Guid? currentUserId,
@@ -322,11 +329,16 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
     {
         var targetId = await ResolveUserIdAsync(handle, cancellationToken);
         var viewerId = currentUserId;
+        var visible = SocialVisibility.VisibleCommunityAccountIds(_dbContext, viewerId);
 
         var followerCount = await _dbContext.OwnerFollows
-            .CountAsync(follow => follow.FollowedUserId == targetId, cancellationToken);
+            .CountAsync(
+                follow => follow.FollowedUserId == targetId && visible.Contains(follow.FollowerUserId),
+                cancellationToken);
         var followingCount = await _dbContext.OwnerFollows
-            .CountAsync(follow => follow.FollowerUserId == targetId, cancellationToken);
+            .CountAsync(
+                follow => follow.FollowerUserId == targetId && visible.Contains(follow.FollowedUserId),
+                cancellationToken);
         var allowsFollowers = await _dbContext.OwnerSocialProfiles.AnyAsync(
             profile => profile.UserId == targetId && profile.AllowFollowers,
             cancellationToken);
@@ -409,11 +421,17 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
         var take = SocialCursor.ClampPageSize(pageSize);
         var position = SocialCursor.TryDecode(cursor);
 
-        var query = _dbContext.OwnerFollows
-            .AsNoTracking()
-            .Where(follow => followers
-                ? follow.FollowedUserId == targetId
-                : follow.FollowerUserId == targetId);
+        // The other end of each edge, and only if it is itself a live Community
+        // identity this viewer may see — the one rule the counts use too, so
+        // the number above the list is the number of rows in it. Both
+        // directions of a block apply: neither party appears in the other's
+        // lists, from either side.
+        var visible = SocialVisibility.VisibleCommunityAccountIds(_dbContext, viewerId);
+        var query = followers
+            ? _dbContext.OwnerFollows.AsNoTracking().Where(follow =>
+                follow.FollowedUserId == targetId && visible.Contains(follow.FollowerUserId))
+            : _dbContext.OwnerFollows.AsNoTracking().Where(follow =>
+                follow.FollowerUserId == targetId && visible.Contains(follow.FollowedUserId));
 
         if (position is not null)
         {
@@ -423,8 +441,6 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
                     && follow.Id.CompareTo(position.Id) < 0));
         }
 
-        // The other end of each edge, and only if it is itself a live social
-        // profile. A deleted or switched-off account must not be listed.
         var rows = await query
             .OrderByDescending(follow => follow.CreatedAt)
             .ThenByDescending(follow => follow.Id)
@@ -434,18 +450,6 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
                 follow.CreatedAt,
                 Account = followers ? follow.FollowerUser : follow.FollowedUser
             })
-            .Where(row =>
-                row.Account.DeletedAt == null
-                && row.Account.SocialProfile != null
-                && row.Account.SocialProfile.IsSocialEnabled
-                && row.Account.SocialProfile.Handle != null
-                && row.Account.SocialProfile.DisplayName != null
-                // Both directions of a block: neither party appears in the
-                // other's lists, from either side.
-                && (viewerId == null
-                    || !SocialBlocks
-                        .BlockedAccountIds(_dbContext, viewerId.Value)
-                        .Contains(row.Account.Id)))
             .Take(take + 1)
             .Select(row => new
             {

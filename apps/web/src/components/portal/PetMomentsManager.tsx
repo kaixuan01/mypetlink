@@ -18,7 +18,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { isArchivedPet } from "@/lib/petLifecycle";
-import { normalizeMomentVisibility } from "@/lib/momentVisibility";
+import {
+  momentAudienceLabels,
+  normalizeMomentVisibility,
+} from "@/lib/momentVisibility";
 import {
   momentAdditionalPetOptions,
   resolveMomentSubjects,
@@ -484,7 +487,7 @@ export function PetMomentsManager({
           data-moment-stat
         >
           <p className="text-xs font-bold text-pet-muted sm:text-sm">
-            Shared moments
+            {momentAudienceLabels.Public}
           </p>
           <p className="mt-1 text-2xl font-black text-pet-ink md:mt-2 md:text-3xl">
             {counts.shared}
@@ -505,7 +508,9 @@ export function PetMomentsManager({
           className="brand-card rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-5"
           data-moment-stat
         >
-          <p className="text-xs font-bold text-pet-muted sm:text-sm">Only me</p>
+          <p className="text-xs font-bold text-pet-muted sm:text-sm">
+            {momentAudienceLabels.Private}
+          </p>
           <p className="mt-1 text-2xl font-black text-pet-ink md:mt-2 md:text-3xl">
             {counts.onlyMe}
           </p>

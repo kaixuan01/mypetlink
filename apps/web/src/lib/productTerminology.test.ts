@@ -239,6 +239,35 @@ describe("Moment is the one name for a PetMemory", () => {
   });
 });
 
+describe("a Moment's audience has one vocabulary", () => {
+  // Every place an owner meets the choice. "Shared" alone on a badge and
+  // "Choose Public" in the Collaborators note both named the option the editor
+  // calls "Shared publicly" — three words for one switch.
+  const audienceSurfaces = [
+    "components/portal/MomentEditorDialog.tsx",
+    "components/portal/PetMomentCard.tsx",
+    "components/portal/PetTimeline.tsx",
+    "components/portal/PetManagementTabs.tsx",
+    "components/portal/PetMomentsManager.tsx",
+    "components/social/MomentCollaboratorsField.tsx",
+    "components/social/CommunityMomentComposer.tsx",
+  ];
+
+  it("defines the labels once", () => {
+    const vocabulary = read("lib/momentVisibility.ts");
+
+    expect(vocabulary).toContain('Private: "Only me"');
+    expect(vocabulary).toContain('Public: "Shared publicly"');
+  });
+
+  it.each(audienceSurfaces)("%s names the audience from the shared vocabulary", (file) => {
+    const copy = visibleCopy(read(file));
+
+    expect(copy).not.toMatch(/"Shared"|"Only me"|"Shared publicly"|Choose Public|"Public Moment"/);
+    expect(copy).not.toContain("Visible to everyone");
+  });
+});
+
 describe("Community is the one name for the social half", () => {
   it("names the owner's identity after the area it belongs to", () => {
     const settings = read("components/portal/SocialProfileSettings.tsx");

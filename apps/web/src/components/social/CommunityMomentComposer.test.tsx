@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getPets: vi.fn(),
   createPetMoment: vi.fn(),
+  getOwnerSocialProfile: vi.fn(),
   push: vi.fn(),
 }));
 
@@ -22,6 +23,16 @@ vi.mock("@/services/petService", async () => {
     "@/services/petService"
   );
   return { ...actual, getPets: (...a: unknown[]) => mocks.getPets(...a) };
+});
+
+vi.mock("@/services/ownerSocialService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/ownerSocialService")
+  >("@/services/ownerSocialService");
+  return {
+    ...actual,
+    getOwnerSocialProfile: (...a: unknown[]) => mocks.getOwnerSocialProfile(...a),
+  };
 });
 
 vi.mock("@/services/momentService", async () => {
@@ -72,9 +83,101 @@ function fillRequiredFields(title = "Beach day") {
   });
 }
 
+function communityProfile(overrides: Record<string, unknown> = {}) {
+  return {
+    data: {
+      handle: "tanfamily",
+      displayName: "The Tan Family",
+      isSocialEnabled: true,
+      ...overrides,
+    },
+  };
+}
+
 beforeEach(() => {
   mocks.getPets.mockResolvedValue({ data: [pet("pet-1", "Mochi")] });
   mocks.createPetMoment.mockResolvedValue({ data: { id: "moment-1" } });
+  mocks.getOwnerSocialProfile.mockResolvedValue(communityProfile());
+});
+
+function checkedAudience() {
+  const group = screen.getByRole("group", { name: "Who can see this Moment?" });
+  return within(group)
+    .getAllByRole("radio")
+    .find((radio) => (radio as HTMLInputElement).checked)
+    ?.getAttribute("aria-label");
+}
+
+describe("who can see the Moment", () => {
+  it("starts on Shared publicly, visibly, for an owner in Community", async () => {
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+
+    await screen.findByRole("dialog");
+
+    // Preselected because that is what "Share a Moment" in Community means —
+    // but shown, described and changeable, never decided silently.
+    expect(checkedAudience()).toBe("Shared publicly");
+    expect(screen.getByText(/Appears on your pet's Share Profile and your Community Profile/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Share Moment" })).toBeTruthy();
+  });
+
+  it.each([
+    ["with Community off", communityProfile({ isSocialEnabled: false })],
+    ["with no Community Profile", communityProfile({ handle: "", displayName: "" })],
+  ])("starts on Only me %s, and never says Share for it", async (_label, profile) => {
+    mocks.getOwnerSocialProfile.mockResolvedValue(profile);
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+
+    await screen.findByRole("dialog");
+
+    // For this owner "public" would mean their pet's Share Profile, which they
+    // may never have meant to publish to. Nothing is widened for them.
+    expect(checkedAudience()).toBe("Only me");
+    expect(screen.getByRole("button", { name: "Save Moment" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share Moment" })).toBeNull();
+  });
+
+  it("treats a profile it could not read as off", async () => {
+    mocks.getOwnerSocialProfile.mockRejectedValue(new Error("network"));
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+
+    await screen.findByRole("dialog");
+
+    expect(checkedAudience()).toBe("Only me");
+  });
+
+  it("names the button after the audience chosen, and sends that audience", async () => {
+    const onCreated = vi.fn();
+    render(<CommunityMomentComposer onClose={vi.fn()} onCreated={onCreated} />);
+
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("radio", { name: "Only me" }));
+    expect(screen.getByRole("button", { name: "Save Moment" })).toBeTruthy();
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Save Moment" }));
+
+    await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledTimes(1));
+    expect(mocks.createPetMoment.mock.calls[0][1].visibility).toBe("Private");
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledWith({
+        momentId: "moment-1",
+        petId: "pet-1",
+        audience: "Private",
+        communityProfileActive: true,
+      })
+    );
+  });
+
+  it("does not count the preselected audience as a started draft", async () => {
+    const onClose = vi.fn();
+    render(<CommunityMomentComposer onClose={onClose} />);
+
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByLabelText("Close moment editor"));
+
+    expect(onClose).toHaveBeenCalled();
+  });
 });
 
 afterEach(() => {
@@ -172,7 +275,7 @@ describe("creating the Moment", () => {
     expect(petId).toBe("pet-1");
     expect(payload.title).toBe("Beach day");
     // The editor's own payload shape — visibility included, not invented here.
-    expect(payload).toHaveProperty("visibility");
+    expect(payload.visibility).toBe("Public");
     expect(payload).toHaveProperty("media");
   });
 
@@ -189,7 +292,12 @@ describe("creating the Moment", () => {
 
     // The reader entered creation from a Community screen, so they are still
     // on it. Nothing pushes them into the Owner Portal afterwards.
-    expect(onCreated).toHaveBeenCalled();
+    expect(onCreated).toHaveBeenCalledWith({
+      momentId: "moment-1",
+      petId: "pet-1",
+      audience: "Public",
+      communityProfileActive: true,
+    });
     expect(mocks.push).not.toHaveBeenCalled();
   });
 

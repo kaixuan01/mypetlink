@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { SocialBottomNav } from "@/components/layouts/SocialBottomNav";
-import { CommunityMomentComposer } from "@/components/social/CommunityMomentComposer";
+import { CommunityComposerProvider } from "@/components/social/CommunityComposerContext";
+import {
+  CommunityMomentComposer,
+  type SharedMomentSummary,
+} from "@/components/social/CommunityMomentComposer";
+import { MomentSharedNotice } from "@/components/social/MomentSharedNotice";
 import { OwnerKeyboardViewport } from "@/components/layouts/OwnerKeyboardViewport";
 import {
   OwnerHeaderActionsProvider,
@@ -32,6 +37,7 @@ import {
   getActiveSocialNavItemId,
   socialNavItems,
 } from "@/lib/socialNavigation";
+import { announceMomentCreated } from "@/lib/momentChanges";
 import { useSocialActions } from "@/lib/useSocialActions";
 import { useUnreadActivity } from "@/lib/useUnreadActivity";
 import {
@@ -80,15 +86,29 @@ export function AppLayout({
   const router = useRouter();
 
   /*
-    A new Moment changes what the surface underneath should show, and the
-    surfaces fetch their own data on mount. Refreshing the current route asks
-    them to do that again without a full reload and without moving anybody:
-    Home may gain the Moment, a profile gains it, and Explore is left to its own
-    discovery rules rather than having private content pushed into it.
+    A new Moment changes what the surface underneath should show. Those
+    surfaces fetch on the client, so `router.refresh()` — what this used to
+    call — could not reach them, and the Moment appeared only after a reload.
+    Each listing now hears the announcement and asks the server for its first
+    page again, keeping its place (`lib/momentChanges`). The server still
+    decides where a Moment belongs: nothing private is pushed into any list.
+
+    The confirmation is remembered with the page it was shared from and shown
+    only once the composer has closed, so it never sits behind the collaborator
+    follow-up, and moving to another page quietly retires it.
   */
-  const refreshAfterMomentShared = useCallback(() => {
-    router.refresh();
-  }, [router]);
+  const [shared, setShared] = useState<{
+    moment: SharedMomentSummary;
+    pathname: string;
+  } | null>(null);
+  const handleMomentShared = useCallback(
+    (moment: SharedMomentSummary) => {
+      setShared({ moment, pathname });
+      announceMomentCreated();
+    },
+    [pathname]
+  );
+  const dismissShared = useCallback(() => setShared(null), []);
   const collapsed = useSyncExternalStore(
     subscribeSidebarCollapsed,
     getSidebarCollapsed,
@@ -277,7 +297,16 @@ export function AppLayout({
                 : "mx-auto min-w-0 w-full max-w-7xl px-4 pb-[var(--owner-mobile-page-bottom-clearance)] pt-5 sm:px-6 lg:px-8 lg:py-8"
             }
           >
-            {children}
+            {/*
+              A page's own "Share a Moment" opens this shell's composer — the
+              same one as the sidebar and the phone bar — rather than a route.
+              Only while Community is offered at all.
+            */}
+            <CommunityComposerProvider
+              value={socialNavItems.length > 0 ? socialActions.openCreate : null}
+            >
+              {children}
+            </CommunityComposerProvider>
           </main>
         </div>
 
@@ -306,7 +335,15 @@ export function AppLayout({
         {socialActions.composerOpen ? (
           <CommunityMomentComposer
             onClose={socialActions.closeCreate}
-            onCreated={refreshAfterMomentShared}
+            onCreated={handleMomentShared}
+          />
+        ) : null}
+
+        {shared && !socialActions.composerOpen && shared.pathname === pathname ? (
+          <MomentSharedNotice
+            onDismiss={dismissShared}
+            returnTo={pathname}
+            shared={shared.moment}
           />
         ) : null}
         </div>

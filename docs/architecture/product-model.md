@@ -393,6 +393,13 @@ both discoverable — Explore.
 The editor must describe that full audience. It previously said "Anyone with the
 link", which is the phrase people read as *unlisted*.
 
+The two audiences are called **Only me** and **Shared publicly** everywhere an
+owner meets them — editor, badges, the Moments summary, the Collaborators note —
+from one definition, `apps/web/src/lib/momentVisibility.ts`. A new Moment starts
+on Only me, except in Community's Share a Moment for an owner whose Community
+Profile is on, where Shared publicly is preselected and shown; the button then
+says "Share Moment", and "Save Moment" for Only me.
+
 ---
 
 ## Reading order on the Safety Profile
@@ -524,4 +531,6 @@ surface that names one, so a second name cannot quietly come back.
 | Safety → Share bridge, every entry point | `ShareProfileBridge.ResolveSlug` |
 | Community participation prerequisites | `PetSocialSettingsService` |
 | Community identity never seeded | `OwnerSocialProfileFactory` |
+| Follower counts equal the visible lists | `SocialVisibility.VisibleCommunityAccountIds` |
+| Moment audience wording | `apps/web/src/lib/momentVisibility.ts` |
 | Sellable tag capability | `TagCatalogSellability`, `lib/tagCapabilities.ts` |

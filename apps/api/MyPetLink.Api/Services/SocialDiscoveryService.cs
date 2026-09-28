@@ -295,7 +295,10 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
         int? limit,
         CancellationToken cancellationToken = default)
     {
-        var term = (query ?? "").Trim();
+        // "@tanfamily" is how a handle is written everywhere it is shown, so it
+        // is how people type it. The minimum length below applies to what is
+        // left, so "@m" is still somebody typing, not a question.
+        var term = SocialSearchQuery.Normalize(query);
 
         if (term.Length > MaximumSearchLength)
         {

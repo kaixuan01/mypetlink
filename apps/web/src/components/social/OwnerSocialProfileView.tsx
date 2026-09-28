@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommunityBrandFooter } from "@/components/social/CommunityBrandFooter";
+import { useOpenCommunityComposer } from "@/components/social/CommunityComposerContext";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { FollowButton } from "@/components/social/FollowButton";
@@ -73,6 +74,7 @@ export function OwnerSocialProfileView({
   // knows whose profile it is. Everything below renders the same data; only the
   // actions and the empty states differ.
   const isOwnProfile = audience === "own";
+  const openComposer = useOpenCommunityComposer();
   const [state, setState] = useState<LoadState>("loading");
   /** Bumped by Retry; the load effect keys off it. */
   const [attempt, setAttempt] = useState(0);
@@ -435,8 +437,12 @@ export function OwnerSocialProfileView({
         <PublicMomentGrid
           returnTo={audience === "own" ? ownerRoutes.socialProfile : ownerSocialProfilePath(profile.handle)}
           emptyAction={
-            isOwnProfile ? (
-              <CTAButton href={socialRoutes.feed}>Share a Moment</CTAButton>
+            // Opens the same composer as the sidebar and the phone bar. It
+            // used to link to Home, which is not what "Share a Moment" says.
+            isOwnProfile && openComposer ? (
+              <CTAButton onClick={openComposer} type="button">
+                Share a Moment
+              </CTAButton>
             ) : undefined
           }
           emptyMessage={

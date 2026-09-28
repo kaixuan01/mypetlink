@@ -64,7 +64,7 @@ describe("PetTimeline owner guidance", () => {
     render(<PetTimeline initialMoments={moments} pet={pet} />);
 
     expect(await screen.findByText("public")).toBeTruthy();
-    expect(screen.getAllByText("Shared")).toHaveLength(1);
+    expect(screen.getAllByText("Shared publicly")).toHaveLength(1);
     expect(screen.getAllByText("Only me")).toHaveLength(2);
     expect(screen.queryByText("Family Only")).toBeNull();
   });

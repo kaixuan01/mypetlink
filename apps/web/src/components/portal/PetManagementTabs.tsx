@@ -34,7 +34,10 @@ import {
   isArchivedPet,
   isMemorialPet,
 } from "@/lib/petLifecycle";
-import { normalizeMomentVisibility } from "@/lib/momentVisibility";
+import {
+  momentAudienceLabels,
+  normalizeMomentVisibility,
+} from "@/lib/momentVisibility";
 import { useOwnerPets } from "@/components/portal/OwnerHeaderActions";
 import { usePetCommunityStatus } from "@/components/portal/usePetCommunityStatus";
 import {
@@ -329,7 +332,7 @@ function OverviewTab({
                     className="shrink-0"
                     tone={visibility === "Public" ? "mint" : "soft"}
                   >
-                    {visibility === "Public" ? "Shared" : "Only me"}
+                    {momentAudienceLabels[visibility]}
                   </Badge>
                 </div>
               );

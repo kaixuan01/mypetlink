@@ -13,7 +13,7 @@ afterEach(cleanup);
 
 describe("PetMomentCard owner audience badges", () => {
   it.each([
-    { visibility: "Public" as const, expected: "Shared" },
+    { visibility: "Public" as const, expected: "Shared publicly" },
     { visibility: "Private" as const, expected: "Only me" },
     { visibility: "Family Only" as const, expected: "Only me" },
   ])("shows $visibility as $expected", ({ visibility, expected }) => {
@@ -35,7 +35,7 @@ describe("PetMomentCard owner audience badges", () => {
       />
     );
 
-    expect(screen.getByText("Shared")).toBeTruthy();
+    expect(screen.getByText("Shared publicly")).toBeTruthy();
     expect(screen.getByText("In Life Timeline")).toBeTruthy();
 
     rerender(
@@ -78,7 +78,7 @@ describe("PetMomentCard owner audience badges", () => {
       title.compareDocumentPosition(badges as Element) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0);
-    expect(screen.getByText("Shared")).toBeTruthy();
+    expect(screen.getByText("Shared publicly")).toBeTruthy();
     expect(screen.getByText("In Life Timeline")).toBeTruthy();
   });
 });

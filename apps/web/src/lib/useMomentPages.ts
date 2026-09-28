@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { subscribeMomentCreated } from "@/lib/momentChanges";
 import type {
   PublicMomentListItem,
   PublicMomentPage,
@@ -115,6 +116,56 @@ export function useMomentPages(load: MomentPageLoader) {
     setState("loading");
     setReloadToken((token) => token + 1);
   }, []);
+
+  /*
+    A Moment shared from the Community composer, which sits above this listing.
+    Ask for the first page again and put anything not already here at the top:
+    every listing is newest-first, so a new Moment can only arrive there. The
+    pages already loaded, the reader's scroll position and every like stay as
+    they are — no skeleton, no jump back to the top. The server decides whether
+    the Moment belongs here; one kept to "Only me" is simply not in the answer.
+  */
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    let active = true;
+
+    const unsubscribe = subscribeMomentCreated(() => {
+      if (stateRef.current === "error") {
+        // Nothing on screen to keep. Somebody who just shared a Moment
+        // deserves another attempt at the listing it should appear in.
+        reload();
+        return;
+      }
+
+      if (stateRef.current !== "ready") {
+        return;
+      }
+
+      load()
+        .then((page) => {
+          if (!active) return;
+
+          setMoments((current) => {
+            const seen = new Set(current.map((moment) => moment.id));
+            const arrived = page.items.filter((moment) => !seen.has(moment.id));
+            return arrived.length > 0 ? [...arrived, ...current] : current;
+          });
+        })
+        .catch(() => {
+          // The listing stays exactly as it was; the Moment is shared either
+          // way, and the next visit to this page will include it.
+        });
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [load, reload]);
 
   return {
     state,

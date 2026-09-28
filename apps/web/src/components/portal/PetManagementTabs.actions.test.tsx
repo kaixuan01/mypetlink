@@ -369,7 +369,7 @@ it("uses Shared and Only me for Overview Moment badges", async () => {
   const memories = (
     await screen.findByRole("heading", { name: "Moments" })
   ).closest("section")!;
-  expect(within(memories).getAllByText("Shared")).toHaveLength(1);
+  expect(within(memories).getAllByText("Shared publicly")).toHaveLength(1);
   expect(within(memories).getAllByText("Only me")).toHaveLength(2);
   expect(within(memories).queryByText("Public")).toBeNull();
   expect(within(memories).queryByText("Private")).toBeNull();
@@ -401,7 +401,7 @@ it("allows long Moment titles two lines without disturbing overview status or ac
   expect(row?.className).toContain("min-w-0");
   expect(list?.className).toContain("grid-cols-[minmax(0,1fr)]");
   expect(overviewGrid?.className).toContain("grid-cols-[minmax(0,1fr)]");
-  expect(within(row as HTMLElement).getByText("Shared")).toBeTruthy();
+  expect(within(row as HTMLElement).getByText("Shared publicly")).toBeTruthy();
   expect(screen.getByRole("link", { name: "View all Moments" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Add Moment" })).toBeTruthy();
 });

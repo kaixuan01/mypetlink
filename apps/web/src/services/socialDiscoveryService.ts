@@ -56,6 +56,20 @@ export type SocialSearchResults = {
 /** Below this the box is somebody still typing, not a question. */
 export const minimumSearchLength = 2;
 
+/**
+ * What the search box is actually asking for.
+ *
+ * Handles are shown as "@handle" everywhere, so that is how people type them;
+ * no stored handle contains the "@". Exactly one leading "@" is removed (with
+ * any space after it), and the minimum length is measured on what is left, so
+ * "@m" is still somebody typing. The API applies the same rule
+ * (`SocialSearchQuery.Normalize`) to whatever reaches it directly.
+ */
+export function normalizeSocialSearchQuery(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.startsWith("@") ? trimmed.slice(1).trimStart() : trimmed;
+}
+
 export async function getSuggestedPets(
   species?: string
 ): Promise<SocialPetCard[]> {

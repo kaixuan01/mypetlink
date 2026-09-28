@@ -805,17 +805,9 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
         Guid actorId,
         CancellationToken cancellationToken)
     {
-        return _dbContext.Users.AnyAsync(user =>
-            user.Id == actorId
-            && user.DeletedAt == null
-            && user.Status == UserStatus.Active
-            && user.SocialProfile != null
-            && user.SocialProfile.IsSocialEnabled
-            && user.SocialProfile.Handle != null
-            && user.SocialProfile.Handle != ""
-            && user.SocialProfile.DisplayName != null
-            && user.SocialProfile.DisplayName != "",
-            cancellationToken);
+        return SocialVisibility
+            .VisibleCommunityAccountIds(_dbContext, viewerId: null)
+            .AnyAsync(userId => userId == actorId, cancellationToken);
     }
 
     /// <summary>

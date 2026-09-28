@@ -11,7 +11,10 @@ import {
   isItemPubliclyShown,
   type PetTimelineItem,
 } from "@/lib/petTimeline";
-import { normalizeMomentVisibility } from "@/lib/momentVisibility";
+import {
+  momentAudienceLabels,
+  normalizeMomentVisibility,
+} from "@/lib/momentVisibility";
 import { ownerRoutes } from "@/lib/routes";
 import {
   getFriendlyMomentErrorMessage,
@@ -186,7 +189,7 @@ function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
             )}
             {audience ? (
               <Badge tone={audience === "Public" ? "mint" : "soft"}>
-                {audience === "Public" ? "Shared" : "Only me"}
+                {momentAudienceLabels[audience]}
               </Badge>
             ) : null}
             <Badge tone={publiclyShown ? "mint" : "soft"}>

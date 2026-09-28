@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { CollaboratorPicker } from "@/components/social/CollaboratorPicker";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
+import { momentAudienceLabels } from "@/lib/momentVisibility";
 import {
   collaborationErrorMessage,
   getMomentCollaborations,
@@ -25,8 +26,9 @@ const statusLabel: Record<MomentCollaboration["status"], string> = {
 };
 
 const limitCopy = `Maximum ${MAX_COLLABORATOR_HOUSEHOLDS} collaborator households for this Moment.`;
-const publicOnlyCopy =
-  "Collaborators can join public Moments. Choose Public to invite another household.";
+// Names the option exactly as the audience question above it does. It used to
+// say "Choose Public", an option that does not exist.
+const publicOnlyCopy = `Collaborators can join Moments that are ${momentAudienceLabels.Public.toLowerCase()}. Choose ${momentAudienceLabels.Public} to invite another household.`;
 
 /**
  * "Collaborators" in the Moment editor — separate from "Who's in this Moment?",
