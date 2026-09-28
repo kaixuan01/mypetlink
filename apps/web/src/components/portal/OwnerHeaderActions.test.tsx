@@ -49,6 +49,7 @@ vi.mock("@/services/momentService", () => ({
   }),
   releaseMomentSaveSession: vi.fn(async () => undefined),
   MomentSaveCancelledError: class MomentSaveCancelledError extends Error {},
+  claimCollaboratorInvites: () => [],
   createPetMoment: vi.fn(),
   getPetMoments: (...args: unknown[]) => mocks.getPetMoments(...args),
   deletePetMoment: vi.fn(),

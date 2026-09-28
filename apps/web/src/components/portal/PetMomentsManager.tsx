@@ -31,6 +31,7 @@ import { isApiConfigured } from "@/services/apiConfig";
 import { getPets } from "@/services/petService";
 import {
   createMomentSaveSession,
+  claimCollaboratorInvites,
   createPetMoment,
   deletePetMoment,
   getFriendlyMomentErrorMessage,
@@ -186,7 +187,19 @@ export function PetMomentsManager({
   const [editor, setEditor] = useState<MomentEditorState | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /*
+    Each opening of the editor is its own instance. Saving is recorded against
+    the instance that started it, so an editor closed mid-save and replaced by
+    a new one never shows the old save as its own: the new editor is not
+    "submitting", and the old save's completion can neither close it, fill its
+    error, nor clear its submitting state.
+  */
+  const editorInstanceRef = useRef(0);
+  const activeInstanceRef = useRef<number | null>(null);
+  const [editorInstance, setEditorInstance] = useState<number | null>(null);
+  const [submittingInstance, setSubmittingInstance] = useState<number | null>(null);
+  const isSubmitting =
+    submittingInstance !== null && submittingInstance === editorInstance;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -265,6 +278,8 @@ export function PetMomentsManager({
 
   const clearEditor = useCallback(() => {
     endSaveSession();
+    activeInstanceRef.current = null;
+    setEditorInstance(null);
     setEditor(null);
     setEditorDirty(false);
     setFormError("");
@@ -273,6 +288,9 @@ export function PetMomentsManager({
   const showEditor = useCallback((nextEditor: MomentEditorState) => {
     endSaveSession();
     saveSessionRef.current = createMomentSaveSession();
+    editorInstanceRef.current += 1;
+    activeInstanceRef.current = editorInstanceRef.current;
+    setEditorInstance(editorInstanceRef.current);
     setEditor(nextEditor);
     setEditorDirty(false);
     setConfirmDiscard(false);
@@ -341,11 +359,16 @@ export function PetMomentsManager({
     extras?: { collaboratorInvites: CollaborationInvite[] }
   ) {
     const currentEditor = editorRef.current;
-    if (!currentEditor) {
+    const instance = activeInstanceRef.current;
+    if (!currentEditor || instance === null) {
       return;
     }
+    /** This save's editor is still the one on screen. */
+    const ownsEditor = () => activeInstanceRef.current === instance;
+    /** No newer editor has been opened since this save began. */
+    const isLatestEditor = () => editorInstanceRef.current === instance;
 
-    setIsSubmitting(true);
+    setSubmittingInstance(instance);
     setSuccess("");
     setActionError("");
     setFormError("");
@@ -354,23 +377,30 @@ export function PetMomentsManager({
 
     try {
       if (currentEditor.mode === "create") {
-        const response = await createPetMoment(pet.id, payload, saveSession);
+        const response = await createPetMoment(pet.id, payload, saveSession, {
+          // Becomes the attempt's intent only if this is its first request.
+          collaboratorInvites: extras?.collaboratorInvites ?? [],
+        });
         // The server's Moment, not the draft: after a replay it is the first
         // attempt's, whatever the form says now.
         const saved = response.data;
+        // Global: the Moment exists, so the list shows it — even if its editor
+        // closed before the answer came back.
         setMoments((current) => [
           saved,
           ...current.filter((moment) => moment.id !== saved.id),
         ]);
-        setSuccess("Moment added.");
+        // Page confirmation: this save's, unless a newer editor has opened.
+        if (isLatestEditor()) setSuccess("Moment added.");
         trackEvent(AnalyticsEvent.MomentCreated, { source: "owner_portal" });
         // The Moment exists now; invitations follow it and never undo it.
-        // Collaborators join public Moments only — decided by what was saved.
+        // Whom to invite is the attempt's frozen intent, sent only for a
+        // Moment saved public and at most once; failures are offered again
+        // only while no newer editor has opened.
         void inviteFollowUp.sendAfterCreate(
           saved.id,
-          normalizeMomentVisibility(saved.visibility) === "Public"
-            ? extras?.collaboratorInvites ?? []
-            : []
+          claimCollaboratorInvites(saveSession, saved),
+          { offerRetry: isLatestEditor }
         );
       } else {
         const response = await updatePetMoment(
@@ -387,24 +417,28 @@ export function PetMomentsManager({
               moment.id === currentEditor.moment.id ? savedMoment : moment
             )
           );
-          setSuccess("Moment updated.");
+          if (isLatestEditor()) setSuccess("Moment updated.");
         }
       }
 
       // Closed while this save was still running: the list is up to date and
-      // there is no editor left to close — closing again would step the
-      // browser's history back a second time.
-      if (editorRef.current !== currentEditor) return;
+      // the editor on screen, if any, is a different one — closing it, or
+      // closing again (a second step back in history), is not this save's.
+      if (!ownsEditor()) return;
       editorDirtyRef.current = false;
       setEditorDirty(false);
       closeEditor();
     } catch (caught) {
       // Closed before anything was sent: nothing was saved, nobody to tell.
       if (caught instanceof MomentSaveCancelledError) return;
-      if (editorRef.current !== currentEditor) return;
+      // An error belongs to the editor that made the request, never its
+      // replacement.
+      if (!ownsEditor()) return;
       setFormError(getFriendlyMomentErrorMessage(caught));
     } finally {
-      setIsSubmitting(false);
+      // Clears only this instance's saving state; a newer editor's own save
+      // is left alone.
+      setSubmittingInstance((current) => (current === instance ? null : current));
     }
   }
 

@@ -14,6 +14,7 @@ import {
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
+import type { CollaborationInvite } from "@/services/momentCollaborationService";
 import type {
   BackendMemory,
   BackendMemoryMedia,
@@ -197,7 +198,47 @@ export type MomentSaveSession = {
   closing: boolean;
   /** The one cleanup, shared by every call to release. */
   released: Promise<void> | null;
+  /**
+   * What this create attempt meant beyond the Moment itself — side effects
+   * the create request does not persist, such as whom to invite. Captured in
+   * the same step as the FIRST create request is sent, and reused unchanged by
+   * every retry of that attempt, because a retry is the same logical create:
+   * a replay returns the first request's Moment, so it must carry the first
+   * request's intent too. Released again only if the server definitely
+   * refused that request (nothing was created, so the next send is new).
+   */
+  createIntent: MomentCreateIntent | null;
+  /** Invitations already handed out for a Moment, so a replay never repeats one. */
+  readonly claimedInvites: Set<string>;
 };
+
+/** Side effects of a create that the create request itself does not save. */
+export type MomentCreateIntent = {
+  collaboratorInvites: CollaborationInvite[];
+};
+
+/**
+ * The invitations to send now that `saved` exists: the frozen intent of this
+ * create attempt, only if the Moment was SAVED Shared publicly (collaborators
+ * join public Moments only), and each at most once per Moment for the session.
+ * Never the current draft's selection — after a replay the draft may name
+ * households the Moment was never meant for.
+ */
+export function claimCollaboratorInvites(
+  session: MomentSaveSession,
+  saved: Pick<PetMoment, "id" | "visibility">
+): CollaborationInvite[] {
+  if (normalizeMomentVisibility(saved.visibility) !== "Public") return [];
+
+  const claimed: CollaborationInvite[] = [];
+  for (const invite of session.createIntent?.collaboratorInvites ?? []) {
+    const key = `${saved.id}:${invite.household.handle.toLowerCase()}`;
+    if (session.claimedInvites.has(key)) continue;
+    session.claimedInvites.add(key);
+    claimed.push(invite);
+  }
+  return claimed;
+}
 
 export function createMomentSaveSession(): MomentSaveSession {
   return {
@@ -208,6 +249,8 @@ export function createMomentSaveSession(): MomentSaveSession {
     activeSaves: new Set(),
     closing: false,
     released: null,
+    createIntent: null,
+    claimedInvites: new Set(),
   };
 }
 
@@ -254,6 +297,17 @@ export class MomentSaveCancelledError extends Error {
     super("The Moment editor was closed before saving.");
     this.name = "MomentSaveCancelledError";
   }
+}
+
+/**
+ * The server read the create and refused it, so it wrote nothing. 409 is not
+ * one: it answers a key that already created something.
+ */
+function isDefiniteCreateRejection(error: unknown) {
+  return (
+    isApiClientError(error) &&
+    [400, 401, 403, 404, 422, 429].includes(error.status)
+  );
 }
 
 function ensureSessionOpen(session: MomentSaveSession) {
@@ -319,7 +373,13 @@ function newIdempotencyKey() {
 export async function createPetMoment(
   petId: string,
   payload: PetMomentPayload,
-  session: MomentSaveSession = createMomentSaveSession()
+  session: MomentSaveSession = createMomentSaveSession(),
+  /**
+   * This attempt's side-effect intent (see `MomentSaveSession.createIntent`).
+   * Used only if no request of this attempt has been sent yet; a retry's
+   * intent is ignored in favour of the first one.
+   */
+  intent: MomentCreateIntent = { collaboratorInvites: [] }
 ) {
   if (canUseApi()) {
     return runInSession(session, async () => {
@@ -334,10 +394,27 @@ export async function createPetMoment(
       // never deleted by the client — in the same step as it is sent.
       ensureSessionOpen(session);
       for (const id of body.mediaFileIds) session.offered.add(id);
-      const response = await apiRequest<BackendMemory>(
-        `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
-        { method: "POST", body }
-      );
+      session.createIntent ??= {
+        collaboratorInvites: [...intent.collaboratorInvites],
+      };
+
+      let response: Awaited<ReturnType<typeof apiRequest<BackendMemory>>>;
+      try {
+        response = await apiRequest<BackendMemory>(
+          `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
+          { method: "POST", body }
+        );
+      } catch (error) {
+        // A definite refusal (the request was read and rejected: nothing was
+        // created, the key was not used) leaves the attempt where it was
+        // before sending, so the draft's next send may carry a new intent.
+        // Anything else — no answer, a timeout, a server error — may have
+        // committed, so the intent stays frozen.
+        if (isDefiniteCreateRejection(error)) {
+          session.createIntent = null;
+        }
+        throw error;
+      }
       const moment = response.data ? mapBackendMoment(response.data) : null;
 
       if (!moment) {

@@ -192,6 +192,13 @@ export async function sendCollaborationInvites(
         invite.pets.map((pet) => pet.publicSlug)
       );
     } catch (error) {
+      // The server refuses a second invitation to the same household
+      // (collaboration_already_invited): it is already part of this Moment or
+      // has one waiting — which is what this invitation was for. Not a
+      // failure to report, and never a second invitation.
+      if (error instanceof MomentCollaborationError && error.code === "collaboration_already_invited") {
+        continue;
+      }
       failed.push({ invite, message: collaborationErrorMessage(error) });
     }
   }

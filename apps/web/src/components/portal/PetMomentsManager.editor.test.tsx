@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
@@ -21,6 +21,7 @@ vi.mock("@/services/momentService", () => ({
   }),
   releaseMomentSaveSession: vi.fn(async () => undefined),
   MomentSaveCancelledError: class MomentSaveCancelledError extends Error {},
+  claimCollaboratorInvites: () => [],
   createPetMoment: (...args: unknown[]) => mocks.createPetMoment(...args),
   deletePetMoment: vi.fn(),
   getFriendlyMomentErrorMessage: () => "Please try again.",
@@ -161,6 +162,101 @@ describe("PetMomentsManager shared edit flow", () => {
     const [firstSession, retrySession] = mocks.createPetMoment.mock.calls.map((call) => call[2]);
     expect(firstSession).toBeDefined();
     expect(retrySession).toBe(firstSession);
+  });
+
+  describe("a save from an editor closed and replaced while it ran", () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (reason: unknown) => void;
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    /** Opens editor A, saves it (held), closes A, opens editor B with a draft. */
+    async function closeAWhileSavingThenOpenB() {
+      const saveA = deferred<{ data: typeof mockMoments[0] }>();
+      mocks.getPetMoments.mockResolvedValue({ data: [] });
+      mocks.createPetMoment.mockReturnValueOnce(saveA.promise);
+      render(<PetMomentsManager pet={mockPets[0]} initialMoments={[]} />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Add Moment" }));
+      completeCreateForm("From A");
+      fireEvent.click(screen.getByRole("button", { name: "Add Moment" }));
+      await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledTimes(1));
+      expect(screen.getByRole("button", { name: "Saving..." })).toBeTruthy();
+
+      // Close A while its request is still out.
+      fireEvent.click(screen.getByLabelText("Close moment editor"));
+      fireEvent.click(await screen.findByRole("button", { name: "Discard changes" }));
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: /add a moment/i })).toBeNull()
+      );
+
+      // Open B and start a different draft.
+      fireEvent.click(await screen.findByRole("button", { name: "Add Moment" }));
+      await screen.findByRole("dialog", { name: /add a moment/i });
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "B's draft" } });
+      return saveA;
+    }
+
+    it("B does not inherit A's saving state", async () => {
+      await closeAWhileSavingThenOpenB();
+
+      expect(screen.queryByRole("button", { name: "Saving..." })).toBeNull();
+      const submit = screen.getByRole("button", { name: "Add Moment" }) as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+    });
+
+    it("A succeeding leaves B open and untouched; the list still gains A's Moment", async () => {
+      const saveA = await closeAWhileSavingThenOpenB();
+      const pushes = vi.spyOn(window.history, "back");
+
+      saveA.resolve({ data: { ...mockMoments[0], id: "moment-a", title: "From A" } });
+
+      // Global: A's Moment exists, so the list shows it.
+      expect(await screen.findByText("From A")).toBeTruthy();
+      // Editor-owned: B stays open with its own draft, no success in B, no
+      // close, no second step back in history.
+      expect(screen.getByRole("dialog", { name: /add a moment/i })).toBeTruthy();
+      expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("B's draft");
+      expect(screen.queryByText("Moment added.")).toBeNull();
+      expect(pushes).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: "Saving..." })).toBeNull();
+      pushes.mockRestore();
+    });
+
+    it("A failing puts no error into B", async () => {
+      const saveA = await closeAWhileSavingThenOpenB();
+
+      saveA.reject(new Error("failed"));
+      await act(async () => {});
+
+      expect(screen.queryByText("Please try again.")).toBeNull();
+      expect(screen.getByRole("dialog", { name: /add a moment/i })).toBeTruthy();
+      expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("B's draft");
+    });
+
+    it("A settling does not clear B's own saving state", async () => {
+      const saveA = await closeAWhileSavingThenOpenB();
+      const saveB = deferred<{ data: typeof mockMoments[0] }>();
+      mocks.createPetMoment.mockReturnValueOnce(saveB.promise);
+      completeCreateForm("B's draft");
+      fireEvent.click(screen.getByRole("button", { name: "Add Moment" }));
+      await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledTimes(2));
+      expect(screen.getByRole("button", { name: "Saving..." })).toBeTruthy();
+
+      saveA.reject(new Error("failed"));
+      await act(async () => {});
+
+      // A's `finally` must not stop B's spinner or re-enable B's button.
+      expect(screen.getByRole("button", { name: "Saving..." })).toBeTruthy();
+
+      saveB.resolve({ data: { ...mockMoments[0], id: "moment-b", title: "B's draft" } });
+      expect(await screen.findByText("Moment added.")).toBeTruthy();
+    });
   });
 
   it("deep-links the shared editor, saves, closes, and refreshes the rendered card", async () => {

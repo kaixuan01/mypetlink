@@ -70,6 +70,25 @@ describe("Moment collaboration client", () => {
     expect(failed[0].message).toBe("Maximum 3 collaborator households for this Moment.");
   });
 
+  it("counts an invitation the server already holds as sent, and sends nothing twice", async () => {
+    // The API refuses a second invitation to the same household
+    // (collaboration_already_invited) and creates no second collaboration.
+    // After a replayed create that is the outcome wanted, not a failure.
+    mocks.apiRequest
+      .mockRejectedValueOnce(
+        new ApiClientError(409, "collaboration_already_invited", "This household is already part of this Moment.")
+      )
+      .mockRejectedValueOnce(new ApiClientError(422, "collaborator_not_eligible", "Not eligible."));
+
+    const result = await sendCollaborationInvites("m1", [
+      { household: household("bravo"), pets: [] },
+      { household: household("charlie"), pets: [] },
+    ]);
+
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+    expect(result.failed.map((item) => item.invite.household.handle)).toEqual(["charlie"]);
+  });
+
   it("turns an expired session into sign-in copy", async () => {
     mocks.apiRequest.mockImplementationOnce(async () => {
       throw new ApiClientError(401, "unauthorized", "Authentication is required.");

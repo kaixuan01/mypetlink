@@ -18,12 +18,22 @@ export function useCollaborationInviteFollowUp() {
   const [pending, setPending] = useState<{ momentId: string; failed: Failure[] } | null>(null);
   const [retrying, setRetrying] = useState(false);
 
-  /** Resolves true when every invitation went out. */
+  /**
+   * Resolves true when every invitation went out. Sending is a consequence of
+   * the saved Moment and always happens; offering the failures again is the
+   * editor's, so an editor that has since been closed or replaced passes
+   * `offerRetry: false` and puts no dialog in front of the next one.
+   */
   const sendAfterCreate = useCallback(
-    async (momentId: string, invites: CollaborationInvite[]) => {
+    async (
+      momentId: string,
+      invites: CollaborationInvite[],
+      options: { offerRetry?: () => boolean } = {}
+    ) => {
       if (invites.length === 0) return true;
       const { failed } = await sendCollaborationInvites(momentId, invites);
       if (failed.length === 0) return true;
+      if (options.offerRetry && !options.offerRetry()) return false;
       setPending({ momentId, failed });
       return false;
     },

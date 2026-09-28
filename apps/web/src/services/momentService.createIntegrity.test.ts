@@ -28,6 +28,7 @@ const server = vi.hoisted(() => ({
   attached: new Set<string>(),
   deleted: [] as string[],
   loseNextCreateAnswer: false,
+  rejectNextCreate: null as null | { status: number; code: string },
   nextMedia: 0,
   uploadGates: new Map<string, { promise: Promise<void> }>(),
   createGate: null as { promise: Promise<void> } | null,
@@ -120,6 +121,12 @@ vi.mock("@/services/apiClient", async () => {
       });
 
       if (method === "POST") {
+        const rejection = server.rejectNextCreate;
+        if (rejection) {
+          // Read and refused: nothing is written, the key is not used.
+          server.rejectNextCreate = null;
+          throw new actual.ApiClientError(rejection.status, rejection.code, "Refused.");
+        }
         const key = body.idempotencyKey as string | undefined;
         // The server commits first — attaching the media — and only then does
         // the answer travel (or get lost).
@@ -148,7 +155,9 @@ vi.mock("@/services/apiClient", async () => {
   };
 });
 
+import type { CollaborationInvite } from "@/services/momentCollaborationService";
 import {
+  claimCollaboratorInvites,
   createMomentSaveSession,
   createPetMoment,
   MomentMediaUploadError,
@@ -186,6 +195,7 @@ beforeEach(() => {
   server.attached = new Set();
   server.deleted = [];
   server.loseNextCreateAnswer = false;
+  server.rejectNextCreate = null;
   server.nextMedia = 0;
   server.uploadGates = new Map();
   server.createGate = null;
@@ -585,5 +595,113 @@ describe("closing the editor while it saves", () => {
     expect(server.uploads).toHaveLength(1);
     expect(one.data.id).toBe(two.data.id);
     expect(server.momentsByKey.size).toBe(1);
+  });
+});
+
+describe("a replay keeps the first attempt's collaborator intent", () => {
+  function household(handle: string): CollaborationInvite {
+    return {
+      household: { handle, displayName: `The ${handle}`, avatarUrl: null, avatarThumbnailUrl: null },
+      pets: [],
+    };
+  }
+  const handles = (invites: CollaborationInvite[]) => invites.map((invite) => invite.household.handle);
+
+  /** First request carries `first`; its answer is lost; the retry carries `retry`. */
+  async function replay(
+    first: CollaborationInvite[],
+    retry: CollaborationInvite[],
+    visibility: "Public" | "Private" = "Public"
+  ) {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(
+      createPetMoment("pet-1", payload([], visibility), session, { collaboratorInvites: first })
+    ).rejects.toThrow();
+    // The owner changes the still-open draft, then retries the same attempt.
+    const replayed = await createPetMoment(
+      "pet-1",
+      payload([], visibility === "Public" ? "Private" : "Public"),
+      session,
+      { collaboratorInvites: retry }
+    );
+    return { session, saved: replayed.data };
+  }
+
+  it("A: none, then B added on retry — B is not invited", async () => {
+    const { session, saved } = await replay([], [household("bravo")]);
+
+    expect(claimCollaboratorInvites(session, saved)).toEqual([]);
+  });
+
+  it("B: B, then removed on retry — B is still invited", async () => {
+    const { session, saved } = await replay([household("bravo")], []);
+
+    expect(handles(claimCollaboratorInvites(session, saved))).toEqual(["bravo"]);
+  });
+
+  it("C: B, then changed to C on retry — B, never C", async () => {
+    const { session, saved } = await replay([household("bravo")], [household("charlie")]);
+
+    expect(handles(claimCollaboratorInvites(session, saved))).toEqual(["bravo"]);
+  });
+
+  it("D: the same B, replayed — invited once, never twice", async () => {
+    const { session, saved } = await replay([household("bravo")], [household("bravo")]);
+
+    expect(handles(claimCollaboratorInvites(session, saved))).toEqual(["bravo"]);
+    // A second answer for the same Moment in this session sends nothing more.
+    const again = await createPetMoment("pet-1", payload([]), session, {
+      collaboratorInvites: [household("bravo")],
+    });
+    expect(claimCollaboratorInvites(session, again.data)).toEqual([]);
+  });
+
+  it("E: a Moment SAVED private invites nobody, whatever the retry draft says", async () => {
+    const { session, saved } = await replay([household("bravo")], [household("bravo")], "Private");
+
+    expect(saved.visibility).toBe("Private");
+    expect(claimCollaboratorInvites(session, saved)).toEqual([]);
+  });
+
+  it("F: a public Moment replayed from a private retry draft still invites the original households", async () => {
+    // Saved Shared publicly; the retry draft says Only me.
+    const { session, saved } = await replay([household("bravo")], [], "Public");
+
+    expect(saved.visibility).toBe("Public");
+    expect(handles(claimCollaboratorInvites(session, saved))).toEqual(["bravo"]);
+  });
+
+  it("a request the server definitely refused frees the draft's intent again", async () => {
+    const session = createMomentSaveSession();
+    server.rejectNextCreate = { status: 422, code: "validation_failed" };
+    await expect(
+      createPetMoment("pet-1", payload([]), session, { collaboratorInvites: [household("bravo")] })
+    ).rejects.toThrow();
+
+    // Nothing was created, so the next send is the attempt's first real one.
+    const created = await createPetMoment("pet-1", payload([]), session, {
+      collaboratorInvites: [household("charlie")],
+    });
+
+    expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["charlie"]);
+  });
+
+  it("before any request is sent, the draft may change freely", async () => {
+    const session = createMomentSaveSession();
+    server.failNames.add("a.jpg");
+    await expect(
+      createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session, {
+        collaboratorInvites: [household("bravo")],
+      })
+    ).rejects.toThrow();
+    expect(session.createIntent).toBeNull();
+
+    server.failNames.clear();
+    const created = await createPetMoment("pet-1", payload([]), session, {
+      collaboratorInvites: [household("charlie")],
+    });
+
+    expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["charlie"]);
   });
 });

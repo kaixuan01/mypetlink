@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   announceMomentCreated: vi.fn(),
   refresh: vi.fn(),
   summary: null as SharedMomentSummary | null,
+  /** Every composer opening's callbacks, oldest first. */
+  openings: [] as { onClose: () => void; onCreated: (shared: SharedMomentSummary) => void }[],
 }));
 
 vi.mock("@/lib/features", async () => {
@@ -59,7 +61,11 @@ vi.mock("@/components/social/CommunityMomentComposer", () => ({
   }: {
     onClose: () => void;
     onCreated: (shared: SharedMomentSummary) => void;
-  }) => (
+  }) => {
+    if (!mocks.openings.some((opening) => opening.onClose === onClose)) {
+      mocks.openings.push({ onClose, onCreated });
+    }
+    return (
     <div role="dialog">
       <button onClick={() => onCreated(mocks.summary!)} type="button">
         report share
@@ -68,7 +74,8 @@ vi.mock("@/components/social/CommunityMomentComposer", () => ({
         close composer
       </button>
     </div>
-  ),
+    );
+  },
 }));
 
 import { AppLayout } from "@/components/layouts/AppLayout";
@@ -91,6 +98,7 @@ function shareFromTheSidebar(summary: SharedMomentSummary) {
 }
 
 beforeEach(() => {
+  mocks.openings = [];
   mocks.pathname = "/explore";
   vi.useFakeTimers({ shouldAdvanceTime: true });
 });
@@ -215,5 +223,75 @@ describe("after Share a Moment", () => {
     fireEvent.click(screen.getByRole("button", { name: "page share" }));
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+});
+
+describe("an earlier composer's save, finishing after a new one opened", () => {
+  const publicShare: SharedMomentSummary = {
+    momentId: "m-a",
+    petId: "pet-1",
+    audience: "Public",
+    communityProfileActive: true,
+  };
+
+  function openComposer() {
+    const community = screen.getByRole("navigation", { name: "Community" });
+    fireEvent.click(within(community).getByRole("button", { name: "Share a Moment" }));
+  }
+
+  it("cannot close the new composer", () => {
+    render(<AppLayout><p>Explore</p></AppLayout>);
+    openComposer();
+    const composerA = mocks.openings.at(-1)!;
+    act(() => composerA.onClose());
+    openComposer();
+    expect(mocks.openings).toHaveLength(2);
+
+    // A's save settles now and asks to close "its" composer.
+    act(() => composerA.onClose());
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("still refreshes the lists for a Moment that exists, but confirms nothing over the new composer", () => {
+    render(<AppLayout><p>Explore</p></AppLayout>);
+    openComposer();
+    const composerA = mocks.openings.at(-1)!;
+    act(() => composerA.onClose());
+    openComposer();
+    const composerB = mocks.openings.at(-1)!;
+
+    act(() => composerA.onCreated(publicShare));
+
+    // Global: the Moment exists and is public, so lists learn of it.
+    expect(mocks.announceMomentCreated).toHaveBeenCalledTimes(1);
+    // Composer-owned: no confirmation for A, then or after B closes.
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    act(() => composerB.onClose());
+    expect(screen.queryByTestId("moment-shared-notice")).toBeNull();
+  });
+
+  it("confirms a save that finished after its composer closed, when nothing newer opened", () => {
+    render(<AppLayout><p>Explore</p></AppLayout>);
+    openComposer();
+    const composerA = mocks.openings.at(-1)!;
+    act(() => composerA.onClose());
+
+    act(() => composerA.onCreated(publicShare));
+
+    expect(screen.getByTestId("moment-shared-notice").textContent).toContain("Moment shared.");
+  });
+
+  it("the current composer still closes and confirms exactly once", () => {
+    render(<AppLayout><p>Explore</p></AppLayout>);
+    openComposer();
+    const composer = mocks.openings.at(-1)!;
+
+    act(() => composer.onCreated(publicShare));
+    act(() => composer.onClose());
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getAllByTestId("moment-shared-notice")).toHaveLength(1);
+    expect(mocks.announceMomentCreated).toHaveBeenCalledTimes(1);
   });
 });

@@ -61,7 +61,7 @@ function signIn() {
 
 /** Exercises the two actions that cannot be plain links. */
 function SocialActionsProbe() {
-  const { openCreate, closeCreate, composerOpen, openOwnProfile } =
+  const { openCreate, closeCreate, composerOpen, composerInstance, openOwnProfile } =
     useSocialActions();
 
   return (
@@ -69,8 +69,11 @@ function SocialActionsProbe() {
       <button onClick={openCreate} type="button">
         Share a Moment
       </button>
-      <button onClick={closeCreate} type="button">
+      <button onClick={() => closeCreate(composerInstance)} type="button">
         Close composer
+      </button>
+      <button onClick={() => closeCreate(composerInstance - 1)} type="button">
+        Close an earlier composer
       </button>
       <button onClick={openOwnProfile} type="button">
         My profile
@@ -208,6 +211,21 @@ describe("social actions", () => {
     // went anywhere — no push to /feed, no push back to anything.
     expect(screen.getByTestId("composer-state").textContent).toBe("closed");
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("lets only the current opening close the composer", () => {
+    render(<SocialActionsProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close composer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share a Moment" }));
+
+    // A save from the first opening finishing now must not close the second.
+    fireEvent.click(screen.getByRole("button", { name: "Close an earlier composer" }));
+    expect(screen.getByTestId("composer-state").textContent).toBe("open");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close composer" }));
+    expect(screen.getByTestId("composer-state").textContent).toBe("closed");
   });
 
   it("opens the owner's own profile inside Community, not the public page", async () => {

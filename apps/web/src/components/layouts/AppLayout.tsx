@@ -101,17 +101,33 @@ export function AppLayout({
     moment: SharedMomentSummary;
     pathname: string;
   } | null>(null);
+  /*
+    Two kinds of consequence, deliberately separated.
+
+    Global: the Moment exists, whichever composer created it and whether or
+    not that composer is still open. A public one belongs in the lists on
+    screen, so they are told — even when the save finished after its composer
+    closed.
+
+    Composer-owned: the confirmation. It speaks for one opening of the
+    composer, so an opening that has since been replaced by a newer one says
+    nothing — its "Moment shared." must not appear as if it described the new
+    draft.
+  */
+  const { isLatestComposer } = socialActions;
   const handleMomentShared = useCallback(
-    (moment: SharedMomentSummary) => {
-      setShared({ moment, pathname });
+    (moment: SharedMomentSummary, instance: number) => {
       // Only a Moment the server SAVED as public can belong in a public list.
       // Decided from the saved Moment, not the draft: after a replay the two
       // can disagree, and the saved one is the truth.
       if (moment.audience === "Public") {
         announceMomentCreated();
       }
+      if (isLatestComposer(instance)) {
+        setShared({ moment, pathname });
+      }
     },
-    [pathname]
+    [isLatestComposer, pathname]
   );
   const dismissShared = useCallback(() => setShared(null), []);
   const collapsed = useSyncExternalStore(
@@ -338,7 +354,11 @@ export function AppLayout({
           dialog is above the bar's layer and marks the page behind it inert.
         */}
         {socialActions.composerOpen ? (
-          <CommunityMomentComposer
+          <ComposerInstance
+            // A new component per opening, with callbacks bound to it: a save
+            // from an earlier opening can only ever close or confirm that one.
+            key={socialActions.composerInstance}
+            instance={socialActions.composerInstance}
             onClose={socialActions.closeCreate}
             onCreated={handleMomentShared}
           />
@@ -355,6 +375,23 @@ export function AppLayout({
       </OwnerHeaderActionsProvider>
     </AuthGuard>
   );
+}
+
+function ComposerInstance({
+  instance,
+  onClose,
+  onCreated,
+}: {
+  instance: number;
+  onClose: (instance: number) => void;
+  onCreated: (moment: SharedMomentSummary, instance: number) => void;
+}) {
+  const close = useCallback(() => onClose(instance), [instance, onClose]);
+  const created = useCallback(
+    (moment: SharedMomentSummary) => onCreated(moment, instance),
+    [instance, onCreated]
+  );
+  return <CommunityMomentComposer onClose={close} onCreated={created} />;
 }
 
 function getClientOwnerDisplayName() {

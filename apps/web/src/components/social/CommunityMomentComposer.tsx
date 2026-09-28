@@ -22,6 +22,7 @@ import { isApiClientError } from "@/services/apiClient";
 import {
   createMomentSaveSession,
   createPetMoment,
+  claimCollaboratorInvites,
   getFriendlyMomentErrorMessage,
   MomentMediaUploadError,
   MomentSaveCancelledError,
@@ -224,7 +225,11 @@ export function CommunityMomentComposer({
     setError("");
 
     try {
-      const created = await createPetMoment(primaryPet.id, payload, saveSession);
+      const created = await createPetMoment(primaryPet.id, payload, saveSession, {
+        // This draft's invitations become the attempt's intent only if this
+        // is the first request of the attempt; a retry keeps the first one's.
+        collaboratorInvites: extras?.collaboratorInvites ?? [],
+      });
       /*
         Everything after a save reads the Moment the server returned, never
         the draft. A retry of a lost answer returns the FIRST attempt's
@@ -244,11 +249,12 @@ export function CommunityMomentComposer({
       });
       // The Moment is shared either way. If an invitation could not be sent
       // the composer stays open only to offer it again, then closes.
-      // Collaborators join public Moments only: invitations queued in a draft
-      // that became public are never sent for a Moment that was saved private.
+      // Whom to invite is the ATTEMPT's intent, frozen when its first request
+      // was sent — never this retry's draft, which may name households the
+      // saved Moment was never meant for — and only for a Moment saved public.
       const allSent = await inviteFollowUp.sendAfterCreate(
         saved.id,
-        savedAudience === "Public" ? extras?.collaboratorInvites ?? [] : []
+        claimCollaboratorInvites(saveSession, saved)
       );
       if (allSent) {
         onClose();

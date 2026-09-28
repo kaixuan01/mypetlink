@@ -1490,6 +1490,23 @@ editor closes      -> files uploaded but never named in a save are deleted
   retried as Only me is still public). The confirmation, "View Moment" versus
   "View in My Pets", the public-list refresh, collaborator invitations and the
   Owner Portal list all read the Moment the server returned, never the draft.
+- **A replay carries the first attempt's intent.** Side effects the create
+  request does not persist — whom to invite as collaborators — are frozen on
+  the save session in the same step as the attempt's first request is sent,
+  and every retry reuses them: a household added on retry is not invited, one
+  removed on retry still is, and each invitation is claimed once per Moment
+  (`claimCollaboratorInvites`). They are sent only for a Moment *saved* public.
+  A definite refusal (the server read the request and rejected it) releases
+  the intent, since nothing was created. The API itself refuses a second
+  invitation to the same household (409 `collaboration_already_invited`),
+  which the client counts as sent.
+- **Editor instances own their UI.** Each opening of the Community composer
+  or an Owner Portal Moment editor is a numbered instance. A save that
+  finishes after its editor was closed and another opened may still do what
+  follows from the saved Moment existing — refresh public lists, add it to the
+  Owner Portal list — but it cannot close, fill an error into, clear the
+  saving state of, or confirm over the newer editor. A save whose editor
+  closed with nothing newer opened still confirms.
 - **Orphans.** The client deletes only files it uploaded and never sent in a
   save: a file named in a request may already be attached even if the answer
   was lost. Files abandoned by a closed tab stay unlinked and unlisted.

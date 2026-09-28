@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { ownerRoutes, socialRoutes } from "@/lib/routes";
 
@@ -15,7 +15,24 @@ import { ownerRoutes, socialRoutes } from "@/lib/routes";
  */
 export function useSocialActions() {
   const router = useRouter();
-  const [composerOpen, setComposerOpen] = useState(false);
+  /*
+    Each opening of the composer is its own instance. A save still running
+    when its composer is closed finishes later, holding callbacks from that
+    opening; they name their instance, and only the current one may close the
+    composer. Without this, an old save completing after the owner had closed
+    it and opened a new one closed the NEW composer.
+  */
+  const [composer, setComposer] = useState({ open: false, instance: 0 });
+  const latestInstanceRef = useRef(0);
+  useEffect(() => {
+    latestInstanceRef.current = composer.instance;
+  }, [composer.instance]);
+
+  /** True while no newer composer has been opened since `instance`. */
+  const isLatestComposer = useCallback(
+    (instance: number) => instance === latestInstanceRef.current,
+    []
+  );
 
   /**
    * Share a Moment.
@@ -31,11 +48,18 @@ export function useSocialActions() {
    * itself. Nothing here needs the server any more, so nothing here waits.
    */
   const openCreate = useCallback(() => {
-    setComposerOpen(true);
+    setComposer((current) =>
+      current.open ? current : { open: true, instance: current.instance + 1 }
+    );
   }, []);
 
-  const closeCreate = useCallback(() => {
-    setComposerOpen(false);
+  /** Closes the composer only if `instance` is still the one on screen. */
+  const closeCreate = useCallback((instance: number) => {
+    setComposer((current) =>
+      current.open && current.instance === instance
+        ? { open: false, instance: current.instance }
+        : current
+    );
   }, []);
 
   /**
@@ -71,7 +95,10 @@ export function useSocialActions() {
   return {
     openCreate,
     closeCreate,
-    composerOpen,
+    composerOpen: composer.open,
+    /** The newest composer opening, open or closed. */
+    composerInstance: composer.instance,
+    isLatestComposer,
     openOwnProfile,
     signInFor,
     socialHome: socialRoutes.feed,
