@@ -62,8 +62,12 @@ export const minimumSearchLength = 2;
  * Handles are shown as "@handle" everywhere, so that is how people type them;
  * no stored handle contains the "@". Exactly one leading "@" is removed (with
  * any space after it), and the minimum length is measured on what is left, so
- * "@m" is still somebody typing. The API applies the same rule
- * (`SocialSearchQuery.Normalize`) to whatever reaches it directly.
+ * "@m" is still somebody typing.
+ *
+ * UI only: it decides whether the box has enough in it to search, and nothing
+ * else. `searchSocial` is always given what was typed, and the API's
+ * `SocialSearchQuery.Normalize` is the single place a query is normalized —
+ * sending this result would apply the rule twice ("@@x" would become "x").
  */
 export function normalizeSocialSearchQuery(value: string): string {
   const trimmed = value.trim();

@@ -573,9 +573,12 @@ public sealed class SocialDiscoveryTests
         // Not rewritten into a handle: a second "@" is still part of the query,
         // and no stored handle can contain one.
         var doubled = await harness.Discovery.SearchAsync(null, "@@tanfam", null, null, null);
+        var spacedDouble = await harness.Discovery.SearchAsync(null, "@ @tanfam", null, null, null);
         var inside = await harness.Discovery.SearchAsync(null, "tan@fam", null, null, null);
 
         Assert.Empty(doubled.Owners);
+        Assert.Empty(spacedDouble.Owners);
+        Assert.Empty(spacedDouble.Pets);
         Assert.Empty(inside.Owners);
     }
 
@@ -610,6 +613,8 @@ public sealed class SocialDiscoveryTests
     [InlineData("@mochi", "mochi")]
     [InlineData(" @ Mochi ", "Mochi")]
     [InlineData("@@mochi", "@mochi")]
+    [InlineData("@ @mochi", "@mochi")]
+    [InlineData("  @Mochi  ", "Mochi")]
     [InlineData("mo@chi", "mo@chi")]
     public void SearchQueryNormalization_RemovesOneLeadingAt(string? typed, string expected)
     {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { normalizeSocialSearchQuery } from "@/services/socialDiscoveryService";
 
-// Mirrors SocialSearchQuery.Normalize in the API. The two are tested against
-// the same table so the search box and the server agree on what "@x" means.
+// Mirrors SocialSearchQuery.Normalize in the API, tested against the same
+// table. It is used only to decide whether the box has enough to search; the
+// request carries what was typed (SocialSearchRequestBoundary.test.tsx).
 describe("normalizeSocialSearchQuery", () => {
   it.each([
     ["", ""],
@@ -12,6 +13,8 @@ describe("normalizeSocialSearchQuery", () => {
     [" @ Mochi ", "Mochi"],
     ["@TanFamily", "TanFamily"],
     ["@@mochi", "@mochi"],
+    ["@ @mochi", "@mochi"],
+    ["  @Mochi  ", "Mochi"],
     ["mo@chi", "mo@chi"],
     ["mochi", "mochi"],
   ])("normalizes %j to %j", (typed, expected) => {

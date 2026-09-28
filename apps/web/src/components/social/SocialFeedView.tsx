@@ -9,7 +9,7 @@ import { SocialMomentStream } from "@/components/social/SocialMomentStream";
 import { MomentCardSkeleton } from "@/components/social/SocialSkeletons";
 import { trackEvent } from "@/lib/analytics";
 import { socialRoutes } from "@/lib/routes";
-import { useMomentPages } from "@/lib/useMomentPages";
+import { useMomentPages, type MomentPageContext } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getSuggestedPets,
@@ -43,12 +43,13 @@ export function SocialFeedView() {
   // Two events, two meanings. "Viewed" is one screen opening; "page loaded" is
   // each further page fetched with a cursor. The first page is counted once,
   // by "viewed", and never twice.
-  const load = useCallback(async (cursor?: string) => {
+  const load = useCallback(async (cursor?: string, context?: MomentPageContext) => {
     const page = await getSocialFeed(cursor);
 
     setHasFollowing(page.hasFollowing);
 
-    if (cursor) {
+    // Re-reading the feed after a share is not the reader paging.
+    if (cursor && !context?.refresh) {
       trackEvent("social_feed_page_loaded", { source: "feed" });
     }
 

@@ -143,7 +143,8 @@ describe("SocialSearchView", () => {
     await vi.advanceTimersByTimeAsync(600);
 
     await waitFor(() => expect(mocks.searchSocial).toHaveBeenCalledTimes(1));
-    expect(mocks.searchSocial.mock.calls[0][0]).toBe("MochiAndCoco");
+    // Sent as typed: the API normalizes it, once.
+    expect(mocks.searchSocial.mock.calls[0][0]).toBe("@MochiAndCoco");
   });
 
   it("measures the two-character minimum after the @", async () => {

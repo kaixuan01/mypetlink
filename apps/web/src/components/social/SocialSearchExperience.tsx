@@ -94,15 +94,18 @@ export function SocialSearchExperience({
   const ownInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = externalInputRef ?? ownInputRef;
 
-  // What was typed, for echoing back, and what is searched: "@tanfamily" is how
-  // a handle is written everywhere it is shown, so it searches "tanfamily".
+  // What was typed is what is sent. The API is the one place a query is
+  // normalized (`SocialSearchQuery.Normalize`); normalizing here as well would
+  // apply the "@" rule twice and turn "@@tanfamily" into a match the API itself
+  // refuses. The normalized form only decides whether there is enough to
+  // search yet, so "@m" is still somebody typing.
   const trimmed = term.trim();
-  const searchQuery = normalizeSocialSearchQuery(term);
-  const tooShort = searchQuery.length < minimumSearchLength;
+  const tooShort =
+    normalizeSocialSearchQuery(term).length < minimumSearchLength;
   // A revision distinguishes re-entering the same text from the earlier
   // request for it. That prevents a cached-looking flash of old results while
   // the new, debounced request is waiting to start.
-  const requestKey = `${queryRevision}:${retryAttempt}:${searchQuery}`;
+  const requestKey = `${queryRevision}:${retryAttempt}:${trimmed}`;
   // Derived, not stored: a box too short to search is a state of the input, not
   // a result the component has to remember.
   const state = tooShort
@@ -118,7 +121,7 @@ export function SocialSearchExperience({
   }, [autoFocus, inputRef]);
 
   useEffect(() => {
-    if (searchQuery.length < minimumSearchLength) {
+    if (tooShort) {
       return;
     }
 
@@ -128,7 +131,7 @@ export function SocialSearchExperience({
     // that is already in flight stop mattering the moment the query moves on,
     // so a slow answer to "mo" can never land on top of the answer to "mochi".
     const controller = new AbortController();
-    const query = searchQuery;
+    const query = trimmed;
 
     const timer = window.setTimeout(() => {
       // Announced when the request actually goes out rather than on every
@@ -190,7 +193,7 @@ export function SocialSearchExperience({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [requestKey, searchQuery]);
+  }, [requestKey, tooShort, trimmed]);
 
   const results = tab === "pets" ? pets : owners;
 

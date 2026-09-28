@@ -1362,10 +1362,15 @@ offered. A one-time "complete your Community profile" nudge after the first
 Follow or Like is **not built**: showing it only once needs remembered state
 (see the Phase 3A report for the options).
 
-**Search accepts a handle as it is shown.** `SocialSearchQuery.Normalize` (API)
-and `normalizeSocialSearchQuery` (web) remove exactly one leading "@" and any
-space after it, then apply the two-character minimum to what is left. Stored
-handle validation is unchanged; "@@x" is not rewritten.
+**Search accepts a handle as it is shown.** `SocialSearchQuery.Normalize` in the
+API is the only place a query is normalized: it removes exactly one leading "@"
+and any space after it, then applies the two-character minimum to what is left.
+The search box sends what was typed (trimmed) and uses the same rule,
+`normalizeSocialSearchQuery`, only to decide whether there is enough to search
+yet. Sending the normalized text applied the rule twice, so "@@x" matched "x"
+through the UI but not through the API; `SocialSearchRequestBoundary.test.tsx`
+checks the real request against a server-shaped stand-in. Stored handle
+validation is unchanged; "@@x" is not rewritten.
 
 **Share a Moment from Community makes the audience explicit.** The composer is
 the Owner Portal's editor, which still starts new Moments on **Only me**.
@@ -1379,9 +1384,19 @@ profile counts as off. The audience words live once, in
 
 **After sharing, the page underneath updates in place.** `router.refresh()`
 could not re-run client-side listings. The shell now announces the new Moment
-(`lib/momentChanges.ts`) and `useMomentPages` asks for its first page again and
-prepends anything new, keeping loaded pages, scroll position and likes. The
-server still decides membership, so an Only me Moment enters no public list. One
+(`lib/momentChanges.ts`) and `useMomentPages` re-reads the listing from the top,
+in server order, until it meets the last Moment that was loaded (bounded by the
+pages already loaded plus `REFRESH_EXTRA_PAGES`), then replaces the listing with
+that read and its own cursor. It never sorts or inserts client-side — the
+`Id DESC` tie-break is SQL Server GUID order, which a browser cannot reproduce —
+so a new Moment lands above a newer one that was restored to public exactly
+where the server puts it. The first load, a refresh and a further page never
+overlap: an announcement during any of them is queued (never dropped), a
+further page asked for during a refresh runs after it from the new cursor, and
+a reload discards any older answer. Stopping early only shortens the listing;
+its cursor still reaches the rest, so no gap is possible. Scroll position and
+likes given meanwhile are kept. The server still decides membership, so an Only
+me Moment enters no public list. One
 confirmation follows, after the composer closes: "Moment shared." with **View
 Moment** when it has a Community page, otherwise a pointer to the pet's Moments
 in My Pets.
