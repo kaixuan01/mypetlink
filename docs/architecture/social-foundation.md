@@ -1477,6 +1477,19 @@ editor closes      -> files uploaded but never named in a save are deleted
   Moment as first created, even if the draft changed in between; it is not
   charged against the private allowance again. A key reused for another pet is
   refused (409 `idempotency_key_reused`).
+- **Closing while saving.** Closing the editor marks the session closing and
+  waits for every running save to settle before anything is deleted. A running
+  save stops at its next checkpoint — before starting another upload, or before
+  sending its request — and a file becomes *offered* in the same step as the
+  request naming it is sent. So a file is never both deletable and attachable:
+  anything not offered can no longer be sent, and anything offered is never
+  deleted by the client, whatever the request's outcome. Releasing twice
+  returns the same cleanup; no save starts after it.
+- **The saved Moment decides what follows a save.** A replay returns the first
+  attempt's Moment, which can differ from the retried draft (a public Moment
+  retried as Only me is still public). The confirmation, "View Moment" versus
+  "View in My Pets", the public-list refresh, collaborator invitations and the
+  Owner Portal list all read the Moment the server returned, never the draft.
 - **Orphans.** The client deletes only files it uploaded and never sent in a
   save: a file named in a request may already be attached even if the answer
   was lost. Files abandoned by a closed tab stay unlinked and unlisted.

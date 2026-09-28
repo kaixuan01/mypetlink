@@ -153,6 +153,8 @@ describe("after Share a Moment", () => {
     const notice = screen.getByTestId("moment-shared-notice");
     expect(notice.textContent).toContain("Moment saved. Only you can see it.");
     expect(notice.textContent).not.toContain("shared");
+    // Saved private: no public list can gain it, so none is asked to refresh.
+    expect(mocks.announceMomentCreated).not.toHaveBeenCalled();
     expect(within(notice).queryByRole("link", { name: "View Moment" })).toBeNull();
     expect(
       within(notice).getByRole("link", { name: "View in My Pets" }).getAttribute("href")

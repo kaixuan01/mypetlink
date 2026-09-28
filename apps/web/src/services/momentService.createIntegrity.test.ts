@@ -8,19 +8,59 @@ import type { MomentMedia, PetMomentPayload } from "@/types";
  *
  * The upload function and the API are replaced by a stand-in that behaves like
  * the real server: uploads come back unattached, a create with an idempotency
- * key it has seen returns the Moment that key made, and nothing is attached
+ * key it has seen returns the Moment that key FIRST made — its original title,
+ * visibility and media, not an echo of the retry — and nothing is attached
  * until a create or update names it. Failures are injected per file.
+ *
+ * Uploads and creates can be held open (`holdUpload`, `holdCreate`) so a test
+ * orders "upload pending → editor closes → upload completes → create settles"
+ * explicitly, with no timers.
  */
+
+type Deferred = { promise: Promise<void>; resolve: () => void; reject: (error: unknown) => void };
 
 const server = vi.hoisted(() => ({
   uploads: [] as { file: string; momentId?: string; cleanupOnFailure?: boolean }[],
   failNames: new Set<string>(),
   requests: [] as { method: string; path: string; body: Record<string, unknown> }[],
-  momentsByKey: new Map<string, string>(),
+  momentsByKey: new Map<string, Record<string, unknown>>(),
+  /** Media the server has attached to some Moment. */
+  attached: new Set<string>(),
   deleted: [] as string[],
   loseNextCreateAnswer: false,
   nextMedia: 0,
+  uploadGates: new Map<string, { promise: Promise<void> }>(),
+  createGate: null as { promise: Promise<void> } | null,
 }));
+
+function deferred(): Deferred {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/** The next upload of this file waits until the test releases it. */
+function holdUpload(name: string) {
+  const gate = deferred();
+  server.uploadGates.set(name, gate);
+  return gate;
+}
+
+/** The next create is received, then waits before the server answers. */
+function holdCreate() {
+  const gate = deferred();
+  server.createGate = gate;
+  return gate;
+}
+
+/** Lets every pending continuation run. */
+async function settle() {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+}
 
 vi.mock("@/services/apiConfig", async () => {
   const actual = await vi.importActual<typeof import("@/services/apiConfig")>("@/services/apiConfig");
@@ -33,6 +73,11 @@ vi.mock("@/services/mediaService", async () => {
     ...actual,
     uploadMediaFile: async (input: { file: File; momentId?: string; cleanupOnFailure?: boolean }) => {
       server.uploads.push({ file: input.file.name, momentId: input.momentId, cleanupOnFailure: input.cleanupOnFailure });
+      const gate = server.uploadGates.get(input.file.name);
+      if (gate) {
+        server.uploadGates.delete(input.file.name);
+        await gate.promise;
+      }
       if (server.failNames.has(input.file.name)) throw new Error("network");
       server.nextMedia += 1;
       return {
@@ -43,6 +88,8 @@ vi.mock("@/services/mediaService", async () => {
     },
     deleteMedia: async (id: string) => {
       server.deleted.push(id);
+      // What the real DELETE does to an attached file: detaches it.
+      server.attached.delete(id);
     },
   };
 });
@@ -55,37 +102,48 @@ vi.mock("@/services/apiClient", async () => {
       const method = options.method ?? "GET";
       const body = options.body ?? {};
       server.requests.push({ method, path, body });
-      const key = body.idempotencyKey as string | undefined;
-      let id = key ? server.momentsByKey.get(key) : undefined;
+      const mediaIds = (body.mediaFileIds as string[] | undefined) ?? [];
+      const record = (id: string) => ({
+        id,
+        petId: path.split("/")[4] ?? "pet-1",
+        title: body.title,
+        date: "2026-09-28",
+        type: body.type,
+        caption: body.caption ?? null,
+        visibility: body.visibility,
+        showOnPublicProfile: body.visibility === "Public",
+        showInLifeTimeline: false,
+        media: mediaIds.map((mediaId, index) => ({ id: mediaId, type: "image", url: "", sortOrder: index })),
+        createdAt: "2026-09-28T00:00:00Z",
+        updatedAt: "2026-09-28T00:00:00Z",
+        additionalPetIds: [],
+      });
+
       if (method === "POST") {
-        if (!id) {
-          id = `moment-${server.momentsByKey.size + 1}`;
-          if (key) server.momentsByKey.set(key, id);
+        const key = body.idempotencyKey as string | undefined;
+        // The server commits first — attaching the media — and only then does
+        // the answer travel (or get lost).
+        let saved = key ? server.momentsByKey.get(key) : undefined;
+        if (!saved) {
+          saved = record(`moment-${server.momentsByKey.size + 1}`);
+          if (key) server.momentsByKey.set(key, saved);
+          for (const id of mediaIds) server.attached.add(id);
+        }
+        const gate = server.createGate;
+        if (gate) {
+          server.createGate = null;
+          await gate.promise;
         }
         if (server.loseNextCreateAnswer) {
           server.loseNextCreateAnswer = false;
           throw new actual.ApiClientError(0, "network_error", "We could not reach MyPetLink right now.");
         }
+        // A replay answers with the ORIGINAL Moment, never the retry.
+        return { data: saved, meta: { requestId: "r" } };
       }
-      const mediaIds = (body.mediaFileIds as string[] | undefined) ?? [];
-      return {
-        data: {
-          id: id ?? path.split("/").at(-1),
-          petId: "pet-1",
-          title: body.title,
-          date: "2026-09-28",
-          type: body.type,
-          caption: body.caption ?? null,
-          visibility: body.visibility,
-          showOnPublicProfile: body.visibility === "Public",
-          showInLifeTimeline: false,
-          media: mediaIds.map((mediaId, index) => ({ id: mediaId, type: "image", url: "", sortOrder: index })),
-          createdAt: "2026-09-28T00:00:00Z",
-          updatedAt: "2026-09-28T00:00:00Z",
-          additionalPetIds: [],
-        },
-        meta: { requestId: "r" },
-      };
+
+      for (const id of mediaIds) server.attached.add(id);
+      return { data: record(path.split("/").at(-1) ?? "moment"), meta: { requestId: "r" } };
     },
   };
 });
@@ -94,6 +152,7 @@ import {
   createMomentSaveSession,
   createPetMoment,
   MomentMediaUploadError,
+  MomentSaveCancelledError,
   releaseMomentSaveSession,
   updatePetMoment,
 } from "@/services/momentService";
@@ -124,9 +183,12 @@ beforeEach(() => {
   server.failNames = new Set();
   server.requests = [];
   server.momentsByKey = new Map();
+  server.attached = new Set();
   server.deleted = [];
   server.loseNextCreateAnswer = false;
   server.nextMedia = 0;
+  server.uploadGates = new Map();
+  server.createGate = null;
 });
 
 afterEach(() => {
@@ -303,5 +365,225 @@ describe("editing a Moment", () => {
     expect(updates()).toHaveLength(1);
     expect(updates()[0].body.mediaFileIds).toEqual(["media-kept", "media-1", "media-2"]);
     expect(updates()[0].body).not.toHaveProperty("idempotencyKey");
+  });
+});
+
+describe("a replay answers with the Moment first saved", () => {
+  it("public first, retried as Only me: the saved Moment is still public", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(
+      createPetMoment("pet-1", { ...payload([]), title: "First", visibility: "Public" }, session)
+    ).rejects.toThrow();
+
+    const replay = await createPetMoment(
+      "pet-1",
+      { ...payload([]), title: "Changed", visibility: "Private" },
+      session
+    );
+
+    expect(replay.data.visibility).toBe("Public");
+    expect(replay.data.title).toBe("First");
+    expect(server.momentsByKey.size).toBe(1);
+  });
+
+  it("private first, retried as Shared publicly: the saved Moment is still private", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(createPetMoment("pet-1", payload([], "Private"), session)).rejects.toThrow();
+
+    const replay = await createPetMoment("pet-1", payload([], "Public"), session);
+
+    expect(replay.data.visibility).toBe("Private");
+  });
+
+  it("the replay's media is the first save's, not the retry draft's", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(
+      createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session)
+    ).rejects.toThrow();
+
+    const replay = await createPetMoment("pet-1", payload([]), session);
+
+    expect(replay.data.media.map((media) => media.id)).toEqual(["media-1"]);
+  });
+});
+
+describe("closing the editor while it saves", () => {
+  it("A: closed during the first upload — nothing is created, the upload is cleaned", async () => {
+    const session = createMomentSaveSession();
+    const gate = holdUpload("a.jpg");
+    const save = createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session);
+    await settle();
+
+    const closed = releaseMomentSaveSession(session);
+    gate.resolve();
+
+    await expect(save).rejects.toBeInstanceOf(MomentSaveCancelledError);
+    await closed;
+    expect(creates()).toHaveLength(0);
+    expect(server.deleted).toEqual(["media-1"]);
+    expect(server.attached.size).toBe(0);
+  });
+
+  it("B: closed after file 1 while file 2 uploads — no create, both cleaned, no third upload", async () => {
+    const session = createMomentSaveSession();
+    const gate = holdUpload("b.jpg");
+    const save = createPetMoment(
+      "pet-1",
+      payload(newMedia([file("a.jpg"), file("b.jpg"), file("c.jpg")])),
+      session
+    );
+    await settle();
+    expect(server.uploads.map((upload) => upload.file)).toEqual(["a.jpg", "b.jpg"]);
+
+    const closed = releaseMomentSaveSession(session);
+    gate.resolve();
+
+    await expect(save).rejects.toBeInstanceOf(MomentSaveCancelledError);
+    await closed;
+    expect(server.uploads.map((upload) => upload.file)).toEqual(["a.jpg", "b.jpg"]);
+    expect(creates()).toHaveLength(0);
+    expect([...server.deleted].sort()).toEqual(["media-1", "media-2"]);
+  });
+
+  it("C: closed after every upload but before the create — no Moment, uploads cleaned", async () => {
+    const session = createMomentSaveSession();
+    const gate = holdUpload("a.jpg");
+    const save = createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session);
+    await settle();
+
+    // The last upload finishes and, in the same turn, the editor closes —
+    // before the save's next step can send the create.
+    gate.resolve();
+    const closed = releaseMomentSaveSession(session);
+
+    await expect(save).rejects.toBeInstanceOf(MomentSaveCancelledError);
+    await closed;
+    expect(creates()).toHaveLength(0);
+    expect(server.deleted).toEqual(["media-1"]);
+  });
+
+  it("D: closed while the create is in flight and it succeeds — attached media is never deleted", async () => {
+    const session = createMomentSaveSession();
+    const createGate = holdCreate();
+    const save = createPetMoment(
+      "pet-1",
+      payload(newMedia([file("a.jpg"), file("b.jpg")])),
+      session
+    );
+    await settle();
+    expect(creates()).toHaveLength(1);
+
+    const closed = releaseMomentSaveSession(session);
+    await settle();
+    // Cleanup is waiting for the save; it has deleted nothing yet.
+    expect(server.deleted).toEqual([]);
+
+    createGate.resolve();
+    const created = await save;
+    await closed;
+
+    expect(created.data.media.map((media) => media.id)).toEqual(["media-1", "media-2"]);
+    expect(server.deleted).toEqual([]);
+    expect([...server.attached].sort()).toEqual(["media-1", "media-2"]);
+  });
+
+  it("D: closed while the create is in flight and it fails — offered media is still kept", async () => {
+    const session = createMomentSaveSession();
+    const createGate = holdCreate();
+    server.loseNextCreateAnswer = true;
+    const save = createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session);
+    await settle();
+
+    const closed = releaseMomentSaveSession(session);
+    createGate.resolve();
+
+    await expect(save).rejects.toThrow();
+    await closed;
+    // The answer was lost, not the Moment: the server may well have attached
+    // it (here it did), so the client must not delete it.
+    expect(server.deleted).toEqual([]);
+    expect(server.attached.has("media-1")).toBe(true);
+  });
+
+  it("E: after a lost answer, closing later deletes nothing that was offered", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(
+      createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session)
+    ).rejects.toThrow();
+
+    await releaseMomentSaveSession(session);
+
+    expect(server.deleted).toEqual([]);
+    expect(server.attached.has("media-1")).toBe(true);
+  });
+
+  it("a failed save, then close: unused uploads are cleaned, exactly once", async () => {
+    const session = createMomentSaveSession();
+    server.failNames.add("b.jpg");
+    await expect(
+      createPetMoment("pet-1", payload(newMedia([file("a.jpg"), file("b.jpg")])), session)
+    ).rejects.toBeInstanceOf(MomentMediaUploadError);
+
+    const first = releaseMomentSaveSession(session);
+    const second = releaseMomentSaveSession(session);
+    await Promise.all([first, second, releaseMomentSaveSession(session)]);
+
+    expect(second).toBe(first);
+    expect(server.deleted).toEqual(["media-1"]);
+  });
+
+  it("F/G: no save can start after the session is closed", async () => {
+    const session = createMomentSaveSession();
+    await releaseMomentSaveSession(session);
+
+    await expect(
+      createPetMoment("pet-1", payload(newMedia([file("a.jpg")])), session)
+    ).rejects.toBeInstanceOf(MomentSaveCancelledError);
+    await expect(
+      updatePetMoment("moment-9", payload(newMedia([file("a.jpg")])), "pet-1", session)
+    ).rejects.toBeInstanceOf(MomentSaveCancelledError);
+
+    expect(server.uploads).toHaveLength(0);
+    expect(server.requests).toHaveLength(0);
+  });
+
+  it("an edit closed mid-upload sends no update and cleans its upload", async () => {
+    const session = createMomentSaveSession();
+    const gate = holdUpload("new.jpg");
+    const save = updatePetMoment(
+      "moment-9",
+      payload(newMedia([file("new.jpg")])),
+      "pet-1",
+      session
+    );
+    await settle();
+
+    const closed = releaseMomentSaveSession(session);
+    gate.resolve();
+
+    await expect(save).rejects.toBeInstanceOf(MomentSaveCancelledError);
+    await closed;
+    expect(updates()).toHaveLength(0);
+    expect(server.deleted).toEqual(["media-1"]);
+  });
+
+  it("two overlapping saves in one session upload each file once", async () => {
+    const session = createMomentSaveSession();
+    const gate = holdUpload("a.jpg");
+    const media = newMedia([file("a.jpg")]);
+    const first = createPetMoment("pet-1", payload(media), session);
+    const second = createPetMoment("pet-1", payload(media), session);
+    await settle();
+
+    gate.resolve();
+    const [one, two] = await Promise.all([first, second]);
+
+    expect(server.uploads).toHaveLength(1);
+    expect(one.data.id).toBe(two.data.id);
+    expect(server.momentsByKey.size).toBe(1);
   });
 });

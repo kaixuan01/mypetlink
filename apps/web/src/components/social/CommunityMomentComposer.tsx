@@ -2,7 +2,7 @@
 
 import { useCollaborationInviteFollowUp } from "@/components/social/useCollaborationInviteFollowUp";
 import type { CollaborationInvite } from "@/services/momentCollaborationService";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MomentEditorDialog } from "@/components/portal/MomentEditorDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -24,7 +24,9 @@ import {
   createPetMoment,
   getFriendlyMomentErrorMessage,
   MomentMediaUploadError,
+  MomentSaveCancelledError,
   releaseMomentSaveSession,
+  type MomentSaveSession,
 } from "@/services/momentService";
 import { getOwnerSocialProfile } from "@/services/ownerSocialService";
 import { getPets } from "@/services/petService";
@@ -32,9 +34,14 @@ import type { PetListItem, PetMomentPayload } from "@/types";
 
 /** What was just shared, for the one confirmation the shell shows. */
 export type SharedMomentSummary = {
+  /** The saved Moment's id, pet and audience — as the server returned them. */
   momentId: string;
   petId: string;
-  /** The audience the owner chose in the editor, as it was sent. */
+  /**
+   * The audience the Moment was SAVED with. Not the draft's: a retry of a
+   * lost answer returns the first attempt's Moment, whatever the draft says
+   * now.
+   */
   audience: MomentAudience;
   /**
    * Whether this owner's Community Profile is on. A Moment shared publicly
@@ -109,13 +116,20 @@ export function CommunityMomentComposer({
     Moment. When the composer goes away, files it uploaded but never saved are
     removed; anything a save request named is left alone.
   */
-  const [saveSession] = useState(createMomentSaveSession);
-  useEffect(
-    () => () => {
-      void releaseMomentSaveSession(saveSession);
-    },
-    [saveSession]
-  );
+  const saveSessionRef = useRef<MomentSaveSession | null>(null);
+  useEffect(() => {
+    // Created by the effect, not by render, so each mount owns exactly one
+    // session and closes exactly that one — including React's development
+    // double mount, which would otherwise close the session still in use.
+    const session = createMomentSaveSession();
+    saveSessionRef.current = session;
+    return () => {
+      if (saveSessionRef.current === session) saveSessionRef.current = null;
+      // Waits for any save still running before deleting anything; a file a
+      // request has named is never deleted.
+      void releaseMomentSaveSession(session);
+    };
+  }, []);
 
   /*
     Pets are resolved when the composer opens rather than on every route, so the
@@ -201,7 +215,8 @@ export function CommunityMomentComposer({
     payload: PetMomentPayload,
     extras?: { collaboratorInvites: CollaborationInvite[] }
   ) {
-    if (!primaryPet || submitting) {
+    const saveSession = saveSessionRef.current;
+    if (!primaryPet || submitting || !saveSession) {
       return;
     }
 
@@ -210,19 +225,30 @@ export function CommunityMomentComposer({
 
     try {
       const created = await createPetMoment(primaryPet.id, payload, saveSession);
+      /*
+        Everything after a save reads the Moment the server returned, never
+        the draft. A retry of a lost answer returns the FIRST attempt's
+        Moment, and the draft may have changed since — a Moment shared
+        publicly and then retried as "Only me" is still public, and must be
+        announced, confirmed and refreshed as public.
+      */
+      const saved = created.data;
+      const savedAudience = normalizeMomentVisibility(saved.visibility);
 
       trackEvent(AnalyticsEvent.MomentCreated, { source: "community" });
       onCreated?.({
-        momentId: created.data.id,
-        petId: primaryPet.id,
-        audience: normalizeMomentVisibility(payload.visibility ?? "Private"),
+        momentId: saved.id,
+        petId: saved.petId,
+        audience: savedAudience,
         communityProfileActive: communityProfileActive === true,
       });
       // The Moment is shared either way. If an invitation could not be sent
       // the composer stays open only to offer it again, then closes.
+      // Collaborators join public Moments only: invitations queued in a draft
+      // that became public are never sent for a Moment that was saved private.
       const allSent = await inviteFollowUp.sendAfterCreate(
-        created.data.id,
-        extras?.collaboratorInvites ?? []
+        saved.id,
+        savedAudience === "Public" ? extras?.collaboratorInvites ?? [] : []
       );
       if (allSent) {
         onClose();
@@ -230,6 +256,9 @@ export function CommunityMomentComposer({
         setAwaitingFollowUp(true);
       }
     } catch (caught) {
+      // Closed while saving: nothing was sent, nothing was saved, and there
+      // is no composer left to tell.
+      if (caught instanceof MomentSaveCancelledError) return;
       // The draft stays exactly as it was. A failed upload or a rejected field
       // is a reason to try again, not a reason to retype everything — and
       // nothing was saved, so trying again cannot make a second Moment.

@@ -162,13 +162,41 @@ export async function getPublicPetMoments(petId: string) {
  *   the ones that did not finish.
  * - `offered` records every media id sent in a save request. Those may already
  *   be attached to a Moment, even if the answer never arrived, so the client
- *   never deletes them; anything uploaded and never offered is removed by
- *   `releaseMomentSaveSession` when the editor closes.
+ *   never deletes them.
+ *
+ * Its lifecycle is a small state machine, and every transition is synchronous
+ * with the check that depends on it (JavaScript runs one of them at a time):
+ *
+ *   open ── save ──► saving ──► uploading ─► (uploaded) ─► offered ─► request sent
+ *     │                 │   each upload starts only while open; each finished
+ *     │                 │   upload is recorded before anything else happens
+ *     │                 │   the request is sent only while open, and its files
+ *     │                 │   become `offered` in the same step
+ *     ▼                 ▼
+ *   closing ── every active save settles ──► released
+ *                        (then: delete uploads never offered)
+ *
+ * - A save never starts once the session is closing.
+ * - A save already running when it closes stops at its next checkpoint — before
+ *   starting another upload, or before sending its request — and nothing it
+ *   has not offered can be attached, because it will never send them.
+ * - A request already sent is never treated as cancelled: its files are
+ *   offered and stay, whatever its outcome.
+ * - Cleanup runs only after every save that could still offer a file has
+ *   settled, so no file is ever both deletable and attachable.
  */
 export type MomentSaveSession = {
   readonly idempotencyKey: string;
   readonly uploads: Map<File, MomentMedia>;
   readonly offered: Set<string>;
+  /** Uploads in flight, shared so two saves never upload one file twice. */
+  readonly pendingUploads: Map<File, Promise<MomentMedia>>;
+  /** Saves still running. Closing waits for every one of them. */
+  readonly activeSaves: Set<Promise<void>>;
+  /** Set once, when the editor closes. No save starts or continues after it. */
+  closing: boolean;
+  /** The one cleanup, shared by every call to release. */
+  released: Promise<void> | null;
 };
 
 export function createMomentSaveSession(): MomentSaveSession {
@@ -176,23 +204,82 @@ export function createMomentSaveSession(): MomentSaveSession {
     idempotencyKey: newIdempotencyKey(),
     uploads: new Map(),
     offered: new Set(),
+    pendingUploads: new Map(),
+    activeSaves: new Set(),
+    closing: false,
+    released: null,
   };
 }
 
 /**
- * Removes files this session uploaded but never sent in a save — the draft
- * was discarded, or its files changed after an upload failed. Best effort: a
- * file left behind is attached to nothing and shown nowhere.
+ * Closes the session: no new save may start, running saves stop at their next
+ * checkpoint, and once every one of them has settled, files uploaded but never
+ * offered are deleted. Offered files are never deleted here — a request that
+ * named them may have attached them, answer or no answer.
+ *
+ * Idempotent: every call returns the same cleanup, and each file is deleted
+ * at most once. Best effort: a file left behind is attached to nothing and
+ * shown nowhere.
  */
-export async function releaseMomentSaveSession(session: MomentSaveSession) {
-  if (!canUseApi()) return;
+export function releaseMomentSaveSession(session: MomentSaveSession): Promise<void> {
+  if (session.released) return session.released;
 
-  const unused = [...session.uploads.values()]
-    .map((media) => media.id)
-    .filter((id) => !session.offered.has(id));
-  session.uploads.clear();
+  session.closing = true;
+  session.released = (async () => {
+    // A save that settles can have been joined by none: new ones cannot start
+    // once closing. Loop anyway, so the rule does not depend on that.
+    while (session.activeSaves.size > 0) {
+      await Promise.all([...session.activeSaves]);
+    }
 
-  await Promise.all(unused.map((id) => deleteMedia(id).catch(() => undefined)));
+    const unused = [...session.uploads.values()]
+      .map((media) => media.id)
+      .filter((id) => !session.offered.has(id));
+    session.uploads.clear();
+
+    if (!canUseApi()) return;
+    await Promise.all(unused.map((id) => deleteMedia(id).catch(() => undefined)));
+  })();
+
+  return session.released;
+}
+
+/**
+ * The editor closed before this save sent anything: nothing was saved and
+ * nothing will be. Not a failure to show anybody — there is nobody to show it
+ * to.
+ */
+export class MomentSaveCancelledError extends Error {
+  constructor() {
+    super("The Moment editor was closed before saving.");
+    this.name = "MomentSaveCancelledError";
+  }
+}
+
+function ensureSessionOpen(session: MomentSaveSession) {
+  if (session.closing) {
+    throw new MomentSaveCancelledError();
+  }
+}
+
+/**
+ * Runs one save as part of the session, so closing waits for it. The work
+ * starts in the same turn as the registration: there is no moment in which it
+ * is running but not yet counted.
+ */
+function runInSession<T>(session: MomentSaveSession, work: () => Promise<T>): Promise<T> {
+  if (session.closing) {
+    return Promise.reject(new MomentSaveCancelledError());
+  }
+
+  const running = work();
+  const settled = running.then(
+    () => undefined,
+    () => undefined
+  );
+  session.activeSaves.add(settled);
+  void settled.then(() => session.activeSaves.delete(settled));
+  return running;
 }
 
 /**
@@ -235,26 +322,33 @@ export async function createPetMoment(
   session: MomentSaveSession = createMomentSaveSession()
 ) {
   if (canUseApi()) {
-    const media = await uploadMomentMediaFiles(petId, payload.media ?? [], session);
-    const body = {
-      ...buildBackendMomentPayload({ ...payload, media }),
-      idempotencyKey: session.idempotencyKey,
-    };
-    // Offered from here on: this request may attach them even if its answer
-    // is lost, so the client must never delete them.
-    for (const id of body.mediaFileIds) session.offered.add(id);
+    return runInSession(session, async () => {
+      const media = await uploadMomentMediaFiles(petId, payload.media ?? [], session);
+      const body = {
+        ...buildBackendMomentPayload({ ...payload, media }),
+        idempotencyKey: session.idempotencyKey,
+      };
 
-    const response = await apiRequest<BackendMemory>(
-      `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
-      { method: "POST", body }
-    );
-    const moment = response.data ? mapBackendMoment(response.data) : null;
+      // The last checkpoint. From the next line on, this request may attach
+      // these files even if its answer is lost, so they are offered — and
+      // never deleted by the client — in the same step as it is sent.
+      ensureSessionOpen(session);
+      for (const id of body.mediaFileIds) session.offered.add(id);
+      const response = await apiRequest<BackendMemory>(
+        `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
+        { method: "POST", body }
+      );
+      const moment = response.data ? mapBackendMoment(response.data) : null;
 
-    if (!moment) {
-      throw new Error("Moment was not returned after saving.");
-    }
+      if (!moment) {
+        throw new Error("Moment was not returned after saving.");
+      }
 
-    return apiResponse(moment, response.meta);
+      // The server's Moment, not the request. After a replay they can differ
+      // (the first attempt is the one that counted), so everything that
+      // follows a save must read this.
+      return apiResponse(moment, response.meta);
+    });
   }
 
   await mockDelay();
@@ -295,36 +389,40 @@ export async function updatePetMoment(
   session: MomentSaveSession = createMomentSaveSession()
 ) {
   if (canUseApi()) {
-    try {
-      const media = payload.media?.some((item) => item.sourceFile)
-        ? await uploadMomentMediaFiles(
-            requirePetIdForMediaUpload(petId),
-            payload.media,
-            session
-          )
-        : stripTransientMediaFiles(payload.media);
-      const body = buildBackendMomentPayload({ ...payload, media });
-      for (const id of body.mediaFileIds) session.offered.add(id);
+    return runInSession(session, async () => {
+      try {
+        const media = payload.media?.some((item) => item.sourceFile)
+          ? await uploadMomentMediaFiles(
+              requirePetIdForMediaUpload(petId),
+              payload.media,
+              session
+            )
+          : stripTransientMediaFiles(payload.media);
+        const body = buildBackendMomentPayload({ ...payload, media });
 
-      const response = await apiRequest<BackendMemory>(
-        `/api/v1/memories/${encodeURIComponent(momentId)}`,
-        {
-          method: "PUT",
-          body,
+        // Same last checkpoint as a create: offered in the step it is sent.
+        ensureSessionOpen(session);
+        for (const id of body.mediaFileIds) session.offered.add(id);
+        const response = await apiRequest<BackendMemory>(
+          `/api/v1/memories/${encodeURIComponent(momentId)}`,
+          {
+            method: "PUT",
+            body,
+          }
+        );
+
+        return apiResponse(
+          response.data ? mapBackendMoment(response.data) : null,
+          response.meta
+        );
+      } catch (error) {
+        if (isApiClientError(error) && error.status === 404) {
+          return apiResponse<PetMoment | null>(null);
         }
-      );
 
-      return apiResponse(
-        response.data ? mapBackendMoment(response.data) : null,
-        response.meta
-      );
-    } catch (error) {
-      if (isApiClientError(error) && error.status === 404) {
-        return apiResponse<PetMoment | null>(null);
+        throw error;
       }
-
-      throw error;
-    }
+    });
   }
 
   await mockDelay();
@@ -557,31 +655,47 @@ async function uploadMomentMediaFiles(
       continue;
     }
 
-    let done = session.uploads.get(item.sourceFile);
+    const file = item.sourceFile;
+    let done = session.uploads.get(file);
 
     if (!done) {
-      let completed: Awaited<ReturnType<typeof uploadMediaFile>>;
-      try {
-        completed = await uploadMediaFile({
-          file: item.sourceFile,
+      let pending = session.pendingUploads.get(file);
+
+      if (!pending) {
+        // A checkpoint: no new upload starts once the editor is closing. One
+        // already running is allowed to finish and is recorded before its
+        // save can go on, so the session's cleanup knows to delete it.
+        ensureSessionOpen(session);
+        pending = uploadMediaFile({
+          file,
           category: item.type === "video" ? "MomentVideo" : "MomentImage",
           petId,
           // A file that fails part-way removes its own pending record and
           // object; nothing is left for a later sweep.
           cleanupOnFailure: true,
-        });
-      } catch (error) {
-        throw new MomentMediaUploadError({ cause: error });
+        }).then(
+          (completed) => {
+            const uploadedMedia: MomentMedia = {
+              id: completed.mediaId,
+              type: item.type,
+              url: completed.publicUrl ?? item.url ?? "",
+              altText: completed.originalFileName,
+              sortOrder: item.sortOrder,
+            };
+            session.uploads.set(file, uploadedMedia);
+            session.pendingUploads.delete(file);
+            return uploadedMedia;
+          },
+          (error: unknown) => {
+            // Forgotten, so a retry uploads this file again.
+            session.pendingUploads.delete(file);
+            throw new MomentMediaUploadError({ cause: error });
+          }
+        );
+        session.pendingUploads.set(file, pending);
       }
 
-      done = {
-        id: completed.mediaId,
-        type: item.type,
-        url: completed.publicUrl ?? item.url ?? "",
-        altText: completed.originalFileName,
-        sortOrder: item.sortOrder,
-      };
-      session.uploads.set(item.sourceFile, done);
+      done = await pending;
     }
 
     uploaded.push({

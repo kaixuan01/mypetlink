@@ -104,7 +104,12 @@ export function AppLayout({
   const handleMomentShared = useCallback(
     (moment: SharedMomentSummary) => {
       setShared({ moment, pathname });
-      announceMomentCreated();
+      // Only a Moment the server SAVED as public can belong in a public list.
+      // Decided from the saved Moment, not the draft: after a replay the two
+      // can disagree, and the saved one is the truth.
+      if (moment.audience === "Public") {
+        announceMomentCreated();
+      }
     },
     [pathname]
   );

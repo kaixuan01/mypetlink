@@ -35,6 +35,7 @@ import {
   deletePetMoment,
   getFriendlyMomentErrorMessage,
   getPetMoments,
+  MomentSaveCancelledError,
   releaseMomentSaveSession,
   updatePetMoment,
   type MomentSaveSession,
@@ -354,16 +355,22 @@ export function PetMomentsManager({
     try {
       if (currentEditor.mode === "create") {
         const response = await createPetMoment(pet.id, payload, saveSession);
+        // The server's Moment, not the draft: after a replay it is the first
+        // attempt's, whatever the form says now.
+        const saved = response.data;
         setMoments((current) => [
-          response.data,
-          ...current.filter((moment) => moment.id !== response.data.id),
+          saved,
+          ...current.filter((moment) => moment.id !== saved.id),
         ]);
         setSuccess("Moment added.");
         trackEvent(AnalyticsEvent.MomentCreated, { source: "owner_portal" });
         // The Moment exists now; invitations follow it and never undo it.
+        // Collaborators join public Moments only — decided by what was saved.
         void inviteFollowUp.sendAfterCreate(
-          response.data.id,
-          extras?.collaboratorInvites ?? []
+          saved.id,
+          normalizeMomentVisibility(saved.visibility) === "Public"
+            ? extras?.collaboratorInvites ?? []
+            : []
         );
       } else {
         const response = await updatePetMoment(
@@ -384,10 +391,17 @@ export function PetMomentsManager({
         }
       }
 
+      // Closed while this save was still running: the list is up to date and
+      // there is no editor left to close — closing again would step the
+      // browser's history back a second time.
+      if (editorRef.current !== currentEditor) return;
       editorDirtyRef.current = false;
       setEditorDirty(false);
       closeEditor();
     } catch (caught) {
+      // Closed before anything was sent: nothing was saved, nobody to tell.
+      if (caught instanceof MomentSaveCancelledError) return;
+      if (editorRef.current !== currentEditor) return;
       setFormError(getFriendlyMomentErrorMessage(caught));
     } finally {
       setIsSubmitting(false);

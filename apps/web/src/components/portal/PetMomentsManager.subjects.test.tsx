@@ -25,6 +25,7 @@ vi.mock("@/services/momentService", () => ({
     offered: new Set(),
   }),
   releaseMomentSaveSession: vi.fn(async () => undefined),
+  MomentSaveCancelledError: class MomentSaveCancelledError extends Error {},
   createPetMoment: (...args: unknown[]) => mocks.createPetMoment(...args),
   deletePetMoment: vi.fn(),
   getFriendlyMomentErrorMessage: () => "Please try again.",

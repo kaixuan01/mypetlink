@@ -94,9 +94,22 @@ function communityProfile(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * What the server saved. A first create saves what it was sent; a replay of a
+ * lost answer returns the FIRST attempt's Moment, which is why tests below
+ * give it a different visibility, pet or title from the draft.
+ */
+function savedMoment(overrides: Record<string, unknown> = {}) {
+  return { id: "moment-1", petId: "pet-1", title: "Beach day", visibility: "Public", media: [], ...overrides };
+}
+
 beforeEach(() => {
   mocks.getPets.mockResolvedValue({ data: [pet("pet-1", "Mochi")] });
-  mocks.createPetMoment.mockResolvedValue({ data: { id: "moment-1" } });
+  mocks.createPetMoment.mockImplementation(
+    async (petId: string, payload: { visibility?: string; title?: string }) => ({
+      data: savedMoment({ petId, visibility: payload.visibility, title: payload.title }),
+    })
+  );
   mocks.getOwnerSocialProfile.mockResolvedValue(communityProfile());
 });
 
@@ -338,6 +351,64 @@ describe("creating the Moment", () => {
     // network blip, so the draft survives and the dialog stays open.
     expect(title.value).toBe("Beach day");
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("after a save, the SAVED Moment decides everything", () => {
+  it("a public Moment replayed from an Only me draft is announced as public", async () => {
+    // First attempt was Shared publicly; its answer was lost. The owner then
+    // switched the draft to Only me and retried with the same key. The
+    // server returns the original, public Moment.
+    mocks.createPetMoment.mockResolvedValue({ data: savedMoment({ visibility: "Public" }) });
+    const onCreated = vi.fn();
+    render(<CommunityMomentComposer onClose={vi.fn()} onCreated={onCreated} />);
+
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("radio", { name: "Only me" }));
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Save Moment" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    expect(mocks.createPetMoment.mock.calls[0][1].visibility).toBe("Private");
+    expect(onCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ momentId: "moment-1", audience: "Public" })
+    );
+  });
+
+  it("a private Moment replayed from a public draft is announced as private, with no invitations", async () => {
+    mocks.createPetMoment.mockResolvedValue({ data: savedMoment({ visibility: "Private" }) });
+    const onCreated = vi.fn();
+    render(<CommunityMomentComposer onClose={vi.fn()} onCreated={onCreated} />);
+
+    await screen.findByRole("dialog");
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    expect(mocks.createPetMoment.mock.calls[0][1].visibility).toBe("Public");
+    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ audience: "Private" }));
+  });
+
+  it("takes the Moment's id and pet from the server, not the draft", async () => {
+    mocks.getPets.mockResolvedValue({ data: [pet("pet-1", "Mochi"), pet("pet-2", "Biscuit")] });
+    mocks.createPetMoment.mockResolvedValue({
+      data: savedMoment({ id: "moment-original", petId: "pet-1", title: "First title", visibility: "Public" }),
+    });
+    const onCreated = vi.fn();
+    render(<CommunityMomentComposer onClose={vi.fn()} onCreated={onCreated} />);
+
+    const select = (await screen.findByTestId("moment-primary-pet")) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "pet-2" } });
+    fillRequiredFields("Edited title");
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    expect(onCreated).toHaveBeenCalledWith({
+      momentId: "moment-original",
+      petId: "pet-1",
+      audience: "Public",
+      communityProfileActive: true,
+    });
   });
 });
 
