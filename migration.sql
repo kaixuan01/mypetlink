@@ -10608,3 +10608,37 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260928091410_AddMomentCreateIdempotencyKey'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD [CreateIdempotencyKey] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260928091410_AddMomentCreateIdempotencyKey'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_PetMemories_AuthorUserId_CreateIdempotencyKey] ON [PetMemories] ([AuthorUserId], [CreateIdempotencyKey]) WHERE [CreateIdempotencyKey] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260928091410_AddMomentCreateIdempotencyKey'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260928091410_AddMomentCreateIdempotencyKey', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

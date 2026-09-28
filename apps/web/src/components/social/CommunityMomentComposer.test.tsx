@@ -341,6 +341,55 @@ describe("creating the Moment", () => {
   });
 });
 
+describe("a failed share and its retry", () => {
+  it("retries as the same attempt, so it can never make a second Moment", async () => {
+    const { MomentMediaUploadError } = await import("@/services/momentService");
+    mocks.createPetMoment
+      .mockRejectedValueOnce(new MomentMediaUploadError())
+      .mockResolvedValueOnce({ data: { id: "moment-1" } });
+    const onClose = vi.fn();
+
+    render(<CommunityMomentComposer onClose={onClose} />);
+    await screen.findByRole("dialog");
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+
+    // One message, saying nothing was saved and that trying again is safe.
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("hasn't been saved yet");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    // Both presses carried the same save session: one idempotency key, and
+    // the files the first attempt already uploaded.
+    const [, , firstSession] = mocks.createPetMoment.mock.calls[0];
+    const [, , secondSession] = mocks.createPetMoment.mock.calls[1];
+    expect(firstSession).toBeDefined();
+    expect(secondSession).toBe(firstSession);
+  });
+
+  it("gives every opening of the composer its own attempt", async () => {
+    const first = render(<CommunityMomentComposer onClose={vi.fn()} />);
+    await screen.findByRole("dialog");
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+    await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    render(<CommunityMomentComposer onClose={vi.fn()} />);
+    await screen.findByRole("dialog");
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Share Moment" }));
+    await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledTimes(2));
+
+    const keys = mocks.createPetMoment.mock.calls.map(([, , session]) => session.idempotencyKey);
+    expect(new Set(keys).size).toBe(2);
+  });
+});
+
 describe("closing the composer", () => {
   it("just closes when nothing has been written", async () => {
     const onClose = vi.fn();

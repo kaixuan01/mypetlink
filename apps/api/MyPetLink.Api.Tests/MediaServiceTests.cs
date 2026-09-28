@@ -312,13 +312,16 @@ public sealed class MediaServiceTests
             12);
 
         var response = await harness.Service.InitializeUploadAsync(UserId, request);
-        var link = await harness.Db.MediaFileLinks
-            .SingleAsync(item => item.MediaFileId == response.MediaId);
 
-        // Alt text describes a picture to somebody who cannot see it, and a
-        // browser paints it on screen the instant the media behind it fails.
-        // A file name does neither job and leaks what the owner called the file.
-        Assert.Null(link.AltText);
+        // Moment media is uploaded unlinked, so there is no link here to carry
+        // alt text at all; the link is written when a save names the file
+        // (MemoryService), and it carries none either. Alt text describes a
+        // picture to somebody who cannot see it, and a browser paints it on
+        // screen the instant the media behind it fails. A file name does
+        // neither job and leaks what the owner called the file.
+        Assert.Empty(await harness.Db.MediaFileLinks
+            .Where(item => item.MediaFileId == response.MediaId)
+            .ToListAsync());
 
         // The name itself is still kept where it belongs, for the owner's own
         // reference — it is simply not presented as a description.

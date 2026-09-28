@@ -1440,6 +1440,49 @@ pet row. Missing, false or malformed means none of them. `/moments/{id}`, likes,
 Explore and Search are unchanged; `ShareProfileBoundaryTests` pins that none of
 them gains anything.
 
+## 12k. Creating a Moment: all or nothing, once per attempt
+
+A Moment and its media are written by **one** save, and every retry of one
+create attempt returns the same Moment.
+
+```text
+editor opens      -> save session: idempotency key K, no uploads
+Share / Add       -> each new file: initialize (unlinked) -> PUT to R2 -> complete
+                     (a file that fails deletes its own pending record and object)
+  any upload fails -> nothing is created; "hasn't been saved yet", draft kept
+  all uploaded     -> POST /pets/{id}/memories { ..., mediaFileIds, idempotencyKey: K }
+                     -> Moment + subjects + media links in ONE SaveChanges
+retry (same editor) -> uploads only missing files; same K
+  K already used   -> the Moment K created is returned; nothing is written
+  K in flight twice -> unique index (AuthorUserId, CreateIdempotencyKey) picks one
+editor closes      -> files uploaded but never named in a save are deleted
+```
+
+- **Uploads link nothing.** Initializing a Moment upload used to link the file to
+  the Moment, and read paths show any linked, Ready file — so each file went
+  live on its own, and a failed third file left a public Moment showing two.
+  Files now join a Moment only through the create or update that names them. A
+  `momentId` on an upload is still accepted (for pages still running the older
+  create-then-upload flow) and checked for ownership, but links nothing.
+- **Create is atomic.** It used to save the Moment, then attach media, then
+  save again; a rejected media id left a Moment with no media. Media is now
+  validated and linked before the single save.
+- **Shared publicly becomes visible only when complete**, on every surface at
+  once, because it does not exist before. **Only me** is private throughout.
+- **Edits** upload new files unlinked and replace the whole media list in the
+  update's one save, so a failed upload leaves the Moment exactly as it was.
+  Edits carry no idempotency key: the update names the whole list, so repeating
+  it is harmless.
+- **A replay is the first request.** A retry with the same key returns the
+  Moment as first created, even if the draft changed in between; it is not
+  charged against the private allowance again. A key reused for another pet is
+  refused (409 `idempotency_key_reused`).
+- **Orphans.** The client deletes only files it uploaded and never sent in a
+  save: a file named in a request may already be attached even if the answer
+  was lost. Files abandoned by a closed tab stay unlinked and unlisted.
+  `MediaService.DeleteStalePendingUploadsAsync` exists but nothing schedules it;
+  a periodic sweep of stale pending and unlinked Moment uploads is a follow-up.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:

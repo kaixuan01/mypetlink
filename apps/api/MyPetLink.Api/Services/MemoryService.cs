@@ -67,6 +67,21 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         return (await ToResponsesAsync(memories, cancellationToken), total);
     }
 
+    /// <summary>
+    /// Creates one Moment, with its media, in one save.
+    ///
+    /// <b>All or nothing.</b> The Moment row, its subjects and its media links
+    /// are written by a single <c>SaveChanges</c>, so a Moment never exists —
+    /// and a Shared publicly Moment is never visible anywhere — without the
+    /// media it was created with. Media is uploaded first, unlinked, and only
+    /// referenced here once every file is ready.
+    ///
+    /// <b>Once per attempt.</b> A request carrying an idempotency key this
+    /// author has already used returns the Moment that key created and writes
+    /// nothing, whatever else it says: the first request is the one that
+    /// counted. Two concurrent requests with the same key are settled by the
+    /// unique index — the loser returns the winner's Moment.
+    /// </summary>
     public async Task<MemoryResponse> CreateAsync(
         Guid? currentUserId,
         Guid petId,
@@ -74,6 +89,20 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         CancellationToken cancellationToken = default)
     {
         var user = await LoadOwnerUserAsync(currentUserId, cancellationToken);
+        var idempotencyKey = NormalizeIdempotencyKey(request.IdempotencyKey);
+
+        // Before every other rule: a replay is not a new Moment, so it is not
+        // charged against the allowance again and is not refused because the
+        // pet has since been archived.
+        if (idempotencyKey is not null)
+        {
+            var existing = await FindCreatedByKeyAsync(user.Id, idempotencyKey, cancellationToken);
+            if (existing is not null)
+            {
+                return await ReplayCreateAsync(existing, petId, cancellationToken);
+            }
+        }
+
         var pet = await LoadOwnedPetAsync(user.Id, petId, cancellationToken);
 
         if (pet.LifecycleStatus == PetLifecycleStatus.Archived)
@@ -120,17 +149,93 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             Caption = NormalizeOptional(request.Caption),
             Visibility = visibility,
             ShowInLifeTimeline = request.ShowInLifeTimeline ?? false,
-            TimelineNote = NormalizeOptional(request.TimelineNote)
+            TimelineNote = NormalizeOptional(request.TimelineNote),
+            CreateIdempotencyKey = idempotencyKey
         };
 
         _dbContext.PetMemories.Add(memory);
         SyncMomentPets(memory, additionalPetIds);
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
+        // Validated and linked before anything is written. It used to run after
+        // a first save, so a rejected media id left a Moment behind with no
+        // media — public, if it was Shared publicly.
         await AttachMediaToMemoryAsync(user.Id, memory, request.MediaFileIds, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (idempotencyKey is not null
+                && UniqueConstraintViolation.IsFor(exception, CreateIdempotencyIndexName))
+        {
+            // A concurrent request with the same key saved first. Nothing of
+            // this attempt was written; answer with the Moment that was.
+            _dbContext.ChangeTracker.Clear();
+            var winner = await FindCreatedByKeyAsync(user.Id, idempotencyKey, cancellationToken)
+                ?? throw new InvalidOperationException("Idempotent Moment create lost a race to a row that cannot be found.");
+            return await ReplayCreateAsync(winner, petId, cancellationToken);
+        }
 
         return await ToResponseAsync(memory, cancellationToken);
+    }
+
+    private const string CreateIdempotencyIndexName = "IX_PetMemories_AuthorUserId_CreateIdempotencyKey";
+    private const int MaxIdempotencyKeyLength = 80;
+
+    private static string? NormalizeIdempotencyKey(string? value)
+    {
+        var key = value?.Trim();
+
+        if (string.IsNullOrEmpty(key))
+        {
+            return null;
+        }
+
+        if (key.Length > MaxIdempotencyKeyLength)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                ["idempotencyKey"] = [$"Idempotency keys are up to {MaxIdempotencyKeyLength} characters."]
+            });
+        }
+
+        return key;
+    }
+
+    private Task<PetMemory?> FindCreatedByKeyAsync(
+        Guid authorUserId,
+        string idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.PetMemories
+            .AsNoTracking()
+            .Include(memory => memory.Pet)
+            .SingleOrDefaultAsync(
+                memory => memory.AuthorUserId == authorUserId
+                    && memory.CreateIdempotencyKey == idempotencyKey,
+                cancellationToken);
+    }
+
+    /// <summary>
+    /// The answer to a create that already happened. A key names one attempt
+    /// for one pet; reusing it for another pet is a client bug, and is refused
+    /// rather than silently answered with a Moment about a different pet.
+    /// </summary>
+    private async Task<MemoryResponse> ReplayCreateAsync(
+        PetMemory existing,
+        Guid petId,
+        CancellationToken cancellationToken)
+    {
+        if (existing.PetId != petId)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "idempotency_key_reused",
+                "This request was already used to create a different Moment.");
+        }
+
+        return await ToResponseAsync(existing, cancellationToken);
     }
 
     public async Task<MemoryResponse> GetAsync(

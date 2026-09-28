@@ -37,6 +37,16 @@ public sealed class PetMemory : AuditableEntity
     public DateTimeOffset? PublishedAt { get; set; }
 
     /// <summary>
+    /// The client's key for the one create attempt that wrote this row, so a
+    /// retry of that attempt — after a timeout, a dropped connection or a
+    /// second press — returns this Moment instead of writing another. Unique
+    /// per author (filtered index), which is what makes it hold across API
+    /// instances and concurrent requests. Null for Moments written without one
+    /// and for every row that predates it. Never shown and never changed.
+    /// </summary>
+    public string? CreateIdempotencyKey { get; set; }
+
+    /// <summary>
     /// Hidden by MyPetLink. Set only by a moderator and cleared only by one: it
     /// is deliberately separate from Visibility, archiving and deletion, which
     /// all belong to the owner, so no owner action can undo it. While set, the

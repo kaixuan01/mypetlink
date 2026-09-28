@@ -19,6 +19,12 @@ vi.mock("@/services/petService", async (importOriginal) => {
   return { ...actual, getPets: (...args: unknown[]) => mocks.getPets(...args) };
 });
 vi.mock("@/services/momentService", () => ({
+  createMomentSaveSession: () => ({
+    idempotencyKey: `key-${Math.random()}`,
+    uploads: new Map(),
+    offered: new Set(),
+  }),
+  releaseMomentSaveSession: vi.fn(async () => undefined),
   createPetMoment: (...args: unknown[]) => mocks.createPetMoment(...args),
   deletePetMoment: vi.fn(),
   getFriendlyMomentErrorMessage: () => "Please try again.",

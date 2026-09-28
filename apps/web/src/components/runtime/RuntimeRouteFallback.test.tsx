@@ -54,6 +54,12 @@ vi.mock("@/services/recordService", () => ({
 }));
 
 vi.mock("@/services/momentService", () => ({
+  createMomentSaveSession: () => ({
+    idempotencyKey: `key-${Math.random()}`,
+    uploads: new Map(),
+    offered: new Set(),
+  }),
+  releaseMomentSaveSession: vi.fn(async () => undefined),
   createPetMoment: vi.fn(),
   deletePetMoment: vi.fn(),
   getFriendlyMomentErrorMessage: () => "Please try again.",

@@ -19,7 +19,13 @@ import {
 } from "@/lib/momentVisibility";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
-import { createPetMoment } from "@/services/momentService";
+import {
+  createMomentSaveSession,
+  createPetMoment,
+  getFriendlyMomentErrorMessage,
+  MomentMediaUploadError,
+  releaseMomentSaveSession,
+} from "@/services/momentService";
 import { getOwnerSocialProfile } from "@/services/ownerSocialService";
 import { getPets } from "@/services/petService";
 import type { PetListItem, PetMomentPayload } from "@/types";
@@ -96,6 +102,20 @@ export function CommunityMomentComposer({
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  /*
+    One save session per open composer: every Share press — including a retry
+    after a failed upload or a lost connection — sends the same idempotency key
+    and reuses the files already uploaded, so it can never create a second
+    Moment. When the composer goes away, files it uploaded but never saved are
+    removed; anything a save request named is left alone.
+  */
+  const [saveSession] = useState(createMomentSaveSession);
+  useEffect(
+    () => () => {
+      void releaseMomentSaveSession(saveSession);
+    },
+    [saveSession]
+  );
 
   /*
     Pets are resolved when the composer opens rather than on every route, so the
@@ -189,7 +209,7 @@ export function CommunityMomentComposer({
     setError("");
 
     try {
-      const created = await createPetMoment(primaryPet.id, payload);
+      const created = await createPetMoment(primaryPet.id, payload, saveSession);
 
       trackEvent(AnalyticsEvent.MomentCreated, { source: "community" });
       onCreated?.({
@@ -211,11 +231,14 @@ export function CommunityMomentComposer({
       }
     } catch (caught) {
       // The draft stays exactly as it was. A failed upload or a rejected field
-      // is a reason to try again, not a reason to retype everything.
+      // is a reason to try again, not a reason to retype everything — and
+      // nothing was saved, so trying again cannot make a second Moment.
       setError(
-        isApiClientError(caught) && caught.message
-          ? caught.message
-          : "We couldn't share this Moment. Please try again."
+        caught instanceof MomentMediaUploadError
+          ? getFriendlyMomentErrorMessage(caught)
+          : isApiClientError(caught) && caught.message
+            ? caught.message
+            : "We couldn't share this Moment. Please try again."
       );
     } finally {
       setSubmitting(false);

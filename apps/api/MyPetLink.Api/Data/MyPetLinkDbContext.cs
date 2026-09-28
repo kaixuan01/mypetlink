@@ -2147,6 +2147,12 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.PetId, item.Visibility });
             entity.HasIndex(item => new { item.PetId, item.ShowOnPublicProfile });
             entity.HasIndex(item => new { item.PetId, item.ShowInLifeTimeline });
+            // One Moment per author per create attempt. Filtered so every
+            // existing row, and any request without a key, is unaffected.
+            entity.Property(item => item.CreateIdempotencyKey).HasMaxLength(80);
+            entity.HasIndex(item => new { item.AuthorUserId, item.CreateIdempotencyKey })
+                .IsUnique()
+                .HasFilter("[CreateIdempotencyKey] IS NOT NULL");
             entity.HasOne(item => item.Pet)
                 .WithMany(pet => pet.Memories)
                 .HasForeignKey(item => item.PetId)

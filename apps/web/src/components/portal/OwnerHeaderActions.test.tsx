@@ -42,6 +42,12 @@ vi.mock("@/services/apiConfig", () => ({
 }));
 
 vi.mock("@/services/momentService", () => ({
+  createMomentSaveSession: () => ({
+    idempotencyKey: `key-${Math.random()}`,
+    uploads: new Map(),
+    offered: new Set(),
+  }),
+  releaseMomentSaveSession: vi.fn(async () => undefined),
   createPetMoment: vi.fn(),
   getPetMoments: (...args: unknown[]) => mocks.getPetMoments(...args),
   deletePetMoment: vi.fn(),

@@ -13,7 +13,7 @@ import {
 } from "@/services/mockApi";
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
-import { uploadMediaFile } from "@/services/mediaService";
+import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import type {
   BackendMemory,
   BackendMemoryMedia,
@@ -147,39 +147,111 @@ export async function getPublicPetMoments(petId: string) {
   });
 }
 
+/**
+ * One Moment editor's save attempts, from opening it to closing it.
+ *
+ * A Moment is saved in two steps that cannot share a transaction: its files go
+ * to storage, then one request creates (or updates) the Moment with them. The
+ * session is what makes a second attempt safe after the first failed part-way:
+ *
+ * - `idempotencyKey` is sent with every create attempt from this editor. The
+ *   API returns the Moment that key already created instead of writing
+ *   another, so a retry after a timeout, a dropped connection or a second
+ *   press is never a duplicate.
+ * - `uploads` remembers every file already uploaded, so a retry uploads only
+ *   the ones that did not finish.
+ * - `offered` records every media id sent in a save request. Those may already
+ *   be attached to a Moment, even if the answer never arrived, so the client
+ *   never deletes them; anything uploaded and never offered is removed by
+ *   `releaseMomentSaveSession` when the editor closes.
+ */
+export type MomentSaveSession = {
+  readonly idempotencyKey: string;
+  readonly uploads: Map<File, MomentMedia>;
+  readonly offered: Set<string>;
+};
+
+export function createMomentSaveSession(): MomentSaveSession {
+  return {
+    idempotencyKey: newIdempotencyKey(),
+    uploads: new Map(),
+    offered: new Set(),
+  };
+}
+
+/**
+ * Removes files this session uploaded but never sent in a save — the draft
+ * was discarded, or its files changed after an upload failed. Best effort: a
+ * file left behind is attached to nothing and shown nowhere.
+ */
+export async function releaseMomentSaveSession(session: MomentSaveSession) {
+  if (!canUseApi()) return;
+
+  const unused = [...session.uploads.values()]
+    .map((media) => media.id)
+    .filter((id) => !session.offered.has(id));
+  session.uploads.clear();
+
+  await Promise.all(unused.map((id) => deleteMedia(id).catch(() => undefined)));
+}
+
+/**
+ * A photo or video did not upload, so nothing was saved: the Moment is
+ * created (or updated) only after every file is ready. Retrying with the same
+ * session uploads only what is missing.
+ */
+export class MomentMediaUploadError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    super(
+      "A photo or video didn't finish uploading, so this Moment hasn't been saved yet. Try again — anything that already uploaded won't upload twice.",
+      options
+    );
+    this.name = "MomentMediaUploadError";
+  }
+}
+
+function newIdempotencyKey() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `moment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Creates a Moment and its media in one request.
+ *
+ * Every file is uploaded first, unattached. Only then is the Moment created,
+ * naming those files, and the API writes the Moment and its media in one save.
+ * Nothing exists — and a Shared publicly Moment is visible nowhere — until
+ * that request succeeds, and a failed upload leaves no Moment behind.
+ *
+ * Pass the editor's `session` so a retry reuses its idempotency key and its
+ * finished uploads. Without one, the call is a single attempt.
+ */
 export async function createPetMoment(
   petId: string,
-  payload: PetMomentPayload
+  payload: PetMomentPayload,
+  session: MomentSaveSession = createMomentSaveSession()
 ) {
   if (canUseApi()) {
+    const media = await uploadMomentMediaFiles(petId, payload.media ?? [], session);
+    const body = {
+      ...buildBackendMomentPayload({ ...payload, media }),
+      idempotencyKey: session.idempotencyKey,
+    };
+    // Offered from here on: this request may attach them even if its answer
+    // is lost, so the client must never delete them.
+    for (const id of body.mediaFileIds) session.offered.add(id);
+
     const response = await apiRequest<BackendMemory>(
       `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
-      {
-        method: "POST",
-        body: buildBackendMomentPayload({ ...payload, media: [] }),
-      }
+      { method: "POST", body }
     );
-    let moment = response.data ? mapBackendMoment(response.data) : null;
+    const moment = response.data ? mapBackendMoment(response.data) : null;
 
     if (!moment) {
       throw new Error("Moment was not returned after saving.");
-    }
-
-    if (payload.media?.length) {
-      const media = await uploadMomentMediaFiles(petId, moment.id, payload.media);
-      const updateResponse = await apiRequest<BackendMemory>(
-        `/api/v1/memories/${encodeURIComponent(moment.id)}`,
-        {
-          method: "PUT",
-          body: buildBackendMomentPayload({
-            ...payload,
-            media,
-            coverMediaId: payload.coverMediaId,
-          }),
-        }
-      );
-
-      moment = updateResponse.data ? mapBackendMoment(updateResponse.data) : moment;
     }
 
     return apiResponse(moment, response.meta);
@@ -210,25 +282,35 @@ export async function createPetMoment(
   return mockResponse(moment);
 }
 
+/**
+ * Saves an edit. New files are uploaded first, unattached; the Moment's media
+ * list is then replaced in the same request as every other change, so a
+ * failed upload leaves the Moment exactly as it was. No idempotency key: the
+ * update names the whole media list, so repeating it is harmless.
+ */
 export async function updatePetMoment(
   momentId: string,
   payload: PetMomentPayload,
-  petId?: string
+  petId?: string,
+  session: MomentSaveSession = createMomentSaveSession()
 ) {
   if (canUseApi()) {
     try {
       const media = payload.media?.some((item) => item.sourceFile)
         ? await uploadMomentMediaFiles(
             requirePetIdForMediaUpload(petId),
-            momentId,
-            payload.media
+            payload.media,
+            session
           )
         : stripTransientMediaFiles(payload.media);
+      const body = buildBackendMomentPayload({ ...payload, media });
+      for (const id of body.mediaFileIds) session.offered.add(id);
+
       const response = await apiRequest<BackendMemory>(
         `/api/v1/memories/${encodeURIComponent(momentId)}`,
         {
           method: "PUT",
-          body: buildBackendMomentPayload({ ...payload, media }),
+          body,
         }
       );
 
@@ -288,6 +370,10 @@ export async function deletePetMoment(momentId: string) {
 }
 
 export function getFriendlyMomentErrorMessage(error: unknown) {
+  if (error instanceof MomentMediaUploadError) {
+    return error.message;
+  }
+
   if (isApiClientError(error)) {
     if (error.code === "plan_limit_reached") {
       return "You've reached the Free Moment limit for this pet. Existing Moments stay safe and Premium albums are coming soon.";
@@ -452,10 +538,15 @@ function fromBackendMomentType(type?: string | null): MomentType {
   }
 }
 
+/**
+ * Uploads the files a save needs, in order, skipping any this session has
+ * already uploaded. Uploads are for the pet, not a Moment: the API attaches
+ * them only when the save that names them succeeds.
+ */
 async function uploadMomentMediaFiles(
   petId: string,
-  momentId: string,
-  media: MomentMedia[]
+  media: MomentMedia[],
+  session: MomentSaveSession
 ) {
   const ordered = [...media].sort((a, b) => a.sortOrder - b.sortOrder);
   const uploaded: MomentMedia[] = [];
@@ -466,18 +557,36 @@ async function uploadMomentMediaFiles(
       continue;
     }
 
-    const completed = await uploadMediaFile({
-      file: item.sourceFile,
-      category: item.type === "video" ? "MomentVideo" : "MomentImage",
-      petId,
-      momentId,
-    });
+    let done = session.uploads.get(item.sourceFile);
+
+    if (!done) {
+      let completed: Awaited<ReturnType<typeof uploadMediaFile>>;
+      try {
+        completed = await uploadMediaFile({
+          file: item.sourceFile,
+          category: item.type === "video" ? "MomentVideo" : "MomentImage",
+          petId,
+          // A file that fails part-way removes its own pending record and
+          // object; nothing is left for a later sweep.
+          cleanupOnFailure: true,
+        });
+      } catch (error) {
+        throw new MomentMediaUploadError({ cause: error });
+      }
+
+      done = {
+        id: completed.mediaId,
+        type: item.type,
+        url: completed.publicUrl ?? item.url ?? "",
+        altText: completed.originalFileName,
+        sortOrder: item.sortOrder,
+      };
+      session.uploads.set(item.sourceFile, done);
+    }
 
     uploaded.push({
-      id: completed.mediaId,
-      type: item.type,
-      url: completed.publicUrl ?? item.url ?? "",
-      altText: item.altText ?? completed.originalFileName,
+      ...done,
+      altText: item.altText ?? done.altText,
       caption: item.caption,
       sortOrder: item.sortOrder,
     });

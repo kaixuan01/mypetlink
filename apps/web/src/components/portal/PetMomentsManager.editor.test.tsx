@@ -14,6 +14,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => false }));
 vi.mock("@/services/momentService", () => ({
+  createMomentSaveSession: () => ({
+    idempotencyKey: `key-${Math.random()}`,
+    uploads: new Map(),
+    offered: new Set(),
+  }),
+  releaseMomentSaveSession: vi.fn(async () => undefined),
   createPetMoment: (...args: unknown[]) => mocks.createPetMoment(...args),
   deletePetMoment: vi.fn(),
   getFriendlyMomentErrorMessage: () => "Please try again.",
@@ -132,6 +138,28 @@ describe("PetMomentsManager shared edit flow", () => {
     expect(screen.getByDisplayValue("Keep this caption")).toBeTruthy();
     expect(new URL(window.location.href).searchParams.get("edit")).toBe("new");
     expect(mocks.trackEvent).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed Create as the same attempt", async () => {
+    const created = { ...mockMoments[0], id: "moment-new", title: "Retry me" };
+    mocks.getPetMoments.mockResolvedValue({ data: [] });
+    mocks.createPetMoment
+      .mockRejectedValueOnce(new Error("failed"))
+      .mockResolvedValueOnce({ data: created });
+    render(<PetMomentsManager pet={mockPets[0]} initialMoments={[]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add Moment" }));
+    completeCreateForm("Retry me");
+    fireEvent.click(screen.getByRole("button", { name: "Add Moment" }));
+    expect(await screen.findByText("Please try again.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add Moment" }));
+    await waitFor(() => expect(mocks.createPetMoment).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Moment added.")).toBeTruthy();
+
+    // The retry carried the first press's save session: one idempotency key.
+    const [firstSession, retrySession] = mocks.createPetMoment.mock.calls.map((call) => call[2]);
+    expect(firstSession).toBeDefined();
+    expect(retrySession).toBe(firstSession);
   });
 
   it("deep-links the shared editor, saves, closes, and refreshes the rendered card", async () => {

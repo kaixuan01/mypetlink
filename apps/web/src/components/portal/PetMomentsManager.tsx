@@ -30,11 +30,14 @@ import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPets } from "@/services/petService";
 import {
+  createMomentSaveSession,
   createPetMoment,
   deletePetMoment,
   getFriendlyMomentErrorMessage,
   getPetMoments,
+  releaseMomentSaveSession,
   updatePetMoment,
+  type MomentSaveSession,
 } from "@/services/momentService";
 import type {
   PetListItem,
@@ -192,6 +195,19 @@ export function PetMomentsManager({
   const momentsRef = useRef(moments);
   const editorRef = useRef(editor);
   const editorDirtyRef = useRef(editorDirty);
+  /*
+    One save session per open editor: a retry after a failed upload or a lost
+    answer reuses its idempotency key and finished uploads, so it can never
+    create a second Moment. Released when the editor closes, which removes
+    files uploaded but never saved.
+  */
+  const saveSessionRef = useRef<MomentSaveSession | null>(null);
+  const endSaveSession = useCallback(() => {
+    const session = saveSessionRef.current;
+    saveSessionRef.current = null;
+    if (session) void releaseMomentSaveSession(session);
+  }, []);
+  useEffect(() => endSaveSession, [endSaveSession]);
   const memoryLimit = getMemoryLimitState(moments.length);
   const canCreateMemory = memoryLimit.canCreate && !archivedPet;
   const counts = useMemo(
@@ -247,19 +263,22 @@ export function PetMomentsManager({
   }, [pet.id]);
 
   const clearEditor = useCallback(() => {
+    endSaveSession();
     setEditor(null);
     setEditorDirty(false);
     setFormError("");
-  }, []);
+  }, [endSaveSession]);
 
   const showEditor = useCallback((nextEditor: MomentEditorState) => {
+    endSaveSession();
+    saveSessionRef.current = createMomentSaveSession();
     setEditor(nextEditor);
     setEditorDirty(false);
     setConfirmDiscard(false);
     setActionError("");
     setFormError("");
     setSuccess("");
-  }, []);
+  }, [endSaveSession]);
 
   const editorForKey = useCallback(
     (editorKey: string): MomentEditorState | null => {
@@ -329,10 +348,12 @@ export function PetMomentsManager({
     setSuccess("");
     setActionError("");
     setFormError("");
+    saveSessionRef.current ??= createMomentSaveSession();
+    const saveSession = saveSessionRef.current;
 
     try {
       if (currentEditor.mode === "create") {
-        const response = await createPetMoment(pet.id, payload);
+        const response = await createPetMoment(pet.id, payload, saveSession);
         setMoments((current) => [
           response.data,
           ...current.filter((moment) => moment.id !== response.data.id),
@@ -348,7 +369,8 @@ export function PetMomentsManager({
         const response = await updatePetMoment(
           currentEditor.moment.id,
           payload,
-          pet.id
+          pet.id,
+          saveSession
         );
         const savedMoment = response.data;
 

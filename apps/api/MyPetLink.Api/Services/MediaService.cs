@@ -375,18 +375,39 @@ public sealed class MediaService : SkeletonService, IMediaService
 
             case MediaUploadCategory.MomentImage:
             case MediaUploadCategory.MomentVideo:
-                var momentId = RequireGuid(request.MomentId, "momentId", "Moment is required.");
-                var memory = await _dbContext.PetMemories
-                    .Include(item => item.Pet)
-                    .SingleOrDefaultAsync(
-                        item =>
-                            item.Id == momentId
-                            && item.Pet.OwnerUserId == userId
-                            && item.Pet.DeletedAt == null
-                            && item.DeletedAt == null,
-                        cancellationToken)
-                    ?? throw NotFound("Moment was not found.");
-                return new UploadTarget(memory.PetId, MediaOwnerType.PetMemory, memory.Id);
+                // Moment media is uploaded UNLINKED. It joins a Moment only when
+                // the create or update that names it is saved — in the same
+                // save as the Moment itself — so a Moment is never visible with
+                // some of its files and not others, and a file that failed or
+                // was abandoned never appears on anything.
+                //
+                // It used to be linked here, at initialization: each file went
+                // live on the Moment as soon as its own upload completed, and a
+                // failed third file left a public Moment showing the first two.
+                //
+                // A momentId is still accepted (clients that create first and
+                // upload after send one) and is checked for ownership, but it
+                // links nothing. Without one the upload is for a pet the caller
+                // owns, before its Moment exists.
+                if (request.MomentId.HasValue)
+                {
+                    var momentId = request.MomentId.Value;
+                    var memory = await _dbContext.PetMemories
+                        .Include(item => item.Pet)
+                        .SingleOrDefaultAsync(
+                            item =>
+                                item.Id == momentId
+                                && item.Pet.OwnerUserId == userId
+                                && item.Pet.DeletedAt == null
+                                && item.DeletedAt == null,
+                            cancellationToken)
+                        ?? throw NotFound("Moment was not found.");
+                    return new UploadTarget(memory.PetId, null, memory.Id);
+                }
+
+                var momentPetId = RequireGuid(request.PetId, "petId", "Pet is required.");
+                await EnsureOwnedPetAsync(userId, momentPetId, cancellationToken);
+                return new UploadTarget(momentPetId, null, null);
 
             case MediaUploadCategory.OwnerAvatar:
                 // The social profile row is created on demand and starts fully
@@ -844,7 +865,9 @@ public sealed class MediaService : SkeletonService, IMediaService
         {
             MediaUploadCategory.PetProfilePhoto => $"pets/{petId}/profile/{randomName}",
             MediaUploadCategory.PetCoverPhoto => $"pets/{petId}/covers/{randomName}",
-            MediaUploadCategory.MomentImage or MediaUploadCategory.MomentVideo => $"pets/{petId}/moments/{ownerId}/{randomName}",
+            MediaUploadCategory.MomentImage or MediaUploadCategory.MomentVideo => ownerId.HasValue
+                ? $"pets/{petId}/moments/{ownerId}/{randomName}"
+                : $"pets/{petId}/moments/{randomName}",
             // Deliberately carries no account identifier. The owner may share
             // this URL, and the path should not disclose an internal user id
             // when a random name alone is already unguessable.
