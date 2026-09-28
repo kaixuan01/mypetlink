@@ -68,6 +68,10 @@ vi.mock("@/services/apiClient", async () => {
     ...actual,
     apiRequest: async (path: string, options: { method?: string; body?: Record<string, unknown> } = {}) => {
       const body = options.body ?? {};
+      if (String(body.title ?? "").length > 160) {
+        // Validation answers before the key is looked up, as in the real API.
+        throw new actual.ApiClientError(400, "validation_failed", "Title is too long.");
+      }
       const key = body.idempotencyKey as string;
       let saved = server.byKey.get(key);
       if (!saved) {
@@ -105,9 +109,9 @@ vi.mock("@/components/portal/MomentEditorDialog", () => ({
     onSubmit: (payload: unknown, extras: { collaboratorInvites: CollaborationInvite[] }) => void;
     error?: string;
   }) => {
-    const submit = (visibility: "Public" | "Private", handles: string[]) =>
+    const submit = (visibility: "Public" | "Private", handles: string[], title = "Beach day") =>
       onSubmit(
-        { title: "Beach day", date: "28 Sep 2026", type: "Other", caption: "", media: [], visibility, showInLifeTimeline: false },
+        { title, date: "28 Sep 2026", type: "Other", caption: "", media: [], visibility, showInLifeTimeline: false },
         {
           collaboratorInvites: handles.map((handle) => ({
             household: { handle, displayName: handle, avatarUrl: null, avatarThumbnailUrl: null },
@@ -122,6 +126,9 @@ vi.mock("@/components/portal/MomentEditorDialog", () => ({
         <button onClick={() => submit("Public", ["bravo"])} type="button">public, bravo</button>
         <button onClick={() => submit("Public", ["charlie"])} type="button">public, charlie</button>
         <button onClick={() => submit("Private", [])} type="button">private, nobody</button>
+        <button onClick={() => submit("Public", ["charlie"], "x".repeat(161))} type="button">
+          public, charlie, title too long
+        </button>
       </div>
     );
   },
@@ -190,6 +197,26 @@ describe("collaborator intent survives a replay unchanged", () => {
 
     expect(server.invited).toEqual([["bravo"]]);
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ audience: "Public" }));
+  });
+
+  it("lost answer, then a refused retry, then a replay — bravo, never charlie", async () => {
+    const onClose = vi.fn();
+    render(<CommunityMomentComposer onClose={onClose} />);
+
+    server.loseNextAnswer = true;
+    fireEvent.click(await screen.findByRole("button", { name: "public, bravo" }));
+    await screen.findByRole("alert");
+
+    // The owner switches to charlie with a title the server refuses.
+    fireEvent.click(screen.getByRole("button", { name: "public, charlie, title too long" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Title is too long."));
+
+    // Fixes the title, keeps charlie, and retries: the server replays bravo's Moment.
+    fireEvent.click(screen.getByRole("button", { name: "public, charlie" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    expect(server.byKey.size).toBe(1);
+    expect(server.invited).toEqual([["bravo"]]);
   });
 
   it("normal path: one press, the draft's collaborators are invited", async () => {

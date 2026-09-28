@@ -201,13 +201,23 @@ export type MomentSaveSession = {
   /**
    * What this create attempt meant beyond the Moment itself — side effects
    * the create request does not persist, such as whom to invite. Captured in
-   * the same step as the FIRST create request is sent, and reused unchanged by
-   * every retry of that attempt, because a retry is the same logical create:
-   * a replay returns the first request's Moment, so it must carry the first
-   * request's intent too. Released again only if the server definitely
-   * refused that request (nothing was created, so the next send is new).
+   * the same step as the first create request is sent, and reused unchanged
+   * by every retry of that attempt, because a retry is the same logical
+   * create: a replay returns the first committed request's Moment, so it must
+   * carry that request's intent too.
    */
   createIntent: MomentCreateIntent | null;
+  /**
+   * Whether ANY create request sent with this key may have committed: one
+   * succeeded, or its outcome is unknown (no answer, a timeout, a dropped
+   * connection, a server error, an unreadable reply). Once true it stays true
+   * for the session. A later refusal describes only that later request — the
+   * server validates a request before it looks the key up — so it proves
+   * nothing about an earlier one, and the intent stays bound to the key.
+   */
+  createMayHaveCommitted: boolean;
+  /** Create requests sent with this key whose outcome is not yet known. */
+  createRequestsInFlight: number;
   /** Invitations already handed out for a Moment, so a replay never repeats one. */
   readonly claimedInvites: Set<string>;
 };
@@ -250,6 +260,8 @@ export function createMomentSaveSession(): MomentSaveSession {
     closing: false,
     released: null,
     createIntent: null,
+    createMayHaveCommitted: false,
+    createRequestsInFlight: 0,
     claimedInvites: new Set(),
   };
 }
@@ -300,14 +312,21 @@ export class MomentSaveCancelledError extends Error {
 }
 
 /**
- * The server read the create and refused it, so it wrote nothing. 409 is not
- * one: it answers a key that already created something.
+ * This request provably created nothing: it was never sent (there is no
+ * connection configured), or the server read it and refused it before
+ * creating — validation, sign-in, ownership and rate limiting all run first.
+ *
+ * It says nothing about any EARLIER request with the same key; see
+ * `MomentSaveSession.createMayHaveCommitted`.
+ *
+ * Deliberately not included: 409 (it answers a key that already created a
+ * Moment), 5xx, and status 0 from a failed fetch — a dropped connection,
+ * reset or timeout may have happened after the server received the request.
  */
 function isDefiniteCreateRejection(error: unknown) {
-  return (
-    isApiClientError(error) &&
-    [400, 401, 403, 404, 422, 429].includes(error.status)
-  );
+  if (!isApiClientError(error)) return false;
+  if (error.status === 0) return error.code === "connection_not_configured";
+  return [400, 401, 403, 404, 422, 429].includes(error.status);
 }
 
 function ensureSessionOpen(session: MomentSaveSession) {
@@ -399,21 +418,37 @@ export async function createPetMoment(
       };
 
       let response: Awaited<ReturnType<typeof apiRequest<BackendMemory>>>;
+      let refusedWithoutCommitting = false;
+      session.createRequestsInFlight += 1;
       try {
         response = await apiRequest<BackendMemory>(
           `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
           { method: "POST", body }
         );
+        // Answered: committed now, or a replay of a commit made earlier.
+        // Either way this key has a Moment behind it.
+        session.createMayHaveCommitted = true;
       } catch (error) {
-        // A definite refusal (the request was read and rejected: nothing was
-        // created, the key was not used) leaves the attempt where it was
-        // before sending, so the draft's next send may carry a new intent.
-        // Anything else — no answer, a timeout, a server error — may have
-        // committed, so the intent stays frozen.
-        if (isDefiniteCreateRejection(error)) {
-          session.createIntent = null;
+        refusedWithoutCommitting = isDefiniteCreateRejection(error);
+        if (!refusedWithoutCommitting) {
+          // No answer, a timeout, a dropped connection, a server error: the
+          // server may well have committed. The client cannot know it did
+          // not, so from here on the intent belongs to the key.
+          session.createMayHaveCommitted = true;
         }
         throw error;
+      } finally {
+        session.createRequestsInFlight -= 1;
+        // The intent is released only when the whole attempt so far provably
+        // created nothing: this request was refused, no request with this key
+        // may have committed, and none is still waiting for its answer.
+        if (
+          refusedWithoutCommitting &&
+          !session.createMayHaveCommitted &&
+          session.createRequestsInFlight === 0
+        ) {
+          session.createIntent = null;
+        }
       }
       const moment = response.data ? mapBackendMoment(response.data) : null;
 

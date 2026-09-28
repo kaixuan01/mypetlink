@@ -29,6 +29,7 @@ const server = vi.hoisted(() => ({
   deleted: [] as string[],
   loseNextCreateAnswer: false,
   rejectNextCreate: null as null | { status: number; code: string },
+  neverSendNextCreate: false,
   nextMedia: 0,
   uploadGates: new Map<string, { promise: Promise<void> }>(),
   createGate: null as { promise: Promise<void> } | null,
@@ -120,6 +121,19 @@ vi.mock("@/services/apiClient", async () => {
         additionalPetIds: [],
       });
 
+      if (method === "POST" && server.neverSendNextCreate) {
+        // The transport refused before anything left the browser.
+        server.neverSendNextCreate = false;
+        server.requests.pop();
+        throw new actual.ApiClientError(0, "connection_not_configured", "MyPetLink connection is not configured.");
+      }
+
+      if (method === "POST" && String(body.title ?? "").length > 160) {
+        // Like the real API: model validation answers before the controller,
+        // so before any idempotency lookup — even for a key that committed.
+        throw new actual.ApiClientError(400, "validation_failed", "Title is too long.");
+      }
+
       if (method === "POST") {
         const rejection = server.rejectNextCreate;
         if (rejection) {
@@ -196,6 +210,7 @@ beforeEach(() => {
   server.deleted = [];
   server.loseNextCreateAnswer = false;
   server.rejectNextCreate = null;
+  server.neverSendNextCreate = false;
   server.nextMedia = 0;
   server.uploadGates = new Map();
   server.createGate = null;
@@ -703,5 +718,126 @@ describe("a replay keeps the first attempt's collaborator intent", () => {
     });
 
     expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["charlie"]);
+  });
+});
+
+describe("collaborator intent belongs to the key, not to the latest request", () => {
+  function household(handle: string): CollaborationInvite {
+    return {
+      household: { handle, displayName: handle, avatarUrl: null, avatarThumbnailUrl: null },
+      pets: [],
+    };
+  }
+  const handles = (invites: CollaborationInvite[]) => invites.map((invite) => invite.household.handle);
+  const tooLong = "x".repeat(161);
+
+  /** One press of Share with this title and these collaborators. */
+  function send(session: ReturnType<typeof createMomentSaveSession>, who: string, title = "Beach day") {
+    return createPetMoment("pet-1", { ...payload([]), title }, session, {
+      collaboratorInvites: [household(who)],
+    });
+  }
+
+  it("1: lost answer, then a refused retry, then a replay — the first intent survives", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(send(session, "bravo")).rejects.toThrow(); // committed, answer lost
+
+    await expect(send(session, "charlie", tooLong)).rejects.toMatchObject({ status: 400 });
+    // The 400 describes the retry only. Bravo's request may have committed.
+    expect(handles(session.createIntent!.collaboratorInvites)).toEqual(["bravo"]);
+
+    const replay = await send(session, "charlie");
+
+    expect(replay.data.title).toBe("Beach day");
+    expect(handles(claimCollaboratorInvites(session, replay.data))).toEqual(["bravo"]);
+    expect(server.momentsByKey.size).toBe(1);
+  });
+
+  it("2: a first request refused outright frees the intent for the next draft", async () => {
+    const session = createMomentSaveSession();
+    server.rejectNextCreate = { status: 422, code: "validation_failed" };
+    await expect(send(session, "bravo")).rejects.toMatchObject({ status: 422 });
+    expect(session.createIntent).toBeNull();
+
+    const created = await send(session, "charlie");
+
+    expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["charlie"]);
+  });
+
+  it("3: ambiguous first, then several refused retries — still the first intent", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true;
+    await expect(send(session, "bravo")).rejects.toThrow();
+    await expect(send(session, "charlie", tooLong)).rejects.toMatchObject({ status: 400 });
+    server.rejectNextCreate = { status: 422, code: "validation_failed" };
+    await expect(send(session, "delta")).rejects.toMatchObject({ status: 422 });
+    server.rejectNextCreate = { status: 429, code: "rate_limited" };
+    await expect(send(session, "echo")).rejects.toMatchObject({ status: 429 });
+
+    const replay = await send(session, "echo");
+
+    expect(handles(claimCollaboratorInvites(session, replay.data))).toEqual(["bravo"]);
+  });
+
+  it("4: refused first, then ambiguous, then refused — the ambiguous request's intent is kept", async () => {
+    const session = createMomentSaveSession();
+    server.rejectNextCreate = { status: 422, code: "validation_failed" };
+    await expect(send(session, "bravo")).rejects.toMatchObject({ status: 422 });
+    server.loseNextCreateAnswer = true;
+    await expect(send(session, "charlie")).rejects.toThrow(); // committed as charlie
+    await expect(send(session, "delta", tooLong)).rejects.toMatchObject({ status: 400 });
+
+    const replay = await send(session, "delta");
+
+    expect(handles(claimCollaboratorInvites(session, replay.data))).toEqual(["charlie"]);
+  });
+
+  it("5: after a successful answer, no later request replaces the intent", async () => {
+    const session = createMomentSaveSession();
+    const created = await send(session, "bravo");
+    expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["bravo"]);
+
+    await expect(send(session, "charlie", tooLong)).rejects.toMatchObject({ status: 400 });
+    server.rejectNextCreate = { status: 422, code: "validation_failed" };
+    await expect(send(session, "delta")).rejects.toMatchObject({ status: 422 });
+
+    expect(handles(session.createIntent!.collaboratorInvites)).toEqual(["bravo"]);
+    const again = await send(session, "echo");
+    expect(claimCollaboratorInvites(session, again.data)).toEqual([]);
+  });
+
+  it("6: a request that provably never left the browser frees the intent", async () => {
+    const session = createMomentSaveSession();
+    server.neverSendNextCreate = true;
+    await expect(send(session, "bravo")).rejects.toMatchObject({ code: "connection_not_configured" });
+    expect(session.createIntent).toBeNull();
+
+    const created = await send(session, "charlie");
+
+    expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["charlie"]);
+  });
+
+  it("a dropped connection is not proof: the intent stays frozen", async () => {
+    const session = createMomentSaveSession();
+    server.loseNextCreateAnswer = true; // status 0, service_unavailable
+    await expect(send(session, "bravo")).rejects.toMatchObject({ status: 0 });
+
+    expect(session.createMayHaveCommitted).toBe(true);
+    expect(handles(session.createIntent!.collaboratorInvites)).toEqual(["bravo"]);
+  });
+
+  it("a refusal while an earlier request is still unanswered releases nothing", async () => {
+    const session = createMomentSaveSession();
+    const gate = holdCreate();
+    const first = send(session, "bravo"); // committed, answer held
+    await settle();
+
+    await expect(send(session, "charlie", tooLong)).rejects.toMatchObject({ status: 400 });
+    expect(handles(session.createIntent!.collaboratorInvites)).toEqual(["bravo"]);
+
+    gate.resolve();
+    const created = await first;
+    expect(handles(claimCollaboratorInvites(session, created.data))).toEqual(["bravo"]);
   });
 });

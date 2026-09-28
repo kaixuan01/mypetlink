@@ -1496,8 +1496,17 @@ editor closes      -> files uploaded but never named in a save are deleted
   and every retry reuses them: a household added on retry is not invited, one
   removed on retry still is, and each invitation is claimed once per Moment
   (`claimCollaboratorInvites`). They are sent only for a Moment *saved* public.
-  A definite refusal (the server read the request and rejected it) releases
-  the intent, since nothing was created. The API itself refuses a second
+  The intent belongs to the idempotency key — the whole logical attempt —
+  not to the latest request. A refusal (400/401/403/404/422/429, or a request
+  never sent because no connection is configured) proves only that *that*
+  request created nothing; the server validates before it looks the key up,
+  so it says nothing about an earlier request with the same key. The intent
+  is released, and the next send may choose again, only when this request
+  was refused, no request with the key may have committed (none succeeded,
+  none ended ambiguously — no answer, dropped connection, timeout, abort, 5xx,
+  unreadable reply, 409), and none is still waiting for its answer. Once any
+  request may have committed, the intent stays frozen for the session's
+  lifetime. The API itself refuses a second
   invitation to the same household (409 `collaboration_already_invited`),
   which the client counts as sent.
 - **Editor instances own their UI.** Each opening of the Community composer
