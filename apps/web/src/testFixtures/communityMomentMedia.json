@@ -10,7 +10,8 @@
     "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
     "media": [],
     "likeCount": 2,
-    "viewerHasLiked": false
+    "viewerHasLiked": false,
+    "inCommunity": true
   },
   {
     "id": "c3-landscape",
@@ -23,7 +24,8 @@
     "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
     "media": [{ "id": "c3-landscape-image", "type": "image", "url": "https://c3-media.test/landscape.svg", "caption": null, "altText": "Mochi walking beside a wide blue lake", "sortOrder": 0 }],
     "likeCount": 3,
-    "viewerHasLiked": false
+    "viewerHasLiked": false,
+    "inCommunity": true
   },
   {
     "id": "c3-portrait",
@@ -36,7 +38,8 @@
     "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
     "media": [{ "id": "c3-portrait-image", "type": "image", "url": "https://c3-media.test/portrait.svg", "caption": null, "altText": "Mochi sitting tall beside a sunny window", "sortOrder": 0 }],
     "likeCount": 4,
-    "viewerHasLiked": false
+    "viewerHasLiked": false,
+    "inCommunity": true
   },
   {
     "id": "c3-multi-image",
@@ -53,7 +56,8 @@
       { "id": "c3-multi-square", "type": "image", "url": "https://c3-media.test/square.svg", "caption": "Ready to play", "altText": "Mochi beside a bright play ball", "sortOrder": 2 }
     ],
     "likeCount": 5,
-    "viewerHasLiked": false
+    "viewerHasLiked": false,
+    "inCommunity": true
   },
   {
     "id": "c3-video",
@@ -66,7 +70,8 @@
     "subjects": [{ "name": "Mochi", "publicSlug": "mochi-fixture", "photoUrl": null, "isPrimarySubject": true, "lostModeEnabled": false }],
     "media": [{ "id": "c3-video-media", "type": "video", "url": "https://c3-media.test/video.mp4", "caption": null, "altText": "Mochi playing in a colourful room", "sortOrder": 0 }],
     "likeCount": 6,
-    "viewerHasLiked": false
+    "viewerHasLiked": false,
+    "inCommunity": true
   },
   {
     "id": "c3-mixed-media",
@@ -82,6 +87,7 @@
       { "id": "c3-mixed-video", "type": "video", "url": "https://c3-media.test/video.mp4", "caption": null, "altText": "Mochi playing in a colourful room", "sortOrder": 1 }
     ],
     "likeCount": 7,
-    "viewerHasLiked": false
+    "viewerHasLiked": false,
+    "inCommunity": true
   }
 ]

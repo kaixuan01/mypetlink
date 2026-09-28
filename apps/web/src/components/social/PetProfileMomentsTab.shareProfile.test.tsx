@@ -143,15 +143,34 @@ describe("Share Profile Moments from a household outside Community", () => {
     expect(card.getAttribute("data-in-community")).toBeNull();
   });
 
-  it("treats an older response without the flag as Community, which is all it listed", async () => {
-    const legacy = apiMoment({});
-    delete (legacy as Record<string, unknown>).inCommunity;
-    api.items = [legacy];
+  it.each([
+    ["missing", undefined],
+    ["null", null],
+    ["a string", "true"],
+    ["a number", 1],
+  ])("fails closed when inCommunity is %s: no Community control or attribution", async (_label, value) => {
+    const response = apiMoment({
+      // Even a response that carries a household must not be shown as one
+      // unless it also says, explicitly, that the Moment is in Community.
+      author: { handle: "tanfamily", displayName: "The Tan Family", avatarUrl: null, avatarThumbnailUrl: null },
+      subjects: [{ name: "Mochi", publicSlug: "mochi-pubmochi", photoUrl: null, isPrimarySubject: true, lostModeEnabled: false }],
+      likeCount: 4,
+      inCommunity: value,
+    });
+    if (value === undefined) delete (response as Record<string, unknown>).inCommunity;
+    api.items = [response];
 
     render(<PetProfileMomentsTab petName="Mochi" publicSlug="mochi-pubmochi" />);
 
     const card = await screen.findByTestId("social-moment-card");
-    expect(card.querySelector('a[href^="/moments/"]')).not.toBeNull();
+    expect(card.textContent).toContain("Park run");
+    expect(card.querySelector('a[href^="/moments/"]')).toBeNull();
+    expect(card.querySelector('[data-testid^="like-button"]')).toBeNull();
+    expect(within(card).queryByTestId("moment-comment-action")).toBeNull();
+    expect(card.textContent).not.toContain("Tan Family");
+    expect(card.querySelector('a[href^="/u/"]')).toBeNull();
+    expect(card.querySelector('a[href^="/p/"]')).toBeNull();
+    expect(card.querySelector("header")).toBeNull();
   });
 
   it("keeps the existing empty state for a pet with no public Moments", async () => {

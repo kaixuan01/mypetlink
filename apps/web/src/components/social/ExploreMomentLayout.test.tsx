@@ -57,6 +57,8 @@ function moment(index: number): PublicMomentListItem {
     ],
     likeCount: 0,
     viewerHasLiked: false,
+    // Every Community listing says so explicitly; see isCommunityMoment.
+    inCommunity: true,
   };
 }
 

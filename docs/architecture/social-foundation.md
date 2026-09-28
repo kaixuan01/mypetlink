@@ -1426,10 +1426,17 @@ embedded Moments: the Share Profile is open (on, not deleted, not archived, a
 memorial only when kept on the Share Profile), and the Moment is shared
 publicly, published, and not deleted, archived or hidden by MyPetLink. Only me
 never passes. Each card carries `InCommunity` — whether the Moment is in
-`SocialVisibility.VisibleTo` for this viewer. A card that is not keeps its
-title, caption and media and loses its author, subjects, like and Comment
-counts and collaborators, and the web card offers no Moment page, Like or
-Comments. `/moments/{id}`, likes, Comments, the Community Profile, Home,
+`SocialVisibility.VisibleTo` for this viewer. A card that is not is rebuilt
+from an allow-list (`PublicSocialProfileService.PublicOnlyCard`): id, title,
+dates, type, caption and public media, with no author, subjects,
+collaborators, like or Comment counts or like state. It was first built by
+clearing fields on the Community card, which left the author in place whenever
+the household's Community Profile was on but the Moment was out of Community
+for another reason — a block either way, or a suspended or deleted author.
+
+The web reads the flag through one rule, `isCommunityMoment`: only an explicit
+`true` turns on a card's Moment page link, Like, Comments, household byline and
+pet row. Missing, false or malformed means none of them. `/moments/{id}`, likes, Comments, the Community Profile, Home,
 Explore and Search are unchanged; `ShareProfileBoundaryTests` pins that none of
 them gains anything.
 

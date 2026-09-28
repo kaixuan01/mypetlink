@@ -152,6 +152,8 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
       media: [],
       likeCount: 0,
       viewerHasLiked: false,
+      // Every Community listing says so explicitly; see isCommunityMoment.
+      inCommunity: true,
     })),
     nextCursor,
   };

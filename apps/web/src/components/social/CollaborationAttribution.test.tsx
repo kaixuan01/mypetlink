@@ -60,6 +60,8 @@ function moment(collaborations: PublicMomentCollaboration[] = []): PublicMomentL
     commentCount: 0,
     collaborations,
     viewerHasLiked: false,
+    // Every Community listing says so explicitly; see isCommunityMoment.
+    inCommunity: true,
   };
 }
 

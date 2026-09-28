@@ -226,6 +226,37 @@ public sealed class ShareProfileBoundaryTests
         return (embedded, listing);
     }
 
+    /// <summary>
+    /// The whole contract for a card that is NOT in Community for this viewer:
+    /// the Moment itself, and no Community identity or action — asserted on the
+    /// API object and on its JSON, so a field no UI renders yet cannot carry
+    /// the household either.
+    /// </summary>
+    private static void AssertPublicOnly(PublicMomentListItemResponse card, params string[] householdIdentity)
+    {
+        Assert.False(card.InCommunity);
+        Assert.Null(card.Author);
+        Assert.Empty(card.Subjects);
+        Assert.Empty(card.Collaborations);
+        Assert.Equal(0, card.LikeCount);
+        Assert.Equal(0, card.CommentCount);
+        Assert.False(card.ViewerHasLiked);
+        Assert.False(string.IsNullOrEmpty(card.Title));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(card);
+        foreach (var identity in householdIdentity)
+        {
+            Assert.DoesNotContain(identity, json, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>A Community card keeps everything Community gives it.</summary>
+    private static void AssertInCommunity(PublicMomentListItemResponse card, string handle)
+    {
+        Assert.True(card.InCommunity);
+        Assert.Equal(handle, card.Author!.Handle);
+    }
+
     [Fact]
     public async Task ShareProfileMoments_CommunityOn_ShowTheMomentWithEverythingCommunityAdds()
     {
@@ -236,9 +267,15 @@ public sealed class ShareProfileBoundaryTests
 
         Assert.Equal(["Beach day"], embedded);
         var card = Assert.Single(listing.Items);
-        Assert.True(card.InCommunity);
-        Assert.Equal("TanFamily", card.Author!.Handle);
+        AssertInCommunity(card, "TanFamily");
         Assert.Contains(card.Subjects, subject => subject.Name == "Mochi");
+
+        // Likes still land on it and show.
+        await harness.Likes.LikeAsync(SocialSurfaceHarness.BobId, card.Id);
+        var liked = Assert.Single((await harness.PublicProfiles.GetPetMomentsAsync(
+            "mochi-pubmochi", null, 50, SocialSurfaceHarness.BobId)).Items);
+        Assert.Equal(1, liked.LikeCount);
+        Assert.True(liked.ViewerHasLiked);
     }
 
     [Fact]
@@ -255,15 +292,8 @@ public sealed class ShareProfileBoundaryTests
         var (embedded, listing) = await ShareProfileMomentsAsync(harness, "hidden-pubhidden");
 
         Assert.Equal(["Park run"], embedded);
-        var card = Assert.Single(listing.Items);
-        Assert.False(card.InCommunity);
         // No Community identity, no pet named, no Community counts.
-        Assert.Null(card.Author);
-        Assert.Empty(card.Subjects);
-        Assert.Empty(card.Collaborations);
-        Assert.Equal(0, card.LikeCount);
-        Assert.Equal(0, card.CommentCount);
-        Assert.False(card.ViewerHasLiked);
+        AssertPublicOnly(Assert.Single(listing.Items), "DavePets", "Dave's Pets");
 
         // Community itself is unchanged: no Moment page, no likes.
         await Assert.ThrowsAsync<ApiException>(() => harness.PublicProfiles.GetMomentAsync(momentId));
@@ -297,9 +327,10 @@ public sealed class ShareProfileBoundaryTests
 
         Assert.Equal(["Nap"], embedded);
         var card = Assert.Single(listing.Items);
-        // Still the household's Community Moment, so its page exists; the pet
-        // that left Community is simply not named on it.
-        Assert.True(card.InCommunity);
+        // A pet out of Community is not a Moment out of Community: the
+        // household's Moment keeps its page and its byline; only the pet that
+        // left is not named on it.
+        AssertInCommunity(card, "TanFamily");
         Assert.DoesNotContain(card.Subjects, subject => subject.Name == "Mochi");
     }
 
@@ -382,29 +413,85 @@ public sealed class ShareProfileBoundaryTests
         CommunityModeration.RestrictHousehold(alice, SocialSurfaceHarness.BobId, DateTimeOffset.UtcNow);
         await harness.Db.SaveChangesAsync();
 
-        // Restriction is Community-only; the Share Profile is untouched.
+        // Restriction is Community-only; the Share Profile still shows the
+        // Moment, without the household's Community identity.
         var (_, listing) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
-        Assert.False(Assert.Single(listing.Items).InCommunity);
+        AssertPublicOnly(Assert.Single(listing.Items), "TanFamily", "The Tan Family");
 
         await Assert.ThrowsAsync<ApiException>(
             () => harness.PublicProfiles.GetOwnerMomentsAsync("tanfamily", null, 50));
         Assert.Empty((await harness.Discovery.GetLatestMomentsAsync(null, null, null, 50)).Items);
     }
 
-    [Fact]
-    public async Task ShareProfileMoments_AViewerBlockedEitherWay_GetsNoWayIntoCommunityFromThem()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ShareProfileMoments_ABlockEitherWay_RemovesCommunityIdentityForThatViewer(
+        bool authorBlocksViewer)
     {
         using var harness = await SocialSurfaceHarness.CreateAsync();
         await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
-        await harness.Graph.BlockAsync(SocialSurfaceHarness.AliceId, "limfamily", null);
+        if (authorBlocksViewer)
+        {
+            await harness.Graph.BlockAsync(SocialSurfaceHarness.AliceId, "limfamily", null);
+        }
+        else
+        {
+            await harness.Graph.BlockAsync(SocialSurfaceHarness.BobId, "tanfamily", null);
+        }
 
         var (_, forBob) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi", SocialSurfaceHarness.BobId);
         var (_, forAnyone) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
 
-        // The Share Profile is a public page; the block removes only the
-        // Community way in — the Moment page, likes and Comments.
-        Assert.False(Assert.Single(forBob.Items).InCommunity);
-        Assert.True(Assert.Single(forAnyone.Items).InCommunity);
+        // The Share Profile is a public page, so the Moment still shows; the
+        // block removes the Community way in — and the household's Community
+        // identity with it — for this viewer only.
+        AssertPublicOnly(Assert.Single(forBob.Items), "TanFamily", "The Tan Family");
+        AssertInCommunity(Assert.Single(forAnyone.Items), "TanFamily");
+    }
+
+    [Theory]
+    [InlineData("suspended")]
+    [InlineData("deleted")]
+    public async Task ShareProfileMoments_AnAuthorWhoIsNotActive_LeavesNoCommunityIdentity(string state)
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
+        var alice = await harness.Db.Users.SingleAsync(user => user.Id == SocialSurfaceHarness.AliceId);
+        if (state == "suspended")
+        {
+            alice.Status = UserStatus.Suspended;
+        }
+        else
+        {
+            alice.DeletedAt = DateTimeOffset.UtcNow;
+        }
+        await harness.Db.SaveChangesAsync();
+
+        // The Share Profile has never read account status, and that rule is
+        // unchanged here. What changes is that the card, being out of
+        // Community, no longer names the household: its Community Profile is
+        // still switched on, which is exactly how the byline leaked before.
+        var (_, listing) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
+        AssertPublicOnly(Assert.Single(listing.Items), "TanFamily", "The Tan Family");
+        await Assert.ThrowsAsync<ApiException>(
+            () => harness.PublicProfiles.GetMomentAsync(listing.Items.Single().Id));
+    }
+
+    [Fact]
+    public async Task ShareProfile_EmbeddedMoments_NameNoHouseholdOnPublicOnlyMoments()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.DaveId, SocialSurfaceHarness.HiddenId, "Park run", 10);
+
+        // The payload's own Moments (which offer the tab and fill the Timeline)
+        // name a household only for another household's Moment that is in
+        // Community; this one is neither.
+        var profile = await harness.PetShareProfiles.GetByPublicSlugAsync("hidden-pubhidden");
+        var memory = Assert.Single(profile.Memories);
+        Assert.Null(memory.MomentBy);
+        var json = System.Text.Json.JsonSerializer.Serialize(profile.Memories);
+        Assert.DoesNotContain("DavePets", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

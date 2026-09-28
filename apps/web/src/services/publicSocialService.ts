@@ -66,13 +66,26 @@ export type PublicMomentListItem = {
   viewerHasLiked: boolean;
   /**
    * Whether the Moment is in Community for this viewer: its own page, likes
-   * and Comments exist. False only on a pet's Share Profile, for a Moment
-   * shared publicly by a household outside Community — shown, but with
-   * nothing to open, like or comment on. Absent from older responses, which
-   * only ever listed Community Moments.
+   * and Comments exist. False on a pet's Share Profile for a Moment shown
+   * there without being in Community for this viewer — shown, but with nothing
+   * to open, like or comment on. Read it through `isCommunityMoment`.
    */
   inCommunity?: boolean;
 };
+
+/**
+ * The one rule for a Moment card's Community actions — its page, Like,
+ * Comments and household byline: only an explicit `true` from the API.
+ *
+ * Fail closed. A missing, false or malformed value, an older response, or a
+ * fixture that forgot the field all mean "not in Community", so nothing can
+ * switch those actions on by omission. Every card reads this, and
+ * `normalizeMoment` stores the same answer, so no component keeps a fallback
+ * of its own.
+ */
+export function isCommunityMoment(moment: Pick<PublicMomentListItem, "inCommunity">): boolean {
+  return moment.inCommunity === true;
+}
 
 export type PublicMomentPage = {
   items: PublicMomentListItem[];
@@ -245,6 +258,6 @@ function normalizeMoment(item: PublicMomentListItem): PublicMomentListItem {
       pets: collaboration.pets ?? [],
     })),
     viewerHasLiked: item.viewerHasLiked ?? false,
-    inCommunity: item.inCommunity ?? true,
+    inCommunity: isCommunityMoment(item),
   };
 }

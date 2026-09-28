@@ -71,6 +71,8 @@ function page(
       ],
       likeCount: 2,
       viewerHasLiked: false,
+      // Every Community listing says so explicitly; see isCommunityMoment.
+      inCommunity: true,
     })),
     nextCursor,
   };

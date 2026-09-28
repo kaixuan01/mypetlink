@@ -300,12 +300,8 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
     /// <summary>
     /// Says, per card, whether the Moment is in Community for this viewer —
     /// exactly the Moments <see cref="GetMomentAsync"/> and the like endpoints
-    /// would serve. Any other card keeps its title, caption and media and
-    /// loses everything that belongs to Community: likes, Comments,
-    /// collaborators and the pets it names (a pet's own Community switch does
-    /// not make it a Community subject while its household is out). Its author
-    /// is already absent, because the card projection names only Community
-    /// identities.
+    /// would serve. Any other card is rebuilt from what the Share Profile
+    /// itself may show — <see cref="PublicOnlyCard"/> — and nothing else.
     /// </summary>
     private async Task<PublicMomentPageResponse> MarkCommunityMomentsAsync(
         PublicMomentPageResponse page,
@@ -328,19 +324,43 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
         return page with
         {
             Items = page.Items
-                .Select(item => inCommunity.Contains(item.Id)
-                    ? item
-                    : item with
-                    {
-                        InCommunity = false,
-                        LikeCount = 0,
-                        CommentCount = 0,
-                        ViewerHasLiked = false,
-                        Subjects = Array.Empty<PublicMomentSubjectResponse>(),
-                        Collaborations = Array.Empty<PublicMomentCollaborationResponse>()
-                    })
+                .Select(item => inCommunity.Contains(item.Id) ? item : PublicOnlyCard(item))
                 .ToArray()
         };
+    }
+
+    /// <summary>
+    /// A Share Profile card for a Moment that is not in Community for this
+    /// viewer: the Moment itself — title, dates, type, caption, public media —
+    /// and no Community identity or action at all.
+    ///
+    /// Built field by field from an allow-list rather than by clearing fields
+    /// on the Community card. Clearing is what leaked: the card projection
+    /// names an author whenever the household's Community Profile is on, but a
+    /// Moment is only in Community when its author is also Active, not deleted,
+    /// and on neither side of a block with the viewer. A suspended or deleted
+    /// author, or a block, therefore produced <c>InCommunity = false</c> with
+    /// the household's handle still attached. A new field added to the card
+    /// must be decided here, deliberately, before a public-only card can carry
+    /// it.
+    /// </summary>
+    private static PublicMomentListItemResponse PublicOnlyCard(PublicMomentListItemResponse card)
+    {
+        return new PublicMomentListItemResponse(
+            card.Id,
+            card.Title,
+            card.MomentDate,
+            card.PublishedAt,
+            card.Type,
+            card.Caption,
+            Author: null,
+            Subjects: Array.Empty<PublicMomentSubjectResponse>(),
+            card.Media,
+            LikeCount: 0,
+            CommentCount: 0,
+            Collaborations: Array.Empty<PublicMomentCollaborationResponse>(),
+            ViewerHasLiked: false,
+            InCommunity: false);
     }
 
     /// <summary>

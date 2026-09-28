@@ -99,6 +99,8 @@ function momentPage(titles: string[]): PublicMomentPage {
       media: [],
       likeCount: 0,
       viewerHasLiked: false,
+      // Every Community listing says so explicitly; see isCommunityMoment.
+      inCommunity: true,
     })),
     nextCursor: null,
   };

@@ -15,7 +15,10 @@ import {
 } from "@/components/social/SocialMomentParts";
 import { momentNavigationPath } from "@/lib/momentNavigation";
 import { toViewerMedia } from "@/lib/socialMomentMedia";
-import type { PublicMomentListItem } from "@/services/publicSocialService";
+import {
+  isCommunityMoment,
+  type PublicMomentListItem,
+} from "@/services/publicSocialService";
 
 export type MomentLikeChange = {
   likeCount: number;
@@ -69,35 +72,40 @@ export function SocialMomentCard({
     [moment.media, moment.title]
   );
   /*
-    A Moment outside Community — shown on a pet's Share Profile because it was
-    shared publicly, by a household that is not in Community — has no page of
-    its own, no likes and no Comments. Its card shows the Moment and offers
-    none of those, rather than links the API would refuse.
+    A Moment not in Community for this viewer — shown on a pet's Share Profile
+    because it was shared publicly — has no page of its own, no likes, no
+    Comments and no Community attribution. Its card shows the Moment and none
+    of those: no links the API would refuse, and no household or pet row, not
+    even an empty one. Only an explicit `inCommunity: true` turns them on.
   */
-  const openHref =
-    moment.inCommunity === false ? undefined : momentNavigationPath(moment.id, returnTo);
+  const inCommunity = isCommunityMoment(moment);
+  const openHref = inCommunity
+    ? momentNavigationPath(moment.id, returnTo)
+    : undefined;
 
   return (
     <article
       className={`brand-card overflow-hidden rounded-[1.5rem] p-0 ${className}`}
-      data-in-community={moment.inCommunity === false ? "false" : undefined}
+      data-in-community={openHref ? undefined : "false"}
       data-testid="social-moment-card"
     >
-      <header className="flex flex-col gap-1.5 p-3 pb-2">
-        <MomentSubjects subjects={allMomentPets(moment)} />
-        {showAuthor && moment.author ? (
-          <MomentByline
-            author={moment.author}
-            collaborators={collaboratorHouseholds(moment)}
-            prefix={authorPrefix}
-            now={now}
-            publishedAt={moment.publishedAt}
-          />
-        ) : null}
-        {!(showAuthor && moment.author) ? (
-          <MomentCollaboratorsLine collaborators={collaboratorHouseholds(moment)} />
-        ) : null}
-      </header>
+      {inCommunity ? (
+        <header className="flex flex-col gap-1.5 p-3 pb-2">
+          <MomentSubjects subjects={allMomentPets(moment)} />
+          {showAuthor && moment.author ? (
+            <MomentByline
+              author={moment.author}
+              collaborators={collaboratorHouseholds(moment)}
+              prefix={authorPrefix}
+              now={now}
+              publishedAt={moment.publishedAt}
+            />
+          ) : null}
+          {!(showAuthor && moment.author) ? (
+            <MomentCollaboratorsLine collaborators={collaboratorHouseholds(moment)} />
+          ) : null}
+        </header>
+      ) : null}
 
       {media.length > 0 ? (
         <MomentMediaCarousel
@@ -221,6 +229,10 @@ export function SocialMomentTile({
   analyticsSource = "direct",
   returnTo,
 }: SocialMomentTileProps) {
+  // Same contract as the card: Community links, actions and attribution only
+  // for an explicit `inCommunity: true`.
+  const inCommunity = isCommunityMoment(moment);
+
   return (
     <figure
       className="brand-card relative m-0 flex h-full flex-col overflow-hidden rounded-[1.25rem] p-0"
@@ -230,56 +242,66 @@ export function SocialMomentTile({
 
       <figcaption className="flex flex-1 flex-col gap-1.5 p-3">
         <h3 className="text-sm font-black">
-          <Link
-            // No display utility beside line-clamp-2. The clamp works by setting
-            // `display: -webkit-box`, so a `block` next to it silently wins in
-            // the cascade and the title grows to whatever length it likes — which
-            // is exactly the uneven-tile problem this is here to solve.
-            className="line-clamp-2 min-h-[2.5rem] text-pet-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
-            data-testid="moment-title"
-            href={momentNavigationPath(moment.id, returnTo)}
-          >
-            {moment.title}
-          </Link>
+          {inCommunity ? (
+            <Link
+              // No display utility beside line-clamp-2. The clamp works by setting
+              // `display: -webkit-box`, so a `block` next to it silently wins in
+              // the cascade and the title grows to whatever length it likes — which
+              // is exactly the uneven-tile problem this is here to solve.
+              className="line-clamp-2 min-h-[2.5rem] text-pet-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+              data-testid="moment-title"
+              href={momentNavigationPath(moment.id, returnTo)}
+            >
+              {moment.title}
+            </Link>
+          ) : (
+            <span className="line-clamp-2 min-h-[2.5rem] text-pet-ink" data-testid="moment-title">
+              {moment.title}
+            </span>
+          )}
         </h3>
 
-        <div className="relative z-10 min-h-8">
-          <MomentSubjects size="sm" subjects={allMomentPets(moment)} />
-        </div>
+        {inCommunity ? (
+          <>
+            <div className="relative z-10 min-h-8">
+              <MomentSubjects size="sm" subjects={allMomentPets(moment)} />
+            </div>
 
-        {showAuthor && moment.author ? (
-          <div className="relative z-10">
-            <MomentByline
-              author={moment.author}
-              collaborators={collaboratorHouseholds(moment)}
-              compact
-              publishedAt={null}
-            />
-          </div>
-        ) : null}
-        {!(showAuthor && moment.author) && (moment.collaborations ?? []).length > 0 ? (
-          <div className="relative z-10">
-            <MomentCollaboratorsLine collaborators={collaboratorHouseholds(moment)} compact />
-          </div>
-        ) : null}
+            {showAuthor && moment.author ? (
+              <div className="relative z-10">
+                <MomentByline
+                  author={moment.author}
+                  collaborators={collaboratorHouseholds(moment)}
+                  compact
+                  publishedAt={null}
+                />
+              </div>
+            ) : null}
+            {!(showAuthor && moment.author) && (moment.collaborations ?? []).length > 0 ? (
+              <div className="relative z-10">
+                <MomentCollaboratorsLine collaborators={collaboratorHouseholds(moment)} compact />
+              </div>
+            ) : null}
 
-        <div className="relative z-10 -ml-2 mt-auto flex items-center gap-1 pt-1">
-          <LikeButton
-            analyticsSource={analyticsSource}
-            likeCount={moment.likeCount}
-            momentId={moment.id}
-            momentTitle={moment.title}
-            onChange={(state) => onLikeChange(moment.id, state)}
-            signedIn={signedIn}
-            viewerHasLiked={moment.viewerHasLiked}
-          />
-          <CommentAction
-            returnTo={returnTo}
-            commentCount={moment.commentCount ?? 0}
-            momentId={moment.id}
-            momentTitle={moment.title}
-          />
-        </div>
+            <div className="relative z-10 -ml-2 mt-auto flex items-center gap-1 pt-1">
+              <LikeButton
+                analyticsSource={analyticsSource}
+                likeCount={moment.likeCount}
+                momentId={moment.id}
+                momentTitle={moment.title}
+                onChange={(state) => onLikeChange(moment.id, state)}
+                signedIn={signedIn}
+                viewerHasLiked={moment.viewerHasLiked}
+              />
+              <CommentAction
+                returnTo={returnTo}
+                commentCount={moment.commentCount ?? 0}
+                momentId={moment.id}
+                momentTitle={moment.title}
+              />
+            </div>
+          </>
+        ) : null}
       </figcaption>
     </figure>
   );

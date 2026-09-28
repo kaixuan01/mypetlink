@@ -85,6 +85,8 @@ function page(
       ],
       likeCount: 3,
       viewerHasLiked: false,
+      // Every Community listing says so explicitly; see isCommunityMoment.
+      inCommunity: true,
     })),
     nextCursor,
   };

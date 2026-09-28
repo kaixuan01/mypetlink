@@ -60,6 +60,8 @@ function moment(overrides: Partial<PublicMomentListItem> = {}): PublicMomentList
     likeCount: 2,
     commentCount: 5,
     viewerHasLiked: false,
+    // Every Community listing says so explicitly; see isCommunityMoment.
+    inCommunity: true,
     ...overrides,
   };
 }
