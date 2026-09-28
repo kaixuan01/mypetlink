@@ -222,7 +222,22 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
     }
 
     /// <summary>
-    /// A page of public Moments a pet is a subject of.
+    /// A page of public Moments a pet is a subject of — the Moments tab of its
+    /// Share Profile.
+    ///
+    /// <b>Share Profile rules, not Community rules.</b> This listing belongs to
+    /// <c>/p/{slug}</c>, which works whether or not the household or the pet
+    /// takes part in Community. It selects through
+    /// <see cref="ShareProfileVisibility"/> — the same rule as the Moments
+    /// embedded in the Share Profile payload, which decides whether the tab is
+    /// offered — so the tab can never be shown and then refused. It used to
+    /// require both Community switches, and every owner outside Community saw
+    /// "couldn't load" under a tab their own page had offered.
+    ///
+    /// Community still decides what a card may DO: its own page, likes and
+    /// Comments exist only for a Moment in Community for this viewer, and each
+    /// card says so in <c>InCommunity</c>. A card outside Community names no
+    /// household, carries no like or Comment count, and links nowhere.
     ///
     /// Matches the pet on <c>PetMemories.PetId</c> OR membership in
     /// <c>MomentPets</c>: the primary pet's own page must not depend on a join
@@ -238,7 +253,9 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
     {
         var publicCode = PetDtoMapper.ExtractPublicCode(publicSlug ?? "");
 
-        var pet = await SociallyVisiblePets(_dbContext.Pets)
+        var pet = await _dbContext.Pets
+            .AsNoTracking()
+            .WithOpenShareProfile()
             .Where(item => item.PublicProfile!.PublicCode == publicCode)
             .Select(item => new
             {
@@ -266,7 +283,9 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
             .Where(subject => subject.PetId == petId)
             .Select(subject => subject.MomentId);
 
-        var query = SociallyVisibleMoments()
+        var query = _dbContext.PetMemories
+            .AsNoTracking()
+            .SharedOnShareProfile()
             .Where(moment =>
                 ((moment.PetId == petId
                         || moment.MomentPets.Any(subject =>
@@ -274,7 +293,54 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
                     && (showMoments || (showTimeline && moment.ShowInLifeTimeline)))
                 || (showMoments && collaborated.Contains(moment.Id)));
 
-        return await PageMomentsAsync(query, cursor, pageSize, viewerId, cancellationToken);
+        var page = await PageMomentsAsync(query, cursor, pageSize, viewerId, cancellationToken);
+        return await MarkCommunityMomentsAsync(page, viewerId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Says, per card, whether the Moment is in Community for this viewer —
+    /// exactly the Moments <see cref="GetMomentAsync"/> and the like endpoints
+    /// would serve. Any other card keeps its title, caption and media and
+    /// loses everything that belongs to Community: likes, Comments,
+    /// collaborators and the pets it names (a pet's own Community switch does
+    /// not make it a Community subject while its household is out). Its author
+    /// is already absent, because the card projection names only Community
+    /// identities.
+    /// </summary>
+    private async Task<PublicMomentPageResponse> MarkCommunityMomentsAsync(
+        PublicMomentPageResponse page,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        if (page.Items.Count == 0)
+        {
+            return page;
+        }
+
+        var ids = page.Items.Select(item => item.Id).ToArray();
+        var inCommunity = (await _dbContext.PetMemories
+                .VisibleTo(_dbContext, viewerId)
+                .Where(moment => ids.Contains(moment.Id))
+                .Select(moment => moment.Id)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        return page with
+        {
+            Items = page.Items
+                .Select(item => inCommunity.Contains(item.Id)
+                    ? item
+                    : item with
+                    {
+                        InCommunity = false,
+                        LikeCount = 0,
+                        CommentCount = 0,
+                        ViewerHasLiked = false,
+                        Subjects = Array.Empty<PublicMomentSubjectResponse>(),
+                        Collaborations = Array.Empty<PublicMomentCollaborationResponse>()
+                    })
+                .ToArray()
+        };
     }
 
     /// <summary>

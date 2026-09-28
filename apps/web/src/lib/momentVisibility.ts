@@ -42,7 +42,7 @@ export const momentAudienceOptions: ReadonlyArray<{
     value: "Public",
     label: momentAudienceLabels.Public,
     description:
-      "Appears on your pet's Share Profile and your Community Profile, and may appear in Community feeds or Explore when your profile and pet are discoverable.",
+      "Appears on your pet's Share Profile. If you're in Community, it also appears on your Community Profile, and may appear in Community feeds or Explore when your profile and pet are discoverable.",
   },
 ];
 

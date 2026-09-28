@@ -68,10 +68,19 @@ export function SocialMomentCard({
     () => toViewerMedia(moment.media, moment.title),
     [moment.media, moment.title]
   );
+  /*
+    A Moment outside Community — shown on a pet's Share Profile because it was
+    shared publicly, by a household that is not in Community — has no page of
+    its own, no likes and no Comments. Its card shows the Moment and offers
+    none of those, rather than links the API would refuse.
+  */
+  const openHref =
+    moment.inCommunity === false ? undefined : momentNavigationPath(moment.id, returnTo);
 
   return (
     <article
       className={`brand-card overflow-hidden rounded-[1.5rem] p-0 ${className}`}
+      data-in-community={moment.inCommunity === false ? "false" : undefined}
       data-testid="social-moment-card"
     >
       <header className="flex flex-col gap-1.5 p-3 pb-2">
@@ -95,40 +104,44 @@ export function SocialMomentCard({
           autoplayVideoWhenVisible
           caption={moment.caption ?? undefined}
           media={media}
-          openHref={momentNavigationPath(moment.id, returnTo)}
+          openHref={openHref}
           title={moment.title}
         />
-      ) : (
+      ) : openHref ? (
         // A Moment with no media still has to be openable. The title is drawn
         // inside this frame rather than under it, so without a link here the
         // card had nothing at all pointing at the Moment's own page — which is
         // what a grid tile, whose title always carried one, never suffered.
         <Link
           className="block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pet-teal"
-          href={momentNavigationPath(moment.id, returnTo)}
+          href={openHref}
         >
           <MomentMedia aspect="auto" moment={moment} />
         </Link>
+      ) : (
+        <MomentMedia aspect="auto" moment={moment} />
       )}
 
       <div className="p-3">
-        <div className="-ml-2 flex items-center gap-1">
-          <LikeButton
-            analyticsSource={analyticsSource}
-            likeCount={moment.likeCount}
-            momentId={moment.id}
-            momentTitle={moment.title}
-            onChange={(state) => onLikeChange(moment.id, state)}
-            signedIn={signedIn}
-            viewerHasLiked={moment.viewerHasLiked}
-          />
-          <CommentAction
-            returnTo={returnTo}
-            commentCount={moment.commentCount ?? 0}
-            momentId={moment.id}
-            momentTitle={moment.title}
-          />
-        </div>
+        {openHref ? (
+          <div className="-ml-2 flex items-center gap-1">
+            <LikeButton
+              analyticsSource={analyticsSource}
+              likeCount={moment.likeCount}
+              momentId={moment.id}
+              momentTitle={moment.title}
+              onChange={(state) => onLikeChange(moment.id, state)}
+              signedIn={signedIn}
+              viewerHasLiked={moment.viewerHasLiked}
+            />
+            <CommentAction
+              returnTo={returnTo}
+              commentCount={moment.commentCount ?? 0}
+              momentId={moment.id}
+              momentTitle={moment.title}
+            />
+          </div>
+        ) : null}
 
         {/*
           The words of the Moment open the Moment — the title and the caption
@@ -141,12 +154,16 @@ export function SocialMomentCard({
           {moment.media.length > 0 ? (
             // A Moment with no media already shows its title in the frame above.
             <h3 className="mt-1 text-sm font-black" data-testid="moment-title">
-              <Link
-                className="text-pet-ink transition after:absolute after:inset-0 after:content-[''] hover:text-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
-                href={momentNavigationPath(moment.id, returnTo)}
-              >
-                {moment.title}
-              </Link>
+              {openHref ? (
+                <Link
+                  className="text-pet-ink transition after:absolute after:inset-0 after:content-[''] hover:text-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+                  href={openHref}
+                >
+                  {moment.title}
+                </Link>
+              ) : (
+                <span className="text-pet-ink">{moment.title}</span>
+              )}
             </h3>
           ) : null}
           {moment.caption ? (
@@ -154,7 +171,7 @@ export function SocialMomentCard({
               {moment.caption}
             </p>
           ) : null}
-          {moment.media.length === 0 && moment.caption ? (
+          {moment.media.length === 0 && moment.caption && openHref ? (
             // A text-only Moment's title link is the frame above, so the caption
             // gets a pointer-only cover to the same page. It is empty and out of
             // the tab order, so it adds no second name and no second stop, and
@@ -163,7 +180,7 @@ export function SocialMomentCard({
               aria-hidden="true"
               className="absolute inset-0"
               data-testid="moment-card-body-open"
-              href={momentNavigationPath(moment.id, returnTo)}
+              href={openHref}
               tabIndex={-1}
             />
           ) : null}

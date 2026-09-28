@@ -324,8 +324,12 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             : [];
         var collaboratedIds = collaborated.Select(row => row.MomentId).ToArray();
 
+        // The Share Profile's own rule, shared with the paged Moments listing
+        // (PublicSocialProfileService.GetPetMomentsAsync), so the tab this list
+        // offers is always one that listing can fill.
         var memories = await _dbContext.PetMemories
             .AsNoTracking()
+            .SharedOnShareProfile()
             .Where(memory => collaboratedIds.Contains(memory.Id) || (
                 // Subject membership: a Moment about Mochi and Coco belongs on
                 // both pets' profiles.
@@ -339,12 +343,6 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 (memory.PetId == source.PetId
                     || memory.MomentPets.Any(subject =>
                         subject.PetId == source.PetId && subject.CollaborationId == null))
-                && memory.DeletedAt == null
-                && memory.ArchivedAt == null
-                && memory.Visibility == MemoryVisibility.Public
-                // Hidden by MyPetLink is hidden on the Share Profile too — its
-                // Moments and its Timeline — not only in Community.
-                && memory.ModeratedAt == null
                 && (showMoments || (showTimeline && memory.ShowInLifeTimeline))))
             .OrderByDescending(memory => memory.MomentDate)
             .ThenByDescending(memory => memory.CreatedAt)

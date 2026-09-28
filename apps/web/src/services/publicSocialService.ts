@@ -64,6 +64,14 @@ export type PublicMomentListItem = {
   collaborations?: PublicMomentCollaboration[];
   /** Always false for a visitor with no session. */
   viewerHasLiked: boolean;
+  /**
+   * Whether the Moment is in Community for this viewer: its own page, likes
+   * and Comments exist. False only on a pet's Share Profile, for a Moment
+   * shared publicly by a household outside Community — shown, but with
+   * nothing to open, like or comment on. Absent from older responses, which
+   * only ever listed Community Moments.
+   */
+  inCommunity?: boolean;
 };
 
 export type PublicMomentPage = {
@@ -237,5 +245,6 @@ function normalizeMoment(item: PublicMomentListItem): PublicMomentListItem {
       pets: collaboration.pets ?? [],
     })),
     viewerHasLiked: item.viewerHasLiked ?? false,
+    inCommunity: item.inCommunity ?? true,
   };
 }

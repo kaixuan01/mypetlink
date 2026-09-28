@@ -511,19 +511,25 @@ public sealed class PetSocialSettingsTests
         await harness.AddMomentAsync(
             SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Second walk", 20);
 
-        // While the pet is out of Social its Moments tab is not a page at all,
-        // which is the existing rule: not an empty list, no such profile.
-        await Assert.ThrowsAsync<ApiException>(() =>
-            harness.PublicProfiles.GetPetMomentsAsync("mochi-pubmochi", null, null));
+        // While the pet is out of Community its Share Profile still shows its
+        // public Moments — the Share Profile never depends on Community — and
+        // the pet is named on none of them.
+        var before = await harness.PublicProfiles.GetPetMomentsAsync(
+            "mochi-pubmochi", null, null);
+        Assert.Equal(2, before.Items.Count);
+        Assert.All(before.Items, item => Assert.Empty(item.Subjects));
 
         await harness.PetSettings.UpdateAsync(
             SocialSurfaceHarness.AliceId,
             SocialSurfaceHarness.MochiId,
             Set(social: true));
 
+        // Joining changes only what Community may say about them: the same two
+        // Moments, now naming the pet. Nothing was written to them either way.
         var after = await harness.PublicProfiles.GetPetMomentsAsync(
             "mochi-pubmochi", null, null);
         Assert.Equal(2, after.Items.Count);
+        Assert.All(after.Items, item => Assert.Contains(item.Subjects, subject => subject.Name == "Mochi"));
     }
 
     [Fact]

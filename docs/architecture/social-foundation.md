@@ -198,7 +198,7 @@ and each is given independently:
 
 | Control | Where the owner sets it | What it decides |
 | --- | --- | --- |
-| **Owner Social** — `OwnerSocialProfiles.IsSocialEnabled` | Community → Edit profile, "Turn on my Community Profile" | Whether the household participates at all. A master switch: with it off, no pet of theirs is visible however its own switches are set. |
+| **Owner Social** — `OwnerSocialProfiles.IsSocialEnabled` | Community → Edit profile, "Turn on my Community Profile" | Whether the household participates at all. A master switch for Community: with it off, no pet of theirs is visible in Community however its own switches are set. Share Profiles are not Community and are unaffected. |
 | **Pet Social** — `PetSocialProfiles.IsSocialEnabled` | Community → Edit profile → Pets, "Show {pet} in Community" | Whether this particular pet appears on the owner's Social profile, in Social Moments, and in their followers' feeds. |
 | **Pet discoverability** — `PetSocialProfiles.IsDiscoverable` | Community → Edit profile → Pets, "Let people find {pet} when browsing" | Whether somebody who was *not* given a link may meet this pet through Explore and Search. |
 
@@ -577,7 +577,7 @@ as of the end of Phase 1L.
 | Explore | `/explore` | public |
 | Search | `/search` | public, `noindex` |
 | Activity | `/notifications` | signed in only |
-| Pet Moments | `/p/{slug}` Moments tab | public |
+| Pet Moments | `/p/{slug}` Moments tab | public — Share Profile rules, not Community (§12j) |
 | Safety → Share Profile bridge | bottom of `/q/{code}` | finder |
 
 **One card projection.** `SocialMomentProjection` turns an already-narrowed
@@ -1411,6 +1411,27 @@ reloads the first page at the top (reproduced: 20 loaded cards at ~11,500px
 came back as 12 cards at ~780px on browser Back, and at the top via "Back to
 Explore"). Keeping cursor pages and scroll position needs list state that
 outlives the route, which is deliberately out of Phase 3A.
+
+## 12j. Share Profile Moments are not a Community surface
+
+The Moments tab on `/p/{slug}` used to be filled from
+`GET /public/pets/{slug}/moments`, which applied `SocialVisibility`: owner and
+pet Community on, pet Active. The tab itself was offered from the Moments
+embedded in the Share Profile payload, which never asked about Community. So an
+owner outside Community — or a pet taken out of Community, or a memorial pet —
+got a Moments tab that always said it "couldn't load".
+
+The listing now selects through `ShareProfileVisibility`, the same rule as the
+embedded Moments: the Share Profile is open (on, not deleted, not archived, a
+memorial only when kept on the Share Profile), and the Moment is shared
+publicly, published, and not deleted, archived or hidden by MyPetLink. Only me
+never passes. Each card carries `InCommunity` — whether the Moment is in
+`SocialVisibility.VisibleTo` for this viewer. A card that is not keeps its
+title, caption and media and loses its author, subjects, like and Comment
+counts and collaborators, and the web card offers no Moment page, Like or
+Comments. `/moments/{id}`, likes, Comments, the Community Profile, Home,
+Explore and Search are unchanged; `ShareProfileBoundaryTests` pins that none of
+them gains anything.
 
 ## 13. Deliberately deferred Community work
 

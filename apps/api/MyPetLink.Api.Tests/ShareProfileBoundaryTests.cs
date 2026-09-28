@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Common;
+using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Tests;
@@ -201,6 +203,235 @@ public sealed class ShareProfileBoundaryTests
         Assert.Equal("Mochi", safety.Name);
         Assert.Equal("Active", safety.State);
         Assert.Equal("mochi-pubmochi", safety.PublicProfileSlug);
+    }
+
+    // ---------------------------------------------------------------------
+    // Share Profile Moments follow Share Profile rules, not Community rules
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// The Moments tab is offered from the Moments embedded in the Share Profile
+    /// payload and filled from the paged listing. Both must answer the same
+    /// question, or the page offers a tab and then fails to fill it.
+    /// </summary>
+    private static async Task<(string[] Embedded, PublicMomentPageResponse Listing)> ShareProfileMomentsAsync(
+        SocialSurfaceHarness harness,
+        string slug,
+        Guid? viewerId = null)
+    {
+        var profile = await harness.PetShareProfiles.GetByPublicSlugAsync(slug);
+        var listing = await harness.PublicProfiles.GetPetMomentsAsync(slug, null, 50, viewerId);
+        var embedded = profile.Memories.Select(memory => memory.Title).Order().ToArray();
+        Assert.Equal(embedded, listing.Items.Select(item => item.Title).Order().ToArray());
+        return (embedded, listing);
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_CommunityOn_ShowTheMomentWithEverythingCommunityAdds()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
+
+        var (embedded, listing) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
+
+        Assert.Equal(["Beach day"], embedded);
+        var card = Assert.Single(listing.Items);
+        Assert.True(card.InCommunity);
+        Assert.Equal("TanFamily", card.Author!.Handle);
+        Assert.Contains(card.Subjects, subject => subject.Name == "Mochi");
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_HouseholdCommunityOff_StillShowPublicMoments_WithNothingCommunityOnly()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var momentId = await harness.AddMomentAsync(
+            SocialSurfaceHarness.DaveId, SocialSurfaceHarness.HiddenId, "Park run", 10);
+        await harness.AddMomentAsync(
+            SocialSurfaceHarness.DaveId, SocialSurfaceHarness.HiddenId, "Kept to me", 20,
+            MemoryVisibility.Private);
+
+        // Used to be a 404 under a tab the page had just offered.
+        var (embedded, listing) = await ShareProfileMomentsAsync(harness, "hidden-pubhidden");
+
+        Assert.Equal(["Park run"], embedded);
+        var card = Assert.Single(listing.Items);
+        Assert.False(card.InCommunity);
+        // No Community identity, no pet named, no Community counts.
+        Assert.Null(card.Author);
+        Assert.Empty(card.Subjects);
+        Assert.Empty(card.Collaborations);
+        Assert.Equal(0, card.LikeCount);
+        Assert.Equal(0, card.CommentCount);
+        Assert.False(card.ViewerHasLiked);
+
+        // Community itself is unchanged: no Moment page, no likes.
+        await Assert.ThrowsAsync<ApiException>(() => harness.PublicProfiles.GetMomentAsync(momentId));
+        await Assert.ThrowsAsync<ApiException>(() => harness.Likes.LikeAsync(SocialSurfaceHarness.BobId, momentId));
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_CarryNoAccountFinderOrSafetyValue()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetShowOwnerNameAsync(SocialSurfaceHarness.HiddenId, true);
+        await harness.AddMomentAsync(SocialSurfaceHarness.DaveId, SocialSurfaceHarness.HiddenId, "Park run", 10);
+
+        var listing = await harness.PublicProfiles.GetPetMomentsAsync("hidden-pubhidden", null, 50);
+        var serialized = System.Text.Json.JsonSerializer.Serialize(listing);
+
+        foreach (var forbidden in new[] { "dave@example.com", "Dave Rao", "DavePets", "+60", "s-pubhidden" })
+        {
+            Assert.DoesNotContain(forbidden, serialized, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_PetOutOfCommunity_StillShowPublicMoments_WithoutNamingThePet()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Nap", 10);
+        await harness.SetPetSocialAsync(SocialSurfaceHarness.MochiId, false);
+
+        var (embedded, listing) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
+
+        Assert.Equal(["Nap"], embedded);
+        var card = Assert.Single(listing.Items);
+        // Still the household's Community Moment, so its page exists; the pet
+        // that left Community is simply not named on it.
+        Assert.True(card.InCommunity);
+        Assert.DoesNotContain(card.Subjects, subject => subject.Name == "Mochi");
+    }
+
+    [Theory]
+    [InlineData("alice")]
+    [InlineData("dave")]
+    public async Task ShareProfileMoments_NeverIncludeOnlyMe_HiddenArchivedOrDeleted(string household)
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        var (author, pet, slug) = household == "alice"
+            ? (SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "mochi-pubmochi")
+            : (SocialSurfaceHarness.DaveId, SocialSurfaceHarness.HiddenId, "hidden-pubhidden");
+
+        await harness.AddMomentAsync(author, pet, "Shown", 10);
+        await harness.AddMomentAsync(author, pet, "Only me", 11, MemoryVisibility.Private);
+        await harness.AddMomentAsync(author, pet, "Archived", 12, archived: true);
+        var hidden = await harness.AddMomentAsync(author, pet, "Hidden by MyPetLink", 13);
+        var deleted = await harness.AddMomentAsync(author, pet, "Deleted", 14);
+        CommunityModeration.HideMoment(
+            await harness.Db.PetMemories.SingleAsync(item => item.Id == hidden),
+            SocialSurfaceHarness.BobId,
+            DateTimeOffset.UtcNow);
+        (await harness.Db.PetMemories.SingleAsync(item => item.Id == deleted)).DeletedAt = DateTimeOffset.UtcNow;
+        await harness.Db.SaveChangesAsync();
+
+        var (embedded, _) = await ShareProfileMomentsAsync(harness, slug);
+
+        Assert.Equal(["Shown"], embedded);
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_ShareProfileOff_IsNotAPage_WhateverCommunitySays()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
+        await harness.SetShareProfileEnabledAsync(SocialSurfaceHarness.MochiId, false);
+
+        await Assert.ThrowsAsync<ApiException>(
+            () => harness.PetShareProfiles.GetByPublicSlugAsync("mochi-pubmochi"));
+        await Assert.ThrowsAsync<ApiException>(
+            () => harness.PublicProfiles.GetPetMomentsAsync("mochi-pubmochi", null, 50));
+    }
+
+    [Theory]
+    [InlineData(PetLifecycleStatus.Archived, false, false)]
+    [InlineData(PetLifecycleStatus.Memorial, false, false)]
+    [InlineData(PetLifecycleStatus.Memorial, true, true)]
+    public async Task ShareProfileMoments_FollowTheShareProfilesOwnLifecycleRule(
+        PetLifecycleStatus status,
+        bool showMemorial,
+        bool served)
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Id == SocialSurfaceHarness.MochiId);
+        pet.LifecycleStatus = status;
+        pet.ShowMemorialOnPublicProfile = showMemorial;
+        await harness.Db.SaveChangesAsync();
+
+        if (served)
+        {
+            var (embedded, _) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
+            Assert.Equal(["Beach day"], embedded);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<ApiException>(
+                () => harness.PetShareProfiles.GetByPublicSlugAsync("mochi-pubmochi"));
+            await Assert.ThrowsAsync<ApiException>(
+                () => harness.PublicProfiles.GetPetMomentsAsync("mochi-pubmochi", null, 50));
+        }
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_RestrictedHousehold_StayOnTheShareProfile_ButLeaveCommunity()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
+        var alice = await harness.Db.OwnerSocialProfiles.SingleAsync(item => item.UserId == SocialSurfaceHarness.AliceId);
+        CommunityModeration.RestrictHousehold(alice, SocialSurfaceHarness.BobId, DateTimeOffset.UtcNow);
+        await harness.Db.SaveChangesAsync();
+
+        // Restriction is Community-only; the Share Profile is untouched.
+        var (_, listing) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
+        Assert.False(Assert.Single(listing.Items).InCommunity);
+
+        await Assert.ThrowsAsync<ApiException>(
+            () => harness.PublicProfiles.GetOwnerMomentsAsync("tanfamily", null, 50));
+        Assert.Empty((await harness.Discovery.GetLatestMomentsAsync(null, null, null, 50)).Items);
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_AViewerBlockedEitherWay_GetsNoWayIntoCommunityFromThem()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.MochiId, "Beach day", 10);
+        await harness.Graph.BlockAsync(SocialSurfaceHarness.AliceId, "limfamily", null);
+
+        var (_, forBob) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi", SocialSurfaceHarness.BobId);
+        var (_, forAnyone) = await ShareProfileMomentsAsync(harness, "mochi-pubmochi");
+
+        // The Share Profile is a public page; the block removes only the
+        // Community way in — the Moment page, likes and Comments.
+        Assert.False(Assert.Single(forBob.Items).InCommunity);
+        Assert.True(Assert.Single(forAnyone.Items).InCommunity);
+    }
+
+    [Fact]
+    public async Task ShareProfileMoments_DoNotWidenCommunity_ExploreAndSearchGainNothing()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.AddMomentAsync(SocialSurfaceHarness.DaveId, SocialSurfaceHarness.HiddenId, "Park run", 10);
+        await harness.AddMomentAsync(SocialSurfaceHarness.AliceId, SocialSurfaceHarness.CocoId, "Coco out", 11);
+        await harness.SetPetSocialAsync(SocialSurfaceHarness.CocoId, false);
+
+        // Both are on their Share Profiles…
+        Assert.Single((await harness.PublicProfiles.GetPetMomentsAsync("hidden-pubhidden", null, 50)).Items);
+        Assert.Single((await harness.PublicProfiles.GetPetMomentsAsync("coco-pubcoco", null, 50)).Items);
+
+        // …and Community discovery is exactly as it was.
+        var explore = await harness.Discovery.GetLatestMomentsAsync(null, null, null, 50);
+        Assert.DoesNotContain(explore.Items, item => item.Title is "Park run" or "Coco out");
+        var pets = await harness.Discovery.GetSuggestedPetsAsync(null, null, 50);
+        Assert.DoesNotContain(pets.Items, pet => pet.Name is "Hidden" or "Coco");
+        foreach (var term in new[] { "Hidden", "Coco", "davepets" })
+        {
+            var search = await harness.Discovery.SearchAsync(null, term, null, null, null);
+            Assert.Empty(search.Pets);
+            Assert.Empty(search.Owners);
+        }
+        await Assert.ThrowsAsync<ApiException>(
+            () => harness.PublicProfiles.GetOwnerMomentsAsync("davepets", null, 50));
     }
 
     /// <summary>

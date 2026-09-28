@@ -91,7 +91,17 @@ public sealed record PublicMomentListItemResponse(
     /// Whether the caller has liked this Moment. Always false for a visitor with
     /// no session — there is nobody for a like to belong to.
     /// </summary>
-    bool ViewerHasLiked);
+    bool ViewerHasLiked,
+
+    /// <summary>
+    /// Whether this Moment is in Community for this viewer: its own page,
+    /// likes and Comments exist. Every Community listing selects only such
+    /// Moments, so it is true there. False only on a pet's Share Profile, for a
+    /// Moment shared publicly by a household that is not in Community (or that
+    /// is on either side of a block with this viewer) — shown there, but with
+    /// nothing to open, like or comment on.
+    /// </summary>
+    bool InCommunity = true);
 
 /// <summary>
 /// A page of public Moments.

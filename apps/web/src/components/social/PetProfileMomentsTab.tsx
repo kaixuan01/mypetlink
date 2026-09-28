@@ -23,8 +23,14 @@ type PetProfileMomentsTabProps = {
  * This tab used to render from the Moment array embedded in the public profile
  * payload, which meant it was the one social surface with no like state and no
  * paging — an older version of the product sitting inside the new one. It now
- * reads the social listing, so a Moment looks and behaves the same here, on the
- * household's profile, in the feed and in Explore.
+ * reads the paged Moment listing, so a Moment looks and behaves the same here,
+ * on the household's profile, in the feed and in Explore.
+ *
+ * That listing follows the Share Profile's rules, not Community's: a Moment
+ * shared publicly appears here whether or not the household or the pet is in
+ * Community, exactly as the embedded list that offered this tab said it would.
+ * Community decides only what a card can do — a Moment outside Community has
+ * no page, likes or Comments, and its card offers none (`inCommunity`).
  *
  * The household's byline is deliberately hidden: this page already belongs to
  * one pet and one household, and repeating the attribution on every card would

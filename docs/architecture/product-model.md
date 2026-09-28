@@ -385,10 +385,25 @@ that page carries no Community attribution to correlate against.
 One switch, `PetMemories.Visibility`, decides everything.
 `showOnPublicProfile` is derived from it, not chosen separately.
 
-A **Shared publicly** Moment appears on: the pet's Share Profile, the
-household's Community Profile, its own `/moments/{id}` page, the feed of
-everyone who follows that household, and — when the household and the pet are
-both discoverable — Explore.
+A **Shared publicly** Moment appears on the pet's Share Profile — always,
+whenever that Share Profile is on, and whether or not the household or the pet
+takes part in Community. That is the Share Profile's own rule
+(`ShareProfileVisibility`), and the page's Moments tab and the paged listing
+behind it both follow it, so the tab is never offered and then refused.
+
+When the household is in Community, the same Moment is also on the household's
+Community Profile, its own `/moments/{id}` page, the feed of everyone who
+follows that household, and — when the household and the pet are both
+discoverable — Explore; and it can be liked and commented on. Those are
+Community surfaces and keep Community's rules (`SocialVisibility`). A Moment
+shared publicly by a household outside Community therefore has no
+`/moments/{id}` page: its Share Profile card shows the Moment and offers no link
+to one, no likes and no Comments (`inCommunity: false` on the card). Whether
+such a Moment should get a standalone public page is a separate product
+decision, not made here.
+
+**Only me** is visible to its owner alone, on every surface, whatever any
+Community or Share Profile switch says.
 
 The editor must describe that full audience. It previously said "Anyone with the
 link", which is the phrase people read as *unlisted*.
@@ -531,6 +546,7 @@ surface that names one, so a second name cannot quietly come back.
 | Safety → Share bridge, every entry point | `ShareProfileBridge.ResolveSlug` |
 | Community participation prerequisites | `PetSocialSettingsService` |
 | Community identity never seeded | `OwnerSocialProfileFactory` |
+| Moments on a Share Profile (never Community) | `ShareProfileVisibility` |
 | Follower counts equal the visible lists | `SocialVisibility.VisibleCommunityAccountIds` |
 | Moment audience wording | `apps/web/src/lib/momentVisibility.ts` |
 | Sellable tag capability | `TagCatalogSellability`, `lib/tagCapabilities.ts` |

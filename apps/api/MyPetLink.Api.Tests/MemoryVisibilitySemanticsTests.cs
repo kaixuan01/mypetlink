@@ -300,7 +300,12 @@ public sealed class MemoryVisibilitySemanticsTests
                 Type = "Memory",
                 Visibility = visibility,
                 ShowOnPublicProfile = showOnPublicProfile,
-                ShowInLifeTimeline = showInLifeTimeline
+                ShowInLifeTimeline = showInLifeTimeline,
+                // As MemoryService writes it: a Moment created public is
+                // published at once (social-foundation.md §4).
+                PublishedAt = visibility == MemoryVisibility.Public
+                    ? new DateTimeOffset(2026, 8, 21, 0, 0, 0, TimeSpan.Zero)
+                    : null
             };
             Db.PetMemories.Add(memory);
             await Db.SaveChangesAsync();

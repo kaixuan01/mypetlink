@@ -117,7 +117,7 @@ describe("who can see the Moment", () => {
     // Preselected because that is what "Share a Moment" in Community means —
     // but shown, described and changeable, never decided silently.
     expect(checkedAudience()).toBe("Shared publicly");
-    expect(screen.getByText(/Appears on your pet's Share Profile and your Community Profile/)).toBeTruthy();
+    expect(screen.getByText(/Appears on your pet's Share Profile\. If you're in Community, it also appears on your Community Profile/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Share Moment" })).toBeTruthy();
   });
 
