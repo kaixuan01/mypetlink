@@ -98,7 +98,9 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
     case "inventory_busy":
       return OUT_OF_STOCK_MESSAGE;
     case "payment_window_expired":
-      return "This order expired because payment was not completed in time. Please start a new order.";
+      // The proof arrived after the window closed, which is exactly when the
+      // customer may already have paid. Never tell them only to order again.
+      return "This order expired before the payment proof was received, so it can no longer accept one. If you have already paid, please do not pay again. Contact MyPetLink Support with your order number and payment screenshot.";
     // The order already exists, so claiming a failure would be wrong.
     case "idempotency_key_conflict":
       return "This order has already been submitted. Please check your orders before trying again.";

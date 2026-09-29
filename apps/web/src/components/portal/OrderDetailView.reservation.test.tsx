@@ -80,7 +80,7 @@ describe("OrderDetailView reservation actions", () => {
     const expired = order({ status: "Cancelled", canCancel: false, paymentReservationExpiredAt: "2026-08-03T14:00:00Z" });
     mocks.getOrder.mockResolvedValue({ data: expired });
     render(<OrderDetailView initialOrder={expired} initialTags={[]} orderKey={expired.orderNumber!} pets={[]} />);
-    expect(await screen.findByText("This order expired because payment was not completed in time. The reserved tags have been released.")).toBeTruthy();
+    expect(await screen.findByText("This order expired because payment was not completed in time, so it can no longer accept a payment proof. The reserved tags have been released.")).toBeTruthy();
     expect(screen.queryByText("Payment proof form")).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel order" })).toBeNull();
     expect(screen.getByRole("link", { name: "Start a new order" })).toBeTruthy();
@@ -96,4 +96,78 @@ describe("OrderDetailView reservation actions", () => {
       expect(screen.queryByRole("button", { name: "Cancel order" })).toBeNull();
     }
   );
+});
+
+describe("OrderDetailView after an order expired", () => {
+  // Payment is a manual DuitNow transfer, so a customer can pay and then miss
+  // the window before uploading the proof. The page used to offer only
+  // "Start a new order". It now says first not to pay again, and how to reach
+  // Support with this order's number.
+  function renderExpired() {
+    const expired = order({
+      orderNumber: "MPL-ORD-20260929-0417",
+      status: "Cancelled",
+      canCancel: false,
+      paymentReservationExpiredAt: "2026-09-29T08:00:00Z",
+    });
+    mocks.getOrder.mockResolvedValue({ data: expired });
+    render(
+      <OrderDetailView
+        initialOrder={expired}
+        initialTags={[]}
+        orderKey={expired.orderNumber!}
+        pets={[]}
+      />
+    );
+    return expired;
+  }
+
+  it("shows the Already paid? recovery with the real order number", async () => {
+    renderExpired();
+
+    const recovery = await screen.findByTestId("order-expired-already-paid");
+
+    expect(within(recovery).getByRole("heading", { name: "Already paid?" })).toBeTruthy();
+    expect(recovery.textContent).toContain("Please do not make another payment.");
+    expect(recovery.textContent).toContain("MPL-ORD-20260929-0417");
+    expect(recovery.textContent).toContain("payment screenshot");
+  });
+
+  it("links to MyPetLink Support with the order number pre-filled", async () => {
+    renderExpired();
+
+    const recovery = await screen.findByTestId("order-expired-already-paid");
+    const href =
+      within(recovery)
+        .getByRole("link", { name: /Contact MyPetLink Support/ })
+        .getAttribute("href") ?? "";
+
+    // The site's one support address, not a second copy of it.
+    expect(href.startsWith("mailto:support@mypetlink.com.my?")).toBe(true);
+    expect(decodeURIComponent(href)).toContain("subject=Already paid for order MPL-ORD-20260929-0417");
+  });
+
+  it("offers no way to submit a payment proof", async () => {
+    renderExpired();
+
+    await screen.findByTestId("order-expired");
+
+    expect(screen.queryByText("Payment proof form")).toBeNull();
+    expect(screen.queryByRole("button", { name: /submit/i })).toBeNull();
+  });
+
+  it("puts the recovery before the new-order option, which is now secondary", async () => {
+    renderExpired();
+
+    const section = await screen.findByTestId("order-expired");
+    const recovery = within(section).getByTestId("order-expired-already-paid");
+    const newOrder = within(section).getByRole("link", { name: "Start a new order" });
+
+    // Somebody who paid reads "do not pay again" before any way to pay again.
+    expect(
+      recovery.compareDocumentPosition(newOrder) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(newOrder.className).not.toContain("bg-pet-teal");
+    expect(section.textContent).toContain("Not paid yet?");
+  });
 });

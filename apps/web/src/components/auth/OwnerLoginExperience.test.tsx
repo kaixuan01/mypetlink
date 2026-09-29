@@ -260,11 +260,38 @@ describe("OwnerLoginExperience", () => {
     expect((pageSection as HTMLElement).style.maxWidth).toBe("100%");
   });
 
-  it("marks Smart Tag add-ons as Coming Soon", () => {
+  it("marks Smart Tag add-ons as Coming Soon while ordering is off", () => {
     render(<OwnerLoginExperience />);
 
     expect(screen.getByText("Smart Tag add-ons — Coming Soon")).toBeTruthy();
     expect(screen.queryByText(/Order QR or QR \+ NFC tags/i)).toBeNull();
+    expect(screen.queryByText(/Order and manage your QR \+ NFC Smart Tag/)).toBeNull();
+  });
+
+  it("stops calling the Smart Tag Coming Soon once it is on sale", async () => {
+    // The page said "Coming Soon" while the same site sold the tag at
+    // RM39.90. It follows the switch the public "Get a Smart Tag" buttons use.
+    vi.resetModules();
+    vi.doMock("@/lib/features", async () => {
+      const actual = await vi.importActual<typeof import("@/lib/features")>("@/lib/features");
+      return { ...actual, smartTagOrderingEnabled: true };
+    });
+
+    try {
+      const { OwnerLoginExperience: OnSale } = await import("./OwnerLoginExperience");
+      render(<OnSale />);
+
+      expect(screen.getByText("Order and manage your QR + NFC Smart Tag")).toBeTruthy();
+      expect(screen.queryByText(/Coming Soon/i)).toBeNull();
+      // No price here: the price lives with the product, where a promotion
+      // can change it.
+      expect(document.body.textContent).not.toMatch(/RM\s?\d/);
+      // Signing in is untouched.
+      expect(screen.getAllByText("Continue with Google").length).toBeGreaterThan(0);
+    } finally {
+      vi.doUnmock("@/lib/features");
+      vi.resetModules();
+    }
   });
 
   it("keeps the unavailable state close to the sign-in action", () => {

@@ -144,3 +144,95 @@ describe("TagFinderView scan-source behavior", () => {
     expect(mocks.getFinderState).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("TagFinderView when the tag is no longer active", () => {
+  // The page told whoever was holding the tag to "contact MyPetLink support"
+  // and gave them no way to. It now carries the support action itself, and
+  // nothing else: an inactive tag still shows no owner contact.
+  const ownerLeak = {
+    name: "Mochi",
+    ownerName: "Aisyah Rahman",
+    phone: "+60123456789",
+    whatsapp: "+60123456789",
+    contact: { phoneE164: "+60123456789", whatsappE164: "+60123456789" },
+    publicProfilePath: "/p/mochi-pubmochi",
+    memorial: { showMemorialOnPublicProfile: true },
+  };
+
+  function inactive(overrides: Record<string, unknown> = {}) {
+    return {
+      state: "inactive",
+      tagCode: "MPL-QA7K-9F3M",
+      status: "Disabled",
+      reason: "inactive",
+      ...overrides,
+    } as unknown as FinderResult;
+  }
+
+  // The view re-reads the tag once on mount; it answers with the same state.
+  function renderInactive(
+    result: FinderResult,
+    source: "qr" | "nfc" | "legacy" = "qr"
+  ) {
+    mocks.getFinderState.mockResolvedValue(result);
+    return render(
+      <TagFinderView initialResult={result} source={source} tagCode="MPL-QA7K-9F3M" />
+    );
+  }
+
+  function supportLink() {
+    return screen.getByRole("link", { name: /Contact MyPetLink Support/ });
+  }
+
+  it.each([
+    ["qr", "Lost"],
+    ["qr", "Disabled"],
+    ["qr", "Replaced"],
+    ["nfc", "Lost"],
+    ["nfc", "Disabled"],
+    ["nfc", "Replaced"],
+    ["legacy", "Disabled"],
+  ] as const)("offers MyPetLink Support for a %s scan of a %s tag", (source, status) => {
+    renderInactive(inactive({ status }), source);
+
+    expect(screen.getByRole("heading", { name: "This tag is no longer active" })).toBeTruthy();
+    const href = supportLink().getAttribute("href") ?? "";
+
+    // The one support address the site keeps, with the tag code pre-filled so
+    // Support can find the tag without asking.
+    expect(href.startsWith("mailto:support@mypetlink.com.my?")).toBe(true);
+    expect(decodeURIComponent(href)).toContain("subject=MyPetLink tag MPL-QA7K-9F3M");
+  });
+
+  it("also offers Support when the pet's profile is archived", () => {
+    renderInactive(inactive({ reason: "archived", profile: ownerLeak }), "qr");
+
+    expect(screen.getByText(/profile is archived/)).toBeTruthy();
+    expect(supportLink()).toBeTruthy();
+  });
+
+  it.each(["inactive", "archived"] as const)(
+    "shows no owner contact beside the support action (%s)",
+    (reason) => {
+      const { container } = renderInactive(inactive({ reason, profile: ownerLeak }), "nfc");
+
+      const hrefs = [...container.querySelectorAll("a[href]")].map((link) =>
+        link.getAttribute("href") ?? ""
+      );
+
+      expect(hrefs.some((href) => href.startsWith("tel:"))).toBe(false);
+      expect(hrefs.some((href) => href.includes("wa.me"))).toBe(false);
+      expect(container.textContent).not.toContain("+60123456789");
+      expect(container.textContent).not.toContain("Aisyah Rahman");
+      // Support is the only way out of this page.
+      expect(hrefs.filter((href) => href.startsWith("mailto:"))).toHaveLength(1);
+    }
+  );
+
+  it("leaves a memorial tag with its memorial link and no support prompt", () => {
+    renderInactive(inactive({ reason: "memorial", profile: ownerLeak }), "qr");
+
+    expect(screen.getByRole("link", { name: /View Memorial Profile/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Contact MyPetLink Support/ })).toBeNull();
+  });
+});

@@ -19,6 +19,7 @@ import {
   getFinderState,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
+import { supportMailtoHref } from "@/lib/support";
 import { isApiConfigured } from "@/services/apiConfig";
 import type { FinderResult, TagEntrySource } from "@/types";
 
@@ -167,6 +168,28 @@ export function TagFinderView({
               fullWidth
             >
               View Memorial Profile
+            </CTAButton>
+          ) : null}
+          {/*
+            The page tells whoever is holding this tag to contact us, so it
+            has to give them the way to. Support only: an inactive tag shows
+            no owner contact, and this keeps it that way. A memorial profile
+            already has its own way forward above.
+          */}
+          {result.reason !== "memorial" ? (
+            <CTAButton
+              className="min-h-14 text-base"
+              fullWidth
+              href={supportMailtoHref({
+                subject: `MyPetLink tag ${result.tagCode}`,
+                body:
+                  `Hi MyPetLink Support,\n\nI found a MyPetLink tag with the tag code ${result.tagCode}, ` +
+                  "but its page says the tag is no longer active.\n",
+              })}
+              icon="comment"
+              variant="secondary"
+            >
+              Contact MyPetLink Support
             </CTAButton>
           ) : null}
         </FinderCard>

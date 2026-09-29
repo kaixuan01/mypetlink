@@ -38,6 +38,7 @@ import {
   setPageTitle,
 } from "@/lib/pageTitles";
 import { ownerRoutes, tagQrPath } from "@/lib/routes";
+import { supportMailtoHref } from "@/lib/support";
 import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -445,12 +446,47 @@ export function OrderDetailView({
       ) : null}
 
       {reservationExpired ? (
-        <section className="brand-card rounded-[1.75rem] border border-[#ffd2c9] p-5 sm:p-6">
+        <section
+          className="brand-card rounded-[1.75rem] border border-[#ffd2c9] p-5 sm:p-6"
+          data-testid="order-expired"
+        >
           <Badge tone="danger">Order expired</Badge>
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-pet-ink">
-            This order expired because payment was not completed in time. The reserved tags have been released.
+            This order expired because payment was not completed in time, so it can no longer accept a payment proof. The reserved tags have been released.
           </p>
-          <div className="mt-5"><CTAButton href={ownerRoutes.tagOrder()} icon="tag">Start a new order</CTAButton></div>
+          {/*
+            Payment is a manual DuitNow transfer, so money can leave the
+            customer's account before the proof reaches us. Somebody who paid
+            and then missed the window must not be steered into paying twice:
+            the first thing they read is not to pay again, and how to reach a
+            person who can match their transfer to this order.
+          */}
+          <div
+            className="mt-5 max-w-2xl rounded-[1.25rem] border border-pet-border bg-white p-4"
+            data-testid="order-expired-already-paid"
+          >
+            <h2 className="text-base font-black text-pet-ink">Already paid?</h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-pet-ink">
+              Please do not make another payment. Contact MyPetLink Support and provide your order number{" "}
+              <span className="whitespace-nowrap font-black">{orderNumber}</span> and payment screenshot so we can assist you.
+            </p>
+            <div className="mt-4">
+              <CTAButton
+                href={supportMailtoHref({
+                  subject: `Already paid for order ${orderNumber}`,
+                  body:
+                    `Hi MyPetLink Support,\n\nI have already paid for order ${orderNumber}, ` +
+                    "but the order expired before my payment proof was submitted.\n\n" +
+                    "I have attached my payment screenshot.\n",
+                })}
+                icon="comment"
+              >
+                Contact MyPetLink Support
+              </CTAButton>
+            </div>
+          </div>
+          <p className="mt-5 text-sm font-semibold text-pet-muted">Not paid yet? You can place a new order instead.</p>
+          <div className="mt-3"><CTAButton href={ownerRoutes.tagOrder()} icon="tag" variant="secondary">Start a new order</CTAButton></div>
         </section>
       ) : ownerCancelled ? (
         <section className="brand-card rounded-[1.75rem] border border-[#ffd2c9] p-5 sm:p-6">

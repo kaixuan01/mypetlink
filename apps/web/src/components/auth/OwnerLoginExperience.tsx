@@ -1,6 +1,7 @@
 import { LoginPanel } from "@/components/auth/LoginPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { smartTagOrderingEnabled } from "@/lib/features";
 
 const portalBenefits: Array<{
   icon: IconName;
@@ -9,7 +10,15 @@ const portalBenefits: Array<{
   { icon: "heart", label: "Share your pet's profile" },
   { icon: "record", label: "Manage care records" },
   { icon: "heart", label: "Save Moments" },
-  { icon: "tag", label: "Smart Tag add-ons — Coming Soon" },
+  // Follows the same switch as the "Get a Smart Tag" buttons on the public
+  // pages, so this list never calls the tag "Coming Soon" while the site is
+  // selling it — which is what it did once ordering went live.
+  {
+    icon: "tag",
+    label: smartTagOrderingEnabled
+      ? "Order and manage your QR + NFC Smart Tag"
+      : "Smart Tag add-ons — Coming Soon",
+  },
 ];
 
 export function OwnerLoginExperience() {
