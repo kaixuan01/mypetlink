@@ -30,6 +30,8 @@ type CreateProfileCTAProps = {
    * control can be told apart from the marketing pages. Left unset elsewhere.
    */
   analyticsSurface?: Extract<AnalyticsSurface, "public_profile">;
+  /** See `CTAButton`. */
+  iconOnlyUntil?: "md";
 };
 
 export function CreateProfileCTA({
@@ -39,6 +41,7 @@ export function CreateProfileCTA({
   icon = "paw",
   variant = "coral",
   analyticsSurface,
+  iconOnlyUntil,
 }: CreateProfileCTAProps) {
   const router = useRouter();
 
@@ -60,6 +63,7 @@ export function CreateProfileCTA({
       className={className}
       fullWidth={fullWidth}
       icon={icon}
+      iconOnlyUntil={iconOnlyUntil}
       onClick={handleClick}
       variant={variant}
     >

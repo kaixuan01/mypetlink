@@ -156,7 +156,7 @@ describe("choosing a household", () => {
       });
 
       const hint = screen.getByText(/No households found\./);
-      expect(hint.textContent).toContain("follow them from their Community profile first");
+      expect(hint.textContent).toContain("follow them from their Community Profile first");
       expect(hint.textContent).not.toMatch(/exact @handle/);
     } finally {
       vi.useRealTimers();

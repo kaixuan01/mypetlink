@@ -181,7 +181,7 @@ describe("Moment Comments", () => {
     render(<MomentComments initialCount={0} momentId="moment-1" onCountChange={vi.fn()} />);
 
     const setup = await screen.findByRole("link", {
-      name: "Set up your Community profile to comment",
+      name: "Set up your Community Profile to comment",
     });
     expect(setup.getAttribute("href")).toBe("/community/profile");
   });

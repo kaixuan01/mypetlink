@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -104,7 +104,7 @@ describe("Community My Profile", () => {
 
     const setup = await screen.findByTestId("my-profile-setup");
 
-    expect(setup.textContent).toContain("Set up your Community profile");
+    expect(setup.textContent).toContain("Set up your Community Profile");
     expect(
       screen.getByRole("link", { name: /set up profile/i }).getAttribute("href")
     ).toBe(ownerRoutes.socialProfileEdit);
@@ -177,5 +177,49 @@ describe("Community profile routing", () => {
 
     expect(getAppMode(ownerRoutes.socialProfile)).toBe("community");
     expect(getAppMode(ownerRoutes.socialProfileEdit)).toBe("community");
+  });
+});
+
+describe("Community My Profile when loading fails", () => {
+  // It said "Please try again in a moment." and offered nothing to press, so
+  // the only way to try again was to reload the whole page. Every other
+  // Community page has a Try again; this one now does too.
+  it("offers Try again, which asks again without reloading the page", async () => {
+    mocks.getOwnerSocialProfile
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(respond(profile()));
+
+    render(<CommunityMyProfileView />);
+
+    const failed = await screen.findByTestId("my-profile-error");
+    expect(failed.textContent).toContain("We couldn’t load your profile");
+    expect(mocks.getOwnerSocialProfile).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.getByTestId("shared-profile-view")).toBeTruthy());
+    expect(mocks.getOwnerSocialProfile).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("my-profile-error")).toBeNull();
+  });
+
+  it("shows the loading state while it asks again, and the error if it fails again", async () => {
+    let rejectSecond: (reason: unknown) => void = () => {};
+    mocks.getOwnerSocialProfile
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockImplementationOnce(
+        () => new Promise((_, reject) => { rejectSecond = reject; })
+      );
+
+    render(<CommunityMyProfileView />);
+
+    await screen.findByTestId("my-profile-error");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(screen.getByTestId("my-profile-loading")).toBeTruthy();
+
+    rejectSecond(new TypeError("Failed to fetch"));
+
+    expect(await screen.findByTestId("my-profile-error")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 });

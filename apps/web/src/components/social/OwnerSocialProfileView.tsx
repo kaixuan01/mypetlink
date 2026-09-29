@@ -273,7 +273,10 @@ export function OwnerSocialProfileView({
             row of loose parts.
           */}
           {profile.bio ? (
-            <p className="mt-3 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
+            // `anywhere`, not `break-words`: on a phone this column is sized to
+            // its content (the row is `items-start`), and only `anywhere` lets a
+            // long link stop counting as the column's minimum width.
+            <p className="mt-3 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink [overflow-wrap:anywhere]">
               {profile.bio}
             </p>
           ) : null}

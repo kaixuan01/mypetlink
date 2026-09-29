@@ -549,7 +549,7 @@ export function MomentComments({
       ) : viewer.requirement === "communityRestricted" ? (
         <p className="text-sm font-semibold text-pet-muted" role="status">{COMMUNITY_PAUSED_MESSAGE}</p>
       ) : viewer.requirement === "communityProfile" ? (
-        <Link className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal" href={ownerRoutes.socialProfile}>Set up your Community profile to comment</Link>
+        <Link className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal" href={ownerRoutes.socialProfile}>Set up your Community Profile to comment</Link>
       ) : (
         <>
           {draftKept ? <p className="mb-3 text-sm font-semibold text-pet-muted">We’ve kept your {replyTarget ? "reply" : "comment"}. Sign in to finish posting it.</p> : null}

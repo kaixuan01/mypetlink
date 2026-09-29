@@ -295,7 +295,10 @@ export function MomentMedia({
         )
       ) : placeholder === "title" ? (
         <span className="grid h-full w-full place-items-center px-4 text-center text-sm font-black text-pet-ink">
-          {moment.title}
+          {/* min-w-0: a grid item will not shrink below its longest word otherwise. */}
+          <span className="min-w-0 max-w-full break-words" data-testid="moment-media-title">
+            {moment.title}
+          </span>
         </span>
       ) : (
         <span className="grid h-full w-full place-items-center text-pet-ink/40">

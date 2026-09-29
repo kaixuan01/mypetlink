@@ -632,3 +632,33 @@ describe("Community Profile tab title", () => {
     );
   });
 });
+
+describe("a Community Profile bio with long unbroken text", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/u/tanfamily");
+    mocks.getPublicOwnerMoments.mockResolvedValue(page(1, null));
+    mocks.getOwnerRelationship.mockResolvedValue(relationship);
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("lets a long link in the bio break instead of being clipped", async () => {
+    const bio =
+      "Follow us on https://www.instagram.com/p/C9xYzAbCdEfGhIjKlMnOpQrStUvWxYz0123456789/";
+    mocks.getPublicOwnerProfile.mockResolvedValue({ ...profile, bio });
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    const text = await screen.findByText(bio);
+
+    // `anywhere` specifically: the column is sized to its content on a phone,
+    // and `break-words` still let the link set that size (it was 560px wide in
+    // a 246px card at 320px).
+    expect(text.className).toContain("[overflow-wrap:anywhere]");
+    expect(text.className).toContain("whitespace-pre-line");
+  });
+});

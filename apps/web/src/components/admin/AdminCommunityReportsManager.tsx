@@ -381,7 +381,7 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
               <AdminDetailItem label="Community name at report" value={report.evidence.displayName} />
               <AdminDetailItem label="Handle at report" value={report.evidence.handle ? `@${report.evidence.handle}` : "Unavailable"} />
               {report.evidence.title ? <PlainText label="Moment title at report" value={report.evidence.title} /> : null}
-              <PlainText label={report.targetType === "Comment" ? `${reportTargetLabel(report)} text at report` : report.targetType === "Moment" ? "Moment caption at report" : "Community profile at report"} value={report.evidence.text} />
+              <PlainText label={report.targetType === "Comment" ? `${reportTargetLabel(report)} text at report` : report.targetType === "Moment" ? "Moment caption at report" : "Community Profile at report"} value={report.evidence.text} />
               {report.targetType === "Moment" ? <AdminNotice>Only the title and caption were preserved when this report was filed. Media shown in Current state may have changed.</AdminNotice> : null}
               {report.evidence.avatarUrl ? <SafeMedia url={report.evidence.avatarUrl} alt="Community avatar at report" type="image" /> : null}
             </div>

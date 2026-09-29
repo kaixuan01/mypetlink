@@ -137,7 +137,7 @@ function ReportForm({ report, onClose, canBlock, onBlocked }: {
             {state === "success" ? <><p>Thanks. Our team will review this.</p><p>Reports are private.</p>{blocked ? <p>Household blocked.</p> : null}</> : null}
             {state === "unavailable" ? <p>This content is no longer available.</p> : null}
             {state === "own" ? <p>You can’t report your own content.</p> : null}
-            {state === "profile" ? <><p>Set up your Community profile to send a report.</p><Link className="inline-flex min-h-11 items-center text-pet-teal underline" href={ownerRoutes.socialProfile}>Set up Community profile</Link></> : null}
+            {state === "profile" ? <><p>Set up your Community Profile to send a report.</p><Link className="inline-flex min-h-11 items-center text-pet-teal underline" href={ownerRoutes.socialProfile}>Set up Community Profile</Link></> : null}
             {state === "restricted" ? <p>Reporting isn’t available for this account right now.</p> : null}
             {state === "session" ? <><p>Sign in to send a report.</p><Link className="inline-flex min-h-11 items-center text-pet-teal underline" href={ownerLoginPath(getCurrentLocalDestination(ownerRoutes.socialProfile))}>Sign in</Link></> : null}
           </div>

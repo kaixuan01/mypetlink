@@ -4,10 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PublicBrandLink } from "@/components/brand/PublicBrandLink";
-import {
-  CreateProfileCTA,
-  PRIMARY_CTA_LABEL,
-} from "@/components/marketing/CreateProfileCTA";
+import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import {
   getCurrentLocalDestination,
   ownerLoginPath,
@@ -174,9 +171,7 @@ function PublicSocialHeader() {
           >
             Sign in
           </Link>
-          <CreateProfileCTA className="w-12 shrink-0 gap-0 px-0 md:w-auto md:gap-2 md:px-5 md:whitespace-nowrap">
-            <span className="sr-only md:not-sr-only">{PRIMARY_CTA_LABEL}</span>
-          </CreateProfileCTA>
+          <CreateProfileCTA iconOnlyUntil="md" />
         </div>
       </div>
     </header>

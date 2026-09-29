@@ -49,7 +49,7 @@ export async function submitCommunityReport(request: {
       if (error.status === 422 && error.code === "report_own_content")
         throw new CommunityReportError("own", "You can’t report your own content.");
       if (error.status === 403 && error.code === "community_profile_required")
-        throw new CommunityReportError("profile", "Set up your Community profile to send a report.");
+        throw new CommunityReportError("profile", "Set up your Community Profile to send a report.");
       if (error.status === 403)
         throw new CommunityReportError("restricted", "Reporting isn’t available for this account right now.");
       if (error.status === 429)

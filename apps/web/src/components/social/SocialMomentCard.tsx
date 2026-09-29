@@ -161,7 +161,7 @@ export function SocialMomentCard({
         <div className="relative" data-testid="moment-card-body">
           {moment.media.length > 0 ? (
             // A Moment with no media already shows its title in the frame above.
-            <h3 className="mt-1 text-sm font-black" data-testid="moment-title">
+            <h3 className="mt-1 break-words text-sm font-black" data-testid="moment-title">
               {openHref ? (
                 <Link
                   className="text-pet-ink transition after:absolute after:inset-0 after:content-[''] hover:text-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
@@ -175,7 +175,7 @@ export function SocialMomentCard({
             </h3>
           ) : null}
           {moment.caption ? (
-            <p className="mt-0.5 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
+            <p className="mt-0.5 whitespace-pre-line break-words text-sm font-semibold leading-6 text-pet-ink">
               {moment.caption}
             </p>
           ) : null}
@@ -241,7 +241,7 @@ export function SocialMomentTile({
       <MomentMedia moment={moment} placeholder="quiet" />
 
       <figcaption className="flex flex-1 flex-col gap-1.5 p-3">
-        <h3 className="text-sm font-black">
+        <h3 className="break-words text-sm font-black">
           {inCommunity ? (
             <Link
               // No display utility beside line-clamp-2. The clamp works by setting

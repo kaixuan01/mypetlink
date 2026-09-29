@@ -268,7 +268,7 @@ function mapCommentError(error: unknown): MomentCommentError {
   if (apiError.code === "community_profile_required") {
     return new MomentCommentError(
       "community-profile",
-      "Set up your Community profile to comment."
+      "Set up your Community Profile to comment."
     );
   }
   if (apiError.code === "community_restricted") {

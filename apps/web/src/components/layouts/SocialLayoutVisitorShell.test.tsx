@@ -117,6 +117,19 @@ describe("visitor shell with Community on", () => {
     expect(createProfile.querySelector("span")?.className).toContain(
       "md:not-sr-only"
     );
+
+    // The circle's padding must not be fought over. `px-0` next to the pill's
+    // own `px-5` lost to it and left 6px for a 16px icon, so below `md` there
+    // is no unprefixed horizontal padding at all, and the icon cannot shrink.
+    const classes = createProfile.className.split(/\s+/);
+    expect(classes).toContain("h-12");
+    expect(classes).toContain("p-0");
+    expect(classes).not.toContain("px-5");
+    expect(classes).not.toContain("px-0");
+    expect(classes).toContain("md:px-5");
+    expect(createProfile.querySelector("svg")?.getAttribute("class")).toContain(
+      "shrink-0"
+    );
   });
 });
 

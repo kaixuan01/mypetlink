@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { OwnerSocialProfileView } from "@/components/social/OwnerSocialProfileView";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -37,6 +37,13 @@ type Phase = "loading" | "setup" | "inactive" | "ready" | "error";
 export function CommunityMyProfileView() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [profile, setProfile] = useState<OwnerSocialProfile | null>(null);
+  /** Bumped by Try again; the load effect keys off it. */
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setPhase("loading");
+    setAttempt((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -60,7 +67,7 @@ export function CommunityMyProfileView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   if (phase === "loading") {
     return (
@@ -79,13 +86,21 @@ export function CommunityMyProfileView() {
 
   if (phase === "error") {
     return (
-      <div className="mx-auto w-full max-w-lg py-16 text-center">
+      <div
+        className="mx-auto w-full max-w-lg py-16 text-center"
+        data-testid="my-profile-error"
+      >
         <h1 className="text-xl font-black text-pet-ink">
           We couldn&rsquo;t load your profile
         </h1>
         <p className="mt-2 text-sm font-semibold leading-6 text-pet-muted">
           Please try again in a moment.
         </p>
+        <div className="mt-6 flex justify-center">
+          <CTAButton onClick={retry} type="button" variant="secondary">
+            Try again
+          </CTAButton>
+        </div>
       </div>
     );
   }
@@ -103,7 +118,7 @@ export function CommunityMyProfileView() {
           size={96}
         />
         <h1 className="mt-4 text-2xl font-black text-pet-ink">
-          Set up your Community profile
+          Set up your Community Profile
         </h1>
         <p className="mt-2 text-sm font-semibold leading-6 text-pet-muted">
           Choose how other pet owners see you, and which of your pets you share.
@@ -125,7 +140,7 @@ export function CommunityMyProfileView() {
           <Icon aria-hidden="true" className="h-7 w-7 text-pet-muted" name="shield" />
         </span>
         <h1 className="mt-4 text-2xl font-black text-pet-ink">
-          Your Community profile is currently off
+          Your Community Profile is currently off
         </h1>
         <p className="mt-2 text-sm font-semibold leading-6 text-pet-muted">
           Nobody can find <span className="font-black">@{profile?.handle}</span> while

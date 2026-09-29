@@ -89,7 +89,7 @@ describe("Community report dialog", () => {
   it.each([
     ["unavailable", "This content is no longer available."],
     ["own", "You can’t report your own content."],
-    ["profile", "Set up your Community profile to send a report."],
+    ["profile", "Set up your Community Profile to send a report."],
     ["restricted", "Reporting isn’t available for this account right now."],
   ] as const)("handles %s without showing a technical code", async (reason, message) => {
     mocks.submit.mockRejectedValue(new CommunityReportError(reason, message));

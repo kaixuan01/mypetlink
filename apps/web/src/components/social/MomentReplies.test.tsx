@@ -138,7 +138,7 @@ describe("One-level Reply threads", () => {
     const cases: [string, typeof viewer | { canComment: false; requirement: "signIn" | "communityProfile" | "communityRestricted"; identity: null }, string | null][] = [
       ["eligible", viewer, null],
       ["anonymous", { canComment: false, requirement: "signIn", identity: null }, "Sign in to comment"],
-      ["no or switched-off Community profile", { canComment: false, requirement: "communityProfile", identity: null }, "Set up your Community profile to comment"],
+      ["no or switched-off Community profile", { canComment: false, requirement: "communityProfile", identity: null }, "Set up your Community Profile to comment"],
       ["restricted", { canComment: false, requirement: "communityRestricted", identity: null }, "Community access is currently paused."],
     ];
     for (const [who, state, text] of cases) {
@@ -150,7 +150,7 @@ describe("One-level Reply threads", () => {
       else expect(screen.getByLabelText("Add a comment"), who).toBeTruthy();
       expect(Boolean(screen.queryByRole("button", { name: "Reply to Amy" })), who).toBe(state.canComment);
       if (who === "restricted") {
-        expect(screen.queryByText(/Set up your Community profile|Sign in to comment/)).toBeNull();
+        expect(screen.queryByText(/Set up your Community Profile|Sign in to comment/)).toBeNull();
         expect(screen.queryByLabelText("Add a comment")).toBeNull();
       }
       cleanup();
@@ -168,7 +168,7 @@ describe("One-level Reply threads", () => {
     expect(await screen.findByText("Community access is currently paused.")).toBeTruthy();
     expect(mocks.create.mock.calls[0].slice(0, 2)).toEqual(["moment-1", "Hello"]);
     expect(mocks.create.mock.calls[0][2] ?? null).toBe(kind === "reply" ? parentId : null);
-    expect(screen.queryByText(/Set up your Community profile/)).toBeNull();
+    expect(screen.queryByText(/Set up your Community Profile/)).toBeNull();
     expect(screen.queryByText(/Couldn’t post reply|couldn’t post your comment/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Reply to Amy" })).toBeNull();
   });
@@ -313,7 +313,7 @@ describe("One movable composer", () => {
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "Unsent reply" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     if (reason === "community-profile") {
-      await screen.findByRole("link", { name: "Set up your Community profile to comment" });
+      await screen.findByRole("link", { name: "Set up your Community Profile to comment" });
     } else {
       await screen.findByRole("alert");
       expect(screen.getByRole("combobox")).toHaveProperty("value", "Unsent reply");

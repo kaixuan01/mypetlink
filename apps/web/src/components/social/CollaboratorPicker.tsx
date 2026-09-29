@@ -293,7 +293,7 @@ export function CollaboratorPicker({
           {query.trim().length >= 2
             ? // Search never reveals a household that isn't discoverable, even by
               // its exact handle; following one is how it becomes invitable.
-              "No households found. To invite a household that isn't listed, follow them from their Community profile first."
+              "No households found. To invite a household that isn't listed, follow them from their Community Profile first."
             : "Households you follow appear here. Type a name or @handle to search."}
         </p>
       ) : null}

@@ -587,3 +587,27 @@ describe("Moment detail tab title", () => {
     expect(document.title).toBe("My Big Boss | MyPetLink");
   });
 });
+
+describe("Moment detail with long unbroken text", () => {
+  // A pasted link or a one-word title ran past the card's edge and was clipped
+  // by it. Same rule as Comments: a long word breaks.
+  const longUrl =
+    "https://www.instagram.com/p/C9xYzAbCdEfGhIjKlMnOpQrStUvWxYz0123456789/?igsh=MTRsbGZ6dW5vY2Fxbw==";
+  const longTitle = "Linko_at_the_vet_for_her_annual_checkup_and_vaccination_2026";
+
+  it("lets the title and caption break inside a long word", async () => {
+    mocks.getPublicMoment.mockResolvedValue(
+      moment({ title: longTitle, caption: `Booked through ${longUrl}` })
+    );
+
+    render(<MomentDetailView momentId="moment-1" />);
+
+    const title = await screen.findByTestId("moment-title");
+    const caption = screen.getByText(`Booked through ${longUrl}`);
+
+    expect(title.className).toContain("break-words");
+    expect(title.textContent).toBe(longTitle);
+    expect(caption.className).toContain("break-words");
+    expect(caption.className).toContain("whitespace-pre-line");
+  });
+});

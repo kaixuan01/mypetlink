@@ -17,7 +17,21 @@ type CTAButtonProps = {
   // Complete accessible name when the visible label is abbreviated
   // (e.g. visible "Call" announced as "Call Doudou's owner").
   ariaLabel?: string;
+  /**
+   * Below this breakpoint the button is a 48px circle showing only its icon;
+   * the label stays in the accessible name and appears from the breakpoint up.
+   * Needs an `icon`.
+   *
+   * A mode rather than overriding classes from outside: `px-0` passed next to
+   * the built-in `px-5` does not win — both land on the element and the
+   * stylesheet decides — which left 6px for a 16px icon.
+   */
+  iconOnlyUntil?: "md";
 };
+
+/** A 48px circle below `md`; the ordinary padded pill from `md` up. */
+const iconOnlyUntilMdClass =
+  "h-12 w-12 shrink-0 gap-0 p-0 md:h-auto md:w-auto md:gap-2 md:whitespace-nowrap md:px-5 md:py-3";
 
 const variants = {
   primary:
@@ -44,9 +58,12 @@ export function CTAButton({
   target,
   rel,
   ariaLabel,
+  iconOnlyUntil,
 }: CTAButtonProps) {
+  const iconOnly = iconOnlyUntil === "md" && Boolean(icon);
   const classes = [
-    "inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-extrabold transition active:translate-y-px",
+    "inline-flex min-h-12 items-center justify-center rounded-full border text-sm font-extrabold transition active:translate-y-px",
+    iconOnly ? iconOnlyUntilMdClass : "gap-2 px-5 py-3",
     variants[variant],
     fullWidth ? "w-full" : "",
     disabled ? "cursor-not-allowed opacity-60" : "",
@@ -55,7 +72,12 @@ export function CTAButton({
     .filter(Boolean)
     .join(" ");
 
-  const content = (
+  const content = iconOnly ? (
+    <>
+      <Icon name={icon!} className="h-4 w-4 shrink-0" />
+      <span className="sr-only md:not-sr-only">{children}</span>
+    </>
+  ) : (
     <>
       {icon ? <Icon name={icon} className="h-4 w-4" /> : null}
       {children}

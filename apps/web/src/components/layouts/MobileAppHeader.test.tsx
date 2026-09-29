@@ -192,7 +192,7 @@ describe("what the compact header calls the page", () => {
     ["/search", "Search"],
     ["/notifications", "Activity"],
     ["/community/profile", "My profile"],
-    ["/u/tanfamily", "Community profile"],
+    ["/u/tanfamily", "Community Profile"],
     ["/u/tanfamily/followers", "Followers"],
     ["/u/tanfamily/following", "Following"],
   ])("names %s as %s", (pathname, title) => {

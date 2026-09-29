@@ -386,7 +386,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             name="shield"
           />
           <span>
-            Community profile details are separate from finder contact details.
+            Community Profile details are separate from finder contact details.
             Your phone number and email are never shown here.
           </span>
         </p>

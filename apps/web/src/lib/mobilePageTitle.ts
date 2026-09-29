@@ -66,7 +66,7 @@ export function getMobilePageTitle(pathname: string): string {
   if (communityProfile) {
     if (communityProfile[1] === "followers") return "Followers";
     if (communityProfile[1] === "following") return "Following";
-    return "Community profile";
+    return "Community Profile";
   }
 
   // A pet's own pages name their section; the pet's name belongs to the page,

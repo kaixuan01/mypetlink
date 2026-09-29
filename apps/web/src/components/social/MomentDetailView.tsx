@@ -297,7 +297,7 @@ function MomentArticle({
 
       <div className="flex flex-col gap-3 p-4">
         <div>
-          <h1 className="text-lg font-black text-pet-ink" data-testid="moment-title">
+          <h1 className="break-words text-lg font-black text-pet-ink" data-testid="moment-title">
             {moment.title}
           </h1>
           {published ? (
@@ -315,7 +315,7 @@ function MomentArticle({
         </div>
 
         {moment.caption ? (
-          <p className="whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">
+          <p className="whitespace-pre-line break-words text-sm font-semibold leading-6 text-pet-ink">
             {moment.caption}
           </p>
         ) : null}
