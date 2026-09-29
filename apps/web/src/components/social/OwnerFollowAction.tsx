@@ -14,6 +14,8 @@ type OwnerFollowActionProps = {
   displayName: string;
   /** Passed through to the button; see `FollowButton`. */
   emphasis?: "solid" | "subtle";
+  /** Passed through to the button; see `FollowButton`. */
+  stableWidth?: boolean;
 };
 
 /**
@@ -29,6 +31,7 @@ export function OwnerFollowAction({
   handle,
   displayName,
   emphasis,
+  stableWidth,
 }: OwnerFollowActionProps) {
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -57,6 +60,7 @@ export function OwnerFollowAction({
       displayName={displayName}
       emphasis={emphasis}
       handle={handle}
+      stableWidth={stableWidth}
       onChange={setRelationship}
       relationship={relationship}
       signedIn={signedIn}

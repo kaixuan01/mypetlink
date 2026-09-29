@@ -166,6 +166,112 @@ describe("the identity stays readable", () => {
   });
 });
 
+describe("a long household name", () => {
+  const longName = "The Wonderful Rahman-Abdullah Household of Petaling Jaya KL";
+  const longHandle = "rahmanabdullahpetalingjayakl1";
+
+  function renderLong(following = false) {
+    return render(
+      <PetSocialAttribution
+        action={
+          <FollowButton
+            displayName={longName}
+            emphasis="subtle"
+            handle={longHandle}
+            onChange={vi.fn()}
+            relationship={relationship({ isFollowing: following })}
+            signedIn
+            stableWidth
+          />
+        }
+        sharedBy={{ ...sharedBy, displayName: longName, handle: longHandle }}
+      />
+    );
+  }
+
+  it("takes a second line before it is cut", () => {
+    renderLong();
+
+    const name = screen.getByTestId("shared-by-name");
+
+    // Beside Following on a phone, one line left about ten characters of a
+    // household's name. Two lines keep most of it; the ellipsis comes after.
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.className).toContain("break-words");
+    expect(name.className).not.toContain("truncate");
+  });
+
+  it("keeps the handle to one line", () => {
+    renderLong();
+
+    const handle = screen.getByText(`@${longHandle}`);
+
+    expect(handle.className).toContain("truncate");
+    expect(handle.className).not.toContain("line-clamp");
+  });
+
+  it("keeps the whole name in the page, whatever is shown", () => {
+    renderLong();
+
+    // Clamping is visual only. The name is complete in the DOM, so the link to
+    // the Community Profile is announced with it.
+    expect(screen.getByTestId("shared-by-name").textContent).toBe(longName);
+    expect(screen.getByTestId("shared-by-identity").textContent).toContain(
+      longName
+    );
+    expect(
+      screen.getByTestId("follow-button").getAttribute("aria-label")
+    ).toBe(`Follow ${longName} (@${longHandle})`);
+  });
+
+  it("holds Follow and Following at one width, and never lets it shrink", () => {
+    const { unmount } = renderLong(false);
+    const follow = screen.getByTestId("follow-button").className;
+    unmount();
+
+    renderLong(true);
+    const following = screen.getByTestId("follow-button").className;
+
+    // Following somebody must not reflow the byline beside the button.
+    for (const className of [follow, following]) {
+      expect(className).toContain("min-w-[6.75rem]");
+      expect(className).toContain("shrink-0");
+      expect(className).not.toContain("max-w-full");
+    }
+  });
+});
+
+describe("the one-line name elsewhere", () => {
+  it("stays one line where nobody asked for two", async () => {
+    const { SharedByIdentity } = await import(
+      "@/components/social/SharedByIdentity"
+    );
+
+    // The Moment page uses the same byline and keeps its single line.
+    render(<SharedByIdentity author={sharedBy} />);
+
+    const name = screen.getByTestId("shared-by-name");
+    expect(name.className).toContain("truncate");
+    expect(name.className).not.toContain("line-clamp");
+  });
+
+  it("leaves other Follow buttons free to size themselves", () => {
+    render(
+      <FollowButton
+        displayName={sharedBy.displayName}
+        handle={sharedBy.handle}
+        onChange={vi.fn()}
+        relationship={relationship()}
+        signedIn
+      />
+    );
+
+    const button = screen.getByTestId("follow-button");
+    expect(button.className).toContain("max-w-full");
+    expect(button.className).not.toContain("min-w-[6.75rem]");
+  });
+});
+
 describe("the Follow control", () => {
   it("says Follow, because the handle is already printed above it", () => {
     renderCard();
@@ -232,6 +338,7 @@ describe("Follow stays quieter than Share profile", () => {
     // Share profile is the solid action on this page; a second solid pill in
     // the byline competed with it.
     expect(page).toMatch(/<OwnerFollowAction[^>]*emphasis="subtle"/);
+    expect(page).toMatch(/<OwnerFollowAction[^>]*stableWidth/);
   });
 
   it("renders the outlined style when asked, signed in or out", () => {

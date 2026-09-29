@@ -25,6 +25,11 @@ type FollowButtonProps = {
   signedIn: boolean | null;
   /** "subtle" outlines the control for surfaces where Follow is not the point. */
   emphasis?: "solid" | "subtle";
+  /**
+   * Holds Follow at the width of Following, so the control and whatever shares
+   * its row do not move when the state changes.
+   */
+  stableWidth?: boolean;
   /** Which screen this control is on. Categorical; never which household. */
   analyticsSource?: AnalyticsSocialSource;
   className?: string;
@@ -51,12 +56,14 @@ export function FollowButton({
   onChange,
   signedIn,
   emphasis = "solid",
+  stableWidth = false,
   analyticsSource = "direct",
   className = "",
   onAuthenticationRequired = navigateToLogin,
 }: FollowButtonProps) {
   const notFollowingClass =
     emphasis === "subtle" ? subtleFollowClass : followClass;
+  const widthClass = stableWidth ? `${stableWidthClass} shrink-0` : "max-w-full";
   const [pending, setPending] = useState(false);
   // The failure is remembered together with the household it belonged to, so a
   // button that moves to another household drops it without an effect — and so
@@ -135,7 +142,7 @@ export function FollowButton({
     return relationship.allowsFollowers ? (
       <Link
         aria-label={`Sign in to follow ${displayName}`}
-        className={`${baseClass} max-w-full ${notFollowingClass} ${className}`}
+        className={`${baseClass} ${widthClass} ${notFollowingClass} ${className}`}
         data-testid="follow-button-signin"
         href={ownerLoginPath(
           getCurrentLocalDestination(ownerSocialProfilePath(handle))
@@ -164,7 +171,7 @@ export function FollowButton({
             : `Follow ${displayName} (@${handle})`
         }
         aria-pressed={following}
-        className={`${baseClass} max-w-full ${following ? followingClass : notFollowingClass} follow-button`}
+        className={`${baseClass} ${widthClass} ${following ? followingClass : notFollowingClass} follow-button`}
         data-following={following ? "true" : "false"}
         data-testid="follow-button"
         disabled={pending || signedIn === null}
@@ -191,6 +198,8 @@ export function FollowButton({
 
 const baseClass =
   "inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60";
+/** Wide enough for "Following" at this type size, with its padding and border. */
+const stableWidthClass = "min-w-[6.75rem]";
 const followClass = "border-pet-teal bg-pet-teal text-white hover:bg-[#1f7fa8]";
 /**
  * The same action, carrying less of the page.

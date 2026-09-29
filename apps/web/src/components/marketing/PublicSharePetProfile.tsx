@@ -462,6 +462,7 @@ export function PublicSharePetProfile({
                         displayName={profile.sharedBy.displayName}
                         emphasis="subtle"
                         handle={profile.sharedBy.handle}
+                        stableWidth
                       />
                     ) : undefined
                   }

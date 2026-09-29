@@ -32,6 +32,10 @@ type PetSocialAttributionProps = {
  * button drops to its own line instead of the byline being crushed. That only
  * happens around 320px, or while a failed follow shows its message.
  *
+ * Beside the button the display name may take two lines before it is cut, and
+ * the button holds one width for Follow and Following, so following somebody
+ * never reflows the byline next to it.
+ *
  * Rendered only when the API returned `sharedBy`, which happens only when both
  * the owner and the pet participate in social. A pet with a shareable link but
  * no social participation shows nothing here at all.
@@ -45,7 +49,11 @@ export function PetSocialAttribution({
       className="mt-4 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[1.5rem] border border-pet-border bg-white p-3"
       data-testid="pet-social-attribution"
     >
-      <SharedByIdentity author={sharedBy} className="min-w-[9rem] flex-1" />
+      <SharedByIdentity
+        author={sharedBy}
+        className="min-w-[9rem] flex-1"
+        nameLines={2}
+      />
 
       {action ? (
         <div

@@ -25,13 +25,21 @@ type SharedByAuthor = {
  *
  * The label never wraps. Two words breaking into a column is what made the pet
  * page's version read as broken.
+ *
+ * `nameLines={2}` lets the display name take a second line before it is cut.
+ * The pet page asks for it because its byline shares a row with Follow, and on
+ * a phone a single line left a long household name about ten characters. The
+ * full name stays in the DOM either way, so the link's accessible name is
+ * never truncated.
  */
 export function SharedByIdentity({
   author,
   className = "",
+  nameLines = 1,
 }: {
   author: SharedByAuthor;
   className?: string;
+  nameLines?: 1 | 2;
 }) {
   return (
     <Link
@@ -56,7 +64,10 @@ export function SharedByIdentity({
         <span className="block whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-pet-muted">
           Shared by
         </span>
-        <span className="block truncate text-sm font-black text-pet-ink">
+        <span
+          className={`${nameLines === 2 ? "line-clamp-2 break-words" : "block truncate"} text-sm font-black text-pet-ink`}
+          data-testid="shared-by-name"
+        >
           {author.displayName}
         </span>
         <span className="block truncate text-xs font-bold text-pet-muted">

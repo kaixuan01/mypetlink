@@ -199,10 +199,11 @@ describe("long identities", () => {
     const label = screen.getByText("Shared by");
     const [, name, handle] = [...(label.parentElement?.children ?? [])];
 
-    // Each truncates at the end of its own line. None wraps, and none stacks
-    // into a column of characters.
+    // The label never wraps. The name may take a second line and is cut after
+    // it; the handle is cut at the end of its one line. Nothing stacks into a
+    // column of characters.
     expect(label.className).toContain("whitespace-nowrap");
-    expect(name.className).toContain("truncate");
+    expect(name.className).toContain("line-clamp-2");
     expect(handle.className).toContain("truncate");
     expect(handle.textContent).toBe("@theextraordinarilylonghandle");
   });
