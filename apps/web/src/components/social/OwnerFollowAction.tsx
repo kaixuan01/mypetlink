@@ -12,6 +12,8 @@ import {
 type OwnerFollowActionProps = {
   handle: string;
   displayName: string;
+  /** Passed through to the button; see `FollowButton`. */
+  emphasis?: "solid" | "subtle";
 };
 
 /**
@@ -26,6 +28,7 @@ type OwnerFollowActionProps = {
 export function OwnerFollowAction({
   handle,
   displayName,
+  emphasis,
 }: OwnerFollowActionProps) {
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
@@ -52,6 +55,7 @@ export function OwnerFollowAction({
   return (
     <FollowButton
       displayName={displayName}
+      emphasis={emphasis}
       handle={handle}
       onChange={setRelationship}
       relationship={relationship}

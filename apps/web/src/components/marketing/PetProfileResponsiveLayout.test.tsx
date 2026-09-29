@@ -77,7 +77,7 @@ const profile = read("components/marketing/PublicSharePetProfile.tsx");
 afterEach(cleanup);
 
 describe("the attribution card's width", () => {
-  it("is capped for the stacked phone layout and released for the row", () => {
+  it("is capped on a phone and released from sm up", () => {
     // The cap is what made a 1440px desktop behave like a 384px one. It stays
     // where it helps — a narrow column reads well on a phone — and goes where
     // it was never meant to apply.
@@ -98,16 +98,19 @@ describe("the attribution card's width", () => {
     expect(column?.className).toContain("min-w-0");
   });
 
-  it("stacks on a phone and sits in a row from sm up", () => {
+  it("keeps one row at every width, wrapping only when it must", () => {
     renderCard();
 
     const card = screen.getByTestId("pet-social-attribution");
+    const identity = screen.getByTestId("shared-by-identity");
 
-    // The mobile layout is the one that was already good; it is preserved here
-    // rather than replaced by the desktop arrangement.
-    expect(card.className).toContain("grid");
-    expect(card.className).toContain("sm:flex");
-    expect(card.className).toContain("sm:items-center");
+    // Household left, Follow right, from a phone to a desktop. The identity's
+    // floor is what stops the flex-1 arithmetic above from coming back: once it
+    // and the button cannot both fit, the button wraps below instead.
+    expect(card.className).toContain("flex");
+    expect(card.className).toContain("flex-wrap");
+    expect(card.className).toContain("items-center");
+    expect(identity.className).toContain("min-w-[9rem]");
   });
 
   it("keeps the avatar at a fixed size whatever the identity does", () => {

@@ -444,10 +444,10 @@ export function PublicSharePetProfile({
 
             {/*
               The attribution card is capped to the bio's width on a phone, where
-              it stacks and a narrow column reads well. Released from `sm` up,
-              where it becomes a row: the cap was a mobile measurement left on a
-              desktop layout, and it is what squeezed the household's identity
-              into one character per line while the browser had 1440px spare.
+              a narrow column reads well. Released from `sm` up: the cap was a
+              mobile measurement left on a desktop layout, and it is what
+              squeezed the household's identity into one character per line
+              while the browser had 1440px spare.
             */}
             {profile.sharedBy ? (
               <div className="mx-auto mt-4 max-w-sm text-left sm:max-w-none">
@@ -455,10 +455,12 @@ export function PublicSharePetProfile({
                   action={
                     // The byline itself is part of the public page and stays;
                     // Follow is a social entry point, so it waits for the flag
-                    // like every other one.
+                    // like every other one. Outlined, because the pet is the
+                    // subject here and Share profile is the page's action.
                     socialEnabled ? (
                       <OwnerFollowAction
                         displayName={profile.sharedBy.displayName}
+                        emphasis="subtle"
                         handle={profile.sharedBy.handle}
                       />
                     ) : undefined

@@ -101,15 +101,46 @@ describe("the identity stays readable", () => {
     expect(card?.className).not.toContain("overflow-x-hidden");
   });
 
-  it("stacks the action under the identity on a phone and sits it alongside later", () => {
+  it("puts Follow on the household's row, to the right and centred", () => {
     renderCard();
 
     const card = screen.getByTestId("pet-social-attribution");
+    const action = screen.getByTestId("pet-social-attribution-action");
 
-    // A grid of one column on a phone; a row from `sm` up. Neither competes.
-    expect(card.className).toContain("grid");
-    expect(card.className).toContain("sm:flex");
-    expect(card.className).toContain("sm:items-center");
+    // One row at every width that can hold it. Parked underneath the byline,
+    // Follow read as a second call to action for the pet.
+    expect(card.className).toContain("flex");
+    expect(card.className).toContain("items-center");
+    expect(card.className).not.toContain("grid");
+    expect(card.className).not.toContain("sm:flex");
+
+    // Pushed to the far edge, and never squeezed by a long byline.
+    expect(action.className).toContain("ml-auto");
+    expect(action.className).toContain("shrink-0");
+    expect(action.contains(screen.getByTestId("follow-button"))).toBe(true);
+  });
+
+  it("drops the button to its own line rather than crushing the byline", () => {
+    renderCard();
+
+    const card = screen.getByTestId("pet-social-attribution");
+    const identity = screen.getByTestId("shared-by-identity");
+
+    // This is what makes the shared row safe. The identity has a floor; when
+    // that floor and the button no longer fit, the row wraps instead of the
+    // byline collapsing to one character per line.
+    expect(card.className).toContain("flex-wrap");
+    expect(identity.className).toContain("min-w-[9rem]");
+    expect(identity.className).toContain("flex-1");
+  });
+
+  it("leaves the card alone when there is no Follow to offer", () => {
+    render(<PetSocialAttribution sharedBy={sharedBy} />);
+
+    // Signed-in owner viewing their own pet, follows closed, or social off:
+    // the byline stands by itself with no empty slot beside it.
+    expect(screen.queryByTestId("pet-social-attribution-action")).toBeNull();
+    expect(screen.getByTestId("shared-by-identity")).toBeTruthy();
   });
 
   it("keeps the avatar at its own size", () => {
@@ -188,6 +219,56 @@ describe("the Follow control", () => {
 
     expect(link.textContent?.trim()).toBe("Follow");
     expect(link.textContent).not.toContain("@");
+  });
+});
+
+describe("Follow stays quieter than Share profile", () => {
+  it("is outlined on the pet's page", () => {
+    const page = readFileSync(
+      join(__dirname, "..", "marketing", "PublicSharePetProfile.tsx"),
+      "utf8"
+    );
+
+    // Share profile is the solid action on this page; a second solid pill in
+    // the byline competed with it.
+    expect(page).toMatch(/<OwnerFollowAction[^>]*emphasis="subtle"/);
+  });
+
+  it("renders the outlined style when asked, signed in or out", () => {
+    const { unmount } = render(
+      <FollowButton
+        displayName={sharedBy.displayName}
+        emphasis="subtle"
+        handle={sharedBy.handle}
+        onChange={vi.fn()}
+        relationship={relationship()}
+        signedIn
+      />
+    );
+
+    const button = screen.getByTestId("follow-button");
+    expect(button.className).toContain("bg-white");
+    expect(button.className).toContain("text-pet-teal");
+    expect(button.className).not.toContain("bg-pet-teal");
+    // Compact, but still a comfortable target.
+    expect(button.className).toContain("min-h-10");
+    expect(button.className).toContain("rounded-full");
+    unmount();
+
+    render(
+      <FollowButton
+        displayName={sharedBy.displayName}
+        emphasis="subtle"
+        handle={sharedBy.handle}
+        onChange={vi.fn()}
+        relationship={relationship()}
+        signedIn={false}
+      />
+    );
+
+    const link = screen.getByTestId("follow-button-signin");
+    expect(link.className).toContain("bg-white");
+    expect(link.className).not.toContain("bg-pet-teal");
   });
 });
 
