@@ -56,7 +56,9 @@ public sealed class TagScanUnknownEnumRelationalTests
                 Variant = "Standard",
                 OwnerUser = owner,
                 OwnerUserId = owner.Id,
-                ActivatedAt = DateTimeOffset.UtcNow
+                // Both scans below must fall after activation, the point
+                // owner scan history starts from.
+                ActivatedAt = DateTimeOffset.UtcNow.AddMinutes(-5)
             };
             var scan = new TagScan
             {

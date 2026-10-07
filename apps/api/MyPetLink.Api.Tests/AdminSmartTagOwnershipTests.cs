@@ -325,6 +325,62 @@ public sealed class AdminSmartTagOwnershipTests
         Assert.Null(afterTransfer.OrderNumber);
     }
 
+    [Fact]
+    public async Task OwnerScanHistory_StartsAtActivation_AndStartsAgainForTheNewOwner()
+    {
+        using var harness = await OwnershipHarness.CreateAsync();
+        await harness.GrantScanHistoryAsync();
+        var tagId = harness.Tag.Id;
+
+        // Internal QR and NFC checks while the tag awaits activation.
+        await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Qr, ScanContext());
+        await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Nfc, ScanContext());
+        Assert.Empty((await harness.Owner.ListScansAsync(OwnershipHarness.OwnerAId, tagId, null)).Items);
+
+        await harness.ActivateAsOwnerAAsync();
+        await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Qr, ScanContext());
+        await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Nfc, ScanContext());
+
+        var ownerAHistory = await harness.Owner.ListScansAsync(OwnershipHarness.OwnerAId, tagId, null);
+        Assert.Equal(
+            new[] { TagScanSource.Nfc, TagScanSource.Qr },
+            ownerAHistory.Items.Select(item => item.ScanSource));
+        Assert.All(ownerAHistory.Items, item => Assert.Equal(TagScanResolvedState.Active, item.ResolvedState));
+        Assert.Equal(2, ownerAHistory.Total);
+
+        await harness.TransferToOwnerBAsync();
+
+        // The previous owner loses the tag's history along with the tag.
+        var previousOwner = await Assert.ThrowsAsync<ApiException>(
+            () => harness.Owner.ListScansAsync(OwnershipHarness.OwnerAId, tagId, null));
+        Assert.Equal(StatusCodes.Status404NotFound, previousOwner.StatusCode);
+
+        // Until Owner B activates, none of Owner A's scans reach them — not even
+        // the time of the last one — and neither do scans in the meantime.
+        await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Qr, ScanContext());
+        Assert.Empty((await harness.Owner.ListScansAsync(OwnershipHarness.OwnerBId, tagId, null)).Items);
+        var awaitingCard = await harness.Owner.GetAsync(OwnershipHarness.OwnerBId, tagId);
+        Assert.Null(awaitingCard.LastScannedAt);
+        Assert.Null(awaitingCard.LastScanSource);
+        Assert.Equal(0, awaitingCard.QrScansLast30Days);
+        Assert.Equal(0, awaitingCard.NfcTapsLast30Days);
+
+        await harness.Owner.ActivateAsync(
+            OwnershipHarness.OwnerBId, OwnershipHarness.TagCode, new ActivateTagRequest(null));
+        await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Nfc, ScanContext());
+
+        var ownerBHistory = await harness.Owner.ListScansAsync(OwnershipHarness.OwnerBId, tagId, null);
+        Assert.Equal(TagScanSource.Nfc, Assert.Single(ownerBHistory.Items).ScanSource);
+        var activeCard = await harness.Owner.GetAsync(OwnershipHarness.OwnerBId, tagId);
+        Assert.NotNull(activeCard.LastScannedAt);
+        Assert.Equal(1, activeCard.NfcTapsLast30Days);
+        Assert.Equal(0, activeCard.QrScansLast30Days);
+
+        // Every scan from every stage is still stored, and Admin still sees them all.
+        Assert.Equal(6, await harness.Db.TagScans.CountAsync(scan => scan.SmartTagId == tagId));
+        Assert.Equal(6, (await harness.Admin.ListScansAsync(OwnershipHarness.AdminId, tagId, null)).Count);
+    }
+
     private static TagScanContext ScanContext() => new(null, null, null);
 
     private sealed class OwnershipHarness : IDisposable
@@ -409,6 +465,22 @@ public sealed class AdminSmartTagOwnershipTests
             LifecycleStatus = PetLifecycleStatus.Active,
             SafetySetting = new PetSafetySetting { SafetyCode = safetyCode, QrSafetyEnabled = true },
         };
+
+        // Full scan history is a plan entitlement; the owners above have none.
+        public async Task GrantScanHistoryAsync()
+        {
+            var plan = new Plan
+            {
+                Code = "Premium",
+                Name = "Premium Plan",
+                Limit = new PlanLimit { ScanHistoryDays = 365 },
+            };
+            Db.Plans.Add(plan);
+            Db.OwnerProfiles.AddRange(
+                new OwnerProfile { UserId = OwnerAId, Plan = plan, PlanId = plan.Id, OwnerDisplayName = "Owner A" },
+                new OwnerProfile { UserId = OwnerBId, Plan = plan, PlanId = plan.Id, OwnerDisplayName = "Owner B" });
+            await Db.SaveChangesAsync();
+        }
 
         public async Task ActivateAsOwnerAAsync()
         {

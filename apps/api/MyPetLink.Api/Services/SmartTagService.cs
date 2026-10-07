@@ -116,7 +116,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         }
 
         var historyCutoff = _timeProvider.GetUtcNow().AddDays(-scanHistoryDays);
-        var allScans = _dbContext.TagScans.AsNoTracking()
+        var allScans = OwnerVisibleScans()
             .Where(scan => scan.SmartTagId == tagId && scan.ScanTime >= historyCutoff);
         var sourceFilter = ParseScanSource(source);
         var filtered = sourceFilter switch
@@ -364,6 +364,22 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             && (tag.OwnerUserId == userId || (tag.Pet != null && tag.Pet.OwnerUserId == userId)));
     }
 
+    /// <summary>
+    /// Scans an owner may see: only those at or after the tag's current
+    /// activation. Earlier scans — internal QR/NFC checks before the tag ships,
+    /// or a previous owner's period, since a transfer or a return to stock clears
+    /// ActivatedAt — stay stored for the Admin audit history but are never shown
+    /// to the owner. A tag that has not been activated has no owner-visible scans.
+    /// </summary>
+    private IQueryable<TagScan> OwnerVisibleScans()
+    {
+        return _dbContext.TagScans
+            .AsNoTracking()
+            .Where(scan => scan.SmartTag != null
+                && scan.SmartTag.ActivatedAt != null
+                && scan.ScanTime >= scan.SmartTag.ActivatedAt);
+    }
+
     private async Task<IReadOnlyDictionary<Guid, OwnerTagActivity>> LoadTagActivityAsync(
         IEnumerable<Guid> tagIds,
         CancellationToken cancellationToken)
@@ -374,8 +390,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             return new Dictionary<Guid, OwnerTagActivity>();
         }
 
-        var latest = await _dbContext.TagScans
-            .AsNoTracking()
+        var latest = await OwnerVisibleScans()
             .Where(scan => scan.SmartTagId.HasValue && ids.Contains(scan.SmartTagId.Value))
             .GroupBy(scan => scan.SmartTagId!.Value)
             .Select(group => group
@@ -386,8 +401,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             .ToArrayAsync(cancellationToken);
 
         var recentCutoff = _timeProvider.GetUtcNow().AddDays(-30);
-        var recentCounts = await _dbContext.TagScans
-            .AsNoTracking()
+        var recentCounts = await OwnerVisibleScans()
             .Where(scan => scan.SmartTagId.HasValue
                 && ids.Contains(scan.SmartTagId.Value)
                 && scan.ScanTime >= recentCutoff

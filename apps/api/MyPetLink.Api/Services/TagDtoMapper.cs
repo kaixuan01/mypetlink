@@ -36,6 +36,10 @@ internal static class TagDtoMapper
     /// points at can belong to a previous owner. Admins still need that history,
     /// but the new owner must not be handed a reference to a stranger's order,
     /// so the order is surfaced only when it belongs to this tag's own owner.
+    ///
+    /// The last-scanned time follows the owner scan-history rule: nothing from
+    /// before the tag's current activation, which a transfer or a return to
+    /// stock clears.
     /// </summary>
     public static SmartTagResponse ToOwnerSmartTagResponse(SmartTag tag)
     {
@@ -50,6 +54,7 @@ internal static class TagDtoMapper
         {
             OrderId = ownOrder ? tag.OrderId : null,
             OrderNumber = ownOrder ? tag.Order!.OrderNumber : null,
+            LastScannedAt = tag.LastScannedAt >= tag.ActivatedAt ? tag.LastScannedAt : null,
         };
     }
 

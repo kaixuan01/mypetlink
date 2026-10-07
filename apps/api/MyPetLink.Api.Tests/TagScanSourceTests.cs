@@ -263,6 +263,7 @@ public sealed class TagScanSourceTests
             Variant = "Standard",
             OwnerUser = owner,
             OwnerUserId = owner.Id,
+            ActivatedAt = DateTimeOffset.UtcNow.AddDays(-1),
         };
         db.AddRange(premiumPlan, owner, tag);
         db.TagScans.AddRange(

@@ -396,6 +396,17 @@ Future uses:
 - heat maps based on consented or non-precise data
 - Premium scan analytics later
 
+Owner visibility:
+
+- The owner's scan history, the tag card's last-scanned time and its 30-day
+  QR/NFC activity count only scans at or after the tag's current `ActivatedAt`
+  (`SmartTagService.OwnerVisibleScans`). The boundary is inclusive.
+- Earlier scans are never deleted. That covers internal QR/NFC checks before
+  shipping, and a previous owner's period: an ownership transfer or a return to
+  unclaimed stock clears `ActivatedAt`. These scans stay in the Admin scan
+  history, counts and exports.
+- A tag that has never been activated shows its owner no scans.
+
 ## Audit Logging
 
 Write audit logs for:
