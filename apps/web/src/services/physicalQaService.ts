@@ -26,7 +26,8 @@ export type QaPreview = {
   requiresAcknowledgement: boolean; listsTruncated: boolean;
 };
 export type QaHistory = { id: string; action: string; createdAt: string; adminName: string | null; result: string | null };
-const base = "/admin/tag-inventory/qa";
+// apiRequest adds no version prefix, so the full API path belongs here.
+const base = "/api/v1/admin/tag-inventory/qa";
 async function required<T>(path: string, options?: Parameters<typeof apiRequest>[1]): Promise<T> {
   const result = await apiRequest<T>(base + path, options);
   if (result.data === undefined) throw new Error("The inspection result was not returned. Please retry.");
