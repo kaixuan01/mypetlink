@@ -287,6 +287,9 @@ public sealed class CommunityReportService : SkeletonService, ICommunityReportSe
                 "This account cannot send reports.");
         }
 
+        // A restricted household is told so, not asked to set up a profile.
+        await CommunityModeration.RequireNotRestrictedAsync(_dbContext, reporterId, cancellationToken);
+
         if (!state.HasProfile)
         {
             throw new ApiException(

@@ -71,6 +71,15 @@ public static class AdminCapabilities
     /// </summary>
     public const string OwnerSocialHandleAssign = "owners.social_handle.assign";
 
+    /// <summary>
+    /// Suspending an owner's whole account, and reinstating it. The one
+    /// moderation power that reaches sign-in and the Owner Portal, so it is
+    /// deliberately not part of any Community capability: a Community violation
+    /// is a Community restriction. Admin Portal accounts are never suspended
+    /// this way.
+    /// </summary>
+    public const string OwnersSuspend = "owners.suspend";
+
     // --- Community moderation -------------------------------------------------
     // Three separate powers: reading reports, deciding them, and enforcing
     // against content or a household. Community-only — none of them reaches an
@@ -84,12 +93,17 @@ public static class AdminCapabilities
     /// </summary>
     public const string CommunityReportsView = "community_reports.view";
 
-    /// <summary>Deciding a report: dismissing it, or removing a reported Comment.</summary>
+    /// <summary>
+    /// Deciding a report — dismissing it, or removing a reported Comment — and,
+    /// without a report, removing a Comment or Reply and warning a household.
+    /// The view capability also opens the Community Moments and Comments lists
+    /// and a household's moderation history.
+    /// </summary>
     public const string CommunityReportsResolve = "community_reports.resolve";
 
     /// <summary>
-    /// Hiding and unhiding a Moment, and restricting a household's Community
-    /// participation and lifting it.
+    /// Removing (hiding) and restoring a Moment, and restricting a household's
+    /// Community participation — for a set time or until lifted — and lifting it.
     /// </summary>
     public const string CommunityModerationEnforce = "community_moderation.enforce";
 

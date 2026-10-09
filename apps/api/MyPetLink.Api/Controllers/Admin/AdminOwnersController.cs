@@ -16,17 +16,20 @@ public sealed class AdminOwnersController : ApiControllerBase
     private readonly IAdminService _adminService;
     private readonly IAdminOwnerQueryService _ownerQueryService;
     private readonly IOwnerHandleService _ownerHandleService;
+    private readonly IAdminCommunityEnforcementService _enforcementService;
     private readonly ICurrentUserService _currentUserService;
 
     public AdminOwnersController(
         IAdminService adminService,
         IAdminOwnerQueryService ownerQueryService,
         IOwnerHandleService ownerHandleService,
+        IAdminCommunityEnforcementService enforcementService,
         ICurrentUserService currentUserService)
     {
         _adminService = adminService;
         _ownerQueryService = ownerQueryService;
         _ownerHandleService = ownerHandleService;
+        _enforcementService = enforcementService;
         _currentUserService = currentUserService;
     }
 
@@ -150,6 +153,43 @@ public sealed class AdminOwnersController : ApiControllerBase
             cancellationToken);
 
         var response = await _ownerHandleService.GetOwnerHandleAsync(ownerId, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    /// <summary>
+    /// Suspends the owner's whole account: they can no longer sign in. Severe
+    /// and deliberately separate from a Community restriction, behind its own
+    /// capability. Finders can still reach the owner's pets' Safety Profiles.
+    /// </summary>
+    [HttpPost("{ownerId:guid}/suspend")]
+    [Authorize(Policy = AdminCapabilities.OwnersSuspend)]
+    public async Task<IActionResult> Suspend(
+        Guid ownerId,
+        [FromBody] AdminAccountSuspensionRequest? request,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var response = await _enforcementService.SuspendAccountAsync(
+            _currentUserService.Current.UserId,
+            ownerId,
+            request,
+            cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [HttpPost("{ownerId:guid}/reinstate")]
+    [Authorize(Policy = AdminCapabilities.OwnersSuspend)]
+    public async Task<IActionResult> Reinstate(
+        Guid ownerId,
+        [FromBody] AdminCommunityReversalRequest? request,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var response = await _enforcementService.ReinstateAccountAsync(
+            _currentUserService.Current.UserId,
+            ownerId,
+            request,
+            cancellationToken);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 

@@ -1,4 +1,5 @@
 import { apiRequest, isApiClientError } from "@/services/apiClient";
+import type { CommunityModerationReason } from "@/lib/communityModeration";
 
 export type CommunityHousehold = {
   ownerId: string;
@@ -8,6 +9,8 @@ export type CommunityHousehold = {
   communityRestricted: boolean;
   communityRestrictedAt: string | null;
   accountActive: boolean;
+  /** When a timed restriction ends; null when it has no end date or there is none. */
+  communityRestrictedUntil?: string | null;
 };
 
 export type CommunityReportSummary = {
@@ -119,10 +122,10 @@ export type ModerationAction = "Dismiss" | "RemoveComment" | "HideMoment" | "Unh
 
 export const moderationActions: Record<ModerationAction, { label: string; path: string; explanation: string; capability: "resolve" | "enforce"; destructive?: boolean }> = {
   Dismiss: { label: "Dismiss report", path: "dismiss", explanation: "No content will be removed. All open reports about this same content will be resolved as Dismissed.", capability: "resolve" },
-  RemoveComment: { label: "Remove comment", path: "remove-comment", explanation: "This comment will no longer be publicly visible. Evidence stays in the report, and all open reports about this same comment will be resolved.", capability: "resolve", destructive: true },
-  HideMoment: { label: "Hide Moment", path: "hide-moment", explanation: "MyPetLink will hide this Moment from Community and Share Profile Moment surfaces. The owner will still have it in the Owner Portal. Their account stays active.", capability: "enforce" },
+  RemoveComment: { label: "Remove comment", path: "remove-comment", explanation: "This comment will no longer be publicly visible, and its author is told it was removed and why. Evidence stays in the report, and all open reports about this same comment will be resolved.", capability: "resolve", destructive: true },
+  HideMoment: { label: "Hide Moment", path: "hide-moment", explanation: "MyPetLink will hide this Moment from Community and Share Profile Moment surfaces, and its owner is told it was removed and why. The owner will still have it in the Owner Portal. Their account stays active.", capability: "enforce" },
   UnhideMoment: { label: "Unhide Moment", path: "unhide-moment", explanation: "This removes the moderation hide. The Moment will only become visible where the owner’s current settings allow it.", capability: "enforce" },
-  RestrictHousehold: { label: "Restrict Community access", path: "restrict-household", explanation: "This pauses the household’s Community access. Their Owner Portal, pet profiles, Safety Profiles and Smart Tags remain available.", capability: "enforce", destructive: true },
+  RestrictHousehold: { label: "Restrict Community access", path: "restrict-household", explanation: "This restricts the household’s Community access until it is lifted, and tells them why. Their Owner Portal, pet profiles, Safety Profiles and Smart Tags remain available. For a timed restriction, use the household’s Community moderation panel instead.", capability: "enforce", destructive: true },
   LiftRestriction: { label: "Lift Community restriction", path: "lift-restriction", explanation: "This removes the moderation restriction and restores the household’s previously preserved Community setting.", capability: "enforce" },
 };
 
@@ -139,10 +142,39 @@ export async function getCommunityReport(id: string, signal?: AbortSignal) {
   return response.data;
 }
 
-export async function actOnCommunityReport(id: string, action: ModerationAction, note: string, rowVersion: string) {
+/** The decisions that tell the affected household what happened, and so carry a reason. */
+export const notifyingModerationActions: ModerationAction[] = ["RemoveComment", "HideMoment", "RestrictHousehold"];
+
+/**
+ * The moderation reason a report's category suggests — the same mapping the
+ * server falls back to when no reason is chosen.
+ */
+export function moderationReasonForReport(reason: string): CommunityModerationReason {
+  switch (reason) {
+    case "SpamOrScam": return "SpamOrAdvertising";
+    case "HarassmentOrBullying": return "Harassment";
+    case "InappropriateContent": return "InappropriateContent";
+    case "AnimalWelfareConcern": return "AnimalWelfareConcern";
+    case "Impersonation": return "Impersonation";
+    case "PrivacyConcern": return "PrivacyOrPersonalInformation";
+    default: return "Other";
+  }
+}
+
+export async function actOnCommunityReport(
+  id: string,
+  action: ModerationAction,
+  note: string,
+  rowVersion: string,
+  reason?: CommunityModerationReason
+) {
   const response = await apiRequest<{ outcome: "Applied" | "AlreadyInEffect"; reportsResolved: number }>(
     `/api/v1/admin/community-reports/${encodeURIComponent(id)}/${moderationActions[action].path}`,
-    { method: "POST", body: { note: note.trim(), rowVersion }, cache: "no-store" }
+    {
+      method: "POST",
+      body: { note: note.trim(), rowVersion, ...(reason && notifyingModerationActions.includes(action) ? { reason } : {}) },
+      cache: "no-store",
+    }
   );
   if (!response.data) throw new Error("Decision unavailable");
   return response.data;

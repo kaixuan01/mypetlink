@@ -32,7 +32,10 @@ public sealed record AdminCommunityHouseholdResponse(
     bool CommunityEnabled,
     bool CommunityRestricted,
     DateTimeOffset? CommunityRestrictedAt,
-    bool AccountActive);
+    bool AccountActive,
+
+    /// <summary>When a timed restriction ends; null for none, or one with no end date.</summary>
+    DateTimeOffset? CommunityRestrictedUntil = null);
 
 public sealed record AdminCommunityReportListItemResponse(
     Guid Id,
@@ -151,12 +154,17 @@ public sealed record AdminCommunityReportDetailResponse(
     IReadOnlyList<string> AvailableActions);
 
 /// <summary>
-/// Every moderation action takes only these two values. The note is required;
-/// the row version is the report's, from the detail, and is required by the
+/// Every moderation action takes only these values. The note is required; the
+/// row version is the report's, from the detail, and is required by the
 /// actions that decide the report. Status, resolution and every "by" field are
 /// chosen by the server.
+///
+/// <see cref="Reason"/> is what the affected household is told when a decision
+/// removes something of theirs or restricts them — a
+/// <c>CommunityModerationReason</c> name, chosen by the moderator. Without one,
+/// the report's own category is used. It never changes the report itself.
 /// </summary>
-public sealed record AdminCommunityModerationRequest(string? Note, string? RowVersion);
+public sealed record AdminCommunityModerationRequest(string? Note, string? RowVersion, string? Reason = null);
 
 /// <summary>
 /// <see cref="Outcome"/> is <c>Applied</c> when this action changed the content
@@ -168,3 +176,158 @@ public sealed record AdminCommunityModerationResultResponse(
     Guid ReportId,
     string Outcome,
     int ReportsResolved);
+
+// ---- Direct moderation, without a report -------------------------------------
+
+/// <summary>
+/// Community Moments a moderator can act on: every public Moment and every
+/// Moment hidden by MyPetLink. A private Moment is never listed — it was never
+/// shared, so there is nothing to moderate. <see cref="Status"/> is
+/// <c>Active</c> or <c>Removed</c>.
+/// </summary>
+public sealed class AdminCommunityMomentQuery : PagedQuery
+{
+    [MaxLength(16)] public string? Status { get; init; }
+    public Guid? AuthorId { get; init; }
+    [MaxLength(100)] public string? Search { get; init; }
+}
+
+/// <summary>
+/// <see cref="Status"/> is <c>Visible</c> (anyone in Community can see it now),
+/// <c>NotVisible</c> (public, but not shown in Community — archived, or its
+/// household's Community is off) or <c>Removed</c> (hidden by MyPetLink).
+/// </summary>
+public sealed record AdminCommunityMomentListItemResponse(
+    Guid Id,
+    string Title,
+    string? CaptionPreview,
+    AdminCommunityHouseholdResponse Author,
+    string? PetName,
+    DateTimeOffset? PublishedAt,
+    string Status,
+    DateTimeOffset? RemovedAt,
+    int LikeCount,
+    int CommentCount);
+
+public sealed record AdminCommunityMomentDetailResponse(
+    AdminCommunityCurrentMomentResponse Moment,
+    string? PetName,
+    int LikeCount,
+    int CommentCount,
+    IReadOnlyList<AdminCommunityModerationHistoryItemResponse> History,
+    IReadOnlyList<string> AvailableActions);
+
+/// <summary>
+/// Comments and Replies a moderator can act on. <see cref="Status"/> is
+/// <c>Active</c> or <c>Removed</c>; <see cref="Kind"/> is <c>Comment</c> or
+/// <c>Reply</c>.
+/// </summary>
+public sealed class AdminCommunityCommentQuery : PagedQuery
+{
+    [MaxLength(16)] public string? Status { get; init; }
+    [MaxLength(16)] public string? Kind { get; init; }
+    public Guid? AuthorId { get; init; }
+    public Guid? MomentId { get; init; }
+}
+
+/// <summary>
+/// A removed Comment has a null <see cref="Body"/> — its text is gone, as
+/// everywhere else. <see cref="Status"/> is <c>Active</c>, <c>RemovedByMyPetLink</c>,
+/// <c>DeletedByAuthor</c> or <c>DeletedByMomentAuthor</c>.
+/// </summary>
+public sealed record AdminCommunityCommentListItemResponse(
+    Guid Id,
+    string Kind,
+    string? Body,
+    AdminCommunityHouseholdResponse Author,
+    Guid MomentId,
+    string MomentTitle,
+    Guid? ParentCommentId,
+    DateTimeOffset CreatedAt,
+    string Status,
+    DateTimeOffset? RemovedAt,
+    bool PubliclyVisible);
+
+/// <summary>One Comment in the thread shown around the one being reviewed.</summary>
+public sealed record AdminCommunityThreadItemResponse(
+    Guid Id,
+    string? Body,
+    DateTimeOffset CreatedAt,
+    bool Removed,
+    AdminCommunityHouseholdResponse Author);
+
+/// <summary>
+/// A Comment or Reply in context: the Moment it is on, the Comment a Reply
+/// answers (in <see cref="AdminCommunityCurrentCommentResponse.ParentComment"/>),
+/// and the thread's Replies, oldest first.
+/// </summary>
+public sealed record AdminCommunityCommentContextResponse(
+    AdminCommunityCurrentCommentResponse Comment,
+    AdminCommunityCurrentMomentResponse? Moment,
+    IReadOnlyList<AdminCommunityThreadItemResponse> ThreadReplies,
+    int ThreadReplyTotal,
+    IReadOnlyList<AdminCommunityModerationHistoryItemResponse> History,
+    IReadOnlyList<string> AvailableActions);
+
+/// <summary>
+/// One entry in a household's moderation history, for moderators only. The
+/// remark and the snapshot of removed content never leave the Admin Portal.
+/// </summary>
+public sealed record AdminCommunityModerationHistoryItemResponse(
+    Guid Id,
+    string Action,
+    string? Reason,
+    string? InternalRemark,
+    string? PerformedByName,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? RestrictedUntil,
+    Guid? MomentId,
+    Guid? CommentId,
+    Guid? ReportId,
+    string? ContentSnapshot);
+
+/// <summary>
+/// A household's moderation standing and history.
+/// <see cref="AccountStatus"/> is the account's own status (<c>Active</c>,
+/// <c>Suspended</c>, …) — separate from Community.
+/// <see cref="CommunityStatus"/> is <c>NotSetUp</c>, <c>Off</c>, <c>On</c>,
+/// <c>Restricted</c> (until <see cref="RestrictedUntil"/>) or <c>Suspended</c>
+/// (restricted with no end date).
+/// </summary>
+public sealed record AdminCommunityHouseholdModerationResponse(
+    AdminCommunityHouseholdResponse Household,
+    string AccountStatus,
+    string CommunityStatus,
+    int WarningCount,
+    DateTimeOffset? RestrictedAt,
+    DateTimeOffset? RestrictedUntil,
+    IReadOnlyList<AdminCommunityModerationHistoryItemResponse> History,
+    int HistoryTotal,
+    IReadOnlyList<string> AvailableActions);
+
+/// <summary>Remove a Moment, Comment or Reply. The reason is required; the remark is not.</summary>
+public sealed record AdminCommunityRemoveContentRequest(string? Reason, string? Remark);
+
+/// <summary>
+/// A warning to a household, optionally about one Moment or one Comment of
+/// theirs. Content that is not theirs is refused.
+/// </summary>
+public sealed record AdminCommunityWarningRequest(string? Reason, string? Remark, Guid? MomentId, Guid? CommentId);
+
+/// <summary>
+/// Restrict a household's Community access. <see cref="Duration"/> is
+/// <c>24h</c>, <c>7d</c>, <c>30d</c> or <c>permanent</c>. Restricting a household
+/// already restricted gives the restriction this new end.
+/// </summary>
+public sealed record AdminCommunityRestrictRequest(string? Reason, string? Duration, string? Remark);
+
+/// <summary>A reversal — restore, lift, reinstate — takes only an optional remark.</summary>
+public sealed record AdminCommunityReversalRequest(string? Remark);
+
+/// <summary>Suspend a whole account. Severe and separate from any Community restriction.</summary>
+public sealed record AdminAccountSuspensionRequest(string? Reason, string? Remark);
+
+public sealed record AdminCommunityActionResultResponse(
+    Guid ActionId,
+    string Action,
+    DateTimeOffset? RestrictedUntil);

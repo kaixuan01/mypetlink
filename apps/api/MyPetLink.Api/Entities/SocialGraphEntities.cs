@@ -327,6 +327,13 @@ public sealed class OwnerNotification : Entity
     /// </summary>
     public Guid? CollaborationId { get; set; }
 
+    /// <summary>
+    /// The moderation action a <see cref="OwnerNotificationType.CommunityModerationNotice"/>
+    /// is about. The notice deliberately carries no Moment or Comment: it must
+    /// never link to, or quote, the content it reports as removed.
+    /// </summary>
+    public Guid? ModerationActionId { get; set; }
+
     public OwnerNotificationType Type { get; set; } = OwnerNotificationType.Unknown;
 
     public DateTimeOffset? ReadAt { get; set; }
@@ -338,4 +345,5 @@ public sealed class OwnerNotification : Entity
     public PetMemory? Moment { get; set; }
     public MomentComment? Comment { get; set; }
     public MomentCollaboration? Collaboration { get; set; }
+    public CommunityModerationAction? ModerationAction { get; set; }
 }

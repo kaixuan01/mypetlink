@@ -39,7 +39,16 @@ public sealed record OwnerSocialProfileResponse(
     /// </summary>
     DateTimeOffset? HandleChangeAvailableAt,
 
-    string RowVersion);
+    string RowVersion,
+
+    /// <summary>
+    /// Community access is restricted by MyPetLink: Community is off and cannot
+    /// be turned on until the restriction ends. Never says why.
+    /// </summary>
+    bool CommunityRestricted = false,
+
+    /// <summary>When a timed restriction ends; null when it has no end date or there is none.</summary>
+    DateTimeOffset? CommunityRestrictedUntil = null);
 
 /// <summary>
 /// Writes the owner's social identity. The handle is deliberately NOT here: it

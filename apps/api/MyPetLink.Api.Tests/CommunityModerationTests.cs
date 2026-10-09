@@ -185,7 +185,9 @@ public sealed class CommunityModerationTests
         var refused = await Assert.ThrowsAsync<ApiException>(() => social.UpdateAsync(Alice, Toggle(true)));
         Assert.Equal(StatusCodes.Status403Forbidden, refused.StatusCode);
         Assert.Equal("community_restricted", refused.Code);
-        Assert.Equal("Your Community access is paused. Contact support.", refused.Message);
+        // A restriction with no end date; a timed one also carries its end.
+        Assert.Equal("Your Community access has been suspended.", refused.Message);
+        Assert.Null(refused.Details);
 
         harness.Db.ChangeTracker.Clear();
         var profile = await harness.Db.OwnerSocialProfiles.SingleAsync(item => item.UserId == Alice);

@@ -115,6 +115,13 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         var visibility = MemoryVisibilityPolicy.Normalize(
             request.Visibility ?? MemoryVisibility.Private);
 
+        // Sharing publicly is Community participation. A restricted household
+        // keeps its private archive but cannot put anything new in public.
+        if (MemoryVisibilityPolicy.IsPublic(visibility))
+        {
+            await CommunityModeration.RequireNotRestrictedAsync(_dbContext, user.Id, cancellationToken);
+        }
+
         // The plan allowance protects the PRIVATE archive only. A public Moment
         // is a social contribution and does not consume it; abuse is bounded by
         // the Moment-creation rate limit, the per-Moment media cap and upload
@@ -261,6 +268,18 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         }
 
         ValidateUpdateRequest(request);
+
+        // A Moment that will be public after this edit is public content: a
+        // restricted household cannot publish one, turn a private one public,
+        // or change what a public one says. Making it private, archiving and
+        // deleting it are always allowed.
+        var resultingVisibility = request.Visibility.HasValue
+            ? MemoryVisibilityPolicy.Normalize(request.Visibility.Value)
+            : memory.Visibility;
+        if (MemoryVisibilityPolicy.IsPublic(resultingVisibility))
+        {
+            await CommunityModeration.RequireNotRestrictedAsync(_dbContext, RequireUserId(currentUserId), cancellationToken);
+        }
 
         if (request.Title is not null)
         {

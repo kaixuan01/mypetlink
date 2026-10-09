@@ -1,5 +1,6 @@
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import type { PublicOwnerAttribution } from "@/services/publicSocialService";
+import { communityRestrictionMessage } from "@/lib/communityModeration";
 
 export type MomentCommentDeleteAction = "delete" | "remove" | null;
 
@@ -42,9 +43,11 @@ export type CommentMentionSuggestions = {
 
 export type MomentCommentViewer = {
   canComment: boolean;
-  /** Why this viewer cannot comment. "communityRestricted" means Community access is paused — never a setup prompt. */
+  /** Why this viewer cannot comment. "communityRestricted" means Community access is restricted — never a setup prompt. */
   requirement: "signIn" | "communityProfile" | "communityRestricted" | null;
   identity: PublicOwnerAttribution | null;
+  /** With "communityRestricted": when a timed restriction ends; null when it has no end date. */
+  communityRestrictedUntil?: string | null;
 };
 
 export type MomentCommentPage = {
@@ -93,13 +96,12 @@ export type MomentCommentErrorReason =
   | "parent-invalid"
   | "error";
 
-/** Shown to a household whose Community access MyPetLink has paused. Deliberately says nothing about why. */
-export const COMMUNITY_PAUSED_MESSAGE = "Community access is currently paused.";
-
 export class MomentCommentError extends Error {
   constructor(
     readonly reason: MomentCommentErrorReason,
-    message: string
+    message: string,
+    /** For "community-restricted": when a timed restriction ends; null when it has no end date. */
+    readonly restrictedUntil: string | null = null
   ) {
     super(message);
     this.name = "MomentCommentError";
@@ -247,6 +249,7 @@ function mapCommentError(error: unknown): MomentCommentError {
     status: number;
     code: string;
     message: string;
+    details?: Record<string, string[]> | null;
   };
 
   if (apiError.status === 401) {
@@ -272,7 +275,13 @@ function mapCommentError(error: unknown): MomentCommentError {
     );
   }
   if (apiError.code === "community_restricted") {
-    return new MomentCommentError("community-restricted", COMMUNITY_PAUSED_MESSAGE);
+    // Says whether and until when — never why.
+    const restrictedUntil = apiError.details?.restrictedUntil?.[0] ?? null;
+    return new MomentCommentError(
+      "community-restricted",
+      communityRestrictionMessage(restrictedUntil),
+      restrictedUntil
+    );
   }
   if (apiError.status === 403) {
     return new MomentCommentError("forbidden", apiError.message);

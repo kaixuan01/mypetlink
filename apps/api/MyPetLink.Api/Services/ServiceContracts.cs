@@ -300,6 +300,14 @@ public interface IOwnerNotificationService : ISkeletonService
     Task StageCollaborationWithdrawal(
         Guid collaborationId, IReadOnlyCollection<OwnerNotificationType> types,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stages the affected household's notice for a moderation action that
+    /// tells them (<see cref="CommunityModerationHistory.NotifiesHousehold"/>);
+    /// does nothing for any other action.
+    /// </summary>
+    Task StageModerationNotice(
+        CommunityModerationAction action, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -348,6 +356,59 @@ public interface IAdminCommunityModerationService : ISkeletonService
         CancellationToken cancellationToken = default);
     Task<AdminCommunityModerationResultResponse> LiftRestrictionAsync(
         Guid? currentUserId, Guid reportId, AdminCommunityModerationRequest? request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Admin-only: Community content and households as a moderator sees them,
+/// without a report — the Moments and Comments lists, a Comment in context, and
+/// a household's moderation standing and history.
+/// </summary>
+public interface IAdminCommunityContentQueryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminCommunityMomentListItemResponse> Items, int Total)> ListMomentsAsync(
+        AdminCommunityMomentQuery query, CancellationToken cancellationToken = default);
+    Task<AdminCommunityMomentDetailResponse> GetMomentAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+    Task<(IReadOnlyCollection<AdminCommunityCommentListItemResponse> Items, int Total)> ListCommentsAsync(
+        AdminCommunityCommentQuery query, CancellationToken cancellationToken = default);
+    Task<AdminCommunityCommentContextResponse> GetCommentAsync(
+        Guid? currentUserId, Guid commentId, CancellationToken cancellationToken = default);
+    Task<AdminCommunityHouseholdModerationResponse> GetHouseholdAsync(
+        Guid? currentUserId, Guid ownerId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Admin-only: moderation taken directly — removing content, warning,
+/// restricting and lifting, and the separate, severe account suspension. Each
+/// is one transaction with its history entry, audit row and, where the
+/// household is told, its notice.
+/// </summary>
+public interface IAdminCommunityEnforcementService : ISkeletonService
+{
+    Task<AdminCommunityActionResultResponse> RemoveMomentAsync(
+        Guid? currentUserId, Guid momentId, AdminCommunityRemoveContentRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> RestoreMomentAsync(
+        Guid? currentUserId, Guid momentId, AdminCommunityReversalRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> RemoveCommentAsync(
+        Guid? currentUserId, Guid commentId, AdminCommunityRemoveContentRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> IssueWarningAsync(
+        Guid? currentUserId, Guid ownerId, AdminCommunityWarningRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> RestrictAsync(
+        Guid? currentUserId, Guid ownerId, AdminCommunityRestrictRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> LiftRestrictionAsync(
+        Guid? currentUserId, Guid ownerId, AdminCommunityReversalRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> SuspendAccountAsync(
+        Guid? currentUserId, Guid ownerId, AdminAccountSuspensionRequest? request,
+        CancellationToken cancellationToken = default);
+    Task<AdminCommunityActionResultResponse> ReinstateAccountAsync(
+        Guid? currentUserId, Guid ownerId, AdminCommunityReversalRequest? request,
         CancellationToken cancellationToken = default);
 }
 

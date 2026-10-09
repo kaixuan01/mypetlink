@@ -65,6 +65,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MomentComment> MomentComments => Set<MomentComment>();
     public DbSet<MomentCommentMention> MomentCommentMentions => Set<MomentCommentMention>();
     public DbSet<CommunityReport> CommunityReports => Set<CommunityReport>();
+    public DbSet<CommunityModerationAction> CommunityModerationActions => Set<CommunityModerationAction>();
     public DbSet<MomentCollaboration> MomentCollaborations => Set<MomentCollaboration>();
     public DbSet<MomentCollaborationPet> MomentCollaborationPets => Set<MomentCollaborationPet>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
@@ -1618,10 +1619,20 @@ public sealed class MyPetLinkDbContext : DbContext
             // off. Every Community visibility rule already requires
             // IsSocialEnabled, so this one invariant is what makes a
             // restriction take effect everywhere at once.
-            entity.ToTable("OwnerSocialProfiles", table => table.HasCheckConstraint(
-                "CK_OwnerSocialProfiles_CommunityRestriction",
-                "([CommunityRestrictedAt] IS NULL AND [CommunityRestrictedByUserId] IS NULL AND [CommunityEnabledBeforeRestriction] IS NULL) "
-                + "OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedByUserId] IS NOT NULL AND [CommunityEnabledBeforeRestriction] IS NOT NULL AND [IsSocialEnabled] = 0)"));
+            entity.ToTable("OwnerSocialProfiles", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_OwnerSocialProfiles_CommunityRestriction",
+                    "([CommunityRestrictedAt] IS NULL AND [CommunityRestrictedByUserId] IS NULL AND [CommunityEnabledBeforeRestriction] IS NULL) "
+                    + "OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedByUserId] IS NOT NULL AND [CommunityEnabledBeforeRestriction] IS NOT NULL AND [IsSocialEnabled] = 0)");
+
+                // An end belongs only to a restriction that is in place, and
+                // comes after it began.
+                table.HasCheckConstraint(
+                    "CK_OwnerSocialProfiles_CommunityRestrictionEnd",
+                    "[CommunityRestrictedUntil] IS NULL "
+                    + "OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedUntil] > [CommunityRestrictedAt])");
+            });
             entity.Property(item => item.Handle).HasMaxLength(OwnerHandleRules.MaxLength);
             entity.Property(item => item.NormalizedHandle).HasMaxLength(OwnerHandleRules.MaxLength);
             entity.Property(item => item.DisplayName).HasMaxLength(OwnerSocialDisplayNameRules.MaxLength);
@@ -1645,6 +1656,10 @@ public sealed class MyPetLinkDbContext : DbContext
 
             entity.HasIndex(item => new { item.IsSocialEnabled, item.IsDiscoverable, item.UpdatedAt });
             entity.HasIndex(item => item.NormalizedDisplayName);
+
+            // The few timed restrictions in place, for the expiry worker.
+            entity.HasIndex(item => item.CommunityRestrictedUntil)
+                .HasFilter("[CommunityRestrictedUntil] IS NOT NULL");
 
             entity.HasOne(item => item.User)
                 .WithOne(user => user.SocialProfile)
@@ -2102,6 +2117,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.RecipientUserId, item.Type, item.ActorUserId, item.MomentId });
             entity.HasIndex(item => item.CommentId);
             entity.HasIndex(item => item.CollaborationId);
+            entity.HasIndex(item => item.ModerationActionId);
 
             entity.HasOne(item => item.RecipientUser)
                 .WithMany()
@@ -2126,6 +2142,67 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.Collaboration)
                 .WithMany()
                 .HasForeignKey(item => item.CollaborationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ModerationAction)
+                .WithMany()
+                .HasForeignKey(item => item.ModerationActionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CommunityModerationAction>(entity =>
+        {
+            entity.ToTable("CommunityModerationActions", table =>
+            {
+                // A removal names what it removed; an end date belongs to a
+                // restriction only; and only an expiry happens without a
+                // moderator.
+                table.HasCheckConstraint(
+                    "CK_CommunityModerationActions_Target",
+                    "([ActionType] NOT IN (N'MomentRemoved', N'MomentRestored') OR ([MomentId] IS NOT NULL AND [CommentId] IS NULL)) "
+                    + "AND ([ActionType] NOT IN (N'CommentRemoved', N'ReplyRemoved') OR [CommentId] IS NOT NULL) "
+                    + "AND ([RestrictedUntil] IS NULL OR [ActionType] = N'CommunityRestricted') "
+                    + "AND (([PerformedByUserId] IS NULL AND [ActionType] = N'CommunityRestrictionExpired') "
+                    + "OR ([PerformedByUserId] IS NOT NULL AND [ActionType] <> N'CommunityRestrictionExpired'))");
+            });
+
+            entity.Property(item => item.ActionType)
+                .HasConversion(new SafeNamedEnumStringConverter<CommunityModerationActionType>(
+                    CommunityModerationActionType.Unknown))
+                .HasMaxLength(32);
+            entity.Property(item => item.Reason)
+                .HasConversion(new SafeNamedEnumStringConverter<CommunityModerationReason>(
+                    CommunityModerationReason.Unknown))
+                .HasMaxLength(32);
+            entity.Property(item => item.InternalRemark).HasMaxLength(CommunityModerationRemarkRules.MaxLength);
+            entity.Property(item => item.ContentSnapshot).HasMaxLength(CommunityModerationSnapshot.MaxLength);
+
+            // A household's history, newest first, and its warning count.
+            entity.HasIndex(item => new { item.TargetUserId, item.CreatedAt });
+            entity.HasIndex(item => new { item.TargetUserId, item.ActionType });
+            entity.HasIndex(item => item.MomentId);
+            entity.HasIndex(item => item.CommentId);
+            entity.HasIndex(item => item.CommunityReportId);
+            entity.HasIndex(item => item.PerformedByUserId);
+
+            entity.HasOne(item => item.TargetUser)
+                .WithMany()
+                .HasForeignKey(item => item.TargetUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.PerformedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.PerformedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Moment)
+                .WithMany()
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Comment)
+                .WithMany()
+                .HasForeignKey(item => item.CommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CommunityReport)
+                .WithMany()
+                .HasForeignKey(item => item.CommunityReportId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

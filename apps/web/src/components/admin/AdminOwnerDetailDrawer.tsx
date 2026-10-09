@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminDetailItem } from "@/components/admin/AdminPanels";
+import { AdminOwnerModerationSection } from "@/components/admin/AdminOwnerModerationSection";
 import { AdminOwnerSocialHandleSection } from "@/components/admin/AdminOwnerSocialHandleSection";
 import { formatAdminDateTime, lifecycleTone, tagStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
@@ -34,11 +35,14 @@ export function AdminOwnerDetailDrawer({
       : null);
   const [copied, setCopied] = useState("");
   const [emailAction, setEmailAction] = useState({ retrying: false, error: "" });
+  // Bumped when a moderation action changes the account (suspension), so the
+  // status shown here is re-read from the server rather than guessed.
+  const [revision, setRevision] = useState(0);
 
   useModalDialogFocus({ dialogRef, initialFocusRef: closeRef, onEscape: onClose });
 
   useEffect(() => {
-    if (initialDetail?.owner.ownerUserId === summary.ownerUserId) {
+    if (revision === 0 && initialDetail?.owner.ownerUserId === summary.ownerUserId) {
       return;
     }
     const controller = new AbortController();
@@ -50,7 +54,7 @@ export function AdminOwnerDetailDrawer({
         if (!controller.signal.aborted) setState({ key: summary.ownerUserId, detail: null, error: "We couldn't load this owner account. Please try again." });
       });
     return () => controller.abort();
-  }, [initialDetail, summary.ownerUserId]);
+  }, [initialDetail, summary.ownerUserId, revision]);
 
   const detail = state?.key === summary.ownerUserId ? state.detail : null;
   const error = state?.key === summary.ownerUserId ? state.error : "";
@@ -197,6 +201,11 @@ export function AdminOwnerDetailDrawer({
               </section>
 
               <AdminOwnerSocialHandleSection ownerUserId={owner.ownerUserId} />
+
+              <AdminOwnerModerationSection
+                onAccountChanged={() => setRevision((value) => value + 1)}
+                ownerUserId={owner.ownerUserId}
+              />
 
               <section aria-labelledby="owner-usage-heading">
                 <h3 className="text-sm font-black text-slate-900" id="owner-usage-heading">Plan and usage</h3>

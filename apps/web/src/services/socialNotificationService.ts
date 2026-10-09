@@ -1,5 +1,9 @@
 import { apiRequest } from "@/services/apiClient";
 import type { PublicOwnerAttribution } from "@/services/publicSocialService";
+import {
+  isKnownModerationNoticeAction,
+  type CommunityModerationNotice,
+} from "@/lib/communityModeration";
 
 /**
  * In-app activity.
@@ -9,7 +13,7 @@ import type { PublicOwnerAttribution } from "@/services/publicSocialService";
  * There is no email counterpart to any of this.
  */
 
-export type SocialNotificationType =
+export type SocialActivityType =
   | "NewFollower"
   | "MomentLiked"
   | "MomentCommented"
@@ -18,13 +22,12 @@ export type SocialNotificationType =
   | "MomentCollaborationRequested"
   | "MomentCollaborationAccepted";
 
-export type SocialNotification = {
+export type SocialNotificationType = SocialActivityType | "CommunityModerationNotice";
+
+type SocialNotificationBase = {
   id: string;
-  type: SocialNotificationType;
   createdAt: string;
   isRead: boolean;
-  /** Resolved at read time, so it is never a stale identity. */
-  actor: PublicOwnerAttribution;
   petName: string | null;
   petPublicSlug: string | null;
   /**
@@ -39,6 +42,26 @@ export type SocialNotification = {
   /** Requested pets for an invitation; the pets that joined for an acceptance. */
   collaborationPetNames?: string[];
 };
+
+/** Something another household did. */
+export type SocialActivityNotification = SocialNotificationBase & {
+  type: SocialActivityType;
+  /** Resolved at read time, so it is never a stale identity. */
+  actor: PublicOwnerAttribution;
+  moderation?: null;
+};
+
+/**
+ * A notice from MyPetLink about the household's own content or Community
+ * access. It has no actor and never names or links to removed content.
+ */
+export type CommunityModerationNotification = SocialNotificationBase & {
+  type: "CommunityModerationNotice";
+  actor: null;
+  moderation: CommunityModerationNotice;
+};
+
+export type SocialNotification = SocialActivityNotification | CommunityModerationNotification;
 
 export type SocialNotificationPage = {
   items: SocialNotification[];
@@ -59,7 +82,7 @@ export async function getSocialNotifications(
     // build may know an activity kind this UI does not; it must disappear, not
     // be mislabelled as a Like.
     items: (response.data?.items ?? [])
-      .filter((item) => isKnownNotificationType(item.type))
+      .filter(isRenderableNotification)
       .map((item) => ({
         ...item,
         momentId: item.momentId ?? null,
@@ -82,8 +105,23 @@ export function isKnownNotificationType(
     value === "MomentCommentMentioned" ||
     value === "MomentCommentReplied" ||
     value === "MomentCollaborationRequested" ||
-    value === "MomentCollaborationAccepted"
+    value === "MomentCollaborationAccepted" ||
+    value === "CommunityModerationNotice"
   );
+}
+
+/**
+ * A row this build can show truthfully: a known activity with its actor, or
+ * a moderation notice whose action it knows. Anything else is dropped rather
+ * than mislabelled.
+ */
+function isRenderableNotification(item: SocialNotification): boolean {
+  if (!isKnownNotificationType(item.type)) return false;
+  if (item.type === "CommunityModerationNotice") {
+    return Boolean(item.moderation && isKnownModerationNoticeAction(item.moderation.action));
+  }
+
+  return Boolean(item.actor);
 }
 
 export async function getUnreadActivityCount(): Promise<number> {

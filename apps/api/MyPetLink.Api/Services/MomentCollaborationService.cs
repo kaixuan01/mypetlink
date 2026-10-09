@@ -247,6 +247,9 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
         CancellationToken cancellationToken = default)
     {
         var actorId = RequireUserId(currentUserId);
+        // A restriction turns Community off, so it would otherwise read as a
+        // missing profile and invite the household to set one up.
+        await CommunityModeration.RequireNotRestrictedAsync(_dbContext, actorId, cancellationToken);
         await RequireUsableIdentityAsync(actorId, cancellationToken);
         var moment = await RequireAuthoredMomentAsync(actorId, momentId, requireManager: true, cancellationToken);
 
@@ -444,6 +447,7 @@ public sealed class MomentCollaborationService : SkeletonService, IMomentCollabo
         }
 
         EnsureActionablePending(snapshot);
+        await CommunityModeration.RequireNotRestrictedAsync(_dbContext, actorId, cancellationToken);
         await RequireUsableIdentityAsync(actorId, cancellationToken);
 
         var slugs = (request?.PetSlugs ?? [])

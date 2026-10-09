@@ -27,6 +27,10 @@ export type OwnerSocialProfile = {
   /** Set while a handle-change cooldown is running. */
   handleChangeAvailableAt: string;
   rowVersion: string;
+  /** Community access is restricted by MyPetLink: it stays off until the restriction ends. */
+  communityRestricted: boolean;
+  /** When a timed restriction ends; null when it has no end date or there is none. */
+  communityRestrictedUntil: string | null;
 };
 
 export type OwnerSocialProfileUpdate = {
@@ -54,6 +58,8 @@ type BackendOwnerSocialProfile = {
   missingRequirements?: string[] | null;
   handleChangeAvailableAt?: string | null;
   rowVersion?: string | null;
+  communityRestricted?: boolean | null;
+  communityRestrictedUntil?: string | null;
 };
 
 type BackendHandleAvailability = {
@@ -82,6 +88,8 @@ export const emptyOwnerSocialProfile: OwnerSocialProfile = {
   missingRequirements: ["handle", "displayName"],
   handleChangeAvailableAt: "",
   rowVersion: "",
+  communityRestricted: false,
+  communityRestrictedUntil: null,
 };
 
 function mapProfile(payload?: BackendOwnerSocialProfile): OwnerSocialProfile {
@@ -104,6 +112,8 @@ function mapProfile(payload?: BackendOwnerSocialProfile): OwnerSocialProfile {
     missingRequirements: payload.missingRequirements ?? [],
     handleChangeAvailableAt: payload.handleChangeAvailableAt ?? "",
     rowVersion: payload.rowVersion ?? "",
+    communityRestricted: payload.communityRestricted ?? false,
+    communityRestrictedUntil: payload.communityRestricted ? payload.communityRestrictedUntil ?? null : null,
   };
 }
 

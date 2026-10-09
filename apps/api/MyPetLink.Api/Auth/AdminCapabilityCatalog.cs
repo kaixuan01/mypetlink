@@ -185,6 +185,9 @@ public static class AdminCapabilityCatalog
                     + "MyPetLink account. Reserved names can never be claimed by owners themselves."),
                 Sensitive(C.PetsExport, "customers", "Owners and Pets", "Download pet records",
                     "Download pet data as a spreadsheet."),
+                Sensitive(C.OwnersSuspend, "customers", "Owners and Pets", "Suspend owner accounts",
+                    "Suspend an owner's whole account, so they can no longer sign in, and reinstate it. "
+                    + "For fraud, scams or serious abuse only — use a Community restriction for Community behaviour."),
             ]),
 
         new AdminCapabilityModule("community", "Community moderation",
@@ -192,15 +195,16 @@ public static class AdminCapabilityCatalog
             + "Affects Community only — never an owner's pets, Safety Profile, Smart Tags or orders.",
             [
                 SensitiveRead(C.CommunityReportsView, "community", "Community moderation",
-                    "View Community reports",
-                    "See reports, who made them and the reported content."),
+                    "View Community reports and content",
+                    "See reports, who made them and the reported content, the Community Moments and "
+                    + "comments lists, and each household's moderation history."),
                 Write(C.CommunityReportsResolve, "community", "Community moderation",
-                    "Resolve Community reports",
-                    "Dismiss a report, or remove a reported Comment."),
+                    "Resolve reports, remove comments and warn",
+                    "Dismiss a report, remove a comment or reply, and issue a Community warning."),
                 Sensitive(C.CommunityModerationEnforce, "community", "Community moderation",
-                    "Hide Moments and pause Community access",
-                    "Hide a Moment from everyone, or pause a household's Community participation, "
-                    + "and undo either."),
+                    "Remove Moments and restrict Community access",
+                    "Remove a Moment from everyone, or restrict a household's Community participation "
+                    + "for a set time or until lifted, and undo either."),
             ]),
 
         new AdminCapabilityModule("sales", "Merchant Sales",

@@ -22,6 +22,11 @@ import {
 } from "@/lib/ownerSocialIdentity";
 import { isApiClientError } from "@/services/apiClient";
 import { isApiConfigured } from "@/services/apiConfig";
+import {
+  communityRestrictionMessage,
+  communityRestrictionReassurance,
+  readCommunityRestriction,
+} from "@/lib/communityModeration";
 import { uploadMediaFile } from "@/services/mediaService";
 import {
   checkOwnerHandleAvailability,
@@ -141,11 +146,14 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
       ? "displayName"
       : null;
 
-  // Turning it OFF is a withdrawal and must never be gated on anything.
-  const canToggleSocial = profile.isSocialEnabled || missingPrerequisite === null;
+  // Turning it OFF is a withdrawal and must never be gated on anything. While
+  // MyPetLink restricts Community access it stays off, and says why.
+  const canToggleSocial =
+    profile.isSocialEnabled || (missingPrerequisite === null && !profile.communityRestricted);
 
-  const socialEnableHelperText =
-    missingPrerequisite === "handle"
+  const socialEnableHelperText = profile.communityRestricted
+    ? communityRestrictionMessage(profile.communityRestrictedUntil)
+    : missingPrerequisite === "handle"
       ? "Choose and save a handle before turning on your Community Profile."
       : missingPrerequisite === "displayName"
         ? "Add a display name before turning on your Community Profile."
@@ -298,6 +306,13 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
         return;
       }
 
+      // A restriction carries its end as a detail; it is not a field error.
+      const restriction = readCommunityRestriction(error);
+      if (restriction) {
+        setSaveMessage(communityRestrictionMessage(restriction.restrictedUntil));
+        return;
+      }
+
       if (isApiClientError(error) && error.details) {
         const details: Record<string, string> = {};
         for (const [field, messages] of Object.entries(error.details)) {
@@ -390,6 +405,21 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             Your phone number and email are never shown here.
           </span>
         </p>
+
+        {profile.communityRestricted ? (
+          <div
+            className="rounded-2xl border border-pet-border bg-pet-cream p-4"
+            data-testid="community-restriction-notice"
+            role="status"
+          >
+            <p className="text-sm font-black text-pet-ink">
+              {communityRestrictionMessage(profile.communityRestrictedUntil)}
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-6 text-pet-muted">
+              {communityRestrictionReassurance}
+            </p>
+          </div>
+        ) : null}
 
         {loadError ? (
           <p className="rounded-2xl bg-pet-apricot p-4 text-sm font-bold text-pet-ink">

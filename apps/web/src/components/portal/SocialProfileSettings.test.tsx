@@ -54,6 +54,8 @@ const emptyProfile: OwnerSocialProfile = {
   missingRequirements: ["handle", "displayName"],
   handleChangeAvailableAt: "",
   rowVersion: "rv-1",
+  communityRestricted: false,
+  communityRestrictedUntil: null,
 };
 
 function handleInput() {
@@ -481,5 +483,35 @@ describe("SocialProfileSettings", () => {
     render(<SocialProfileSettings />);
 
     expect(screen.getByText(/sign in to set up your Community Profile/i)).toBeTruthy();
+  });
+
+  it("explains a Community restriction and keeps the switch off until it ends", async () => {
+    mocks.getOwnerSocialProfile.mockResolvedValue(respond(enabledProfile({
+      isSocialEnabled: false,
+      communityRestricted: true,
+      communityRestrictedUntil: "2099-01-15T06:00:00Z",
+    })));
+
+    render(<SocialProfileSettings />);
+
+    const notice = await screen.findByTestId("community-restriction-notice");
+    expect(notice.textContent).toMatch(/temporarily restricted until 15 Jan 2099/);
+    expect(notice.textContent).toMatch(/including your pets, Safety Profiles, Smart Tags and orders/);
+    expect(socialSwitch().disabled).toBe(true);
+    expect(socialSwitch().getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("words a refused switch as the restriction, never as a field error", async () => {
+    mocks.getOwnerSocialProfile.mockResolvedValue(respond(enabledProfile()));
+    mocks.updateOwnerSocialProfile.mockRejectedValue(
+      new ApiClientError(403, "community_restricted", "Your Community access has been suspended.")
+    );
+
+    render(<SocialProfileSettings />);
+    await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
+    fireEvent.click(socialSwitch());
+
+    expect(await screen.findByText("Your Community access has been suspended.")).toBeTruthy();
+    expect(socialSwitch().getAttribute("aria-checked")).toBe("false");
   });
 });

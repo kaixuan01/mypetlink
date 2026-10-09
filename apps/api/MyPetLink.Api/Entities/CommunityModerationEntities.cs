@@ -83,3 +83,63 @@ public sealed class CommunityReport : Entity
     public PetMemory? Moment { get; set; }
     public MediaFile? SnapshotAvatarMediaFile { get; set; }
 }
+
+/// <summary>
+/// One moderation action, as it happened. Append-only: a row is never updated
+/// or deleted, so a household's moderation history — warnings, removals,
+/// restrictions and their ends, account suspension — stays exactly as it was
+/// decided. A warning count or an active restriction is derived from these
+/// rows and from <see cref="OwnerSocialProfile"/>, never stored as a counter.
+///
+/// <b>Admin-only.</b> <see cref="InternalRemark"/> and
+/// <see cref="ContentSnapshot"/> are for moderators and are never returned to
+/// the affected household or anyone else. The household's notice is built
+/// from <see cref="ActionType"/>, <see cref="Reason"/> and
+/// <see cref="RestrictedUntil"/> alone.
+/// </summary>
+public sealed class CommunityModerationAction : Entity
+{
+    /// <summary>The household (account) the action is about.</summary>
+    public Guid TargetUserId { get; set; }
+
+    public CommunityModerationActionType ActionType { get; set; } = CommunityModerationActionType.Unknown;
+
+    /// <summary>Null for actions that reverse or end something: restore, lift, expiry, reinstatement.</summary>
+    public CommunityModerationReason? Reason { get; set; }
+
+    /// <summary>The moderator's note. Optional, plain text, never shown outside the Admin Portal.</summary>
+    public string? InternalRemark { get; set; }
+
+    /// <summary>The Admin Portal user who acted. Null only for a restriction that expired on its own.</summary>
+    public Guid? PerformedByUserId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// For <see cref="CommunityModerationActionType.CommunityRestricted"/>: when
+    /// the restriction ends on its own. Null means it lasts until lifted.
+    /// </summary>
+    public DateTimeOffset? RestrictedUntil { get; set; }
+
+    /// <summary>The Moment acted on, or the Moment a warning is about.</summary>
+    public Guid? MomentId { get; set; }
+
+    /// <summary>The Comment or Reply acted on, or the one a warning is about.</summary>
+    public Guid? CommentId { get; set; }
+
+    /// <summary>The report this was decided from, when there was one.</summary>
+    public Guid? CommunityReportId { get; set; }
+
+    /// <summary>
+    /// What was removed, as it read at that moment, for moderators: a removed
+    /// Comment's text is wiped from the Comment itself, so this is the only
+    /// place the decision's evidence survives when no report holds it.
+    /// </summary>
+    public string? ContentSnapshot { get; set; }
+
+    public User TargetUser { get; set; } = null!;
+    public User? PerformedByUser { get; set; }
+    public PetMemory? Moment { get; set; }
+    public MomentComment? Comment { get; set; }
+    public CommunityReport? CommunityReport { get; set; }
+}

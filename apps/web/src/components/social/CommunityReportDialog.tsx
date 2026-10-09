@@ -50,6 +50,7 @@ function ReportForm({ report, onClose, canBlock, onBlocked }: {
   const [details, setDetails] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<"form" | "success" | "unavailable" | "own" | "profile" | "restricted" | "session">("form");
+  const [restrictedMessage, setRestrictedMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -74,6 +75,7 @@ function ReportForm({ report, onClose, canBlock, onBlocked }: {
     } catch (caught) {
       if (caught instanceof CommunityReportError) {
         if (["unavailable", "own", "profile", "restricted", "session"].includes(caught.reason)) {
+          if (caught.reason === "restricted") setRestrictedMessage(caught.message);
           setState(caught.reason as typeof state);
         } else setError(caught.message);
       } else setError("Couldn’t send report. Please try again.");
@@ -138,7 +140,7 @@ function ReportForm({ report, onClose, canBlock, onBlocked }: {
             {state === "unavailable" ? <p>This content is no longer available.</p> : null}
             {state === "own" ? <p>You can’t report your own content.</p> : null}
             {state === "profile" ? <><p>Set up your Community Profile to send a report.</p><Link className="inline-flex min-h-11 items-center text-pet-teal underline" href={ownerRoutes.socialProfile}>Set up Community Profile</Link></> : null}
-            {state === "restricted" ? <p>Reporting isn’t available for this account right now.</p> : null}
+            {state === "restricted" ? <p>{restrictedMessage ?? "Reporting isn’t available for this account right now."}</p> : null}
             {state === "session" ? <><p>Sign in to send a report.</p><Link className="inline-flex min-h-11 items-center text-pet-teal underline" href={ownerLoginPath(getCurrentLocalDestination(ownerRoutes.socialProfile))}>Sign in</Link></> : null}
           </div>
         )}

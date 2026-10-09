@@ -64,7 +64,13 @@ public sealed record MomentCommentViewerResponse(
     /// paused by MyPetLink — never "set up your profile"), or null.
     /// </summary>
     string? Requirement,
-    PublicOwnerAttributionResponse? Identity);
+    PublicOwnerAttributionResponse? Identity,
+
+    /// <summary>
+    /// With "communityRestricted": when a timed restriction ends. Null when it
+    /// has no end date, and for every other requirement.
+    /// </summary>
+    DateTimeOffset? CommunityRestrictedUntil = null);
 
 /// <summary>
 /// One page of a Moment's top-level Comments, newest first.

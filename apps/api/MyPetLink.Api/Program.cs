@@ -317,6 +317,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
+            // A suspended or deleted account's token stops working on its
+            // next request, not when it expires.
+            OnTokenValidated = ActiveAccountTokenCheck.ValidateAsync,
             OnChallenge = async context =>
             {
                 context.HandleResponse();
@@ -329,10 +332,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
 
-                var response = ApiEnvelope.Error(
-                    context.HttpContext,
-                    "unauthorized",
-                    "Authentication is required.");
+                var response = context.AuthenticateFailure is InactiveAccountException
+                    ? ApiEnvelope.Error(
+                        context.HttpContext,
+                        ActiveAccountTokenCheck.ErrorCode,
+                        ActiveAccountTokenCheck.ErrorMessage)
+                    : ApiEnvelope.Error(
+                        context.HttpContext,
+                        "unauthorized",
+                        "Authentication is required.");
 
                 await JsonSerializer.SerializeAsync(
                     context.Response.Body,
@@ -419,6 +427,9 @@ builder.Services.AddScoped<IMomentCollaborationService, MomentCollaborationServi
 builder.Services.AddScoped<ICommunityReportService, CommunityReportService>();
 builder.Services.AddScoped<IAdminCommunityReportQueryService, AdminCommunityReportQueryService>();
 builder.Services.AddScoped<IAdminCommunityModerationService, AdminCommunityModerationService>();
+builder.Services.AddScoped<IAdminCommunityContentQueryService, AdminCommunityContentQueryService>();
+builder.Services.AddScoped<IAdminCommunityEnforcementService, AdminCommunityEnforcementService>();
+builder.Services.AddScoped<ICommunityRestrictionExpiryService, CommunityRestrictionExpiryService>();
 builder.Services.AddScoped<IOwnerNotificationService, OwnerNotificationService>();
 builder.Services.AddScoped<ISocialFeedService, SocialFeedService>();
 builder.Services.AddScoped<ISocialDiscoveryService, SocialDiscoveryService>();
@@ -501,6 +512,7 @@ builder.Services.AddScoped<IEmailSender>(services =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<EmailDispatchWorker>();
 builder.Services.AddHostedService<PaymentReservationExpiryWorker>();
+builder.Services.AddHostedService<CommunityRestrictionExpiryWorker>();
 builder.Services.AddScoped<IFileStorageProvider, LocalFileStorageProvider>();
 builder.Services.AddSingleton<IObjectStorageService, CloudflareR2StorageService>();
 

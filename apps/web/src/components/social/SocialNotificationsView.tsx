@@ -12,9 +12,12 @@ import { formatMomentSubjects } from "@/lib/momentSubjects";
 import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
 import { momentNavigationPath } from "@/lib/momentNavigation";
 import { setUnreadActivityCount } from "@/lib/useUnreadActivity";
+import { moderationNoticeCopy } from "@/lib/communityModeration";
 import {
   getSocialNotifications,
   markActivityRead,
+  type CommunityModerationNotification,
+  type SocialActivityNotification,
   type SocialNotification,
 } from "@/services/socialNotificationService";
 
@@ -208,6 +211,10 @@ function ActivityRow({
   item: SocialNotification;
   now?: number;
 }) {
+  if (item.type === "CommunityModerationNotice") {
+    return <ModerationNoticeRow item={item} now={now} />;
+  }
+
   const copy = activityCopy(item);
   const destination = copy.destination;
   const sentence = `${item.actor.displayName} ${copy.predicate}`;
@@ -284,6 +291,66 @@ function ActivityRow({
 }
 
 /**
+ * A notice from MyPetLink about the household's own content or Community
+ * access. Deliberately not a link: it never points at, or quotes, what was
+ * removed. It says what happened, why, and — for a restriction — that
+ * nothing outside Community is affected.
+ */
+function ModerationNoticeRow({
+  item,
+  now,
+}: {
+  item: CommunityModerationNotification;
+  now?: number;
+}) {
+  const copy = moderationNoticeCopy(item.moderation);
+
+  return (
+    <li>
+      <div
+        className={`flex min-w-0 items-start gap-3 rounded-[1.25rem] border p-3 ${
+          item.isRead ? "border-pet-border bg-white" : "border-pet-teal bg-[#f2faff]"
+        }`}
+        data-read={item.isRead ? "true" : "false"}
+        data-testid="activity-moderation-notice"
+        role="group"
+        aria-label={`${item.isRead ? "" : "Unread. "}From MyPetLink. ${copy.title}`}
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream">
+          <Icon aria-hidden="true" className="h-5 w-5 text-pet-teal" name="shield" />
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs font-bold uppercase tracking-wide text-pet-muted">From MyPetLink</span>
+          <span className="mt-0.5 block text-sm font-black leading-5 text-pet-ink">{copy.title}</span>
+          <span className="mt-1 block text-sm font-semibold leading-5 text-pet-muted">{copy.body}</span>
+          {copy.reason ? (
+            <span className="mt-1 block text-sm font-semibold leading-5 text-pet-ink">Reason: {copy.reason}</span>
+          ) : null}
+        </span>
+
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          {now !== undefined ? (
+            <time className="text-xs font-semibold text-pet-muted" dateTime={item.createdAt}>
+              {formatRelativeAge(item.createdAt, now)}
+            </time>
+          ) : null}
+          {item.isRead ? null : (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-pet-teal"
+              data-testid="activity-unread-marker"
+            >
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-pet-teal" />
+              New
+            </span>
+          )}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+/**
  * What an activity row says, where it goes and how it is labelled, in one
  * place so the visible sentence and the link's accessible name never drift.
  *
@@ -293,7 +360,7 @@ function ActivityRow({
  * never inline here. No destination promises the content is still there;
  * each re-checks on arrival.
  */
-function activityCopy(item: SocialNotification): {
+function activityCopy(item: SocialActivityNotification): {
   predicate: string;
   destination: string;
   destinationLabel: string;

@@ -650,12 +650,19 @@ public sealed class MomentCommentService : SkeletonService, IMomentCommentServic
 
         if (profile is null)
         {
-            return new MomentCommentViewerResponse(
-                false,
-                await CommunityModeration.IsRestrictedAsync(_dbContext, viewerId.Value, cancellationToken)
-                    ? "communityRestricted"
-                    : "communityProfile",
-                null);
+            var restriction = await _dbContext.OwnerSocialProfiles
+                .AsNoTracking()
+                .Where(item => item.UserId == viewerId.Value && item.CommunityRestrictedAt != null)
+                .Select(item => new { item.CommunityRestrictedUntil })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            return restriction is null
+                ? new MomentCommentViewerResponse(false, "communityProfile", null)
+                : new MomentCommentViewerResponse(
+                    false,
+                    "communityRestricted",
+                    null,
+                    restriction.CommunityRestrictedUntil);
         }
 
         return new MomentCommentViewerResponse(

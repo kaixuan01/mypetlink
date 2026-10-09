@@ -58,6 +58,8 @@ function profile(overrides: Partial<OwnerSocialProfile> = {}): OwnerSocialProfil
     missingRequirements: [],
     handleChangeAvailableAt: "",
     rowVersion: "rv-1",
+    communityRestricted: false,
+    communityRestrictedUntil: null,
     ...overrides,
   };
 }

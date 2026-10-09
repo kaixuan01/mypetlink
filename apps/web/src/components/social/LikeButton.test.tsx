@@ -86,6 +86,23 @@ describe("LikeButton", () => {
     );
   });
 
+  it("tells a restricted household until when, instead of a generic refusal", async () => {
+    mocks.likeMoment.mockRejectedValue(
+      new ApiClientError(403, "community_restricted", "Your Community access is temporarily restricted.", {
+        restrictedUntil: ["2099-01-15T06:00:00Z"],
+      })
+    );
+
+    const { onChange } = renderButton({ likeCount: 3 });
+    fireEvent.click(likeButton());
+
+    const error = await screen.findByTestId("like-button-error");
+    expect(error.textContent).toBe(
+      "Your Community access is temporarily restricted until 15 Jan 2099, 2:00 PM."
+    );
+    expect(onChange).toHaveBeenLastCalledWith({ likeCount: 3, viewerHasLiked: false });
+  });
+
   it("rolls back to the exact previous state when the like is refused", async () => {
     mocks.likeMoment.mockRejectedValue(
       new ApiClientError(429, "rate_limited", "You're doing that too quickly.")

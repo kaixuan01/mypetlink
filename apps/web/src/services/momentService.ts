@@ -12,6 +12,7 @@ import {
   writeStoredCollection,
 } from "@/services/mockApi";
 import { apiRequest, isApiClientError } from "@/services/apiClient";
+import { communityRestrictionMessage, readCommunityRestriction } from "@/lib/communityModeration";
 import { canUseApi } from "@/services/apiConfig";
 import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import type { CollaborationInvite } from "@/services/momentCollaborationService";
@@ -585,6 +586,13 @@ export function getFriendlyMomentErrorMessage(error: unknown) {
   }
 
   if (isApiClientError(error)) {
+    // Sharing publicly is Community participation. The Moment can still be
+    // saved privately, and the message says so.
+    const restriction = readCommunityRestriction(error);
+    if (restriction) {
+      return `${communityRestrictionMessage(restriction.restrictedUntil)} You can still save this Moment privately.`;
+    }
+
     if (error.code === "plan_limit_reached") {
       return "You've reached the Free Moment limit for this pet. Existing Moments stay safe and Premium albums are coming soon.";
     }

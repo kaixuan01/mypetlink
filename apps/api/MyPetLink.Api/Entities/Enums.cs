@@ -443,7 +443,14 @@ public enum OwnerNotificationType
     MomentCommentMentioned,
 
     /// <summary>"X replied to your comment." Stored by name, so an older build reads it as Unknown and hides it.</summary>
-    MomentCommentReplied
+    MomentCommentReplied,
+
+    /// <summary>
+    /// A notice from MyPetLink about a moderation action on the recipient's own
+    /// content or Community access. Has no actor; its wording comes from the
+    /// linked <see cref="CommunityModerationAction"/>, never from the content.
+    /// </summary>
+    CommunityModerationNotice
 }
 
 /// <summary>
@@ -515,4 +522,55 @@ public enum CommunityReportResolution
     CommentRemoved,
     MomentHidden,
     HouseholdRestricted
+}
+
+/// <summary>
+/// One entry in a household's moderation history. Stored by name; Unknown is
+/// the safe read fallback for a value written by a newer build.
+/// </summary>
+public enum CommunityModerationActionType
+{
+    Unknown,
+
+    /// <summary>A Moment hidden by MyPetLink ("removed" to its author).</summary>
+    MomentRemoved,
+
+    /// <summary>A hidden Moment put back.</summary>
+    MomentRestored,
+
+    CommentRemoved,
+    ReplyRemoved,
+    WarningIssued,
+
+    /// <summary>Community access paused; until <c>RestrictedUntil</c>, or with none, until lifted.</summary>
+    CommunityRestricted,
+
+    CommunityRestrictionLifted,
+
+    /// <summary>A timed restriction that ended on its own. Performed by nobody.</summary>
+    CommunityRestrictionExpired,
+
+    /// <summary>The whole account suspended. Not a Community action: sign-in stops.</summary>
+    AccountSuspended,
+
+    AccountReinstated
+}
+
+/// <summary>
+/// Why a moderator acted. A controlled set shown to the affected household in
+/// plain words; the moderator's own remark is never shown to them.
+/// </summary>
+public enum CommunityModerationReason
+{
+    Unknown,
+    SpamOrAdvertising,
+    Harassment,
+    InappropriateContent,
+    ScamOrFraud,
+    PrivacyOrPersonalInformation,
+    AnimalWelfareConcern,
+    Impersonation,
+    SecurityAbuse,
+    RepeatedViolations,
+    Other
 }

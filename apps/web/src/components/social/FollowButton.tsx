@@ -9,6 +9,7 @@ import {
 } from "@/lib/authRedirect";
 import { ownerSocialProfilePath } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
+import { communityActionErrorMessage } from "@/lib/communityModeration";
 import {
   followOwner,
   unfollowOwner,
@@ -115,9 +116,8 @@ export function FollowButton({
 
       setFailure({
         handle,
-        message: isApiClientError(caught)
-          ? caught.message
-          : "We couldn't update this. Please try again.",
+        // A restriction says until when; anything else, the error itself.
+        message: communityActionErrorMessage(caught, "We couldn't update this. Please try again."),
       });
     } finally {
       setPending(false);

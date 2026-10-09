@@ -115,6 +115,16 @@ describe("adminNavigation", () => {
     ).toContain("Merchant Sales");
   });
 
+  it("shows Community Moments and Comments only with Community moderation view access", () => {
+    const labels = (access: AdminAccessCapabilities) => visibleAdminNavGroups(access)
+      .flatMap((group) => group.items.map((item) => item.label));
+    for (const [label, path] of [["Moments", "/admin/community-moments"], ["Comments", "/admin/community-comments"]] as const) {
+      expect(labels(accessWith(adminCapabilities.communityReportsView))).toContain(label);
+      expect(labels(accessWith(adminCapabilities.communityModerationEnforce))).not.toContain(label);
+      expect(requiredCapabilitiesForPath(path)).toEqual([adminCapabilities.communityReportsView]);
+    }
+  });
+
   it("shows Community Reports only with its view capability", () => {
     const labels = (access: AdminAccessCapabilities) => visibleAdminNavGroups(access)
       .flatMap((group) => group.items.map((item) => item.label));

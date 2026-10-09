@@ -1075,7 +1075,9 @@ account; status, resolution and every "by" field are the server's.
   household); the clicked report saves against the client's row version and
   every other row against the version read, so a concurrent moderator,
   owner edit or Community switch makes the loser answer `409` with nothing
-  written. Nobody is notified.
+  written. Since Phase 1 (§12l) a decision that removes something or restricts
+  a household also records it in that household's moderation history and
+  sends them a notice; the reporter is never notified.
 
 ## 12h. Phase 2F Comment Replies
 
@@ -1522,6 +1524,123 @@ editor closes      -> files uploaded but never named in a save are deleted
   `MediaService.DeleteStalePendingUploadsAsync` exists but nothing schedules it;
   a periodic sweep of stale pending and unlinked Moment uploads is a follow-up.
 
+## 12l. Community Moderation Phase 1 (direct moderation)
+
+Phase 1 adds moderation without a report on top of Phase 2E: browsing and
+acting on Community content directly, warnings, timed Community restrictions
+that end on their own, a household's moderation history, notices to the
+affected household, and — kept apart from all of it — account suspension.
+Operational guidance is in the runbook.
+
+**History.** `CommunityModerationActions` is append-only: one row per action,
+never updated or deleted. It holds the target household, the action
+(`MomentRemoved`, `MomentRestored`, `CommentRemoved`, `ReplyRemoved`,
+`WarningIssued`, `CommunityRestricted`, `CommunityRestrictionLifted`,
+`CommunityRestrictionExpired`, `AccountSuspended`, `AccountReinstated`), the
+reason (`CommunityModerationReason`; null for reversals and expiry), the
+moderator's optional internal remark, who acted (null only for an expiry), when,
+a restriction's end, the Moment or Comment concerned, the report it came from,
+and — for a removal — a moderator-only snapshot of what was removed, because
+removing a Comment wipes its body. `CK_CommunityModerationActions_Target`
+keeps the rows coherent. The warning count is derived from the rows. Every
+action also appends its `AuditLog` row as before
+(`CommunityModerationAudit`, now including `CommunityWarningIssued`,
+`CommunityHouseholdRestrictionExpired`, `AccountSuspended`,
+`AccountReinstated`); the history is the domain record the Admin Portal and
+notices read, the audit log the security trail.
+
+**Report decisions record and notify too.** Remove Comment, Hide Moment and
+Restrict household from a report append a history row (reason: the one the
+moderator chose — the optional `reason` on the decision request — or else the
+report's category mapped by `CommunityModerationReasons.FromReport`) and send
+the household a notice; Unhide and Lift append a row only. A decision that
+changed nothing (`AlreadyInEffect`) records nothing.
+
+**Timed restrictions.** `OwnerSocialProfiles.CommunityRestrictedUntil` (null =
+until lifted) sits beside the existing restriction columns;
+`CK_OwnerSocialProfiles_CommunityRestrictionEnd` allows it only on a standing
+restriction and after it began. The restriction model itself is unchanged —
+Community is forced off, so every visibility rule already applies — so a timed
+restriction ends by being lifted: `CommunityRestrictionExpiryWorker` runs
+`CommunityRestrictionExpiryService` about once a minute, which re-reads each due
+restriction under the household lock and lifts it exactly as a moderator would
+(the owner's own choice restored), recording `CommunityRestrictionExpired` with
+no moderator and an audit row with the System actor. Concurrent hosts end each
+restriction once. Restricting a household that is already restricted gives the
+restriction a new end (`CommunityModeration.ChangeRestrictionEnd`); from a
+report, a restriction still lasts until lifted.
+
+**One write check.** `CommunityModeration.RequireNotRestrictedAsync` is the
+check every Community write asks, and the one refusal:
+`403 community_restricted` with `details.restrictedUntil` (ISO 8601, UTC) for a
+timed restriction and none for one without an end. It never says why or who.
+Callers: Comment and Reply creation, Like, Follow, collaboration invite and
+accept, report submission, turning Community on, and any Moment write that
+leaves the Moment public — creating a public Moment, turning a private one
+public, or editing one that is public (`MemoryService` create and update, which
+back every Moment route). Taking something back — Unlike, Unfollow, deleting
+your own Comment, declining or leaving a collaboration, making a Moment
+private, archiving or deleting one — and blocking are never refused, and
+private Moments are untouched: they are an Owner Portal feature. A public
+Moment is one shared item with no Share-Profile-only form, so a restricted
+household adds nothing new to its pets' Share Profiles either; the ones it
+already shared stay there, as they always have, while Community hides them. The owner's
+Community settings response and the Comments viewer carry
+`communityRestricted`/`communityRestrictedUntil` so the client can say until
+when.
+
+**Notices.** `OwnerNotificationType.CommunityModerationNotice` rows have no
+actor and link to the `CommunityModerationAction` only, never to a Moment or
+Comment, so a notice can neither link to nor quote what was removed.
+`OwnerNotificationService.StageModerationNotice` stages one, in the same save,
+for `MomentRemoved`, `CommentRemoved`, `ReplyRemoved`, `WarningIssued` and
+`CommunityRestricted`. The Activity list shows them alongside ordinary activity
+(they count towards the unread badge) and returns only the action, the reason
+and a restriction's end in `OwnerNotificationResponse.Moderation`
+(`Actor` is null). In-app only; no email.
+
+**Direct moderation.** `AdminCommunityModerationController` at
+`api/v1/admin/community` (`AdminCommunityContentQueryService` reads,
+`AdminCommunityEnforcementService` acts):
+
+| Endpoint | Capability (in addition to `community_reports.view`) |
+| --- | --- |
+| `GET moments`, `GET moments/{id}` | — |
+| `POST moments/{id}/remove`, `POST moments/{id}/restore` | `community_moderation.enforce` |
+| `GET comments`, `GET comments/{id}` (in context) | — |
+| `POST comments/{id}/remove` | `community_reports.resolve` |
+| `GET households/{ownerId}` (standing and history) | — |
+| `POST households/{ownerId}/warnings` | `community_reports.resolve` |
+| `POST households/{ownerId}/restrict`, `POST households/{ownerId}/lift-restriction` | `community_moderation.enforce` |
+
+Moments listed and moderatable are public ones and ones hidden by MyPetLink —
+never a private Moment. Removing a Moment is Hide Moment; removing a Comment is
+`MomentCommentRemoval`, the one removal path. Requests take a required
+`reason` (exact `CommunityModerationReason` name) and an optional `remark`;
+restriction also takes `duration` (`24h`, `7d`, `30d`, `permanent`). Each
+action is one transaction under the shared `CommunityModerationTransaction`
+locks, so direct and report actions on the same target serialize. A moderator
+never acts on — or reads the standing of — their own household
+(`403 moderation_conflict_of_interest`); a warning can only be linked to the
+household's own content (`422 warning_content_not_theirs`).
+
+**Account suspension** is an owner action, not a Community one:
+`POST api/v1/admin/owners/{ownerId}/suspend` and `/reinstate`, behind
+`owners.suspend` (Sensitive; Administrator and Super Admin). It sets
+`Users.Status` to `Suspended` — the existing status that sign-in and token
+refresh already refuse — and revokes the account's refresh tokens. Access
+tokens already issued stop working on their next request:
+`ActiveAccountTokenCheck` runs on `JwtBearerEvents.OnTokenValidated` and
+refuses the token of an account that is not Active (`401 user_inactive`). It is
+one primary-key read, only for requests that carry a bearer token; an endpoint
+that allows anonymous access continues as anonymous, so finder pages work even
+for a browser still sending the old token. It does not
+touch any Community restriction, and a restriction never touches it. Finder
+pages do not depend on account status, so a lost pet's Safety Profile and Smart
+Tags keep working. Admin Portal accounts are refused (`403 account_is_admin`);
+they are managed from Access. No notice is sent: the account cannot sign in to
+read it.
+
 ## 13. Deliberately deferred Community work
 
 Deliberately absent, to be added only in later phases:
@@ -1530,9 +1649,9 @@ Deliberately absent, to be added only in later phases:
 - Mentions in Moment captions
 - A collaborator section on household profiles ("With friends"), collaboration
   in Feed for a collaborator's followers, and private-Moment collaboration
-- Reporting and moderation beyond the Phase 2E scope: anonymous reporting,
-  appeals, automated thresholds, trust scores, media scanning, automated media
-  purge, report export, and full account suspension from Admin
+- Moderation beyond Phase 1: anonymous reporting, appeals, automated
+  thresholds or strikes, trust scores, keyword or media scanning, automated
+  media purge, report export, moderation email and a moderation analytics view
 - Pet-level follow — evaluated, deferred; revisit with real engagement data
 - Any social email — a new consent category, not built
 

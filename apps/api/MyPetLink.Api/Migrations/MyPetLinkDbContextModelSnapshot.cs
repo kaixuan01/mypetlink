@@ -953,6 +953,70 @@ namespace MyPetLink.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.CommunityModerationAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("CommentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CommunityReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentSnapshot")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("InternalRemark")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("MomentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PerformedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset?>("RestrictedUntil")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("CommunityReportId");
+
+                    b.HasIndex("MomentId");
+
+                    b.HasIndex("PerformedByUserId");
+
+                    b.HasIndex("TargetUserId", "ActionType");
+
+                    b.HasIndex("TargetUserId", "CreatedAt");
+
+                    b.ToTable("CommunityModerationActions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CommunityModerationActions_Target", "([ActionType] NOT IN (N'MomentRemoved', N'MomentRestored') OR ([MomentId] IS NOT NULL AND [CommentId] IS NULL)) AND ([ActionType] NOT IN (N'CommentRemoved', N'ReplyRemoved') OR [CommentId] IS NOT NULL) AND ([RestrictedUntil] IS NULL OR [ActionType] = N'CommunityRestricted') AND (([PerformedByUserId] IS NULL AND [ActionType] = N'CommunityRestrictionExpired') OR ([PerformedByUserId] IS NOT NULL AND [ActionType] <> N'CommunityRestrictionExpired'))");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.CommunityReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4483,6 +4547,9 @@ namespace MyPetLink.Api.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid?>("ModerationActionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("MomentId")
                         .HasColumnType("uniqueidentifier");
 
@@ -4507,6 +4574,8 @@ namespace MyPetLink.Api.Migrations
                     b.HasIndex("CollaborationId");
 
                     b.HasIndex("CommentId");
+
+                    b.HasIndex("ModerationActionId");
 
                     b.HasIndex("MomentId");
 
@@ -4673,6 +4742,9 @@ namespace MyPetLink.Api.Migrations
                     b.Property<Guid?>("CommunityRestrictedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("CommunityRestrictedUntil")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -4724,6 +4796,9 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("CommunityRestrictedByUserId");
 
+                    b.HasIndex("CommunityRestrictedUntil")
+                        .HasFilter("[CommunityRestrictedUntil] IS NOT NULL");
+
                     b.HasIndex("NormalizedDisplayName");
 
                     b.HasIndex("NormalizedHandle")
@@ -4738,6 +4813,8 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("OwnerSocialProfiles", null, t =>
                         {
                             t.HasCheckConstraint("CK_OwnerSocialProfiles_CommunityRestriction", "([CommunityRestrictedAt] IS NULL AND [CommunityRestrictedByUserId] IS NULL AND [CommunityEnabledBeforeRestriction] IS NULL) OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedByUserId] IS NOT NULL AND [CommunityEnabledBeforeRestriction] IS NOT NULL AND [IsSocialEnabled] = 0)");
+
+                            t.HasCheckConstraint("CK_OwnerSocialProfiles_CommunityRestrictionEnd", "[CommunityRestrictedUntil] IS NULL OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedUntil] > [CommunityRestrictedAt])");
                         });
                 });
 
@@ -7627,6 +7704,45 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("UpdatedByAdminUser");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.CommunityModerationAction", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.MomentComment", "Comment")
+                        .WithMany()
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.CommunityReport", "CommunityReport")
+                        .WithMany()
+                        .HasForeignKey("CommunityReportId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.PetMemory", "Moment")
+                        .WithMany()
+                        .HasForeignKey("MomentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.User", "PerformedByUser")
+                        .WithMany()
+                        .HasForeignKey("PerformedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.User", "TargetUser")
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("CommunityReport");
+
+                    b.Navigation("Moment");
+
+                    b.Navigation("PerformedByUser");
+
+                    b.Navigation("TargetUser");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.CommunityReport", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.MomentComment", "Comment")
@@ -8781,6 +8897,11 @@ namespace MyPetLink.Api.Migrations
                         .HasForeignKey("CommentId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MyPetLink.Api.Entities.CommunityModerationAction", "ModerationAction")
+                        .WithMany()
+                        .HasForeignKey("ModerationActionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MyPetLink.Api.Entities.PetMemory", "Moment")
                         .WithMany()
                         .HasForeignKey("MomentId")
@@ -8802,6 +8923,8 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("Collaboration");
 
                     b.Navigation("Comment");
+
+                    b.Navigation("ModerationAction");
 
                     b.Navigation("Moment");
 

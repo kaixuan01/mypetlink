@@ -10874,3 +10874,168 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    ALTER TABLE [OwnerSocialProfiles] ADD [CommunityRestrictedUntil] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    ALTER TABLE [OwnerNotifications] ADD [ModerationActionId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE TABLE [CommunityModerationActions] (
+        [Id] uniqueidentifier NOT NULL,
+        [TargetUserId] uniqueidentifier NOT NULL,
+        [ActionType] nvarchar(32) NOT NULL,
+        [Reason] nvarchar(32) NULL,
+        [InternalRemark] nvarchar(1000) NULL,
+        [PerformedByUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RestrictedUntil] datetimeoffset NULL,
+        [MomentId] uniqueidentifier NULL,
+        [CommentId] uniqueidentifier NULL,
+        [CommunityReportId] uniqueidentifier NULL,
+        [ContentSnapshot] nvarchar(4000) NULL,
+        CONSTRAINT [PK_CommunityModerationActions] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_CommunityModerationActions_Target] CHECK (([ActionType] NOT IN (N'MomentRemoved', N'MomentRestored') OR ([MomentId] IS NOT NULL AND [CommentId] IS NULL)) AND ([ActionType] NOT IN (N'CommentRemoved', N'ReplyRemoved') OR [CommentId] IS NOT NULL) AND ([RestrictedUntil] IS NULL OR [ActionType] = N'CommunityRestricted') AND (([PerformedByUserId] IS NULL AND [ActionType] = N'CommunityRestrictionExpired') OR ([PerformedByUserId] IS NOT NULL AND [ActionType] <> N'CommunityRestrictionExpired'))),
+        CONSTRAINT [FK_CommunityModerationActions_CommunityReports_CommunityReportId] FOREIGN KEY ([CommunityReportId]) REFERENCES [CommunityReports] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityModerationActions_MomentComments_CommentId] FOREIGN KEY ([CommentId]) REFERENCES [MomentComments] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityModerationActions_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityModerationActions_Users_PerformedByUserId] FOREIGN KEY ([PerformedByUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommunityModerationActions_Users_TargetUserId] FOREIGN KEY ([TargetUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_OwnerSocialProfiles_CommunityRestrictedUntil] ON [OwnerSocialProfiles] ([CommunityRestrictedUntil]) WHERE [CommunityRestrictedUntil] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [OwnerSocialProfiles] ADD CONSTRAINT [CK_OwnerSocialProfiles_CommunityRestrictionEnd] CHECK ([CommunityRestrictedUntil] IS NULL OR ([CommunityRestrictedAt] IS NOT NULL AND [CommunityRestrictedUntil] > [CommunityRestrictedAt]))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_ModerationActionId] ON [OwnerNotifications] ([ModerationActionId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityModerationActions_CommentId] ON [CommunityModerationActions] ([CommentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityModerationActions_CommunityReportId] ON [CommunityModerationActions] ([CommunityReportId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityModerationActions_MomentId] ON [CommunityModerationActions] ([MomentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityModerationActions_PerformedByUserId] ON [CommunityModerationActions] ([PerformedByUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityModerationActions_TargetUserId_ActionType] ON [CommunityModerationActions] ([TargetUserId], [ActionType]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    CREATE INDEX [IX_CommunityModerationActions_TargetUserId_CreatedAt] ON [CommunityModerationActions] ([TargetUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    ALTER TABLE [OwnerNotifications] ADD CONSTRAINT [FK_OwnerNotifications_CommunityModerationActions_ModerationActionId] FOREIGN KEY ([ModerationActionId]) REFERENCES [CommunityModerationActions] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    IF EXISTS (SELECT 1 FROM [AdminRoles] WHERE [Id] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Code] = N'administrator')
+       AND NOT EXISTS (SELECT 1 FROM [AdminRoleCapabilities] WHERE [AdminRoleId] = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND [Capability] = N'owners.suspend')
+        INSERT INTO [AdminRoleCapabilities] ([Id], [AdminRoleId], [Capability], [CreatedAt])
+        VALUES ('d3f2b0e5-6c80-4f41-8b72-3f1c9a5d8b01', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02', N'owners.suspend', SYSDATETIMEOFFSET());
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040433_AddCommunityModerationActions'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261008040433_AddCommunityModerationActions', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

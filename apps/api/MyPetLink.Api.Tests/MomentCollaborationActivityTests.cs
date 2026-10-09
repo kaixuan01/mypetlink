@@ -28,7 +28,7 @@ public sealed class MomentCollaborationActivityTests
         var page = await harness.Notifications.GetAsync(Bob, null, null);
         var item = Assert.Single(page.Items);
         Assert.Equal("MomentCollaborationRequested", item.Type);
-        Assert.Equal("TanFamily", item.Actor.Handle);
+        Assert.Equal("TanFamily", item.Actor!.Handle);
         Assert.Equal(momentId, item.MomentId);
         Assert.Equal(new[] { "Buddy", "Rex" }, item.CollaborationPetNames);
         Assert.Equal(1, page.UnreadCount);
@@ -51,7 +51,7 @@ public sealed class MomentCollaborationActivityTests
         Assert.Empty((await harness.Notifications.GetAsync(Bob, null, null)).Items);
         var joined = Assert.Single((await harness.Notifications.GetAsync(Alice, null, null)).Items);
         Assert.Equal("MomentCollaborationAccepted", joined.Type);
-        Assert.Equal("LimFamily", joined.Actor.Handle);
+        Assert.Equal("LimFamily", joined.Actor!.Handle);
         Assert.Equal(new[] { "Rex" }, joined.CollaborationPetNames);
     }
 

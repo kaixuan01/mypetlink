@@ -16,11 +16,13 @@ namespace MyPetLink.Api.DTOs;
 /// </summary>
 public sealed record OwnerNotificationResponse(
     Guid Id,
-    /// <summary>"NewFollower" or "MomentLiked".</summary>
+    /// <summary>"NewFollower", "MomentLiked", … or "CommunityModerationNotice".</summary>
     string Type,
     DateTimeOffset CreatedAt,
     bool IsRead,
-    PublicOwnerAttributionResponse Actor,
+
+    /// <summary>Who caused it. Null only for a notice from MyPetLink, which has <see cref="Moderation"/> instead.</summary>
+    PublicOwnerAttributionResponse? Actor,
 
     /// <summary>The recipient's own pet this is about, when there is one.</summary>
     string? PetName,
@@ -59,7 +61,26 @@ public sealed record OwnerNotificationResponse(
     IReadOnlyCollection<string> CollaborationPetNames,
 
     /// <summary>Every pet the liked Moment is about, for "Moment of Mochi &amp; Coco".</summary>
-    IReadOnlyCollection<string> MomentSubjectNames);
+    IReadOnlyCollection<string> MomentSubjectNames,
+
+    /// <summary>For a notice from MyPetLink: what happened. Null for every other kind.</summary>
+    OwnerModerationNoticeResponse? Moderation = null);
+
+/// <summary>
+/// A moderation notice as the affected household sees it: what happened, the
+/// reason in plain words, and for a timed restriction when it ends. Never the
+/// removed content, who decided, or any moderator note.
+/// </summary>
+/// <param name="Action">
+/// "MomentRemoved", "CommentRemoved", "ReplyRemoved", "WarningIssued" or
+/// "CommunityRestricted".
+/// </param>
+/// <param name="Reason">A <c>CommunityModerationReason</c> name.</param>
+/// <param name="RestrictedUntil">For "CommunityRestricted": its end, or null when it has none.</param>
+public sealed record OwnerModerationNoticeResponse(
+    string Action,
+    string? Reason,
+    DateTimeOffset? RestrictedUntil);
 
 public sealed record OwnerNotificationPageResponse(
     IReadOnlyCollection<OwnerNotificationResponse> Items,

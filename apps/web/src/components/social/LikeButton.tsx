@@ -10,6 +10,7 @@ import {
   ownerLoginPath,
 } from "@/lib/authRedirect";
 import { isApiClientError } from "@/services/apiClient";
+import { communityActionErrorMessage } from "@/lib/communityModeration";
 import { likeMoment, unlikeMoment } from "@/services/momentLikeService";
 
 type LikeButtonProps = {
@@ -97,9 +98,8 @@ export function LikeButton({
 
       setFailure({
         momentId,
-        message: isApiClientError(caught)
-          ? caught.message
-          : "We couldn't update this. Please try again.",
+        // A restriction says until when; anything else, the error itself.
+        message: communityActionErrorMessage(caught, "We couldn't update this. Please try again."),
       });
     } finally {
       setPending(false);

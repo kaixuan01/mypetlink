@@ -53,6 +53,7 @@ export const adminCapabilities = {
   petsManage: "pets.manage",
   petsExport: "pets.export",
   ownerSocialHandleAssign: "owners.social_handle.assign",
+  ownersSuspend: "owners.suspend",
 
   // Community moderation
   communityReportsView: "community_reports.view",

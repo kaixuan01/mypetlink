@@ -244,7 +244,7 @@ public sealed class AdminCommunityModerationHttpTests
     }
 
     [Fact]
-    public async Task TheReportedHouseholdNeverLearnsWhoReportedThemWhyOrWhatWasDecided()
+    public async Task TheReportedHouseholdNeverLearnsWhoReportedThemOrWhatTheySaid()
     {
         await using var world = await World.CreateAsync();
         using var admin = world.As(Operators[AdminRoleTemplates.AdministratorCode]);
@@ -257,8 +257,22 @@ public sealed class AdminCommunityModerationHttpTests
         Assert.Equal(SecretDetails, detail.GetProperty("details").GetString());
 
         await Act(admin, comment, "dismiss", await RowVersion(admin, comment));
-        await Act(admin, household, "restrict-household", await RowVersion(admin, household));
+        // The moderator chooses what Alice is told; the reporter's own category
+        // (Impersonation) is never echoed back to her.
+        await Act(admin, household, "restrict-household", await RowVersion(admin, household), "InappropriateContent");
         await Act(admin, household, "lift-restriction", null);
+
+        // Alice is told a decision was made about her, and why — nothing more.
+        using (var aliceClient = world.As(Alice))
+        {
+            var notice = (await Data(await aliceClient.GetAsync("/api/v1/social/notifications")))
+                .GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("type").GetString() == "CommunityModerationNotice")
+                .GetProperty("moderation");
+            Assert.Equal("CommunityRestricted", notice.GetProperty("action").GetString());
+            Assert.Equal("InappropriateContent", notice.GetProperty("reason").GetString());
+            Assert.Equal(JsonValueKind.Null, notice.GetProperty("restrictedUntil").ValueKind);
+        }
 
         // Everything the reported households can read about themselves.
         foreach (var (userId, paths) in new (Guid, string[])[]
@@ -304,20 +318,34 @@ public sealed class AdminCommunityModerationHttpTests
             .ToHashSet();
         Assert.NotEmpty(adminTypes);
 
+        Type[] adminContracts =
+        [
+            typeof(IAdminCommunityReportQueryService),
+            typeof(IAdminCommunityModerationService),
+            typeof(IAdminCommunityContentQueryService),
+            typeof(IAdminCommunityEnforcementService),
+        ];
         var consumers = typeof(AdminCommunityReportDetailResponse).Assembly.GetTypes()
             .Where(type => type.Namespace?.StartsWith("MyPetLink.Api.Controllers", StringComparison.Ordinal) == true)
             .Where(type => type.GetConstructors().Any(constructor => constructor.GetParameters().Any(parameter =>
-                parameter.ParameterType == typeof(IAdminCommunityReportQueryService)
-                || parameter.ParameterType == typeof(IAdminCommunityModerationService))))
+                adminContracts.Contains(parameter.ParameterType))))
+            .OrderBy(type => type.Name, StringComparer.Ordinal)
             .ToArray();
-        Assert.Equal([typeof(Controllers.Admin.AdminCommunityReportsController)], consumers);
+        // Only Admin controllers — the report queue, direct moderation, and the
+        // owner account actions (suspension) — ever take one of these services.
+        Assert.Equal(
+            [
+                typeof(Controllers.Admin.AdminCommunityModerationController),
+                typeof(Controllers.Admin.AdminCommunityReportsController),
+                typeof(Controllers.Admin.AdminOwnersController),
+            ],
+            consumers);
 
         // No public or owner service contract hands one of these back.
         var leaks = typeof(AdminCommunityReportDetailResponse).Assembly.GetTypes()
             .Where(type => type.IsInterface
                 && type.Namespace == "MyPetLink.Api.Services"
-                && type != typeof(IAdminCommunityReportQueryService)
-                && type != typeof(IAdminCommunityModerationService))
+                && !adminContracts.Contains(type))
             .SelectMany(type => type.GetMethods())
             .Where(method => Mentions(method.ReturnType, adminTypes)
                 || method.GetParameters().Any(parameter => Mentions(parameter.ParameterType, adminTypes)))
@@ -553,12 +581,208 @@ public sealed class AdminCommunityModerationHttpTests
         }
     }
 
+    // ---- Phase 1: direct moderation ---------------------------------------
+
+    private static readonly string[] Suspenders =
+    [
+        AdminRoleTemplates.SuperAdminCode, AdminRoleTemplates.AdministratorCode
+    ];
+
+    [Fact]
+    public async Task EveryDirectModerationEndpointIsGuardedByItsCapabilityForEveryBuiltInRole()
+    {
+        await using var world = await World.CreateAsync();
+        Guid commentId;
+        await using (var db = world.Db())
+        {
+            commentId = await db.MomentComments.Select(item => item.Id).SingleAsync();
+        }
+
+        var endpoints = new (string Name, HttpMethod Method, string Path, string[] Allowed)[]
+        {
+            ("moments", HttpMethod.Get, "/api/v1/admin/community/moments", Viewers),
+            ("moment", HttpMethod.Get, $"/api/v1/admin/community/moments/{world.MomentId}", Viewers),
+            ("remove-moment", HttpMethod.Post, $"/api/v1/admin/community/moments/{world.MomentId}/remove", Enforcers),
+            ("restore-moment", HttpMethod.Post, $"/api/v1/admin/community/moments/{world.MomentId}/restore", Enforcers),
+            ("comments", HttpMethod.Get, "/api/v1/admin/community/comments", Viewers),
+            ("comment", HttpMethod.Get, $"/api/v1/admin/community/comments/{commentId}", Viewers),
+            ("remove-comment", HttpMethod.Post, $"/api/v1/admin/community/comments/{commentId}/remove", Viewers),
+            ("household", HttpMethod.Get, $"/api/v1/admin/community/households/{Bob}", Viewers),
+            ("warn", HttpMethod.Post, $"/api/v1/admin/community/households/{Bob}/warnings", Viewers),
+            ("restrict", HttpMethod.Post, $"/api/v1/admin/community/households/{Bob}/restrict", Enforcers),
+            ("lift", HttpMethod.Post, $"/api/v1/admin/community/households/{Bob}/lift-restriction", Enforcers),
+            ("suspend", HttpMethod.Post, $"/api/v1/admin/owners/{Bob}/suspend", Suspenders),
+            ("reinstate", HttpMethod.Post, $"/api/v1/admin/owners/{Bob}/reinstate", Suspenders),
+        };
+
+        var failures = new List<string>();
+        foreach (var (name, method, path, allowed) in endpoints)
+        {
+            foreach (var (role, userId) in Operators)
+            {
+                // An empty body: an authorized caller reaches the service and is
+                // refused for a missing reason (or for nothing to reverse), so
+                // nothing changes either way; anyone else is refused before that.
+                using var client = world.As(userId);
+                using var response = await client.SendAsync(new HttpRequestMessage(method, path)
+                {
+                    Content = method == HttpMethod.Post ? JsonContent.Create(new { }) : null
+                });
+                var authorized = response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
+                if (authorized != allowed.Contains(role))
+                {
+                    failures.Add($"{role} {name}: {(int)response.StatusCode}");
+                }
+            }
+
+            foreach (var (caller, expected) in new (Guid?, HttpStatusCode)[] { (Bob, HttpStatusCode.Forbidden), (null, HttpStatusCode.Unauthorized) })
+            {
+                using var client = world.As(caller);
+                using var response = await client.SendAsync(new HttpRequestMessage(method, path)
+                {
+                    Content = method == HttpMethod.Post ? JsonContent.Create(new { }) : null
+                });
+                if (response.StatusCode != expected)
+                {
+                    failures.Add($"{(caller is null ? "anonymous" : "owner")} {name}: {(int)response.StatusCode}");
+                }
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join("\n", failures));
+        await using var verify = world.Db();
+        Assert.Empty(await verify.CommunityModerationActions.ToListAsync());
+        Assert.Equal(UserStatus.Active, (await verify.Users.SingleAsync(item => item.Id == Bob)).Status);
+        Assert.Null((await verify.OwnerSocialProfiles.SingleAsync(item => item.UserId == Bob)).CommunityRestrictedAt);
+        Assert.Null((await verify.PetMemories.SingleAsync()).ModeratedAt);
+    }
+
+    [Fact]
+    public async Task ARestrictedHouseholdIsRefusedEveryCommunityWriteOverHttpAndKeepsEverythingElse()
+    {
+        await using var world = await World.CreateAsync();
+        using var admin = world.As(Operators[AdminRoleTemplates.AdministratorCode]);
+        using var alice = world.As(Alice);
+        using var anonymous = world.As(null);
+        var before = await CommunityIndependentPayloadsAsync(anonymous);
+
+        var restricted = await Data(await admin.PostAsJsonAsync(
+            $"/api/v1/admin/community/households/{Alice}/restrict",
+            new { reason = "Harassment", duration = "7d", remark = SecretNote }));
+        var until = restricted.GetProperty("restrictedUntil").GetDateTimeOffset();
+        Assert.InRange(until, DateTimeOffset.UtcNow.AddDays(7).AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(7).AddMinutes(5));
+
+        // Every Community write, straight at the API, is refused the same way.
+        foreach (var (name, send) in new (string, Func<Task<HttpResponseMessage>>)[]
+                 {
+                     ("follow", () => alice.PostAsync("/api/v1/social/owners/carolpets/follow", null)),
+                     ("like", () => alice.PostAsync($"/api/v1/social/moments/{world.MomentId}/like", null)),
+                     ("comment", () => alice.PostAsJsonAsync($"/api/v1/social/moments/{world.MomentId}/comments", new { body = "Hi" })),
+                     ("report", () => alice.PostAsJsonAsync("/api/v1/social/reports",
+                         new { targetType = "household", target = "limfamily", reason = "SpamOrScam" })),
+                     // Every Moment write route that would leave something public.
+                     ("create a public Moment", () => alice.PostAsJsonAsync($"/api/v1/pets/{Mochi}/memories",
+                         new { title = "Shout", date = "2026-10-01", type = "Memory", visibility = "Public" })),
+                     ("edit a public Moment", () => alice.PutAsJsonAsync($"/api/v1/memories/{world.MomentId}",
+                         new { caption = "Rude words" })),
+                     ("edit it through the pet route", () => alice.PatchAsJsonAsync($"/api/v1/pets/{Mochi}/memories/{world.MomentId}",
+                         new { caption = "Rude words" })),
+                 })
+        {
+            using var response = await send();
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{name}: {(int)response.StatusCode} {body}");
+            using var json = JsonDocument.Parse(body);
+            var error = json.RootElement.GetProperty("error");
+            Assert.Equal("community_restricted", error.GetProperty("code").GetString());
+            Assert.Equal(until, DateTimeOffset.Parse(error.GetProperty("details").GetProperty("restrictedUntil")[0].GetString()!));
+            Assert.DoesNotContain(SecretNote, body);
+            Assert.DoesNotContain("Harassment", body);
+        }
+
+        // Private Moments still work, and turning one public is refused by both routes.
+        var diary = await Data(await alice.PostAsJsonAsync($"/api/v1/pets/{Mochi}/memories",
+            new { title = "Diary", date = "2026-10-01", type = "Memory", visibility = "Private" }));
+        var diaryId = diary.GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.OK, (await alice.PutAsJsonAsync($"/api/v1/memories/{diaryId}", new { caption = "Private note" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await alice.PutAsJsonAsync($"/api/v1/memories/{diaryId}", new { visibility = "Public" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await alice.PatchAsJsonAsync($"/api/v1/pets/{Mochi}/memories/{diaryId}", new { visibility = "Public" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await alice.DeleteAsync($"/api/v1/memories/{diaryId}")).StatusCode);
+
+        // The Owner Portal, Lost Mode, Share and Safety Profiles and Smart Tags are untouched.
+        Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync("/api/v1/pets")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync("/api/v1/orders")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync($"/api/v1/pets/{Mochi}/memories")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alice.PostAsJsonAsync($"/api/v1/pets/{Mochi}/lost-mode",
+            new UpdateLostModeRequest(true, "Near the park", null, null, null, null))).StatusCode);
+        Assert.Contains("\"Mochi\"", (await Data(await anonymous.GetAsync("/api/v1/public/safety/s-pubmochi"))).GetRawText());
+        await alice.PostAsJsonAsync($"/api/v1/pets/{Mochi}/lost-mode", new UpdateLostModeRequest(false, null, null, null, null, null));
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync("/api/v1/public/pets/mochi-pubmochi")).StatusCode);
+        Assert.Equal(before, await CommunityIndependentPayloadsAsync(anonymous));
+        // Visitors still browse everybody else's Community.
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync("/api/v1/public/owners/limfamily")).StatusCode);
+
+        // Alice can see why and until when — never the remark.
+        var profile = await Data(await alice.GetAsync("/api/v1/social/me/profile"));
+        Assert.True(profile.GetProperty("communityRestricted").GetBoolean());
+        Assert.Equal(until, profile.GetProperty("communityRestrictedUntil").GetDateTimeOffset());
+        using var activity = await alice.GetAsync("/api/v1/social/notifications");
+        var activityBody = await activity.Content.ReadAsStringAsync();
+        Assert.Contains("\"CommunityRestricted\"", activityBody);
+        Assert.DoesNotContain(SecretNote, activityBody);
+        Assert.DoesNotContain(Operators[AdminRoleTemplates.AdministratorCode].ToString(), activityBody, StringComparison.OrdinalIgnoreCase);
+
+        await using var db = world.Db();
+        Assert.Equal(UserStatus.Active, (await db.Users.SingleAsync(item => item.Id == Alice)).Status);
+    }
+
+    [Fact]
+    public async Task SuspendingAnAccountIsItsOwnCapabilityAndNeverACommunityRestriction()
+    {
+        await using var world = await World.CreateAsync();
+        using var admin = world.As(Operators[AdminRoleTemplates.AdministratorCode]);
+        using var support = world.As(Operators[AdminRoleTemplates.OwnerSupportCode]);
+        using var anonymous = world.As(null);
+        var before = await CommunityIndependentPayloadsAsync(anonymous);
+
+        // Owner Support can warn, but not suspend an account.
+        Assert.Equal(HttpStatusCode.OK, (await support.PostAsJsonAsync(
+            $"/api/v1/admin/community/households/{Bob}/warnings", new { reason = "Harassment" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await support.PostAsJsonAsync(
+            $"/api/v1/admin/owners/{Bob}/suspend", new { reason = "ScamOrFraud" })).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync(
+            $"/api/v1/admin/owners/{Alice}/suspend", new { reason = "ScamOrFraud", remark = SecretNote })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync(
+            $"/api/v1/admin/community/households/{Bob}/restrict", new { reason = "Harassment", duration = "24h" })).StatusCode);
+
+        await using (var db = world.Db())
+        {
+            Assert.Equal(UserStatus.Suspended, (await db.Users.SingleAsync(item => item.Id == Alice)).Status);
+            Assert.Null((await db.OwnerSocialProfiles.SingleAsync(item => item.UserId == Alice)).CommunityRestrictedAt);
+            Assert.Equal(UserStatus.Active, (await db.Users.SingleAsync(item => item.Id == Bob)).Status);
+            Assert.NotNull((await db.OwnerSocialProfiles.SingleAsync(item => item.UserId == Bob)).CommunityRestrictedAt);
+        }
+
+        // A lost pet's finder still reaches a suspended owner's Safety Profile and tag.
+        Assert.Equal(before, await CommunityIndependentPayloadsAsync(anonymous));
+        var household = await Data(await admin.GetAsync($"/api/v1/admin/community/households/{Alice}"));
+        Assert.Equal("Suspended", household.GetProperty("accountStatus").GetString());
+        Assert.Equal("On", household.GetProperty("communityStatus").GetString());
+        Assert.Equal(SecretNote, household.GetProperty("history")[0].GetProperty("internalRemark").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync($"/api/v1/admin/owners/{Alice}/reinstate", new { })).StatusCode);
+        await using var verify = world.Db();
+        Assert.Equal(UserStatus.Active, (await verify.Users.SingleAsync(item => item.Id == Alice)).Status);
+    }
+
     // ---- helpers ----------------------------------------------------------
 
-    private static async Task<HttpResponseMessage> Act(HttpClient client, Guid reportId, string action, string? rowVersion) =>
+    private static async Task<HttpResponseMessage> Act(
+        HttpClient client, Guid reportId, string action, string? rowVersion, string? reason = null) =>
         await client.PostAsJsonAsync(
             $"/api/v1/admin/community-reports/{reportId}/{action}",
-            new { note = SecretNote, rowVersion });
+            new { note = SecretNote, rowVersion, reason });
 
     private static async Task<string> RowVersion(HttpClient client, Guid reportId) =>
         (await Data(await client.GetAsync($"/api/v1/admin/community-reports/{reportId}")))

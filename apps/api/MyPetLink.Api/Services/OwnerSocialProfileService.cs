@@ -132,10 +132,7 @@ public sealed class OwnerSocialProfileService : SkeletonService, IOwnerSocialPro
             // for when the restriction is lifted.
             if (request.IsSocialEnabled.Value)
             {
-                throw new ApiException(
-                    StatusCodes.Status403Forbidden,
-                    "community_restricted",
-                    CommunityModeration.RestrictedMessage);
+                throw CommunityModeration.Restricted(profile.CommunityRestrictedUntil);
             }
 
             profile.CommunityEnabledBeforeRestriction = false;
@@ -281,7 +278,9 @@ public sealed class OwnerSocialProfileService : SkeletonService, IOwnerSocialPro
             missing.Count == 0,
             missing,
             await _handleService.GetChangeAvailableAtAsync(profile.UserId, cancellationToken),
-            Convert.ToBase64String(profile.RowVersion));
+            Convert.ToBase64String(profile.RowVersion),
+            CommunityModeration.IsRestricted(profile),
+            profile.CommunityRestrictedUntil);
     }
 
     private static bool MeetsEnableRequirements(OwnerSocialProfile profile)

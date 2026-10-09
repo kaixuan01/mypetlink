@@ -241,6 +241,10 @@ export const authRoutes = {
 
 export const adminRoutes = {
   communityReports: "/admin/community-reports",
+  communityMoments: "/admin/community-moments",
+  communityMoment: (momentId: string) => `/admin/community-moments?moment=${encodeURIComponent(momentId)}`,
+  communityComments: "/admin/community-comments",
+  communityComment: (commentId: string) => `/admin/community-comments?comment=${encodeURIComponent(commentId)}`,
   productCatalog: "/admin/tag-products",
   pets: "/admin/pets",
   pet: (petId: string) => `/admin/pets?petProfile=${encodeURIComponent(petId)}`,

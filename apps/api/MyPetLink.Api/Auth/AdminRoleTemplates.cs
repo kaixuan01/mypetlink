@@ -97,6 +97,7 @@ public static class AdminRoleTemplates
                 C.CommunityReportsView,
                 C.CommunityReportsResolve,
                 C.CommunityModerationEnforce,
+                C.OwnersSuspend,
             ]);
 
         // Owner Support reads and decides Community reports — dismissing, or

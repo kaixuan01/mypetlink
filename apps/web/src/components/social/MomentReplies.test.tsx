@@ -135,11 +135,12 @@ describe("One-level Reply threads", () => {
   });
 
   it("tells each household the real reason it cannot comment or reply", async () => {
-    const cases: [string, typeof viewer | { canComment: false; requirement: "signIn" | "communityProfile" | "communityRestricted"; identity: null }, string | null][] = [
+    const cases: [string, typeof viewer | { canComment: false; requirement: "signIn" | "communityProfile" | "communityRestricted"; identity: null; communityRestrictedUntil?: string | null }, string | RegExp | null][] = [
       ["eligible", viewer, null],
       ["anonymous", { canComment: false, requirement: "signIn", identity: null }, "Sign in to comment"],
       ["no or switched-off Community profile", { canComment: false, requirement: "communityProfile", identity: null }, "Set up your Community Profile to comment"],
-      ["restricted", { canComment: false, requirement: "communityRestricted", identity: null }, "Community access is currently paused."],
+      ["restricted", { canComment: false, requirement: "communityRestricted", identity: null, communityRestrictedUntil: null }, "Your Community access has been suspended."],
+      ["restricted for a while", { canComment: false, requirement: "communityRestricted", identity: null, communityRestrictedUntil: "2099-01-15T06:00:00Z" }, /temporarily restricted until 15 Jan 2099/],
     ];
     for (const [who, state, text] of cases) {
       vi.resetAllMocks();
@@ -149,7 +150,7 @@ describe("One-level Reply threads", () => {
       if (text) expect(screen.getByText(text), who).toBeTruthy();
       else expect(screen.getByLabelText("Add a comment"), who).toBeTruthy();
       expect(Boolean(screen.queryByRole("button", { name: "Reply to Amy" })), who).toBe(state.canComment);
-      if (who === "restricted") {
+      if (who.startsWith("restricted")) {
         expect(screen.queryByText(/Set up your Community Profile|Sign in to comment/)).toBeNull();
         expect(screen.queryByLabelText("Add a comment")).toBeNull();
       }
@@ -157,15 +158,15 @@ describe("One-level Reply threads", () => {
     }
   });
 
-  it.each(["comment", "reply"] as const)("shows the paused message, not a setup prompt, when a %s is refused for a restriction", async (kind) => {
+  it.each(["comment", "reply"] as const)("says until when, not a setup prompt, when a %s is refused for a restriction", async (kind) => {
     auth();
-    mocks.create.mockRejectedValue(new MomentCommentError("community-restricted", "Community access is currently paused."));
+    mocks.create.mockRejectedValue(new MomentCommentError("community-restricted", "Your Community access is temporarily restricted.", "2099-01-15T06:00:00Z"));
     mount();
     await screen.findByText("Parent text");
     if (kind === "reply") fireEvent.click(screen.getByRole("button", { name: "Reply to Amy" }));
     fireEvent.change(await screen.findByLabelText(kind === "reply" ? "Add a reply" : "Add a comment"), { target: { value: "Hello" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findByText("Community access is currently paused.")).toBeTruthy();
+    expect(await screen.findByText(/Your Community access is temporarily restricted until 15 Jan 2099/)).toBeTruthy();
     expect(mocks.create.mock.calls[0].slice(0, 2)).toEqual(["moment-1", "Hello"]);
     expect(mocks.create.mock.calls[0][2] ?? null).toBe(kind === "reply" ? parentId : null);
     expect(screen.queryByText(/Set up your Community Profile/)).toBeNull();

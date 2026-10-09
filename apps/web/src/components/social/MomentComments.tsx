@@ -29,8 +29,8 @@ import {
   ownerRoutes,
   ownerSocialProfilePath,
 } from "@/lib/routes";
+import { communityRestrictionMessage } from "@/lib/communityModeration";
 import {
-  COMMUNITY_PAUSED_MESSAGE,
   createMomentComment,
   deleteMomentComment,
   getMomentComments,
@@ -451,6 +451,7 @@ export function MomentComments({
             canComment: false,
             requirement: error.reason === "community-restricted" ? "communityRestricted" : "communityProfile",
             identity: null,
+            communityRestrictedUntil: error.restrictedUntil,
           });
         } else if (error.reason === "unavailable") {
           setState("unavailable");
@@ -547,7 +548,9 @@ export function MomentComments({
           </div>
         </div>
       ) : viewer.requirement === "communityRestricted" ? (
-        <p className="text-sm font-semibold text-pet-muted" role="status">{COMMUNITY_PAUSED_MESSAGE}</p>
+        <p className="text-sm font-semibold text-pet-muted" role="status">
+          {communityRestrictionMessage(viewer.communityRestrictedUntil)}
+        </p>
       ) : viewer.requirement === "communityProfile" ? (
         <Link className="inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 text-sm font-black text-pet-teal" href={ownerRoutes.socialProfile}>Set up your Community Profile to comment</Link>
       ) : (

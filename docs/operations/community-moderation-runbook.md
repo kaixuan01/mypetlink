@@ -1,11 +1,16 @@
-# Community moderation runbook (Phase 2E)
+# Community moderation runbook (Phase 2E and Phase 1 direct moderation)
 
 **Status: available in Admin.** The schema, moderation states and their
 enforcement, and Admin capabilities exist (Phase 2E E1); households can report
 from Comments, Moments and Community Profiles (E2, E3); the Admin moderation
 API exists (E4A); and the Admin Portal queue and review screens are available
-(E4B). Never change moderation state by hand in the database: it would skip the
-audit row and the report decisions.
+(E4B). Phase 1 direct moderation adds the Community → Moments and Comments
+screens, warnings, timed Community restrictions that end on their own, each
+household's moderation history in Owners, notices to the affected household,
+and — separately — account suspension; see
+[Direct moderation](#direct-moderation-phase-1). Never change moderation state
+by hand in the database: it would skip the history entry, the audit row and
+the report decisions.
 
 MyPetLink moderation is small on purpose: a few households report, a person
 reviews, and a small set of reversible, audited actions follows. It is
@@ -63,11 +68,13 @@ never as instructions.
 | **Dismiss** | Nothing changes for anyone. | — |
 | **Remove Comment** | The same as the author deleting it: the text is wiped, its mentions and unread Activity go, the count drops. The report keeps the evidence. | None (as for any deleted Comment) |
 | **Hide Moment** | *Hidden by MyPetLink.* Gone from Feed, Explore, Community Profiles, the pet's Community Moments, the Moment's own page and Share link, and the pet's Share Profile Moments and Timeline. Its Likes, Comments and collaborators are kept but not shown, and Activity about it (likes, Comments, mentions, collaborations) stops appearing; all of it returns if the Moment is unhidden. The owner still sees it in the Owner Portal, marked, and can delete it; they cannot bring it back by making it public again. | **Unhide** |
-| **Restrict household** | Community is paused: their Community Profile, Moments, Comments, mentions and collaborator attribution disappear, and they cannot post, comment, follow, like or mention. Their Community switch is off and locked; they see "Your Community access is paused. Contact support." Everything outside Community is untouched — including their pets' Share and Safety Profiles and Smart Tags. | **Lift**, which restores the owner's own Community choice (on or off) as it was, including if they switched it off while paused. |
+| **Restrict household** | Community is paused: their Community Profile, Moments, Comments, mentions and collaborator attribution disappear, and they cannot post, comment, reply, follow, like, report or collaborate. Their Community switch is off and locked; they see "Your Community access has been suspended." (or, for a timed restriction, until when). Everything outside Community is untouched — including their pets' Share and Safety Profiles and Smart Tags. From a report it lasts until lifted; set a timed one from the household's panel. | **Lift**, which restores the owner's own Community choice (on or off) as it was, including if they switched it off while paused. A timed restriction is lifted automatically when it ends. |
 
-A household restriction is **not** an account suspension. Never suspend an
-account (`Users.Status`) for Community behaviour: that locks the owner out of
-Lost Mode and their pets' safety information.
+A Community restriction is **not** an account suspension. Never suspend an
+account for Community behaviour: suspension locks the owner out of the whole
+Owner Portal, including Lost Mode. It exists only for fraud, scams, security
+abuse or repeated serious violations — see
+[Account suspension](#account-suspension).
 
 ## The queue
 
@@ -128,9 +135,16 @@ separate items.
 If someone else decided a report while you were reviewing it, you are told so
 and nothing changes; refresh and look again.
 
-Neither household is notified of any decision: no Activity, e-mail or push.
-The owner of a hidden Moment sees "Hidden by MyPetLink" on it in their Owner
-Portal; a restricted household sees that its Community access is paused.
+**What the households are told.** The reporter is never told anything about a
+decision. When a decision removes a Comment or Reply, hides a Moment or
+restricts a household, that household gets one in-app notice in Activity
+("Your comment was removed", with "Reason: …") — never who reported them, how
+many did, what they wrote, or your note. Choose the reason they are told in the
+decision dialog; it starts at the report's own category. Dismissing, unhiding
+and lifting send nothing. There is no e-mail or push. The owner of a hidden
+Moment also sees "Hidden by MyPetLink" on it in their Owner Portal, and a
+restricted household sees its restriction, and until when, in its Community
+settings.
 
 ## Evidence
 
@@ -140,6 +154,65 @@ and caption, or the profile bio (with a reference to the avatar). This is what
 the reviewer sees even after the content is edited, deleted or removed. No
 e-mail address, phone number, finder, Safety Profile or private detail is ever
 copied into a report, and media is referenced, not copied.
+
+## Direct moderation (Phase 1)
+
+Not everything arrives as a report. Moderators can also act directly:
+
+| Where | What you can do | Who |
+| --- | --- | --- |
+| **Community → Moments** | See every public Moment and every Moment removed by MyPetLink — author, pet, published time, status, likes, comments. Open one to see it, its media and its history; **Remove** or **Restore** it. Private Moments are never listed. | View: Owner Support, Administrator, Super Admin. Remove / Restore: Administrator, Super Admin |
+| **Community → Comments** | See comments and replies — author, text, Moment, time, status. **View context** shows the Moment, the comment a reply answers and the thread; **Remove** it there. | View and Remove: Owner Support, Administrator, Super Admin |
+| **Owners → an owner → Community moderation** | Community status, warning count, any restriction and its end, and the household's full moderation history. **Issue warning**, **Restrict Community**, **Lift Community restriction**; separately, **Suspend account** / **Reinstate account**. | View and warn: Owner Support, Administrator, Super Admin. Restrict / Lift: Administrator, Super Admin. Suspend / Reinstate: Administrator, Super Admin |
+
+Every action asks for confirmation, a **reason** (except reversals) and an
+optional **internal remark**. The reason is what the household is told; the
+remark is for moderators only. Reasons: Spam / Advertising, Harassment,
+Inappropriate Content, Scam / Fraud, Privacy / Personal Information, Animal
+Welfare Concern, Impersonation, Repeated Violations, Other (and, for account
+suspension, Security Abuse).
+
+- **Remove a Moment** — the same as Hide Moment: gone from every public
+  surface, kept for its owner, restorable. Its owner is told.
+- **Remove a comment or reply** — the same as any removal: its text is wiped
+  everywhere public. The text is kept in the household's moderation history so
+  the decision can be reviewed later. Its author is told.
+- **Issue warning** — changes nothing but the record; the household is told
+  they received a Community warning, and why. Each warning is its own entry;
+  the count is derived from them.
+- **Restrict Community** — for **24 hours**, **7 days**, **30 days**, or
+  **until lifted** (a Community suspension). The same pause as Restrict
+  household, and the household is told until when. They keep private Moments
+  but cannot share a Moment publicly, make a private one public, or edit one
+  that is public; they can still make it private, archive or delete it. A
+  timed restriction ends
+  on its own within about a minute of its end, restoring the household's own
+  Community choice — nobody has to lift it. Restricting a household that is
+  already restricted gives it the new end (use this to extend, shorten or make
+  it permanent). Use the shortest restriction that will work.
+- **Lift Community restriction** — ends it now. Nothing is sent.
+
+Moderators never act on, or review the standing of, their own household; ask
+another moderator.
+
+## Account suspension
+
+Suspending an account is **not** a Community action and is reserved for:
+fraud or scams, security abuse, malicious abuse, or repeated severe violations
+that a Community restriction has not stopped. It:
+
+- stops the owner signing in to MyPetLink at all, and ends their current
+  session on its next request;
+- hides their Community presence, because Community only shows active accounts;
+- does **not** change any Community restriction, and is reversed only by
+  **Reinstate account**;
+- leaves finder pages working: anyone who finds their pet can still reach its
+  Safety Profile and Smart Tag.
+
+It needs `owners.suspend`. Admin Portal accounts are never suspended here —
+manage them from Access. No notice is sent (the owner cannot sign in to read
+it); if they contact support, tell them their account is suspended and why,
+never your internal remark.
 
 ## Retention (Early Launch decision)
 
@@ -167,9 +240,10 @@ release audit (E6). It is not a legal conclusion.
 
 | Capability | Allows | Built-in roles |
 | --- | --- | --- |
-| `community_reports.view` | Reading reports, reporters and reported content. **Sensitive**: the Read Only / Auditor role does not receive it automatically. | Super Admin, Administrator, Owner Support |
-| `community_reports.resolve` | Dismissing a report, removing a reported Comment. | Super Admin, Administrator, Owner Support |
-| `community_moderation.enforce` | Hiding and unhiding Moments, restricting households and lifting it. | Super Admin, Administrator |
+| `community_reports.view` | Reading reports, reporters and reported content; the Community Moments and Comments lists; a household's moderation history. **Sensitive**: the Read Only / Auditor role does not receive it automatically. | Super Admin, Administrator, Owner Support |
+| `community_reports.resolve` | Dismissing a report, removing a Comment or Reply (from a report or directly), issuing a warning. | Super Admin, Administrator, Owner Support |
+| `community_moderation.enforce` | Removing (hiding) and restoring Moments, restricting households — timed or until lifted — and lifting it. | Super Admin, Administrator |
+| `owners.suspend` | Suspending and reinstating a whole owner account. **Sensitive.** | Super Admin, Administrator |
 
 Auditors see moderation *decisions* through the audit history
 (`audit_log.view`), not the reports themselves, unless given
@@ -187,6 +261,18 @@ row are saved together or not at all. An action that found the change already in
 already deleted, a Moment already hidden, a household already paused) is
 still audited, marked as such, because its reports were decided. Internal
 notes are visible only in the Admin Portal.
+
+Direct actions add `CommunityWarningIssued`, `AccountSuspended` and
+`AccountReinstated`, and reuse the names above for removals and restrictions;
+a restriction that ends on its own writes `CommunityHouseholdRestrictionExpired`
+with the System actor.
+
+Separately, every action that changes something is added to the household's
+**moderation history** (Owners → an owner → Community moderation): what
+happened, the reason, who did it (or "Ended automatically"), when, a
+restriction's end, the report it came from and, for a removal, what was
+removed. The history is never edited or deleted; reversals and expiries are new
+entries.
 
 ## Severe content: images and video
 
@@ -266,3 +352,34 @@ Use only controlled MyPetLink QA accounts and QA-owned content.
 - Unchanged surfaces: a QA pet's Share Profile, its Safety Profile, a QA
   Smart Tag through `/q`, `/n` and `/t`, and the Owner Portal (dashboard,
   pets, a Moment, orders) all load normally with no moderation wording.
+
+## Releasing Phase 1 direct moderation
+
+The release adds one migration, `AddCommunityModerationActions`: the
+`CommunityModerationActions` table, `OwnerSocialProfiles.CommunityRestrictedUntil`,
+`OwnerNotifications.ModerationActionId`, two CHECK constraints and one grant.
+The new API reads the new columns in the Community write checks and in
+Activity, so it cannot run against the old schema; the old API runs safely
+against the new one (the change is additive). The order is therefore the same
+as for Phase 2E:
+
+1. Back up Production, then apply the root `migration.sql` in one `sqlcmd`
+   session with `migration-session-settings.sql`.
+2. Verify: `CommunityModerationActions` exists and is empty;
+   `OwnerSocialProfiles.CommunityRestrictedUntil` and
+   `OwnerNotifications.ModerationActionId` exist; and exactly one new grant —
+   Administrator `owners.suspend`. Existing restrictions keep no end date, so
+   they still last until lifted.
+3. Only then deploy the API and the web app.
+4. Smoke check, with QA accounts only: Admin → Community → Moments and Comments
+   load; an Administrator's owner panel shows Community moderation with
+   Suspend account; Owner Support's does not offer Restrict or Suspend. Issue
+   a warning to a QA household and confirm it appears in their Activity as
+   "You received a Community warning." with its reason, and in their history.
+   Restrict that QA household for 24 hours, confirm Like and Comment are
+   refused with the end time and that their pets, Safety Profile and Smart
+   Tags still work, then Lift it.
+
+**Between steps 1 and 3, do not edit the Administrator role in Access
+Management** — the old Admin Portal does not know `owners.suspend`, and saving
+the role from it would drop the grant. Check it again after deployment.

@@ -121,7 +121,7 @@ public sealed class CommentActivityRetargetRelationalTests
             page.Items.Count(item => !item.IsRead),
             (await Notifications(context).GetUnreadSummaryAsync(household)).UnreadCount);
         return page.Items
-            .Where(item => item.Actor.Handle == (actor == Bob ? "BobHome" : "CarolHome"))
+            .Where(item => item.Actor!.Handle == (actor == Bob ? "BobHome" : "CarolHome"))
             .Select(item => $"{item.Type}:{item.CommentId}{(item.IsRead ? "" : "*")}")
             .ToArray();
     }

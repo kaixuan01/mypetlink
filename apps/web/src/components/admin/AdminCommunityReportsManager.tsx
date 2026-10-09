@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminActionButton, AdminDetailItem, AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { AdminEmptyPanel } from "@/components/admin/AdminStatus";
+import { householdName, PlainText, SafeMedia } from "@/components/admin/AdminCommunityModerationParts";
 import { formatAdminDateTime } from "@/components/admin/adminDisplay";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/table/AdminDataTable";
 import { AdminFilterBar, type AdminFilterDef } from "@/components/admin/table/AdminFilterBar";
@@ -12,6 +13,11 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
 import { adminReplyThreadImpact } from "@/lib/commentRemovalCopy";
+import {
+  communityContentReasons,
+  communityModerationReasons,
+  type CommunityModerationReason,
+} from "@/lib/communityModeration";
 import { getAdminCapabilities } from "@/services/authService";
 import { isApiClientError } from "@/services/apiClient";
 import {
@@ -20,6 +26,8 @@ import {
   listCommunityReports,
   moderationActions,
   moderationErrorMessage,
+  moderationReasonForReport,
+  notifyingModerationActions,
   reportReasons,
   reportResolutions,
   type CommunityReportDetail,
@@ -87,10 +95,6 @@ function stateBadge(value: string) {
   return <Badge tone={value === "Open" ? "warm" : "mint"}>{value}</Badge>;
 }
 
-function householdName(name: string | null, handle: string | null, snapshot?: string) {
-  return name || (handle ? `@${handle}` : snapshot || "Community identity unavailable");
-}
-
 export function AdminCommunityReportsManager() {
   const access = getAdminCapabilities();
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
@@ -111,6 +115,7 @@ export function AdminCommunityReportsManager() {
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState<ModerationAction | null>(null);
   const [note, setNote] = useState("");
+  const [reason, setReason] = useState<CommunityModerationReason>("Other");
   const [dialogError, setDialogError] = useState("");
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -184,6 +189,7 @@ export function AdminCommunityReportsManager() {
   };
   const requestAction = (action: ModerationAction) => {
     setNote("");
+    setReason(activeReport ? moderationReasonForReport(activeReport.reason) : "Other");
     setDialogError("");
     setPending(action);
   };
@@ -196,7 +202,13 @@ export function AdminCommunityReportsManager() {
     setDialogError("");
     const action = pending;
     try {
-      const result = await actOnCommunityReport(activeReport.id, action, note, activeReport.rowVersion);
+      const result = await actOnCommunityReport(
+        activeReport.id,
+        action,
+        note,
+        activeReport.rowVersion,
+        notifyingModerationActions.includes(action) ? reason : undefined
+      );
       setPending(null);
       setNotice(result.outcome === "AlreadyInEffect"
         ? `${action === "RemoveComment" ? `The ${activeReport.currentComment?.parentCommentId ? "reply" : "Comment"} was already removed` : "The change was already in effect"}; the report was resolved accordingly.`
@@ -287,6 +299,21 @@ export function AdminCommunityReportsManager() {
         onCancel={() => { if (!busy) setPending(null); }}
         onConfirm={() => void submit()}
       >
+        {pending && notifyingModerationActions.includes(pending) ? (
+          <label className="mb-3 grid gap-1 text-sm font-bold text-slate-700">
+            Reason shown to the household
+            <select
+              className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-pet-teal"
+              onChange={(event) => setReason(event.target.value as CommunityModerationReason)}
+              value={reason}
+            >
+              {communityContentReasons.map((value) => (
+                <option key={value} value={value}>{communityModerationReasons[value]}</option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-slate-500">They are told what happened and this reason — never who reported them or what was said.</span>
+          </label>
+        ) : null}
         <label className="grid gap-1 text-sm font-bold text-slate-700">
           Internal moderator note
           <textarea
@@ -407,10 +434,6 @@ function ReportDetail({ report, state, access, onClose, onOpen, onRefresh, onAct
   );
 }
 
-function PlainText({ label, value }: { label: string; value: string | null }) {
-  return <div className="min-w-0 rounded-xl bg-slate-50 p-3"><p className="text-xs font-extrabold uppercase text-slate-500">{label}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-900">{value || "Not provided"}</p></div>;
-}
-
 function HouseholdState({ report }: { report: CommunityReportDetail }) {
   const household = report.reportedHousehold;
   return <div className="grid gap-2 sm:grid-cols-2">
@@ -439,17 +462,6 @@ function MomentState({ report }: { report: CommunityReportDetail }) {
     </div>
     {moment.media.length ? <div className="grid gap-3 sm:grid-cols-2">{moment.media.map((item) => <div className="min-w-0" key={item.mediaFileId}><SafeMedia url={item.url} alt={item.altText || item.caption || "Moment media"} type={item.type} />{item.caption ? <p className="mt-1 break-words text-xs text-slate-600">{item.caption}</p> : null}</div>)}</div> : null}
   </div>;
-}
-
-function SafeMedia({ url, alt, type }: { url: string | null; alt: string; type: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!url || failed) return <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Media preview unavailable.</p>;
-  // The API provides public URLs; never construct storage paths from identifiers.
-  if (!/^https?:\/\//i.test(url) && !url.startsWith("/")) return <p className="text-sm text-slate-600">Media preview unavailable.</p>;
-  if (type.toLowerCase().includes("video")) return <video className="max-h-72 w-full rounded-xl bg-slate-100" controls onError={() => setFailed(true)} src={url} aria-label={alt} />;
-  // Plain img supports signed or public media URLs without Next image optimization.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img className="max-h-72 w-full rounded-xl bg-slate-100 object-contain" alt={alt} onError={() => setFailed(true)} src={url} />;
 }
 
 function History({ title, items, total, onOpen }: { title: string; items: CommunityReportHistoryItem[]; total: number; onOpen: (id: string) => void }) {

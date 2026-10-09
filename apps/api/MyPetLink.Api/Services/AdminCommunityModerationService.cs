@@ -10,9 +10,12 @@ using MyPetLink.Api.Entities;
 namespace MyPetLink.Api.Services;
 
 /// <summary>
-/// The Admin Portal's Community moderation actions. Every one is started from a
-/// report, is Community-only, and is one transaction: the change, the report
-/// decisions and one <see cref="AuditLog"/> row commit together or not at all.
+/// The Admin Portal's Community moderation actions started from a report. Every
+/// one is Community-only and is one transaction: the change, the report
+/// decisions, one <see cref="AuditLog"/> row, the affected household's
+/// moderation history entry and — when something of theirs was removed or their
+/// Community access was restricted — their notice commit together or not at
+/// all. Actions taken without a report are <see cref="AdminCommunityEnforcementService"/>.
 ///
 /// <b>Decisions close the target, not the household.</b> A decision resolves
 /// every Open report about the same target (<see cref="CommunityReportTargets"/>)
@@ -121,6 +124,16 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
 
             var previous = new { hidden = true, hiddenAt = moment.ModeratedAt, hiddenByUserId = moment.ModeratedByUserId };
             CommunityModeration.UnhideMoment(moment);
+            CommunityModerationHistory.Record(
+                _dbContext,
+                moment.AuthorUserId,
+                CommunityModerationActionType.MomentRestored,
+                reason: null,
+                note,
+                moderatorId,
+                _timeProvider.GetUtcNow(),
+                momentId: moment.Id,
+                reportId: target.Id);
             _auditLogService.Append(
                 moderatorId,
                 ActorType.Admin,
@@ -180,6 +193,15 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
                 ownerChoice = profile.CommunityEnabledBeforeRestriction
             };
             CommunityModeration.LiftRestriction(profile);
+            CommunityModerationHistory.Record(
+                _dbContext,
+                profile.UserId,
+                CommunityModerationActionType.CommunityRestrictionLifted,
+                reason: null,
+                note,
+                moderatorId,
+                _timeProvider.GetUtcNow(),
+                reportId: target.Id);
             _auditLogService.Append(
                 moderatorId,
                 ActorType.Admin,
@@ -227,6 +249,10 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
         var moderatorId = RequireModerator(currentUserId);
         var note = CommunityModerationNoteRules.RequireValid(request?.Note);
         var rowVersion = RequireRowVersion(request?.RowVersion);
+        // What the household is told; validated before anything is read.
+        CommunityModerationReason? chosenReason = string.IsNullOrWhiteSpace(request?.Reason)
+            ? null
+            : CommunityModerationReasons.Parse(request.Reason);
         var target = await LoadTargetAsync(reportId, moderatorId, cancellationToken);
 
         switch (action)
@@ -293,7 +319,15 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
                     var before = await _dbContext.MomentComments
                         .AsNoTracking()
                         .Where(item => item.Id == commentId)
-                        .Select(item => new { item.MomentId, item.DeletedAt, item.DeletedByUserId })
+                        .Select(item => new
+                        {
+                            item.MomentId,
+                            item.AuthorUserId,
+                            item.ParentCommentId,
+                            item.Body,
+                            item.DeletedAt,
+                            item.DeletedByUserId
+                        })
                         .SingleAsync(cancellationToken);
                     var removed = await MomentCommentRemoval.StageAsync(
                         _dbContext,
@@ -303,6 +337,23 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
                         commentId,
                         cancellationToken);
                     outcome = removed ? Applied : AlreadyInEffect;
+                    if (removed)
+                    {
+                        await RecordAndNotifyAsync(
+                            before.AuthorUserId,
+                            before.ParentCommentId is null
+                                ? CommunityModerationActionType.CommentRemoved
+                                : CommunityModerationActionType.ReplyRemoved,
+                            report,
+                            chosenReason,
+                            note,
+                            moderatorId,
+                            now,
+                            commentId: commentId,
+                            snapshot: CommunityModerationSnapshot.ForComment(before.Body),
+                            cancellationToken: cancellationToken);
+                    }
+
                     Resolve(decided, CommunityReportResolution.CommentRemoved, moderatorId, note, now);
                     _auditLogService.Append(
                         moderatorId,
@@ -333,6 +384,20 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
                     var previous = new { hidden = wasHidden, hiddenAt = moment.ModeratedAt };
                     CommunityModeration.HideMoment(moment, moderatorId, now);
                     outcome = wasHidden ? AlreadyInEffect : Applied;
+                    if (!wasHidden)
+                    {
+                        await RecordAndNotifyAsync(
+                            moment.AuthorUserId,
+                            CommunityModerationActionType.MomentRemoved,
+                            report,
+                            chosenReason,
+                            note,
+                            moderatorId,
+                            now,
+                            momentId: moment.Id,
+                            snapshot: CommunityModerationSnapshot.ForMoment(moment.Title, moment.Caption),
+                            cancellationToken: cancellationToken);
+                    }
                     Resolve(decided, CommunityReportResolution.MomentHidden, moderatorId, note, now);
                     _auditLogService.Append(
                         moderatorId,
@@ -365,6 +430,20 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
                     };
                     CommunityModeration.RestrictHousehold(profile, moderatorId, now);
                     outcome = wasRestricted ? AlreadyInEffect : Applied;
+                    if (!wasRestricted)
+                    {
+                        // From a report, a restriction lasts until it is lifted,
+                        // as it always has. A timed one is set from the household.
+                        await RecordAndNotifyAsync(
+                            profile.UserId,
+                            CommunityModerationActionType.CommunityRestricted,
+                            report,
+                            chosenReason,
+                            note,
+                            moderatorId,
+                            now,
+                            cancellationToken: cancellationToken);
+                    }
 
                     // The decision on this report was to restrict the household
                     // responsible for it — for a Comment or Moment report, its
@@ -420,6 +499,40 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
         }
     }
 
+    /// <summary>
+    /// Records a decision that changed something in the affected household's
+    /// moderation history, with the reason the moderator chose — or, without
+    /// one, the report's category in moderation terms — and stages their
+    /// notice. A decision that changed nothing records nothing.
+    /// </summary>
+    private async Task RecordAndNotifyAsync(
+        Guid targetUserId,
+        CommunityModerationActionType type,
+        CommunityReport report,
+        CommunityModerationReason? chosenReason,
+        string note,
+        Guid moderatorId,
+        DateTimeOffset now,
+        Guid? momentId = null,
+        Guid? commentId = null,
+        string? snapshot = null,
+        CancellationToken cancellationToken = default)
+    {
+        var action = CommunityModerationHistory.Record(
+            _dbContext,
+            targetUserId,
+            type,
+            chosenReason ?? CommunityModerationReasons.FromReport(report.Reason),
+            note,
+            moderatorId,
+            now,
+            momentId: momentId,
+            commentId: commentId,
+            reportId: report.Id,
+            contentSnapshot: snapshot);
+        await _notifications.StageModerationNotice(action, cancellationToken);
+    }
+
     // ---- loading and locking --------------------------------------------------------
 
     /// <summary>A report's target. These fields never change after submission.</summary>
@@ -467,81 +580,33 @@ public sealed class AdminCommunityModerationService : SkeletonService, IAdminCom
                 "This household no longer has a Community Profile.");
     }
 
+    private const string ConflictMessage =
+        "This report or its content changed while you were reviewing it. Refresh and try again.";
+
     private Task<T> InTransactionAsync<T>(
         IReadOnlyList<string> lockResources,
         Func<Task<T>> work,
         CancellationToken cancellationToken) =>
-        InTransactionAsync(lockResources, _ => work(), cancellationToken);
+        CommunityModerationTransaction.RunAsync(_dbContext, lockResources, work, ConflictMessage, cancellationToken);
 
-    /// <summary>
-    /// Runs one moderation action in its own transaction, holding the target's
-    /// application locks (SQL Server only) for its whole length. A concurrency
-    /// failure rolls everything back and answers 409.
-    /// </summary>
-    private async Task<T> InTransactionAsync<T>(
+    private Task<T> InTransactionAsync<T>(
         IReadOnlyList<string> lockResources,
         Func<IDbContextTransaction?, Task<T>> work,
-        CancellationToken cancellationToken)
-    {
-        var strategy = _dbContext.Database.CreateExecutionStrategy();
-        try
-        {
-            return await strategy.ExecuteAsync(async () =>
-            {
-                _dbContext.ChangeTracker.Clear();
-                await using IDbContextTransaction? transaction = _dbContext.Database.IsRelational()
-                    ? await _dbContext.Database.BeginTransactionAsync(
-                        _dbContext.Database.IsSqlServer()
-                            ? IsolationLevel.ReadCommitted
-                            : IsolationLevel.Serializable,
-                        cancellationToken)
-                    : null;
-
-                if (transaction is not null && _dbContext.Database.IsSqlServer())
-                {
-                    foreach (var resource in lockResources)
-                    {
-                        await SqlApplicationLock.AcquireAsync(
-                            _dbContext,
-                            transaction,
-                            resource,
-                            "moderation_temporarily_unavailable",
-                            "This couldn't be completed right now. Please try again.",
-                            cancellationToken);
-                    }
-                }
-
-                var result = await work(transaction);
-                if (transaction is not null)
-                {
-                    await transaction.CommitAsync(cancellationToken);
-                }
-
-                return result;
-            });
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            _dbContext.ChangeTracker.Clear();
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "concurrency_conflict",
-                "This report or its content changed while you were reviewing it. Refresh and try again.");
-        }
-    }
+        CancellationToken cancellationToken) =>
+        CommunityModerationTransaction.RunAsync(_dbContext, lockResources, work, ConflictMessage, cancellationToken);
 
     // Lock order is always target first, then household, so two actions can
     // never wait on each other in opposite orders.
     private static string TargetLock(ReportTarget target) => target.TargetType switch
     {
-        CommunityReportTargetType.Comment => $"mypetlink:community-moderation:comment:{target.CommentId:N}",
+        CommunityReportTargetType.Comment => CommunityModerationTransaction.CommentLock(target.CommentId!.Value),
         CommunityReportTargetType.Moment => MomentLock(target.MomentId!.Value),
         _ => HouseholdLock(target.ReportedUserId)
     };
 
-    private static string MomentLock(Guid momentId) => $"mypetlink:community-moderation:moment:{momentId:N}";
+    private static string MomentLock(Guid momentId) => CommunityModerationTransaction.MomentLock(momentId);
 
-    private static string HouseholdLock(Guid userId) => $"mypetlink:community-moderation:household:{userId:N}";
+    private static string HouseholdLock(Guid userId) => CommunityModerationTransaction.HouseholdLock(userId);
 
     // ---- validation -----------------------------------------------------------------
 

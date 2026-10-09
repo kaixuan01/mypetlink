@@ -133,10 +133,30 @@ public static class CommunityReportTargets
 /// </summary>
 public static class CommunityModeration
 {
-    /// <summary>Calm, non-sensitive wording for a restricted household.</summary>
-    public const string RestrictedMessage = "Your Community access is paused. Contact support.";
+    /// <summary>Calm, non-sensitive wording for a restriction with no end date.</summary>
+    public const string RestrictedMessage = "Your Community access has been suspended.";
+
+    /// <summary>Calm, non-sensitive wording for a timed restriction. The client words the date.</summary>
+    public const string TemporarilyRestrictedMessage = "Your Community access is temporarily restricted.";
+
+    /// <summary>
+    /// The error detail key carrying a timed restriction's end, as an ISO 8601
+    /// UTC timestamp, so a client can say "until 15 Oct 2026" in its own locale.
+    /// Absent for a restriction with no end date.
+    /// </summary>
+    public const string RestrictedUntilDetail = "restrictedUntil";
 
     public static bool IsRestricted(OwnerSocialProfile profile) => profile.CommunityRestrictedAt.HasValue;
+
+    /// <summary>
+    /// A timed restriction whose end has passed. It still stands until the
+    /// expiry worker ends it — at most a minute later — so every check agrees
+    /// with the Community switch it forced off.
+    /// </summary>
+    public static bool IsRestrictionDue(OwnerSocialProfile profile, DateTimeOffset now) =>
+        profile.CommunityRestrictedAt.HasValue
+        && profile.CommunityRestrictedUntil.HasValue
+        && profile.CommunityRestrictedUntil.Value <= now;
 
     public static Task<bool> IsRestrictedAsync(
         MyPetLinkDbContext dbContext,
@@ -147,23 +167,48 @@ public static class CommunityModeration
             cancellationToken);
 
     /// <summary>
-    /// Refuses starting Community participation that does not itself require
-    /// Community to be on — following and liking — while the household is
-    /// restricted. Taking a follow or a like back is never refused.
+    /// The one check every Community write path asks: refuses starting
+    /// Community participation — posting a Comment or Reply, following, liking,
+    /// inviting or joining as a collaborator, turning Community on — while the
+    /// household is restricted, with one consistent <c>403 community_restricted</c>.
+    /// Taking something back — unfollowing, unliking, deleting your own
+    /// Comment, declining or leaving a collaboration — is never refused.
     /// </summary>
     public static async Task RequireNotRestrictedAsync(
         MyPetLinkDbContext dbContext,
         Guid userId,
         CancellationToken cancellationToken)
     {
-        if (await IsRestrictedAsync(dbContext, userId, cancellationToken))
+        var restriction = await dbContext.OwnerSocialProfiles
+            .AsNoTracking()
+            .Where(profile => profile.UserId == userId && profile.CommunityRestrictedAt != null)
+            .Select(profile => new { profile.CommunityRestrictedUntil })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (restriction is not null)
         {
-            throw new ApiException(
+            throw Restricted(restriction.CommunityRestrictedUntil);
+        }
+    }
+
+    /// <summary>
+    /// The refusal for a restricted household. It says whether the restriction
+    /// has an end and when — never why, who decided it, or any moderator note.
+    /// </summary>
+    public static ApiException Restricted(DateTimeOffset? restrictedUntil) =>
+        restrictedUntil is { } until
+            ? new ApiException(
+                StatusCodes.Status403Forbidden,
+                "community_restricted",
+                TemporarilyRestrictedMessage,
+                new Dictionary<string, string[]>
+                {
+                    [RestrictedUntilDetail] = [until.ToUniversalTime().ToString("O")]
+                })
+            : new ApiException(
                 StatusCodes.Status403Forbidden,
                 "community_restricted",
                 RestrictedMessage);
-        }
-    }
 
     public static bool IsHidden(PetMemory moment) => moment.ModeratedAt.HasValue;
 
@@ -190,16 +235,22 @@ public static class CommunityModeration
     }
 
     /// <summary>
-    /// Pauses a household's Community participation.
+    /// Pauses a household's Community participation, until
+    /// <paramref name="until"/> or, with none, until a moderator lifts it.
     ///
     /// Community is forced off — every Community visibility rule already
     /// requires it on, so the household's profile, Moments, Comments, mentions
     /// and collaborator attribution disappear everywhere at once — and the
     /// owner's own choice is kept, so <see cref="LiftRestriction"/> can put back
     /// exactly what they had. Restricting twice changes nothing and never
-    /// overwrites the kept choice.
+    /// overwrites the kept choice; changing a standing restriction's end is
+    /// <see cref="ChangeRestrictionEnd"/>.
     /// </summary>
-    public static void RestrictHousehold(OwnerSocialProfile profile, Guid moderatorUserId, DateTimeOffset now)
+    public static void RestrictHousehold(
+        OwnerSocialProfile profile,
+        Guid moderatorUserId,
+        DateTimeOffset now,
+        DateTimeOffset? until = null)
     {
         if (profile.CommunityRestrictedAt.HasValue)
         {
@@ -210,6 +261,22 @@ public static class CommunityModeration
         profile.IsSocialEnabled = false;
         profile.CommunityRestrictedAt = now;
         profile.CommunityRestrictedByUserId = moderatorUserId;
+        profile.CommunityRestrictedUntil = until;
+    }
+
+    /// <summary>
+    /// Gives a standing restriction a new end — longer, shorter, or none at all
+    /// — without touching when it began or the owner's kept choice.
+    /// </summary>
+    public static void ChangeRestrictionEnd(OwnerSocialProfile profile, Guid moderatorUserId, DateTimeOffset? until)
+    {
+        if (!profile.CommunityRestrictedAt.HasValue)
+        {
+            throw new InvalidOperationException("Only a standing restriction has an end to change.");
+        }
+
+        profile.CommunityRestrictedByUserId = moderatorUserId;
+        profile.CommunityRestrictedUntil = until;
     }
 
     /// <summary>
@@ -235,6 +302,7 @@ public static class CommunityModeration
         profile.CommunityRestrictedAt = null;
         profile.CommunityRestrictedByUserId = null;
         profile.CommunityEnabledBeforeRestriction = null;
+        profile.CommunityRestrictedUntil = null;
     }
 }
 
@@ -257,9 +325,177 @@ public static class CommunityModerationAudit
     public const string MomentUnhidden = "CommunityMomentUnhidden";
     public const string HouseholdRestricted = "CommunityHouseholdRestricted";
     public const string HouseholdRestrictionLifted = "CommunityHouseholdRestrictionLifted";
+    public const string HouseholdRestrictionExpired = "CommunityHouseholdRestrictionExpired";
+    public const string WarningIssued = "CommunityWarningIssued";
+    public const string AccountSuspended = "AccountSuspended";
+    public const string AccountReinstated = "AccountReinstated";
 
     public const string ReportEntity = "CommunityReport";
     public const string CommentEntity = "MomentComment";
     public const string MomentEntity = "PetMemory";
     public const string HouseholdEntity = "OwnerSocialProfile";
+    public const string UserEntity = "User";
+}
+
+/// <summary>
+/// The reasons a moderator can give. Parsed by exact name (case-insensitive);
+/// anything else is refused rather than mapped to Other.
+/// </summary>
+public static class CommunityModerationReasons
+{
+    public static CommunityModerationReason Parse(string? value)
+    {
+        // An exact name only: Enum.TryParse would also take a number or a
+        // comma-joined pair and quietly turn it into some other reason.
+        var name = Enum.GetNames<CommunityModerationReason>()
+            .FirstOrDefault(candidate => string.Equals(candidate, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (name is not null && name != nameof(CommunityModerationReason.Unknown))
+        {
+            return Enum.Parse<CommunityModerationReason>(name);
+        }
+
+        throw new ApiException(
+            StatusCodes.Status400BadRequest,
+            "validation_failed",
+            "Please check the submitted fields.",
+            new Dictionary<string, string[]> { ["reason"] = ["Choose a reason."] });
+    }
+
+    /// <summary>
+    /// The reason a decision on a report is recorded with: the report's own
+    /// reason, in the moderation vocabulary. Deciding a report agrees with it.
+    /// </summary>
+    public static CommunityModerationReason FromReport(CommunityReportReason reason) => reason switch
+    {
+        CommunityReportReason.SpamOrScam => CommunityModerationReason.SpamOrAdvertising,
+        CommunityReportReason.HarassmentOrBullying => CommunityModerationReason.Harassment,
+        CommunityReportReason.InappropriateContent => CommunityModerationReason.InappropriateContent,
+        CommunityReportReason.AnimalWelfareConcern => CommunityModerationReason.AnimalWelfareConcern,
+        CommunityReportReason.Impersonation => CommunityModerationReason.Impersonation,
+        CommunityReportReason.PrivacyConcern => CommunityModerationReason.PrivacyOrPersonalInformation,
+        _ => CommunityModerationReason.Other
+    };
+}
+
+/// <summary>
+/// How long a Community restriction lasts. A fixed set: a restriction always
+/// has a known shape, and an open-ended one is chosen explicitly.
+/// </summary>
+public static class CommunityRestrictionDurations
+{
+    public const string Hours24 = "24h";
+    public const string Days7 = "7d";
+    public const string Days30 = "30d";
+    public const string Permanent = "permanent";
+
+    /// <summary>The restriction's end from <paramref name="now"/>, or null for one that lasts until lifted.</summary>
+    public static DateTimeOffset? EndFrom(string? duration, DateTimeOffset now) =>
+        duration?.Trim().ToLowerInvariant() switch
+        {
+            Hours24 => now.AddHours(24),
+            Days7 => now.AddDays(7),
+            Days30 => now.AddDays(30),
+            Permanent => null,
+            _ => throw new ApiException(
+                StatusCodes.Status400BadRequest,
+                "validation_failed",
+                "Please check the submitted fields.",
+                new Dictionary<string, string[]> { ["duration"] = ["Choose how long the restriction lasts."] })
+        };
+}
+
+/// <summary>
+/// A moderator's optional remark on a direct action: plain text under the
+/// Comment safe-text rule, never shown outside the Admin Portal. Report
+/// decisions keep their required note (<see cref="CommunityModerationNoteRules"/>).
+/// </summary>
+public static class CommunityModerationRemarkRules
+{
+    public const int MaxLength = CommunityModerationNoteRules.MaxLength;
+
+    public static string? Normalize(string? remark)
+    {
+        var normalized = MomentCommentBodyRules.Normalize(remark);
+        if (normalized.Length == 0 || !MomentCommentBodyRules.HasVisibleContent(normalized))
+        {
+            return null;
+        }
+
+        if (normalized.Length > MaxLength)
+        {
+            throw new ApiException(
+                StatusCodes.Status422UnprocessableEntity,
+                "moderation_remark_too_long",
+                $"Internal remarks can be up to {MaxLength} characters.");
+        }
+
+        return normalized;
+    }
+}
+
+/// <summary>What a removal took away, kept for moderators only.</summary>
+public static class CommunityModerationSnapshot
+{
+    public const int MaxLength = 4000;
+
+    public static string? ForComment(string body) => Clip(body);
+
+    public static string? ForMoment(string title, string? caption) =>
+        Clip(string.IsNullOrWhiteSpace(caption) ? title : $"{title}\n\n{caption}");
+
+    private static string? Clip(string? value) =>
+        string.IsNullOrEmpty(value) ? null : value.Length <= MaxLength ? value : value[..MaxLength];
+}
+
+/// <summary>
+/// Appends to a household's moderation history. Staged on the caller's unit of
+/// work, together with the change it records, the audit row and — for the
+/// actions that tell the household — its notice.
+/// </summary>
+public static class CommunityModerationHistory
+{
+    /// <summary>
+    /// The actions the household is told about: something of theirs was
+    /// removed, they were warned, or their Community access was restricted.
+    /// Reversals, expiry and account suspension send nothing — a suspended
+    /// account cannot sign in to read it.
+    /// </summary>
+    public static bool NotifiesHousehold(CommunityModerationActionType type) => type is
+        CommunityModerationActionType.MomentRemoved
+        or CommunityModerationActionType.CommentRemoved
+        or CommunityModerationActionType.ReplyRemoved
+        or CommunityModerationActionType.WarningIssued
+        or CommunityModerationActionType.CommunityRestricted;
+
+    public static CommunityModerationAction Record(
+        MyPetLinkDbContext dbContext,
+        Guid targetUserId,
+        CommunityModerationActionType type,
+        CommunityModerationReason? reason,
+        string? internalRemark,
+        Guid? performedByUserId,
+        DateTimeOffset now,
+        DateTimeOffset? restrictedUntil = null,
+        Guid? momentId = null,
+        Guid? commentId = null,
+        Guid? reportId = null,
+        string? contentSnapshot = null)
+    {
+        var action = new CommunityModerationAction
+        {
+            TargetUserId = targetUserId,
+            ActionType = type,
+            Reason = reason,
+            InternalRemark = internalRemark,
+            PerformedByUserId = performedByUserId,
+            CreatedAt = now,
+            RestrictedUntil = restrictedUntil,
+            MomentId = momentId,
+            CommentId = commentId,
+            CommunityReportId = reportId,
+            ContentSnapshot = contentSnapshot
+        };
+        dbContext.CommunityModerationActions.Add(action);
+        return action;
+    }
 }

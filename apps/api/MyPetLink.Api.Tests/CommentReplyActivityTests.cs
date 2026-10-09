@@ -262,7 +262,7 @@ public sealed class CommentReplyActivityTests
 
         var activity = Assert.Single((await harness.Notifications.GetAsync(Bob, null, null)).Items);
         Assert.Equal(("MomentCommentReplied", momentId, reply), (activity.Type, activity.MomentId!.Value, activity.CommentId!.Value));
-        Assert.Equal("CarolPets", activity.Actor.Handle);
+        Assert.Equal("CarolPets", activity.Actor!.Handle);
 
         // /moments/{momentId}#comment-{replyId}: the thread names the parent,
         // and the parent's Replies reach the Reply.

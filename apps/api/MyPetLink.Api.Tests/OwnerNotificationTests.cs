@@ -37,7 +37,7 @@ public sealed class OwnerNotificationTests
 
         var item = Assert.Single(forAlice.Items);
         Assert.Equal("NewFollower", item.Type);
-        Assert.Equal("LimFamily", item.Actor.Handle);
+        Assert.Equal("LimFamily", item.Actor!.Handle);
         Assert.Empty(forBob.Items);
     }
 
@@ -144,7 +144,7 @@ public sealed class OwnerNotificationTests
         var item = Assert.Single((await harness.Notifications.GetAsync(Alice, null, null)).Items);
 
         Assert.Equal("MomentLiked", item.Type);
-        Assert.Equal("LimFamily", item.Actor.Handle);
+        Assert.Equal("LimFamily", item.Actor!.Handle);
         Assert.Equal("Mochi", item.PetName);
         Assert.Equal("Beach day", item.MomentTitle);
     }

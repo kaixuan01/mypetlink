@@ -537,6 +537,31 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
 
     // ---- reads ----------------------------------------------------------
 
+    /// <summary>
+    /// Stages a notice from MyPetLink for the household a moderation action is
+    /// about. It names no actor, Moment or Comment — only the action — so it
+    /// can neither link to nor quote what was removed, and it is never
+    /// coalesced: each action is its own notice.
+    /// </summary>
+    public Task StageModerationNotice(
+        CommunityModerationAction action,
+        CancellationToken cancellationToken = default)
+    {
+        if (CommunityModerationHistory.NotifiesHousehold(action.ActionType))
+        {
+            _dbContext.OwnerNotifications.Add(new OwnerNotification
+            {
+                RecipientUserId = action.TargetUserId,
+                ModerationAction = action,
+                ModerationActionId = action.Id,
+                Type = OwnerNotificationType.CommunityModerationNotice,
+                CreatedAt = action.CreatedAt
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
     public async Task<OwnerNotificationPageResponse> GetAsync(
         Guid? currentUserId,
         string? cursor,
@@ -567,10 +592,16 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                 item.Type,
                 item.CreatedAt,
                 item.ReadAt,
-                ActorUserId = item.ActorUserId!.Value,
-                ActorHandle = item.ActorUser!.SocialProfile!.Handle!,
-                ActorDisplayName = item.ActorUser.SocialProfile.DisplayName!,
-                ActorAvatar = item.ActorUser.SocialProfile.AvatarMediaFile,
+                // A notice from MyPetLink has no actor; every other row has one.
+                HasActor = item.ActorUserId != null,
+                ActorHandle = item.ActorUserId != null ? item.ActorUser!.SocialProfile!.Handle : null,
+                ActorDisplayName = item.ActorUserId != null ? item.ActorUser!.SocialProfile!.DisplayName : null,
+                ActorAvatar = item.ActorUserId != null ? item.ActorUser!.SocialProfile!.AvatarMediaFile : null,
+                // Only what the household may see about an action: never the
+                // remark, the moderator, the report or the removed content.
+                ModerationAction = item.ModerationActionId != null ? (CommunityModerationActionType?)item.ModerationAction!.ActionType : null,
+                ModerationReason = item.ModerationActionId != null ? item.ModerationAction!.Reason : null,
+                ModerationRestrictedUntil = item.ModerationActionId != null ? item.ModerationAction!.RestrictedUntil : null,
                 item.MomentId,
                 CommentId = item.Comment != null && item.Comment.DeletedAt == null
                     ? item.CommentId
@@ -603,11 +634,13 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                     row.Type.ToString(),
                     row.CreatedAt,
                     row.ReadAt.HasValue,
-                    new PublicOwnerAttributionResponse(
-                        row.ActorHandle,
-                        row.ActorDisplayName,
-                        MediaDerivatives.ResolveOriginalUrl(row.ActorAvatar, _r2Options.PublicBaseUrl),
-                        MediaDerivatives.ResolveThumbnailUrl(row.ActorAvatar, _r2Options.PublicBaseUrl)),
+                    row.HasActor
+                        ? new PublicOwnerAttributionResponse(
+                            row.ActorHandle!,
+                            row.ActorDisplayName!,
+                            MediaDerivatives.ResolveOriginalUrl(row.ActorAvatar, _r2Options.PublicBaseUrl),
+                            MediaDerivatives.ResolveThumbnailUrl(row.ActorAvatar, _r2Options.PublicBaseUrl))
+                        : null,
                     row.PetName,
                     row.PetSlug,
                     row.MomentId,
@@ -619,7 +652,13 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                         : Array.Empty<string>(),
                     row.MomentId.HasValue && subjectNames.TryGetValue(row.MomentId.Value, out var names)
                         ? names
-                        : Array.Empty<string>()))
+                        : Array.Empty<string>(),
+                    row.ModerationAction is { } moderationAction
+                        ? new OwnerModerationNoticeResponse(
+                            moderationAction.ToString(),
+                            row.ModerationReason?.ToString(),
+                            row.ModerationRestrictedUntil)
+                        : null))
                 .ToArray(),
             hasMore && last is not null
                 ? new SocialCursor(last.CreatedAt, last.Id).Encode()
@@ -744,7 +783,15 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
             .AsNoTracking()
             .Where(item =>
                 item.RecipientUserId == recipientId
-                && item.ActorUserId != null
+                && (
+                // A notice from MyPetLink about the recipient's own content or
+                // Community access. It has no actor to leave, block or hide, and
+                // it stays visible while Community is off — a restricted
+                // household is exactly who needs to read it.
+                (item.Type == OwnerNotificationType.CommunityModerationNotice
+                    && item.ActorUserId == null
+                    && item.ModerationActionId != null)
+                || (item.ActorUserId != null
                 && item.ActorUser!.DeletedAt == null
                 && item.ActorUser.Status == UserStatus.Active
                 && item.ActorUser.SocialProfile != null
@@ -798,7 +845,7 @@ public sealed class OwnerNotificationService : SkeletonService, IOwnerNotificati
                         && visibleMentions.Any(mention =>
                             mention.CommentId == item.CommentId
                             && mention.MentionedUserId == recipientId)))
-                && !blocked.Contains(item.ActorUserId.Value));
+                && !blocked.Contains(item.ActorUserId.Value))));
     }
 
     private Task<bool> HasUsableCommunityIdentity(

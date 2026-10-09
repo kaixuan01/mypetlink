@@ -223,8 +223,11 @@ public sealed class AdminCommunityModerationTests
         Assert.Empty((await world.Harness.Feed.GetFeedAsync(CarolId, null, null)).Items);
 
         // No Activity is left linking to a Moment nobody can open — and the
-        // unread badge is counted the same way.
-        Assert.Equal(aliceBefore.Where(type => type == "NewFollower"), await world.ActivityTypesAsync(AliceId));
+        // unread badge is counted the same way. Alice is told her Moment was
+        // removed; that notice links to nothing.
+        Assert.Equal(
+            aliceBefore.Where(type => type == "NewFollower").Append("CommunityModerationNotice").Order(StringComparer.Ordinal),
+            await world.ActivityTypesAsync(AliceId));
         Assert.Empty(await world.ActivityTypesAsync(CarolId));
         Assert.Equal(0, (await world.Harness.Notifications.GetUnreadSummaryAsync(CarolId)).UnreadCount);
 
@@ -240,7 +243,11 @@ public sealed class AdminCommunityModerationTests
         Assert.Null(unhidden.ModeratedAt);
         Assert.Null(unhidden.ModeratedByUserId);
         Assert.Equal(world.MomentId, (await world.Harness.PublicProfiles.GetMomentAsync(world.MomentId)).Id);
-        Assert.Equal(aliceBefore, await world.ActivityTypesAsync(AliceId));
+        // Everything comes back. The removal notice stays: the Moment really
+        // was removed for a while, and restoring it sends nothing new.
+        Assert.Equal(
+            aliceBefore.Append("CommunityModerationNotice").Order(StringComparer.Ordinal),
+            await world.ActivityTypesAsync(AliceId));
         Assert.Equal(carolBefore, await world.ActivityTypesAsync(CarolId));
 
         // History is not rewritten by the reversal.
@@ -486,10 +493,10 @@ public sealed class AdminCommunityModerationTests
     }
 
     [Fact]
-    public async Task ModerationNeverNotifiesAnybody()
+    public async Task ModerationNotifiesOnlyTheAffectedHouseholdAndOnlyWhenSomethingOfTheirsChanges()
     {
         using var world = await ModerationWorld.CreateAsync();
-        var before = await world.Db.OwnerNotifications.AsNoTracking().CountAsync();
+        var before = await world.Db.OwnerNotifications.AsNoTracking().Select(item => item.Id).ToListAsync();
         var moment = (await world.ReportsAboutAsync(CommunityReportTargetType.Moment)).Single();
         var household = (await world.ReportsAboutAsync(CommunityReportTargetType.Household)).Single();
 
@@ -498,7 +505,25 @@ public sealed class AdminCommunityModerationTests
         await world.Moderation.RestrictHouseholdAsync(ModeratorId, household.Id, world.Request(household));
         await world.Moderation.LiftRestrictionAsync(ModeratorId, household.Id, world.Request(household));
 
-        Assert.Equal(before, await world.Db.OwnerNotifications.AsNoTracking().CountAsync());
+        // One notice for the removal and one for the restriction, each to the
+        // household it is about; restoring and lifting send nothing. Nobody
+        // else — and certainly not the reporter — hears anything.
+        var added = await world.Db.OwnerNotifications.AsNoTracking()
+            .Where(item => !before.Contains(item.Id))
+            .Include(item => item.ModerationAction)
+            .ToListAsync();
+        Assert.Equal(2, added.Count);
+        Assert.All(added, item =>
+        {
+            Assert.Equal(OwnerNotificationType.CommunityModerationNotice, item.Type);
+            Assert.Equal(moment.ReportedUserId, item.RecipientUserId);
+            Assert.Null(item.ActorUserId);
+            Assert.Null(item.MomentId);
+            Assert.Null(item.CommentId);
+        });
+        Assert.Equal(
+            [CommunityModerationActionType.MomentRemoved, CommunityModerationActionType.CommunityRestricted],
+            added.Select(item => item.ModerationAction!.ActionType).Order());
         Assert.Empty(await world.Db.EmailOutbox.AsNoTracking().ToListAsync());
     }
 }

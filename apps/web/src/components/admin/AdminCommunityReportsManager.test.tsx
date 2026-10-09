@@ -160,7 +160,8 @@ describe("Community report detail", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Reviewed Reply evidence." } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Remove reply" }));
-    await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, "RemoveComment", "Reviewed Reply evidence.", "AQID"));
+    // The household is told a reason; it defaults to the report's own category.
+    await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, "RemoveComment", "Reviewed Reply evidence.", "AQID", "SpamOrAdvertising"));
   });
 
   it.each([
@@ -284,8 +285,30 @@ describe("Community report detail", () => {
     expect(within(screen.getByRole("dialog")).getByRole("button", { name: label })).toHaveProperty("disabled", true);
     fireEvent.change(screen.getByRole("textbox", { name: /Internal moderator note/i }), { target: { value: "Reviewed evidence" } });
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: label }));
-    await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, action, "Reviewed evidence", "AQID"));
+    // Only decisions that tell the household something carry a reason.
+    const told = action === "RemoveComment" || action === "HideMoment" || action === "RestrictHousehold";
+    await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, action, "Reviewed evidence", "AQID", told ? "SpamOrAdvertising" : undefined));
     await waitFor(() => expect(mock.get).toHaveBeenCalledTimes(2));
+  });
+
+  it("lets the moderator choose the reason the household is told", async () => {
+    mock.get.mockResolvedValue({ ...detail, availableActions: ["RestrictHousehold"] });
+    render(<AdminCommunityReportsManager />);
+    fireEvent.click(await screen.findByRole("button", { name: "Restrict Community access" }));
+    const dialog = screen.getByRole("dialog");
+    const reason = within(dialog).getByRole("combobox", { name: /Reason shown to the household/i });
+    expect((reason as HTMLSelectElement).value).toBe("SpamOrAdvertising");
+    fireEvent.change(reason, { target: { value: "Harassment" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Internal moderator note/i }), { target: { value: "Pattern of abuse" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Restrict Community access" }));
+    await waitFor(() => expect(mock.act).toHaveBeenCalledWith(summary.id, "RestrictHousehold", "Pattern of abuse", "AQID", "Harassment"));
+  });
+
+  it("asks for no reason when nothing is sent to the household", async () => {
+    mock.get.mockResolvedValue({ ...detail, availableActions: ["Dismiss"] });
+    render(<AdminCommunityReportsManager />);
+    fireEvent.click(await screen.findByRole("button", { name: "Dismiss report" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("combobox")).toBeNull();
   });
 
   it("prevents repeated submission and handles AlreadyInEffect", async () => {

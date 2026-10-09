@@ -83,6 +83,14 @@ public sealed class OwnerSocialProfile : AuditableEntity
     public bool? CommunityEnabledBeforeRestriction { get; set; }
 
     /// <summary>
+    /// When a timed restriction ends on its own, at which point Community comes
+    /// back exactly as a lift would bring it back. Null with a restriction in
+    /// place means it lasts until a moderator lifts it; always null when not
+    /// restricted.
+    /// </summary>
+    public DateTimeOffset? CommunityRestrictedUntil { get; set; }
+
+    /// <summary>
     /// Appearing in discovery surfaces to people who were not given a link.
     /// Independent of <see cref="IsSocialEnabled"/>, so an owner can be
     /// followable without being browsable.

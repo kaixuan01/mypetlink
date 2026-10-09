@@ -1,4 +1,5 @@
 import { apiRequest, isApiClientError } from "@/services/apiClient";
+import { communityActionErrorMessage } from "@/lib/communityModeration";
 
 export type CommunityReportTargetType = "comment" | "moment" | "household";
 export type CommunityReportReason =
@@ -50,6 +51,8 @@ export async function submitCommunityReport(request: {
         throw new CommunityReportError("own", "You can’t report your own content.");
       if (error.status === 403 && error.code === "community_profile_required")
         throw new CommunityReportError("profile", "Set up your Community Profile to send a report.");
+      if (error.status === 403 && error.code === "community_restricted")
+        throw new CommunityReportError("restricted", communityActionErrorMessage(error, "Reporting isn’t available for this account right now."));
       if (error.status === 403)
         throw new CommunityReportError("restricted", "Reporting isn’t available for this account right now.");
       if (error.status === 429)

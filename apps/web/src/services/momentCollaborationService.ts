@@ -1,4 +1,5 @@
 import { apiRequest, isApiClientError } from "@/services/apiClient";
+import { communityRestrictionMessage, readCommunityRestriction } from "@/lib/communityModeration";
 import type { PublicOwnerAttribution } from "@/services/publicSocialService";
 
 /**
@@ -224,11 +225,14 @@ async function call<T>(
     return response.data;
   } catch (error) {
     if (isApiClientError(error)) {
+      const restriction = readCommunityRestriction(error);
       throw new MomentCollaborationError(
         error.code,
         error.status === 401
           ? "Sign in again to manage collaborators."
-          : error.message || "We couldn't update collaborators right now. Please try again.",
+          : restriction
+            ? communityRestrictionMessage(restriction.restrictedUntil)
+            : error.message || "We couldn't update collaborators right now. Please try again.",
         error.status
       );
     }

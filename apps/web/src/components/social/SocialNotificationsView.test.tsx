@@ -392,4 +392,57 @@ describe("SocialNotificationsView", () => {
     await waitFor(() => expect(mocks.markActivityRead).toHaveBeenCalled());
     expect(screen.queryByTestId("activity-error")).toBeNull();
   });
+
+  it("shows a moderation notice from MyPetLink with its reason, without linking to what was removed", async () => {
+    const notice = {
+      id: "notice-1",
+      type: "CommunityModerationNotice" as const,
+      createdAt: "2026-10-08T02:00:00Z",
+      isRead: false,
+      actor: null,
+      petName: null,
+      petPublicSlug: null,
+      momentId: null,
+      momentTitle: null,
+      momentSubjectNames: [],
+      moderation: { action: "CommentRemoved" as const, reason: "SpamOrAdvertising", restrictedUntil: null },
+    };
+    mocks.getSocialNotifications.mockResolvedValue(page([notice, follow("limfamily", true)], 1));
+
+    render(<SocialNotificationsView />);
+
+    const row = await screen.findByTestId("activity-moderation-notice");
+    expect(within(row).getByText("From MyPetLink")).toBeTruthy();
+    expect(within(row).getByText("Your comment was removed")).toBeTruthy();
+    expect(within(row).getByText("Your comment was removed because it violated our Community Guidelines.")).toBeTruthy();
+    expect(within(row).getByText("Reason: Spam / Advertising")).toBeTruthy();
+    expect(within(row).queryByRole("link")).toBeNull();
+    expect(within(row).getByTestId("activity-unread-marker")).toBeTruthy();
+    // Ordinary activity alongside it is untouched.
+    expect(screen.getAllByTestId("activity-row")).toHaveLength(1);
+    await waitFor(() => expect(mocks.markActivityRead).toHaveBeenCalledWith(["notice-1"]));
+  });
+
+  it("says until when a Community restriction lasts, and that nothing else is affected", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(page([{
+      id: "notice-2",
+      type: "CommunityModerationNotice" as const,
+      createdAt: "2026-10-08T02:00:00Z",
+      isRead: true,
+      actor: null,
+      petName: null,
+      petPublicSlug: null,
+      momentId: null,
+      momentTitle: null,
+      momentSubjectNames: [],
+      moderation: { action: "CommunityRestricted" as const, reason: "Harassment", restrictedUntil: "2026-10-15T06:00:00Z" },
+    }], 0));
+
+    render(<SocialNotificationsView />);
+
+    const row = await screen.findByTestId("activity-moderation-notice");
+    expect(within(row).getByText(/Your Community access has been restricted until 15 Oct 2026, 2:00 PM./)).toBeTruthy();
+    expect(within(row).getByText(/including your pets, Safety Profiles, Smart Tags and orders/)).toBeTruthy();
+    expect(within(row).getByText("Reason: Harassment")).toBeTruthy();
+  });
 });

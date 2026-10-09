@@ -91,6 +91,8 @@ const profile: OwnerSocialProfile = {
   missingRequirements: [],
   handleChangeAvailableAt: "",
   rowVersion: "v1",
+  communityRestricted: false,
+  communityRestrictedUntil: null,
 };
 
 function pet(overrides: Partial<PetSocialSettings> = {}): PetSocialSettings {

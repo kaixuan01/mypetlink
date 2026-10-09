@@ -98,7 +98,7 @@ public sealed class CommentMentionTests
         var erins = Assert.Single(await ActivityAsync(harness, Erin, Mentioned));
         Assert.Equal(momentId, erins.MomentId);
         Assert.Equal(created.Comment.Id, erins.CommentId);
-        Assert.Equal("LimFamily", erins.Actor.Handle);
+        Assert.Equal("LimFamily", erins.Actor!.Handle);
 
         // The author commenting on their own Moment: no "commented" to
         // themselves, a mention for the household they named.

@@ -208,8 +208,15 @@ public sealed class CommunityModerationLifecycleTests
         Assert.Equal(hidden.Items.Count(item => !item.IsRead), hidden.UnreadCount);
 
         await scene.Moderation.UnhideMomentAsync(Moderator, report.Id, scene.Request(report));
-        Assert.Equal(before.Select(item => item.Id), (await scene.ActivityAsync(AliceId)).Select(item => item.Id));
-        Assert.Equal(rows, await scene.Db.OwnerNotifications.AsNoTracking().OrderBy(item => item.Id).Select(item => item.Id).ToListAsync());
+        // The same rows come back; the only new one is Alice's removal notice,
+        // which stays after the Moment is restored.
+        var afterUnhide = await scene.ActivityAsync(AliceId);
+        Assert.Equal(before.Select(item => item.Id), afterUnhide.Where(item => item.Moderation is null).Select(item => item.Id));
+        Assert.Equal("MomentRemoved", Assert.Single(afterUnhide, item => item.Moderation is not null).Moderation!.Action);
+        var added = await scene.Db.OwnerNotifications.AsNoTracking().Where(item => !rows.Contains(item.Id)).ToListAsync();
+        Assert.Equal((AliceId, OwnerNotificationType.CommunityModerationNotice),
+            (Assert.Single(added).RecipientUserId, added[0].Type));
+        Assert.All(rows, id => Assert.True(scene.Db.OwnerNotifications.Any(item => item.Id == id)));
     }
 
     [Fact]
@@ -223,7 +230,7 @@ public sealed class CommunityModerationLifecycleTests
         await scene.CommentAsync(BobId, "Nice day");
         Assert.Contains((await scene.Harness.Discovery.SearchAsync(CarolId, "lim", "owners", null, null)).Owners, owner => owner.Handle == "LimFamily");
         var before = await scene.ActivityAsync(AliceId);
-        Assert.Contains(before, item => item.Actor.Handle == "LimFamily");
+        Assert.Contains(before, item => item.Actor!.Handle == "LimFamily");
         var rowCount = await scene.Db.OwnerNotifications.CountAsync();
         await scene.ReportAsync([CarolId], "household", "limfamily");
         var report = await scene.OpenReportAsync(item => item.TargetType == CommunityReportTargetType.Household);
@@ -231,7 +238,7 @@ public sealed class CommunityModerationLifecycleTests
         await scene.Moderation.RestrictHouseholdAsync(Moderator, report.Id, scene.Request(report));
 
         var paused = await scene.Harness.Notifications.GetAsync(AliceId, null, 50);
-        Assert.DoesNotContain(paused.Items, item => item.Actor.Handle == "LimFamily");
+        Assert.DoesNotContain(paused.Items, item => item.Actor!.Handle == "LimFamily");
         Assert.Equal(paused.Items.Count(item => !item.IsRead), paused.UnreadCount);
         Assert.Empty((await scene.Harness.Discovery.SearchAsync(CarolId, "lim", "owners", null, null)).Owners);
         Assert.Equal(0, await scene.Db.MomentComments.VisibleComments(scene.Db, null).CountAsync(item => item.MomentId == scene.MomentId));
@@ -262,7 +269,11 @@ public sealed class CommunityModerationLifecycleTests
         await scene.Moderation.LiftRestrictionAsync(Moderator, report.Id, scene.Request(report));
 
         Assert.Equal(before.Select(item => item.Id), (await scene.ActivityAsync(AliceId)).Select(item => item.Id));
-        Assert.Equal(rowCount, await scene.Db.OwnerNotifications.CountAsync());
+        // One row more than before: Bob's own restriction notice, sent when he
+        // was restricted. Lifting creates nothing.
+        Assert.Equal(rowCount + 1, await scene.Db.OwnerNotifications.CountAsync());
+        Assert.Equal("CommunityRestricted",
+            Assert.Single(await scene.ActivityAsync(BobId), item => item.Moderation is not null).Moderation!.Action);
         Assert.Contains((await scene.Harness.Discovery.SearchAsync(CarolId, "lim", "owners", null, null)).Owners, owner => owner.Handle == "LimFamily");
     }
 
