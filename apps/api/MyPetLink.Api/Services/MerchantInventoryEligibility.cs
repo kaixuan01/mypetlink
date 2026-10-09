@@ -18,11 +18,12 @@ public static class MerchantInventoryEligibility
     /// retail order, no live merchant allocation, and not already handed to a
     /// reseller. Lost, Disabled, Replaced, Active and Archived are all excluded
     /// by the Unclaimed test, which is the only status that means "in stock".
+    /// A tag held by physical QA is never eligible.
     /// </summary>
     public static Expression<Func<SmartTag, bool>> For(
         MyPetLinkDbContext dbContext,
         Guid productVariantId) =>
-        tag =>
+        PhysicalQaReleaseRules.AndReleased(tag =>
             tag.ProductVariantId == productVariantId
             && tag.Status == SmartTagStatus.Unclaimed
             && tag.ArchivedAt == null
@@ -36,7 +37,7 @@ public static class MerchantInventoryEligibility
             && tag.OrderId == null
             && tag.OrderItemId == null
             && !dbContext.MerchantOrderAllocatedTags.Any(allocation =>
-                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null);
+                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null));
 
     /// <summary>
     /// Deterministic pick order for automatic allocation: oldest approved

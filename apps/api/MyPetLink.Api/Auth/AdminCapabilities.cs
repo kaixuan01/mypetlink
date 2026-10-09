@@ -35,6 +35,7 @@ public static class AdminCapabilities
     public const string InventoryView = "inventory.view";
     public const string InventoryExport = "inventory.export";
     public const string InventoryManage = "inventory.manage";
+    public const string InventoryQaManage = "inventory.qa.manage";
     public const string InventoryGenerate = "inventory.generate";
     public const string InventoryReceiptsManage = "inventory.receipts.manage";
     public const string InventoryCostsView = "inventory.costs.view";

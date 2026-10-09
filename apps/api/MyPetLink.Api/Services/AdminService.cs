@@ -641,7 +641,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         ApplyOrderConcurrency(order, rowVersion);
         var oldState = OrderStateSnapshot(order);
         var now = _timeProvider.GetUtcNow();
-        RequireAllAssignedOrderTags(order, "mark ready to ship");
+        PhysicalQaReleaseRules.RequireReleased(RequireAllAssignedOrderTags(order, "mark ready to ship"));
         order.Status = OrderStatus.ReadyToShip;
         order.ReadyToShipAt ??= now;
         order.TrackingStatus = "Your tag is ready to ship.";
@@ -752,6 +752,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         order.TrackingStatus = $"Shipped with {order.CourierProvider}.";
         order.UpdatedAt = now;
         var shippedTags = RequireAllAssignedOrderTags(order, "ship");
+        PhysicalQaReleaseRules.RequireReleased(shippedTags);
         // The physical tag has left our hands for the owner; keep the
         // fulfilment trail in sync with the order without touching lifecycle.
         foreach (var shippedTag in shippedTags)
@@ -1890,6 +1891,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         }
 
         var tag = await LoadTagAsync(tagId, trackChanges: true, cancellationToken);
+        PhysicalQaReleaseRules.RequireReleased([tag]);
 
         if (tag.Status != SmartTagStatus.Unclaimed
             || tag.ArchivedAt.HasValue

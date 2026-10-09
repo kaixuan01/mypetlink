@@ -10642,3 +10642,235 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaInspectedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaInspectedByAdminUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaInspectionId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaNfcSerialNumber] nvarchar(100) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaNfcSource] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaNfcUrl] nvarchar(600) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaNfcVerifiedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaPhysicalCondition] nvarchar(32) NOT NULL DEFAULT N'Unchecked';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaQrUrl] nvarchar(600) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaQrVerifiedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaRemarks] nvarchar(600) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaShipmentReference] nvarchar(100) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaStatus] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [QaVersion] int NOT NULL DEFAULT 0;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    CREATE TABLE [PhysicalQaShipments] (
+        [Id] uniqueidentifier NOT NULL,
+        [ShipmentReference] nvarchar(100) NOT NULL,
+        [ExpectedCount] int NOT NULL,
+        [ManifestSha256] nvarchar(64) NOT NULL,
+        [EnrolledByAdminUserId] uniqueidentifier NOT NULL,
+        [EnrolledAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PhysicalQaShipments] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PhysicalQaShipments_AdminUsers_EnrolledByAdminUserId] FOREIGN KEY ([EnrolledByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_ProductVariantId_QaStatus_Status] ON [SmartTags] ([ProductVariantId], [QaStatus], [Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_QaInspectedByAdminUserId] ON [SmartTags] ([QaInspectedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SmartTags_QaInspectionId] ON [SmartTags] ([QaInspectionId]) WHERE [QaInspectionId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SmartTags_QaNfcSerialNumber] ON [SmartTags] ([QaNfcSerialNumber]) WHERE [QaNfcSerialNumber] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_QaShipmentReference_QaStatus] ON [SmartTags] ([QaShipmentReference], [QaStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    CREATE INDEX [IX_PhysicalQaShipments_EnrolledByAdminUserId] ON [PhysicalQaShipments] ([EnrolledByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PhysicalQaShipments_ShipmentReference] ON [PhysicalQaShipments] ([ShipmentReference]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD CONSTRAINT [FK_SmartTags_AdminUsers_QaInspectedByAdminUserId] FOREIGN KEY ([QaInspectedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261008040000_AddSmartTagPhysicalQa'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261008040000_AddSmartTagPhysicalQa', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

@@ -509,6 +509,9 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         }
 
         var now = _timeProvider.GetUtcNow();
+        PhysicalQaReleaseRules.RequireReleased(await _dbContext.MerchantOrderAllocatedTags
+            .Where(a => a.MerchantOrderId == order.Id && a.ReleasedAt == null)
+            .Select(a => a.SmartTag!).ToListAsync(cancellationToken));
         order.FulfilmentStatus = MerchantOrderFulfilmentStatus.ReadyToShip;
         order.ReadyToShipAt = now;
         order.PreparingAt ??= now;
@@ -614,6 +617,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         await _inventoryCosting.SnapshotMerchantShipmentAsync(
             order, allocations, now, cancellationToken);
 
+        PhysicalQaReleaseRules.RequireReleased(allocations.Select(a => a.SmartTag!));
         foreach (var allocation in allocations)
         {
             allocation.Status = MerchantAllocationStatus.SentToMerchant;

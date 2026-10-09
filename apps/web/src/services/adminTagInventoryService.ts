@@ -46,6 +46,7 @@ export type AdminInventoryListParams = {
 export type AdminInventoryTag = {
   id: string;
   tagCode: string;
+  qaStatus?: "Pending" | "Passed" | "Failed" | "NeedsReview" | null;
   productVariantId?: string;
   sku?: string;
   productName?: string;
@@ -135,13 +136,15 @@ export function canApplyBulkAction(
   return (
     !tag.isArchived &&
     tag.status === "Unassigned" &&
-    tag.fulfilment === bulkActionRules[action].from
+    tag.fulfilment === bulkActionRules[action].from &&
+    (!(["send-to-owner", "send-to-reseller"] as string[]).includes(action) || tag.qaStatus == null || tag.qaStatus === "Passed")
   );
 }
 
 type BackendInventoryItem = {
   id: string;
   tagCode: string;
+  qaStatus?: "Pending" | "Passed" | "Failed" | "NeedsReview" | null;
   productVariantId?: string | null;
   sku?: string | null;
   productName?: string | null;
@@ -200,6 +203,7 @@ function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
     status: item.status === "Unclaimed" ? "Unassigned" : (item.status as TagStatus),
     isArchived: item.isArchived,
     fulfilment: item.fulfilmentStatus,
+    qaStatus: item.qaStatus,
     petId: item.petId ?? undefined,
     petName: item.petName ?? undefined,
     ownerName: item.ownerName ?? undefined,

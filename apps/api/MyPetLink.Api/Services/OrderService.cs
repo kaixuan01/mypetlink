@@ -240,7 +240,7 @@ public sealed class OrderService : SkeletonService, IOrderService
         // to this check in the production request path.
         foreach (var (productVariantId, requested) in requestedInventory)
         {
-            var physicalStock = await _dbContext.SmartTags.CountAsync(tag =>
+            var physicalStock = await _dbContext.SmartTags.Where(PhysicalQaReleaseRules.Released).CountAsync(tag =>
                 tag.ProductVariantId == productVariantId
                 && tag.Status == SmartTagStatus.Unclaimed
                 && tag.ArchivedAt == null

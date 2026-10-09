@@ -41,3 +41,17 @@ describe("a payment proof that arrives after the order expired", () => {
     expect(message).not.toMatch(/start a new order/i);
   });
 });
+
+describe("a tag still held for physical inspection", () => {
+  const message = getOwnerOrderErrorMessage(
+    new ApiClientError(409, "tag_not_ready", "server wording")
+  );
+
+  it("says the tag is not ready and points the owner to Support", () => {
+    expect(message).toBe("This tag isn't ready to activate yet. Please contact MyPetLink Support.");
+  });
+
+  it("is not mistaken for an order changing underneath the owner", () => {
+    expect(message).not.toMatch(/tag option changed|order/i);
+  });
+});

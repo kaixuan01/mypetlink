@@ -222,6 +222,8 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
                 throw InvalidState("This tag cannot be activated yet.");
             }
 
+            RequirePhysicallyReleased(tag);
+
             tag.OwnerUserId = userId;
             tag.PetId = pet.Id;
             tag.Pet = pet;
@@ -261,6 +263,8 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         {
             return TagDtoMapper.ToOwnerSmartTagResponse(tag);
         }
+
+        RequirePhysicallyReleased(tag);
 
         if (tag.Status is not (SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered))
         {
@@ -550,6 +554,20 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             or SmartTagStatus.Disabled
             or SmartTagStatus.Replaced
             or SmartTagStatus.Unclaimed;
+    }
+
+    // A tag still held by physical QA (Pending, Failed or Needs Review) is not
+    // released stock, so nobody can activate it — even with the tag in hand.
+    // Historical tags outside the QA cohort activate exactly as before.
+    private static void RequirePhysicallyReleased(SmartTag tag)
+    {
+        if (!PhysicalQaReleaseRules.IsReleased(tag))
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "tag_not_ready",
+                "This tag isn't ready to activate yet. Please contact MyPetLink Support.");
+        }
     }
 
     private static SmartTagStatus ParseStatus(string value)

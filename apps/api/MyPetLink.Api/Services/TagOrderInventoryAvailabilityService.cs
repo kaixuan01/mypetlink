@@ -39,7 +39,8 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
         Guid productVariantId,
         CancellationToken cancellationToken = default)
     {
-        var unclaimed = await _dbContext.SmartTags.CountAsync(tag =>
+        // Physical QA: a held tag is not stock that can be promised.
+        var unclaimed = await _dbContext.SmartTags.Where(PhysicalQaReleaseRules.Released).CountAsync(tag =>
             tag.ProductVariantId == productVariantId
             && tag.Status == SmartTagStatus.Unclaimed
             && tag.ArchivedAt == null
@@ -88,6 +89,7 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
         var ids = productVariantIds.Distinct().ToArray();
 
         var unclaimed = await _dbContext.SmartTags
+            .Where(PhysicalQaReleaseRules.Released)
             .Where(tag =>
                 tag.ProductVariantId != null
                 && ids.Contains(tag.ProductVariantId.Value)

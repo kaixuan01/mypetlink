@@ -169,6 +169,9 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                             HasNfc = hasNfc,
                             Variant = variant,
                             Status = SmartTagStatus.Unclaimed,
+                            QaStatus = PhysicalQaStatus.Pending,
+                            QaShipmentReference = batchNo,
+                            QaVersion = 1,
                             FulfilmentStatus = TagFulfilmentStatus.Generated
                         });
                     }
@@ -321,6 +324,12 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                 continue;
             }
 
+            if (transition.To is TagFulfilmentStatus.SentToOwner or TagFulfilmentStatus.SentToReseller
+                && !PhysicalQaReleaseRules.IsReleased(tag))
+            {
+                failures.Add(new AdminTagInventoryBulkFailure(tagId, tag.TagCode, "This tag must pass physical inspection before it can be sent onward."));
+                continue;
+            }
             ApplyFulfilment(tag, transition.To, now);
             updatedIds.Add(tagId);
 
@@ -1104,7 +1113,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             tag.SentToOwnerAt,
             tag.ActivatedAt,
             tag.DeliveredAt,
-            tag.LastScannedAt));
+            tag.LastScannedAt) { QaStatus = tag.QaStatus });
     }
 
     // --- Display labels -------------------------------------------------------------

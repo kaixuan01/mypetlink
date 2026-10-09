@@ -58,6 +58,24 @@ public sealed class SmartTag : AuditableEntity
     public int AssignmentVersion { get; set; }
     public byte[] RowVersion { get; set; } = [];
 
+    // Null means historical inventory outside physical QA. Enrollment and new
+    // production batches start Pending; QA never changes lifecycle/fulfilment.
+    public PhysicalQaStatus? QaStatus { get; set; }
+    public string? QaShipmentReference { get; set; }
+    public int QaVersion { get; set; }
+    public Guid? QaInspectionId { get; set; }
+    public string? QaQrUrl { get; set; }
+    public string? QaNfcUrl { get; set; }
+    public DateTimeOffset? QaQrVerifiedAt { get; set; }
+    public DateTimeOffset? QaNfcVerifiedAt { get; set; }
+    public QaCaptureSource? QaNfcSource { get; set; }
+    public string? QaNfcSerialNumber { get; set; }
+    public PhysicalTagCondition QaPhysicalCondition { get; set; }
+    public string? QaRemarks { get; set; }
+    public DateTimeOffset? QaInspectedAt { get; set; }
+    public Guid? QaInspectedByAdminUserId { get; set; }
+    public AdminUser? QaInspectedByAdminUser { get; set; }
+
     public User? OwnerUser { get; set; }
     public Pet? Pet { get; set; }
     public TagOrder? Order { get; set; }

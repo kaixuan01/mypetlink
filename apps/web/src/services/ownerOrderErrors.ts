@@ -108,6 +108,10 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
       return "The price of this tag option has changed. Please review the updated total before continuing.";
     case "delivery_unavailable":
       return error.message;
+    // A tag still held for physical inspection. The owner can't fix this by
+    // retrying, so they are pointed to Support instead of a generic failure.
+    case "tag_not_ready":
+      return "This tag isn't ready to activate yet. Please contact MyPetLink Support.";
     default:
       break;
   }

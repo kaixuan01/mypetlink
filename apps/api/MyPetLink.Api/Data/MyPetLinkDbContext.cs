@@ -76,6 +76,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<PromotionVariant> PromotionVariants => Set<PromotionVariant>();
     public DbSet<SmartTagBatch> SmartTagBatches => Set<SmartTagBatch>();
     public DbSet<SmartTag> SmartTags => Set<SmartTag>();
+    public DbSet<PhysicalQaShipment> PhysicalQaShipments => Set<PhysicalQaShipment>();
     public DbSet<InventoryReceipt> InventoryReceipts => Set<InventoryReceipt>();
     public DbSet<TagOrder> TagOrders => Set<TagOrder>();
     public DbSet<TagOrderItem> TagOrderItems => Set<TagOrderItem>();
@@ -2288,6 +2289,17 @@ public sealed class MyPetLinkDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PhysicalQaShipment>(entity =>
+        {
+            entity.ToTable("PhysicalQaShipments");
+            entity.Property(item => item.ShipmentReference).HasMaxLength(100);
+            entity.Property(item => item.ManifestSha256).HasMaxLength(64);
+            // One manifest per reference, enforced by the database.
+            entity.HasIndex(item => item.ShipmentReference).IsUnique();
+            entity.HasOne(item => item.EnrolledByAdminUser).WithMany()
+                .HasForeignKey(item => item.EnrolledByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<SmartTag>(entity =>
         {
             entity.ToTable("SmartTags");
@@ -2301,6 +2313,22 @@ public sealed class MyPetLinkDbContext : DbContext
             // Existing rows start at 0, which is what any dialog opened before
             // the column existed would have read anyway.
             entity.Property(item => item.AssignmentVersion).HasDefaultValue(0);
+            entity.Property(item => item.QaStatus).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.QaShipmentReference).HasMaxLength(100);
+            entity.Property(item => item.QaVersion).HasDefaultValue(0).IsConcurrencyToken();
+            entity.Property(item => item.QaQrUrl).HasMaxLength(600);
+            entity.Property(item => item.QaNfcUrl).HasMaxLength(600);
+            entity.Property(item => item.QaNfcSource).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.QaNfcSerialNumber).HasMaxLength(100);
+            entity.Property(item => item.QaPhysicalCondition).HasConversion<string>().HasMaxLength(32).HasDefaultValue(PhysicalTagCondition.Unchecked);
+            entity.Property(item => item.QaRemarks).HasMaxLength(600);
+            entity.HasIndex(item => item.QaInspectionId).IsUnique().HasFilter("[QaInspectionId] IS NOT NULL");
+            // One chip, one tag code: a passed chip identity binds to a single tag.
+            entity.HasIndex(item => item.QaNfcSerialNumber).IsUnique().HasFilter("[QaNfcSerialNumber] IS NOT NULL");
+            entity.HasIndex(item => new { item.QaShipmentReference, item.QaStatus });
+            entity.HasIndex(item => new { item.ProductVariantId, item.QaStatus, item.Status });
+            entity.HasOne(item => item.QaInspectedByAdminUser).WithMany()
+                .HasForeignKey(item => item.QaInspectedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.HasIndex(item => item.TagCode).IsUnique();
             entity.HasIndex(item => item.OwnerUserId);

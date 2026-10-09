@@ -253,6 +253,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             }
 
             EnsureAssignmentLifecycle(tag, operation);
+            if (operation is "claim" or "assign-pet" or "transfer") PhysicalQaReleaseRules.RequireReleased([tag]);
             var oldOwnerId = tag.OwnerUserId;
             var oldPetId = tag.PetId;
             var oldStatus = tag.Status;
@@ -344,7 +345,8 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 // column or allowing a stale Admin dialog to overwrite newer work.
                 var affected = await _dbContext.SmartTags
                     .Where(item => item.Id == tag.Id && item.DeletedAt == null
-                        && item.AssignmentVersion == expectedAssignmentVersion)
+                        && item.AssignmentVersion == expectedAssignmentVersion
+                        && item.QaVersion == tag.QaVersion)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(item => item.OwnerUserId, tag.OwnerUserId)
                         .SetProperty(item => item.PetId, tag.PetId)

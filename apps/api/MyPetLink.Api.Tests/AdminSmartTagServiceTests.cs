@@ -163,6 +163,20 @@ public sealed class AdminSmartTagServiceTests
         Assert.Equal(StatusCodes.Status403Forbidden, error.StatusCode);
     }
 
+    [Theory]
+    [InlineData(PhysicalQaStatus.Pending)] [InlineData(PhysicalQaStatus.Failed)] [InlineData(PhysicalQaStatus.NeedsReview)]
+    public async Task ClaimCannotAssignAnUnpassedTag(PhysicalQaStatus status)
+    {
+        using var harness = await Harness.CreateAsync();
+        var tag = await harness.Db.SmartTags.SingleAsync(t => t.Status == SmartTagStatus.Unclaimed);
+        var pet = await harness.Db.Pets.SingleAsync(p => p.Name == "Topu");
+        tag.QaStatus = status; await harness.Db.SaveChangesAsync();
+        var failure = await Assert.ThrowsAsync<ApiException>(() => harness.Service.ClaimAsync(Harness.AdminId, tag.Id,
+            new AdminSmartTagClaimRequest { OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion }));
+        Assert.Equal("physical_qa_required", failure.Code);
+        Assert.Null((await harness.Db.SmartTags.AsNoTracking().SingleAsync(t => t.Id == tag.Id)).OwnerUserId);
+    }
+
     [Fact]
     public async Task Claim_RequiresAnAuthenticatedAdmin_AndLeavesTheTagUntouched()
     {

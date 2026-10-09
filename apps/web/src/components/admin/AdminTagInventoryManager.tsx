@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminPhysicalQaPanel } from "@/components/admin/AdminPhysicalQaPanel";
+
 import { dateOnlyOrUndefined } from "@/lib/adminListShared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminTagInventoryDetailDrawer } from "@/components/admin/AdminTagInventoryDetailDrawer";
@@ -524,6 +526,11 @@ export function AdminTagInventoryManager() {
       ),
     },
     {
+      id: "qaStatus",
+      header: "Physical QA",
+      cell: (tag) => <span className="text-sm">{tag.qaStatus === "NeedsReview" ? "Needs Review" : tag.qaStatus ?? "Historical stock"}</span>,
+    },
+    {
       id: "fulfilment",
       header: "Fulfilment",
       sortId: "fulfilment",
@@ -607,6 +614,7 @@ export function AdminTagInventoryManager() {
 
   return (
     <div className="grid gap-4">
+      {canViewInventory ? <AdminPhysicalQaPanel canManage={hasCapability(access, adminCapabilities.inventoryQaManage)} canExport={canExport} onSaved={refresh} /> : null}
       {canViewInventory ? <AdminNotice>
         Retail tags start as Unclaimed stock: they have a tag code but no pet
         and no owner. A customer scans the tag, signs in or creates an account,

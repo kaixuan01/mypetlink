@@ -49,7 +49,8 @@ Owner: Operations. Changing requires redeploy or restart.
 | `ForwardedHeaders:ForwardLimit`, `KnownProxies`, `KnownNetworks` | bound inline | Unset ⇒ rate limiting partitions on the proxy IP |
 | `Storage:Provider`, `Storage:LocalRoot`, `Storage:PublicBaseUrl` | `StorageOptions` | Legacy provider/status settings. Current media requests resolve `CloudflareR2StorageService`; production R2 validation follows that effective service and does not depend on `Provider`. Local settings are not a working media fallback. |
 | `CloudflareR2:*` (non-secret members) | `CloudflareR2Options` | Bucket names, service URL, presign expiry |
-| `PublicSite:BaseUrl` | `PublicSiteOptions` | Manufacturer QR/NFC export only; intentionally empty so tag production fails loudly. Optional while physical tags are deferred, required before export. |
+| `PublicSite:BaseUrl` | `PublicSiteOptions` | Manufacturer QR/NFC export and Smart Tag physical QA. Intentionally empty so tag production fails loudly. Physical QA compares every QR and NFC reading with `{BaseUrl}/q/{code}` and `{BaseUrl}/n/{code}`, so it must equal the origin printed on the tags (`https://mypetlink.com.my` for the first shipment). Empty refuses inspection (503) and never passes a tag. |
+| Data Protection key ring | `AddDataProtection()` in `Program.cs` (framework default storage) | Seals physical QA reader receipts. Azure App Service persists the default key ring under `%HOME%` and shares it across scaled-out instances of one app; deployment slots and other hosts do not share it. Lost or mismatched keys make open receipts unreadable, so inspectors read the tag again — a receipt is never trusted without its key. Keys stay with the hosting platform, never in source control or application tables. |
 | `Email:Provider`, `FromAddress`, `FromName`, `OwnerPortalBaseUrl`, `BrandLogoUrl`, `BrandAssetBaseUrl`, `OperationsRecipient` | `EmailOptions` | `OperationsRecipient` receives payment-proof review alerts. Missing/invalid values suppress those alerts without blocking customer submissions. Brand asset URLs are validated HTTPS-only. |
 | `Email:Smtp:Host`, `Port`, `UseStartTls`, `ConnectionTimeoutSeconds` | `SmtpEmailOptions` | `UseStartTls` must be true |
 | `Email:Dispatch:PollIntervalSeconds`, `BatchSize`, `MaxConcurrency`, `VisibilityTimeoutSeconds` | `EmailDispatchOptions` | Worker tuning — must not be exposed to business Admin |
@@ -168,6 +169,8 @@ There is no write endpoint by design.
 | Malaysian states, zones, aliases | `Common/MalaysiaDelivery.cs` | Domain mapping; changing it is a code change with tests |
 | Tag variants | `Common/TagVariants.cs` | Enum-backed domain rule |
 | Route builders `/q/ /n/ /t/` | `Common/TagLinks.cs`, `apps/web/src/lib/routes.ts` | Physical tags already printed — invariant |
+| Physical QA reader-result lifetime (30 min) and clock allowance (2 min) | `PhysicalQaService.CaptureLifetime`, `ClockSkewAllowance` | Inspection security policy, code-reviewed |
+| Physical QA release rule (`QaStatus` NULL or Passed) | `PhysicalQaReleaseRules.Released` | Single stock-release rule shared by every sale, assignment, allocation, activation and shipping path |
 | Business reference format | `Common/BusinessReferenceGenerator.cs` | Format + MYT conversion is an invariant |
 | Email retry ladder | `EmailOutboxDispatcher.RetryDelays` | Delivery policy, code-reviewed |
 | Upload limits (10 MB image, 50 MB video, 10 MB document) | `Services/MediaService.cs` | Abuse/security control, not a business lever |
@@ -236,4 +239,5 @@ These require an owner's approval before any implementation:
 | R3 | ~~R2 validation followed stale `Storage:Provider`~~ | **Fixed.** Production startup validates the effective `CloudflareR2StorageService` configuration and fails closed even when the legacy provider value is `Local`. |
 | R4 | `Cors:AllowedOrigins` empty in Production | No origins allowed; the frontend cannot reach the API at all |
 | R5 | `SmartTagBatches.BatchNo` has no unique database index | Application-level 12-attempt check only |
-| R6 | `PublicSite:BaseUrl` empty | Manufacturer export fails loudly — correct, but blocks tag production |
+| R6 | `PublicSite:BaseUrl` empty | Manufacturer export and physical QA fail loudly — correct, but blocks tag production and inspection |
+| R7 | Data Protection key ring not shared (slot swap, new host) | Open physical QA reader results are refused; inspectors read the tag again. Never releases a tag |

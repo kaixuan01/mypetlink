@@ -33,11 +33,7 @@ internal sealed class SqlServerInventoryReservationLock : IAsyncDisposable
         IEnumerable<Guid> productVariantIds,
         CancellationToken cancellationToken)
     {
-        var resources = productVariantIds
-            .Distinct()
-            .OrderBy(id => id)
-            .Select(id => $"MyPetLink:TagOrderInventory:{id:N}")
-            .ToArray();
+        var resources = InventoryResources(productVariantIds);
         var closeConnection = dbContext.Database.GetDbConnection().State != ConnectionState.Open;
         if (closeConnection)
         {
@@ -80,6 +76,55 @@ internal sealed class SqlServerInventoryReservationLock : IAsyncDisposable
                 await dbContext.Database.CloseConnectionAsync();
             }
             throw;
+        }
+    }
+
+    /// <summary>
+    /// The SKU lock resources for these variants, in the stable order every
+    /// caller must take them in.
+    /// </summary>
+    public static string[] InventoryResources(IEnumerable<Guid> productVariantIds) =>
+        productVariantIds
+            .Distinct()
+            .OrderBy(id => id)
+            .Select(id => $"MyPetLink:TagOrderInventory:{id:N}")
+            .ToArray();
+
+    /// <summary>
+    /// Takes application locks owned by the caller's open transaction, in the
+    /// order given. They conflict with the session-owned locks above on the same
+    /// resource, but end with the transaction itself: commit, rollback or a lost
+    /// connection releases them, so they can never outlive — or be released
+    /// apart from — the writes they protect, and there is nothing to release.
+    /// </summary>
+    public static async Task AcquireForTransactionAsync(
+        MyPetLinkDbContext dbContext,
+        IEnumerable<string> resources,
+        CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("Transaction-owned locks need an open transaction.");
+        }
+
+        foreach (var resource in resources)
+        {
+            var result = new SqlParameter("@result", SqlDbType.Int)
+            {
+                Direction = ParameterDirection.Output
+            };
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "EXEC @result = sys.sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = @timeout;",
+                [result, new SqlParameter("@resource", resource), new SqlParameter("@timeout", LockTimeoutMilliseconds)],
+                cancellationToken);
+
+            if (result.Value is not int code || code < 0)
+            {
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "inventory_busy",
+                    "Inventory availability changed while this order was being placed. Please review your tags and try again.");
+            }
         }
     }
 

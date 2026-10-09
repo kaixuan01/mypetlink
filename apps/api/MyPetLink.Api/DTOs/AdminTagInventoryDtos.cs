@@ -88,7 +88,10 @@ public sealed record AdminTagInventoryItemResponse(
     DateTimeOffset? SentToOwnerAt,
     DateTimeOffset? ActivatedAt,
     DateTimeOffset? DeliveredAt,
-    DateTimeOffset? LastScannedAt);
+    DateTimeOffset? LastScannedAt)
+{
+    public PhysicalQaStatus? QaStatus { get; init; }
+}
 
 public sealed record AdminTagInventoryBulkActionRequest(
     [Required, MaxLength(40)] string Action,

@@ -459,6 +459,8 @@ builder.Services.AddScoped<IAdminPetProfileQueryService, AdminPetProfileQuerySer
 builder.Services.AddScoped<IAdminOwnerQueryService, AdminOwnerQueryService>();
 builder.Services.AddScoped<IAdminPlanQueryService, AdminPlanQueryService>();
 builder.Services.AddScoped<IAdminTagInventoryService, AdminTagInventoryService>();
+builder.Services.AddScoped<PhysicalQaService>();
+builder.Services.AddDataProtection();
 builder.Services.AddScoped<IAdminSmartTagService, AdminSmartTagService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IEmailTemplateGate, EmailTemplateGate>();

@@ -29,6 +29,7 @@ export const adminCapabilities = {
   inventoryView: "inventory.view",
   inventoryExport: "inventory.export",
   inventoryManage: "inventory.manage",
+  inventoryQaManage: "inventory.qa.manage",
   inventoryGenerate: "inventory.generate",
   inventoryReceiptsManage: "inventory.receipts.manage",
   inventoryCostsView: "inventory.costs.view",

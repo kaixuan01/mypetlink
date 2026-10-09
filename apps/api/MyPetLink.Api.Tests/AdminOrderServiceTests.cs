@@ -577,6 +577,26 @@ public sealed class AdminOrderServiceTests
         await Assert.ThrowsAsync<ApiException>(() => harness.Admin.MarkOrderPreparingAsync(Harness.AdminId, paid.Id, "AA=="));
     }
 
+    [Theory]
+    [InlineData(PhysicalQaStatus.Pending)]
+    [InlineData(PhysicalQaStatus.Failed)]
+    [InlineData(PhysicalQaStatus.NeedsReview)]
+    public async Task ShippingRechecksQaAfterReadyToShip(PhysicalQaStatus status)
+    {
+        using var harness = await Harness.CreateAsync();
+        var order = await harness.Db.TagOrders.Include(o => o.SmartTag).SingleAsync(o => o.Status == OrderStatus.PreparingTag);
+        order.RowVersion = [1];
+        await harness.Db.SaveChangesAsync();
+        await harness.Admin.MarkOrderReadyToShipAsync(Harness.AdminId, order.Id, "AQ==");
+        order.SmartTag!.QaStatus = status;
+        await harness.Db.SaveChangesAsync();
+        var error = await Assert.ThrowsAsync<ApiException>(() => harness.Admin.MarkOrderShippedAsync(Harness.AdminId, order.Id,
+            new MarkOrderShippedRequest("Courier", "Standard", "QA-TRACK", null, null, "AQ==")));
+        Assert.Equal("physical_qa_required", error.Code);
+        Assert.Equal(OrderStatus.ReadyToShip, (await harness.Db.TagOrders.AsNoTracking().SingleAsync(o => o.Id == order.Id)).Status);
+        Assert.Empty(await harness.Db.EmailOutbox.Where(e => e.MessageType == EmailMessageType.OrderShipped).ToListAsync());
+    }
+
     [Fact]
     public async Task ManualShipping_UsesValidatedForwardTransitionsServerTimeAndOneNotification()
     {

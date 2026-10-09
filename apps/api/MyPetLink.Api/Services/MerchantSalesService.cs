@@ -481,37 +481,44 @@ public sealed class MerchantSalesService : IMerchantSalesService
     public async Task<QuotationResponse> UpdateQuotationAsync(
         Guid? actorId, Guid id, UpsertQuotationRequest request, CancellationToken cancellationToken)
     {
-        var quotation = await RequireQuotationAsync(id, cancellationToken, tracked: true);
-
-        // Smallest safe rule: money is editable only while the quotation is a
-        // Draft. Once it has been Sent the merchant has seen these figures, so
-        // changing them silently would make the sent copy a lie. Re-quoting
-        // means issuing a new quotation.
-        if (quotation.Status != MerchantQuotationStatus.Draft)
+        // Holds the quotation lock through the save, so a draft can never change
+        // its lines while a Send or a conversion of it is in progress.
+        await RunQuotationUnitAsync(id, lockStock: false, async (quotation, ct) =>
         {
-            throw Conflict("quotation_not_editable",
-                "Only a draft quotation can be edited. Create a new quotation instead.");
-        }
+            // Smallest safe rule: money is editable only while the quotation is a
+            // Draft. Once it has been Sent the merchant has seen these figures, so
+            // changing them silently would make the sent copy a lie. Re-quoting
+            // means issuing a new quotation.
+            if (quotation.Status != MerchantQuotationStatus.Draft)
+            {
+                throw Conflict("quotation_not_editable",
+                    "Only a draft quotation can be edited. Create a new quotation instead.");
+            }
 
-        ApplyConcurrency(quotation, request.ConcurrencyToken);
+            ApplyConcurrency(quotation, request.ConcurrencyToken);
 
-        if (quotation.MerchantId != request.MerchantId)
-        {
-            throw Validation("merchantId", "A quotation cannot be moved to a different merchant.");
-        }
+            if (quotation.MerchantId != request.MerchantId)
+            {
+                throw Validation("merchantId", "A quotation cannot be moved to a different merchant.");
+            }
 
-        var salesperson = await ResolveAssignableSalespersonAsync(
-            request.SalespersonId, cancellationToken, quotation.SalespersonId);
+            var salesperson = await ResolveAssignableSalespersonAsync(
+                request.SalespersonId, ct, quotation.SalespersonId);
 
-        var before = QuotationAuditSnapshot(quotation);
-        CaptureSalespersonSnapshot(quotation, salesperson);
-        if (request.ValidUntil.HasValue) quotation.ValidUntil = request.ValidUntil.Value;
-        await ApplyQuotationContentAsync(quotation, request, cancellationToken);
-        quotation.UpdatedAt = _timeProvider.GetUtcNow();
+            var before = QuotationAuditSnapshot(quotation);
+            CaptureSalespersonSnapshot(quotation, salesperson);
+            if (request.ValidUntil.HasValue) quotation.ValidUntil = request.ValidUntil.Value;
+            await ApplyQuotationContentAsync(quotation, request, ct);
+            quotation.UpdatedAt = _timeProvider.GetUtcNow();
 
-        _auditLogService.Append(actorId, ActorType.Admin, "quotation.update", "MerchantQuotation",
-            quotation.Id, before, QuotationAuditSnapshot(quotation));
-        await SaveWithConcurrencyAsync(cancellationToken);
+            _auditLogService.Append(actorId, ActorType.Admin, "quotation.update", "MerchantQuotation",
+                quotation.Id, before, QuotationAuditSnapshot(quotation));
+            await SaveWithConcurrencyAsync(ct);
+        },
+        // An edit is not a commercial commitment: if its commit response is
+        // lost, re-applying the same content is the safe retry.
+        _ => Task.FromResult(false),
+        cancellationToken);
 
         return ToResponse(await RequireQuotationAsync(id, cancellationToken));
     }
@@ -520,60 +527,67 @@ public sealed class MerchantSalesService : IMerchantSalesService
         Guid? actorId, Guid id, MerchantQuotationStatus target, string? concurrencyToken,
         CancellationToken cancellationToken)
     {
-        var quotation = await RequireQuotationAsync(id, cancellationToken, tracked: true);
-
-        // Asking for the state it is already in succeeds without doing anything,
-        // so a retry after a dropped response is safe.
-        if (quotation.Status == target)
+        // Sending re-checks released stock, so it also locks the SKUs of the
+        // quotation's current lines for the whole check-and-save.
+        await RunQuotationUnitAsync(id, lockStock: target == MerchantQuotationStatus.Sent, async (quotation, ct) =>
         {
-            return ToResponse(quotation);
-        }
+            // Asking for the state it is already in succeeds without doing anything,
+            // so a retry after a dropped response is safe.
+            if (quotation.Status == target)
+            {
+                return;
+            }
 
-        if (!IsTransitionAllowed(quotation.Status, target))
-        {
-            throw Conflict("invalid_quotation_transition",
-                $"A {Describe(quotation.Status)} quotation cannot become {Describe(target)}.");
-        }
+            if (!IsTransitionAllowed(quotation.Status, target))
+            {
+                throw Conflict("invalid_quotation_transition",
+                    $"A {Describe(quotation.Status)} quotation cannot become {Describe(target)}.");
+            }
 
-        ApplyConcurrency(quotation, concurrencyToken);
+            ApplyConcurrency(quotation, concurrencyToken);
 
-        // Sending is the moment a draft becomes a priced offer the merchant
-        // acts on, so it is the last point where the catalog still gets a say.
-        // A draft left open while its SKU was retired must not go out. Only
-        // this one transition re-checks: a quotation that is already Sent,
-        // Accepted or Converted keeps its snapshots and moves on untouched.
-        if (target == MerchantQuotationStatus.Sent)
-        {
-            await RequireSellableLinesAsync(quotation, cancellationToken);
-        }
+            // Sending is the moment a draft becomes a priced offer the merchant
+            // acts on, so it is the last point where the catalog still gets a say.
+            // A draft left open while its SKU was retired must not go out. Only
+            // this one transition re-checks: a quotation that is already Sent,
+            // Accepted or Converted keeps its snapshots and moves on untouched.
+            if (target == MerchantQuotationStatus.Sent)
+            {
+                await RequireSellableLinesAsync(quotation, ct);
+            }
 
-        var before = QuotationAuditSnapshot(quotation);
-        var now = _timeProvider.GetUtcNow();
+            var before = QuotationAuditSnapshot(quotation);
+            var now = _timeProvider.GetUtcNow();
 
-        quotation.Status = target;
-        quotation.UpdatedAt = now;
+            quotation.Status = target;
+            quotation.UpdatedAt = now;
 
-        switch (target)
-        {
-            case MerchantQuotationStatus.Sent:
-                quotation.SentAt = now;
-                // Sending is the moment the quotation becomes an external
-                // document, so this is where the seller identity is frozen.
-                // Fails closed: a quotation without a registered address is
-                // not something to put in front of a business.
-                quotation.Seller ??= SellerIdentitySnapshot.From(
-                    await _businessIdentity.RequireForDocumentAsync(
-                        BusinessDocumentKind.MerchantQuotation, cancellationToken));
-                break;
-            case MerchantQuotationStatus.Accepted: quotation.AcceptedAt = now; break;
-            case MerchantQuotationStatus.Rejected: quotation.RejectedAt = now; break;
-            case MerchantQuotationStatus.Expired: quotation.ExpiredAt = now; break;
-            case MerchantQuotationStatus.Cancelled: quotation.CancelledAt = now; break;
-        }
+            switch (target)
+            {
+                case MerchantQuotationStatus.Sent:
+                    quotation.SentAt = now;
+                    // Sending is the moment the quotation becomes an external
+                    // document, so this is where the seller identity is frozen.
+                    // Fails closed: a quotation without a registered address is
+                    // not something to put in front of a business.
+                    quotation.Seller ??= SellerIdentitySnapshot.From(
+                        await _businessIdentity.RequireForDocumentAsync(
+                            BusinessDocumentKind.MerchantQuotation, ct));
+                    break;
+                case MerchantQuotationStatus.Accepted: quotation.AcceptedAt = now; break;
+                case MerchantQuotationStatus.Rejected: quotation.RejectedAt = now; break;
+                case MerchantQuotationStatus.Expired: quotation.ExpiredAt = now; break;
+                case MerchantQuotationStatus.Cancelled: quotation.CancelledAt = now; break;
+            }
 
-        _auditLogService.Append(actorId, ActorType.Admin, AuditActionFor(target), "MerchantQuotation",
-            quotation.Id, before, QuotationAuditSnapshot(quotation));
-        await SaveWithConcurrencyAsync(cancellationToken);
+            _auditLogService.Append(actorId, ActorType.Admin, AuditActionFor(target), "MerchantQuotation",
+                quotation.Id, before, QuotationAuditSnapshot(quotation));
+            await SaveWithConcurrencyAsync(ct);
+        },
+        // A lost commit response: the transition happened if the quotation is
+        // now in the target state.
+        ct => _dbContext.MerchantQuotations.AsNoTracking().AnyAsync(q => q.Id == id && q.Status == target, ct),
+        cancellationToken);
 
         return ToResponse(await RequireQuotationAsync(id, cancellationToken));
     }
@@ -581,108 +595,123 @@ public sealed class MerchantSalesService : IMerchantSalesService
     public async Task<ConvertQuotationResult> ConvertQuotationAsync(
         Guid? actorId, Guid id, string? concurrencyToken, CancellationToken cancellationToken)
     {
-        var quotation = await RequireQuotationAsync(id, cancellationToken, tracked: true);
-
-        // Already converted: hand back the order that exists. Two clicks on the
-        // same button must never produce two orders.
-        if (quotation.Status == MerchantQuotationStatus.Converted &&
-            quotation.ConvertedMerchantOrderId.HasValue)
-        {
-            var existing = await RequireMerchantOrderAsync(
-                quotation.ConvertedMerchantOrderId.Value, cancellationToken);
-            return new ConvertQuotationResult(ToResponse(existing), AlreadyConverted: true);
-        }
-
-        if (quotation.Status != MerchantQuotationStatus.Accepted)
-        {
-            throw Conflict("quotation_not_convertible",
-                $"Only an accepted quotation can become an order. This one is {Describe(quotation.Status)}.");
-        }
-
-        if (quotation.ValidUntil < _timeProvider.GetUtcNow())
-        {
-            throw Conflict("quotation_expired",
-                "This quotation has passed its valid-until date. Issue a new quotation.");
-        }
-
-        ApplyConcurrency(quotation, concurrencyToken);
-
-        var merchant = await RequireMerchantAsync(quotation.MerchantId, cancellationToken);
-        if (!merchant.IsActive)
-        {
-            throw Conflict("merchant_inactive",
-                "This merchant is inactive and cannot receive a new order.");
-        }
-
-        await RevalidateVariantsAsync(quotation.Items, cancellationToken);
-
-        var now = _timeProvider.GetUtcNow();
-        var order = new MerchantOrder
-        {
-            MerchantOrderNumber = await _numbers.NextMerchantOrderNumberAsync(now, cancellationToken),
-            SourceQuotationId = quotation.Id,
-            MerchantId = quotation.MerchantId,
-            SalespersonId = quotation.SalespersonId,
-            PaymentTermSnapshot = quotation.PaymentTermSnapshot,
-            Currency = quotation.Currency,
-            // Copied, never recalculated: the merchant accepted these figures.
-            MerchandiseSubtotal = quotation.MerchandiseSubtotal,
-            DiscountTotal = quotation.DiscountTotal,
-            DeliveryFee = quotation.DeliveryFee,
-            GrandTotal = quotation.GrandTotal,
-            PaymentStatus = MerchantOrderPaymentStatus.AwaitingPayment,
-            FulfilmentStatus = MerchantOrderFulfilmentStatus.NotStarted,
-            CreatedAt = now,
-            UpdatedAt = now,
-        };
-
-        CopySnapshots(quotation, order);
-
-        foreach (var line in quotation.Items.OrderBy(item => item.SortOrder))
-        {
-            order.Items.Add(new MerchantOrderItem
-            {
-                ProductId = line.ProductId,
-                ProductVariantId = line.ProductVariantId,
-                ProductNameSnapshot = line.ProductNameSnapshot,
-                SkuCodeSnapshot = line.SkuCodeSnapshot,
-                OptionNameSnapshot = line.OptionNameSnapshot,
-                SupportsQrSnapshot = line.SupportsQrSnapshot,
-                SupportsNfcSnapshot = line.SupportsNfcSnapshot,
-                UnitWeightGramsSnapshot = line.UnitWeightGramsSnapshot,
-                Quantity = line.Quantity,
-                WholesaleUnitPrice = line.WholesaleUnitPrice,
-                LineDiscount = line.LineDiscount,
-                LineSubtotal = line.LineSubtotal,
-                SortOrder = line.SortOrder,
-            });
-        }
-
-        var quotationBefore = QuotationAuditSnapshot(quotation);
-        quotation.Status = MerchantQuotationStatus.Converted;
-        quotation.ConvertedAt = now;
-        quotation.ConvertedMerchantOrderId = order.Id;
-        quotation.UpdatedAt = now;
-
-        _dbContext.MerchantOrders.Add(order);
-
-        _auditLogService.Append(actorId, ActorType.Admin, "merchant-order.created", "MerchantOrder",
-            order.Id, null, MerchantOrderAuditSnapshot(order));
-        _auditLogService.Append(actorId, ActorType.Admin, "quotation.converted", "MerchantQuotation",
-            quotation.Id, quotationBefore, QuotationAuditSnapshot(quotation));
-
+        Guid? existingOrderId = null;
+        Guid? createdOrderId = null;
         try
         {
-            // Order, quotation status, link and audit all land together or not
-            // at all, so a failure cannot leave a half-converted quotation.
-            await SaveWithConcurrencyAsync(cancellationToken);
+            await RunQuotationUnitAsync(id, lockStock: true, async (quotation, ct) =>
+            {
+                existingOrderId = null;
+                createdOrderId = null;
+
+                // Already converted: hand back the order that exists. Two clicks on
+                // the same button must never produce two orders.
+                if (quotation.Status == MerchantQuotationStatus.Converted &&
+                    quotation.ConvertedMerchantOrderId.HasValue)
+                {
+                    existingOrderId = quotation.ConvertedMerchantOrderId.Value;
+                    return;
+                }
+
+                if (quotation.Status != MerchantQuotationStatus.Accepted)
+                {
+                    throw Conflict("quotation_not_convertible",
+                        $"Only an accepted quotation can become an order. This one is {Describe(quotation.Status)}.");
+                }
+
+                if (quotation.ValidUntil < _timeProvider.GetUtcNow())
+                {
+                    throw Conflict("quotation_expired",
+                        "This quotation has passed its valid-until date. Issue a new quotation.");
+                }
+
+                ApplyConcurrency(quotation, concurrencyToken);
+
+                var merchant = await RequireMerchantAsync(quotation.MerchantId, ct);
+                if (!merchant.IsActive)
+                {
+                    throw Conflict("merchant_inactive",
+                        "This merchant is inactive and cannot receive a new order.");
+                }
+
+                await RevalidateVariantsAsync(quotation.Items, ct);
+                await PhysicalQaReleaseRules.RequireMerchantQaStockAsync(_dbContext, quotation.Items, ct);
+
+                var now = _timeProvider.GetUtcNow();
+                var order = new MerchantOrder
+                {
+                    MerchantOrderNumber = await _numbers.NextMerchantOrderNumberAsync(now, ct),
+                    SourceQuotationId = quotation.Id,
+                    MerchantId = quotation.MerchantId,
+                    SalespersonId = quotation.SalespersonId,
+                    PaymentTermSnapshot = quotation.PaymentTermSnapshot,
+                    Currency = quotation.Currency,
+                    // Copied, never recalculated: the merchant accepted these figures.
+                    MerchandiseSubtotal = quotation.MerchandiseSubtotal,
+                    DiscountTotal = quotation.DiscountTotal,
+                    DeliveryFee = quotation.DeliveryFee,
+                    GrandTotal = quotation.GrandTotal,
+                    PaymentStatus = MerchantOrderPaymentStatus.AwaitingPayment,
+                    FulfilmentStatus = MerchantOrderFulfilmentStatus.NotStarted,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                };
+
+                CopySnapshots(quotation, order);
+
+                foreach (var line in quotation.Items.OrderBy(item => item.SortOrder))
+                {
+                    order.Items.Add(new MerchantOrderItem
+                    {
+                        ProductId = line.ProductId,
+                        ProductVariantId = line.ProductVariantId,
+                        ProductNameSnapshot = line.ProductNameSnapshot,
+                        SkuCodeSnapshot = line.SkuCodeSnapshot,
+                        OptionNameSnapshot = line.OptionNameSnapshot,
+                        SupportsQrSnapshot = line.SupportsQrSnapshot,
+                        SupportsNfcSnapshot = line.SupportsNfcSnapshot,
+                        UnitWeightGramsSnapshot = line.UnitWeightGramsSnapshot,
+                        Quantity = line.Quantity,
+                        WholesaleUnitPrice = line.WholesaleUnitPrice,
+                        LineDiscount = line.LineDiscount,
+                        LineSubtotal = line.LineSubtotal,
+                        SortOrder = line.SortOrder,
+                    });
+                }
+
+                var quotationBefore = QuotationAuditSnapshot(quotation);
+                quotation.Status = MerchantQuotationStatus.Converted;
+                quotation.ConvertedAt = now;
+                quotation.ConvertedMerchantOrderId = order.Id;
+                quotation.UpdatedAt = now;
+
+                _dbContext.MerchantOrders.Add(order);
+
+                _auditLogService.Append(actorId, ActorType.Admin, "merchant-order.created", "MerchantOrder",
+                    order.Id, null, MerchantOrderAuditSnapshot(order));
+                _auditLogService.Append(actorId, ActorType.Admin, "quotation.converted", "MerchantQuotation",
+                    quotation.Id, quotationBefore, QuotationAuditSnapshot(quotation));
+
+                // Order, quotation status, link and audit all land together or not
+                // at all, so a failure cannot leave a half-converted quotation.
+                createdOrderId = order.Id;
+                await SaveWithConcurrencyAsync(ct);
+            },
+            // A lost commit response: this attempt committed only if the order it
+            // created exists for this quotation. Another request's order is not
+            // ours; then the attempt is retried, finds the quotation converted
+            // and returns that order as already converted.
+            ct => createdOrderId is { } expected
+                ? _dbContext.MerchantOrders.AsNoTracking()
+                    .AnyAsync(o => o.Id == expected && o.SourceQuotationId == id, ct)
+                : Task.FromResult(false),
+            cancellationToken);
         }
         catch (DbUpdateException)
         {
-            // A parallel request may have won the unique index on
-            // SourceQuotationId. If so, return its order rather than surfacing
-            // a database error; otherwise the failure is real.
-            var winner = await AlreadyConvertedAsync(quotation.Id, cancellationToken);
+            // The unique index on SourceQuotationId is the last guard. If another
+            // request's order exists, return it; otherwise the failure is real.
+            var winner = await AlreadyConvertedAsync(id, cancellationToken);
             if (winner is null)
             {
                 throw Conflict("quotation_conversion_failed",
@@ -692,9 +721,73 @@ public sealed class MerchantSalesService : IMerchantSalesService
             return new ConvertQuotationResult(ToResponse(winner), AlreadyConverted: true);
         }
 
+        if (existingOrderId is { } existing)
+        {
+            return new ConvertQuotationResult(
+                ToResponse(await RequireMerchantOrderAsync(existing, cancellationToken)), AlreadyConverted: true);
+        }
+
         return new ConvertQuotationResult(
-            ToResponse(await RequireMerchantOrderAsync(order.Id, cancellationToken)),
+            ToResponse(await RequireMerchantOrderAsync(createdOrderId!.Value, cancellationToken)),
             AlreadyConverted: false);
+    }
+
+    // Runs one decision about a quotation as a single retriable unit of work.
+    // Every attempt, from scratch: open a transaction; lock the quotation, so no
+    // other edit, transition or conversion of it can interleave; reload it; when
+    // stock matters, lock the SKUs of its current lines (in SKU order, after the
+    // quotation); then validate and write. The locks are owned by that
+    // transaction, so a lost connection rolls the attempt back and releases them
+    // together, and the next attempt re-locks and re-validates. Nothing is ever
+    // released by hand, so cleanup cannot fail or hide the real outcome. When a
+    // commit's response is lost, `committed` decides whether it landed.
+    private async Task RunQuotationUnitAsync(
+        Guid quotationId,
+        bool lockStock,
+        Func<MerchantQuotation, CancellationToken, Task> operation,
+        Func<CancellationToken, Task<bool>> committed,
+        CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsRelational())
+        {
+            await operation(await RequireQuotationAsync(quotationId, cancellationToken, tracked: true), cancellationToken);
+            return;
+        }
+
+        await _dbContext.Database.CreateExecutionStrategy().ExecuteInTransactionAsync(
+            async ct =>
+            {
+                _dbContext.ChangeTracker.Clear();
+                await LockAsync([$"MyPetLink:MerchantQuotation:{quotationId:N}"], ct);
+                var quotation = await RequireQuotationAsync(quotationId, ct, tracked: true);
+                if (lockStock)
+                {
+                    await LockAsync(SqlServerInventoryReservationLock.InventoryResources(
+                        quotation.Items.Select(item => item.ProductVariantId)), ct);
+                }
+
+                await operation(quotation, ct);
+            },
+            async ct =>
+            {
+                _dbContext.ChangeTracker.Clear();
+                return await committed(ct);
+            },
+            cancellationToken);
+    }
+
+    private async Task LockAsync(IEnumerable<string> resources, CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsSqlServer()) return;
+        try
+        {
+            await SqlServerInventoryReservationLock.AcquireForTransactionAsync(_dbContext, resources, cancellationToken);
+        }
+        catch (ApiException exception) when (exception.Code == "inventory_busy")
+        {
+            throw Conflict("inventory_busy",
+                "This quotation or its stock is being updated right now. Try again in a moment.");
+        }
     }
 
     // ================= Merchant orders =================
@@ -1210,6 +1303,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
     private async Task RequireSellableLinesAsync(
         MerchantQuotation quotation, CancellationToken cancellationToken)
     {
+        await PhysicalQaReleaseRules.RequireMerchantQaStockAsync(_dbContext, quotation.Items, cancellationToken);
         var variantIds = quotation.Items.Select(item => item.ProductVariantId).Distinct().ToArray();
         if (variantIds.Length == 0) return;
 

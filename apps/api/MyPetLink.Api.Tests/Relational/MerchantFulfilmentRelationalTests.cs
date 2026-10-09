@@ -191,6 +191,34 @@ public sealed class MerchantFulfilmentRelationalTests
     }
 
     [RelationalFact]
+    public async Task MerchantAutoAllocationCannotPickPendingOrFailedStock()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(); await using var db = scope.NewContext();
+        await SeedAsync(db);
+        foreach (var tag in await db.SmartTags.Where(t => t.ProductVariantId == NfcVariantId).ToListAsync()) tag.QaStatus = PhysicalQaStatus.Pending;
+        await db.SaveChangesAsync();
+        await Assert.ThrowsAsync<ApiException>(() => Service(db).AutoAllocateAsync(AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(NfcItemId, 4)));
+        Assert.Empty(await db.MerchantOrderAllocatedTags.ToListAsync());
+    }
+
+    [RelationalFact]
+    public async Task QaDowngradeAfterReadinessBlocksMerchantShipment()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        await SeedAsync(db); await IssueInvoiceAsync(db);
+        var service = Service(db); await AllocateEverythingAsync(service);
+        await service.MarkReadyToShipAsync(AdminAccountId, OrderId, new MerchantFulfilmentTransitionRequest());
+        var tagId = await db.MerchantOrderAllocatedTags.Where(a => a.MerchantOrderId == OrderId).Select(a => a.SmartTagId).FirstAsync();
+        var tag = await db.SmartTags.SingleAsync(t => t.Id == tagId); tag.QaStatus = PhysicalQaStatus.Failed; await db.SaveChangesAsync();
+        var failure = await Assert.ThrowsAsync<ApiException>(() => service.MarkShippedAsync(AdminAccountId, OrderId, Shipment()));
+        Assert.Equal("physical_qa_required", failure.Code);
+        db.ChangeTracker.Clear();
+        Assert.Equal(MerchantOrderFulfilmentStatus.ReadyToShip, (await db.MerchantOrders.SingleAsync(o => o.Id == OrderId)).FulfilmentStatus);
+        Assert.Empty(await db.EmailOutbox.Where(e => e.MessageType == EmailMessageType.MerchantOrderShipped).ToListAsync());
+    }
+
+    [RelationalFact]
     public async Task ShippingHandsEveryAllocatedTagToTheMerchant()
     {
         await using var scope = await RelationalDatabase.CreateAsync();
