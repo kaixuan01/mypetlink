@@ -39,7 +39,6 @@ import { getAdminCapabilities } from "@/services/authService";
 import {
   bulkActionRules,
   bulkUpdateTagInventory,
-  canApplyBulkAction,
   downloadTagInventoryExport,
   downloadTagManufacturerExport,
   fulfilmentLabels,
@@ -50,6 +49,7 @@ import {
   stockPurposeLabels,
   type AdminInventoryBulkAction,
   type AdminInventoryListParams,
+  type AdminInventorySelection,
   type AdminInventoryTag,
 } from "@/services/adminTagInventoryService";
 import { isAbortError, isApiClientError } from "@/services/apiClient";
@@ -230,6 +230,9 @@ export function AdminTagInventoryManager() {
   );
 
   const paramsKey = useMemo(() => JSON.stringify(listParams), [listParams]);
+  const filterKey = useMemo(() => JSON.stringify({
+    ...listParams, page: 1, pageSize: 20, sortBy: undefined, sortDir: undefined,
+  }), [listParams]);
   const [reloadKey, setReloadKey] = useState(0);
   const fetchKey = `${paramsKey}#${reloadKey}`;
   const [listState, setListState] = useState<{
@@ -239,19 +242,26 @@ export function AdminTagInventoryManager() {
     error: string;
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectionScope, setSelectionScope] = useState(paramsKey);
-
-  // A new page, sort, or filter shows different rows; drop the old selection
-  // so bulk actions always apply to visible, validated rows.
-  if (selectionScope !== paramsKey) {
-    setSelectionScope(paramsKey);
-    setSelectedIds(new Set());
-  }
+  const [matchingSelection, setMatchingSelection] = useState<{
+    filters: AdminInventoryListParams; count: number;
+  } | null>(null);
+  const [selectionScope, setSelectionScope] = useState(filterKey);
   const [message, setMessage] = useState("");
-  const [failureDetails, setFailureDetails] = useState<string[]>([]);
   const [pendingBulkAction, setPendingBulkAction] =
     useState<AdminInventoryBulkAction | null>(null);
+
+  // Page and sort changes preserve selection. Changing a filter explicitly
+  // clears it so no old selection can silently be applied to a new result set.
+  if (selectionScope !== filterKey) {
+    setSelectionScope(filterKey);
+    setSelectedIds(new Set());
+    setMatchingSelection(null);
+    setPendingBulkAction(null);
+    setMessage("Filters changed. Selection cleared; choose tags again.");
+  }
+  const [failureDetails, setFailureDetails] = useState<string[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const bulkInFlight = useRef(false);
   const [exportBusy, setExportBusy] = useState(false);
 
   // Generation form state.
@@ -340,12 +350,19 @@ export function AdminTagInventoryManager() {
   const total = listState?.key === fetchKey ? listState.total : 0;
   const listError = listState?.key === fetchKey ? listState.error : "";
 
+  if (matchingSelection && !loading && !listError && total !== matchingSelection.count) {
+    setMatchingSelection(null);
+    setSelectedIds(new Set());
+    setPendingBulkAction(null);
+    setMessage("The matching tag count changed. Selection cleared; choose tags again.");
+  }
+
   const refresh = () => setReloadKey((key) => key + 1);
 
-  const selectedRows = useMemo(
-    () => items.filter((item) => selectedIds.has(item.id)),
-    [items, selectedIds]
-  );
+  const selectedCount = matchingSelection?.count ?? selectedIds.size;
+  const visibleSelectedIds = matchingSelection
+    ? new Set(items.map((item) => item.id)) : selectedIds;
+  const pageSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
 
   const openTagId = actions.getExtraParam("tag");
   const openTag = openTagId
@@ -426,20 +443,23 @@ export function AdminTagInventoryManager() {
   const selectedCatalogVariant = eligibleCatalogVariants.find((variant) => variant.id === productVariantId);
 
   async function runBulkAction(action: AdminInventoryBulkAction) {
+    if (bulkInFlight.current) return;
+    bulkInFlight.current = true;
     setPendingBulkAction(null);
     setBulkBusy(true);
     setFailureDetails([]);
 
     try {
-      const result = await bulkUpdateTagInventory(action, [...selectedIds]);
+      const selection: AdminInventorySelection = matchingSelection
+        ? { mode: "matching", filters: matchingSelection.filters, expectedCount: matchingSelection.count }
+        : { mode: "ids", tagIds: [...selectedIds] };
+      const result = await bulkUpdateTagInventory(action, selection);
       const rule = bulkActionRules[action];
 
       setMessage(
-        result.updatedCount > 0
-          ? `${result.updatedCount} tag${result.updatedCount === 1 ? "" : "s"} updated to ${
-              fulfilmentLabels[rule.to]
-            }.${result.failures.length > 0 ? ` ${result.failures.length} could not be updated.` : ""}`
-          : "No tags were updated."
+        `${rule.label}: ${result.updatedCount} successfully updated, ${result.skippedCount ?? 0} already ${
+          fulfilmentLabels[rule.to]
+        } / skipped, ${result.failures.length} failed.`
       );
       setFailureDetails(
         result.failures
@@ -454,11 +474,15 @@ export function AdminTagInventoryManager() {
           )
       );
       setSelectedIds(new Set());
+      setMatchingSelection(null);
       refresh();
     } catch (caught) {
-      setMessage(getFriendlyTagErrorMessage(caught));
+      setMessage(isApiClientError(caught) && caught.code === "selection_changed"
+        ? caught.message : getFriendlyTagErrorMessage(caught));
+      refresh();
     } finally {
       setBulkBusy(false);
+      bulkInFlight.current = false;
     }
   }
 
@@ -469,11 +493,11 @@ export function AdminTagInventoryManager() {
       await downloadTagInventoryExport(
         listParams,
         format,
-        scope === "selected" ? [...selectedIds] : undefined
+        scope === "selected" && !matchingSelection ? [...selectedIds] : undefined
       );
       setMessage(
         scope === "selected"
-          ? `${selectedIds.size} selected tag${selectedIds.size === 1 ? "" : "s"} exported.`
+          ? `${selectedCount} selected tag${selectedCount === 1 ? "" : "s"} exported.`
           : "Filtered tag inventory exported."
       );
       setFailureDetails([]);
@@ -497,11 +521,11 @@ export function AdminTagInventoryManager() {
     try {
       await downloadTagManufacturerExport(
         listParams,
-        scope === "selected" ? [...selectedIds] : undefined
+        scope === "selected" && !matchingSelection ? [...selectedIds] : undefined
       );
       setMessage(
         scope === "selected"
-          ? `Production file for ${selectedIds.size} selected tag${selectedIds.size === 1 ? "" : "s"} exported for the manufacturer.`
+          ? `Production file for ${selectedCount} selected tag${selectedCount === 1 ? "" : "s"} exported for the manufacturer.`
           : "Production file exported for the manufacturer."
       );
       setFailureDetails([]);
@@ -639,23 +663,28 @@ export function AdminTagInventoryManager() {
     Object.keys(bulkActionRules) as AdminInventoryBulkAction[]
   ).map((action) => {
     const rule = bulkActionRules[action];
-    const applicable =
-      selectedRows.length > 0 &&
-      selectedRows.every((row) => canApplyBulkAction(row, action));
+    // Selection can contain unseen pages. The server checks each tag and
+    // reports ineligible rows, so local rows cannot decide eligibility.
+    const applicable = selectedCount > 0 && !loading && !listError;
 
     return {
       id: action,
       label: rule.label,
       tone: action === "mark-printed" ? "primary" : "neutral",
       disabled: !applicable,
-      disabledReason: `Available when every selected tag is unclaimed ${fulfilmentLabels[
-        rule.from
-      ].toLowerCase()} stock.`,
+      disabledReason: "Wait for the tag list to load before updating selected tags.",
       onClick: () => setPendingBulkAction(action),
     };
   }) : [];
 
   const pendingRule = pendingBulkAction ? bulkActionRules[pendingBulkAction] : null;
+  const pendingPrompt = pendingBulkAction === "mark-printed"
+    ? `Mark ${selectedCount} tag${selectedCount === 1 ? "" : "s"} as Printed?`
+    : pendingBulkAction === "mark-received"
+      ? `Mark ${selectedCount} tag${selectedCount === 1 ? "" : "s"} as Received?`
+      : pendingBulkAction === "send-to-reseller"
+        ? `Send ${selectedCount} tag${selectedCount === 1 ? "" : "s"} to Reseller?`
+        : `Send ${selectedCount} tag${selectedCount === 1 ? "" : "s"} to Owner?`;
 
   return (
     <div className="grid gap-4">
@@ -781,7 +810,7 @@ export function AdminTagInventoryManager() {
                     }
                   : undefined
               }
-              selectedCount={selectedIds.size}
+              selectedCount={selectedCount}
             /> : undefined
           }
           filters={filterDefs}
@@ -812,6 +841,31 @@ export function AdminTagInventoryManager() {
           </div>
         ) : null}
 
+        {(canManage || canExport) && selectedCount > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-[#f0f7ff] px-4 py-3 text-sm font-semibold text-slate-800" role="status">
+            <span>{matchingSelection
+              ? `All ${selectedCount} tags matching the current filters selected.`
+              : `${selectedCount} tag${selectedCount === 1 ? "" : "s"} selected across pages.`}</span>
+            {!matchingSelection && pageSelected && total > selectedIds.size ? (
+              <button className="font-bold text-[#1b4f9c] underline" type="button" onClick={() => {
+                setMatchingSelection({ filters: listParams, count: total });
+                setSelectedIds(new Set());
+              }}>
+                Select all {total} tags matching current filters
+              </button>
+            ) : null}
+            {matchingSelection ? (
+              <button className="font-bold text-[#1b4f9c] underline" type="button" onClick={() => {
+                setMatchingSelection(null);
+                setSelectedIds(new Set(items.map((item) => item.id)));
+              }}>Return to page-only selection</button>
+            ) : null}
+            <button className="font-bold text-[#1b4f9c] underline" type="button" onClick={() => {
+              setMatchingSelection(null); setSelectedIds(new Set());
+            }}>Clear selection</button>
+          </div>
+        ) : null}
+
         <AdminDataTable
           columns={columns}
           emptyDescription={
@@ -828,7 +882,10 @@ export function AdminTagInventoryManager() {
           onPageSizeChange={actions.setPageSize}
           onRetry={refresh}
           onRowOpen={(row) => actions.setExtraParam("tag", row.id)}
-          onSelectedIdsChange={setSelectedIds}
+          onSelectedIdsChange={(ids) => {
+            setMatchingSelection(null);
+            setSelectedIds(ids);
+          }}
           onSortChange={actions.setSort}
           page={query.page}
           pageSize={query.pageSize}
@@ -836,7 +893,7 @@ export function AdminTagInventoryManager() {
           rowOpenLabel="Details"
           rows={items}
           selectable={canManage || canExport}
-          selectedIds={selectedIds}
+          selectedIds={visibleSelectedIds}
           sortBy={query.sortBy}
           sortDir={query.sortDir}
           stickyFirstColumn
@@ -846,8 +903,8 @@ export function AdminTagInventoryManager() {
         {canManage ? <AdminBulkActionBar
           actions={bulkActions}
           busy={bulkBusy}
-          onClearSelection={() => setSelectedIds(new Set())}
-          selectedCount={selectedIds.size}
+          onClearSelection={() => { setSelectedIds(new Set()); setMatchingSelection(null); }}
+          selectedCount={selectedCount}
         /> : null}
       </AdminSection> : null}
 
@@ -855,9 +912,7 @@ export function AdminTagInventoryManager() {
         confirmLabel={pendingRule ? pendingRule.label : "Confirm"}
         message={
           pendingRule
-            ? `Update ${selectedIds.size} tag${selectedIds.size === 1 ? "" : "s"} from ${
-                fulfilmentLabels[pendingRule.from]
-              } to ${fulfilmentLabels[pendingRule.to]}? This only changes the fulfilment step — tag activation is not affected.`
+            ? `${pendingPrompt} Ineligible tags will be reported separately.`
             : ""
         }
         onCancel={() => setPendingBulkAction(null)}

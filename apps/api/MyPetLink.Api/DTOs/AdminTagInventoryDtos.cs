@@ -100,7 +100,15 @@ public sealed record AdminTagInventoryItemResponse(
 
 public sealed record AdminTagInventoryBulkActionRequest(
     [Required, MaxLength(40)] string Action,
-    [Required, MinLength(1), MaxLength(500)] Guid[] TagIds);
+    [MaxLength(10000)] Guid[]? TagIds)
+{
+    // "ids" is retained as the default for existing callers.
+    [MaxLength(16)]
+    public string SelectionMode { get; init; } = "ids";
+    public AdminTagInventoryQuery? Filters { get; init; }
+    [Range(1, 10000)]
+    public int? ExpectedCount { get; init; }
+}
 
 // Projection for the manufacturer production workbook. This file is shared
 // outside the company, so the projection deliberately carries ONLY what the
@@ -124,4 +132,7 @@ public sealed record AdminTagInventoryBulkActionResponse(
     string Action,
     int RequestedCount,
     int UpdatedCount,
-    IReadOnlyCollection<AdminTagInventoryBulkFailure> Failures);
+    IReadOnlyCollection<AdminTagInventoryBulkFailure> Failures)
+{
+    public int SkippedCount { get; init; }
+}

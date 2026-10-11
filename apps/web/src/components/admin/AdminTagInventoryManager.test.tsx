@@ -10,19 +10,17 @@ const mocks = vi.hoisted(() => ({
   listInventory: vi.fn(),
   listOptions: vi.fn(),
   listPresets: vi.fn(),
+  bulk: vi.fn(),
+  tableQuery: {
+    page: 1, pageSize: 20, search: "", sortBy: "generatedAt", sortDir: "desc" as const,
+    filters: {} as Record<string, string>,
+  },
 }));
 
 vi.mock("@/components/admin/table/useAdminTableQuery", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/admin/table/useAdminTableQuery")>();
   return { ...actual, useAdminTableQuery: () => ({
-    query: {
-      page: 1,
-      pageSize: 20,
-      search: "",
-      sortBy: "generatedAt",
-      sortDir: "desc",
-      filters: {},
-    },
+    query: mocks.tableQuery,
     actions: {
       clearAllFilters: vi.fn(),
       getExtraParam: () => "",
@@ -34,13 +32,13 @@ vi.mock("@/components/admin/table/useAdminTableQuery", async (importOriginal) =>
       setSearch: vi.fn(),
       setSort: vi.fn(),
     },
-    hasActiveFilters: false,
+    hasActiveFilters: Object.keys(mocks.tableQuery.filters).length > 0,
   }) };
 });
 
 vi.mock("@/services/adminTagInventoryService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/adminTagInventoryService")>();
-  return { ...actual, listTagInventory: mocks.listInventory };
+  return { ...actual, listTagInventory: mocks.listInventory, bulkUpdateTagInventory: mocks.bulk };
 });
 
 vi.mock("@/services/tagCatalogService", async (importOriginal) => {
@@ -109,6 +107,8 @@ beforeEach(() => {
   mocks.listInventory.mockReset().mockResolvedValue({ items: [], total: 0 });
   mocks.listOptions.mockReset().mockResolvedValue(catalog);
   mocks.listPresets.mockReset().mockResolvedValue([]);
+  mocks.bulk.mockReset().mockResolvedValue({ requestedCount: 300, updatedCount: 300, skippedCount: 0, failures: [] });
+  mocks.tableQuery = { page: 1, pageSize: 20, search: "", sortBy: "generatedAt", sortDir: "desc", filters: {} };
 });
 
 afterEach(() => {
@@ -245,5 +245,50 @@ describe("AdminTagInventoryManager stock purpose", () => {
     expect([...filter.options].map((option) => option.textContent)).toEqual(
       expect.arrayContaining(["Commercial Stock", "Testing Samples", "Unclassified"])
     );
+  });
+});
+
+describe("AdminTagInventoryManager bulk selection", () => {
+  const row = (index: number) => ({
+    id: `tag-${index}`, tagCode: `MPL-SELECT-${index}`, qaStatus: "Passed" as const,
+    stockPurpose: "Sale" as const, hasNfc: true, variant: "Lightweight" as const,
+    status: "Unassigned" as const, isArchived: false, fulfilment: "Generated" as const,
+  });
+
+  it("keeps checked pages, selects all 300 by filter, and clears on filter change", async () => {
+    mocks.listInventory.mockImplementation(async (params: { page: number; batch?: string }) => ({
+      items: params.batch ? [] : Array.from({ length: 20 }, (_, index) => row((params.page - 1) * 20 + index)),
+      total: params.batch ? 0 : 300,
+    }));
+    const view = render(<AdminTagInventoryManager />);
+    await screen.findByText("MPL-SELECT-0");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows on this page" }));
+    expect(screen.getByText("20 tags selected across pages.")).toBeDefined();
+
+    mocks.tableQuery = { ...mocks.tableQuery, page: 2 };
+    view.rerender(<AdminTagInventoryManager />);
+    await screen.findByText("MPL-SELECT-20");
+    expect(screen.getByText("20 tags selected across pages.")).toBeDefined();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows on this page" }));
+    expect(screen.getByText("40 tags selected across pages.")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Select all 300 tags matching current filters" }));
+    expect(screen.getByText("All 300 tags matching the current filters selected.")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Return to page-only selection" }));
+    expect(screen.getByText("20 tags selected across pages.")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Select all 300 tags matching current filters" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Printed" }));
+    expect(screen.getByText(/Mark 300 tags as Printed/)).toBeDefined();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Mark Printed" }));
+    await waitFor(() => expect(mocks.bulk).toHaveBeenCalledWith("mark-printed", {
+      mode: "matching", expectedCount: 300,
+      filters: expect.objectContaining({ page: 2, pageSize: 20 }),
+    }));
+    expect(await screen.findByText("Mark Printed: 300 successfully updated, 0 already Printed / skipped, 0 failed.")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows on this page" }));
+    mocks.tableQuery = { ...mocks.tableQuery, page: 1, filters: { batch: "OTHER" } };
+    view.rerender(<AdminTagInventoryManager />);
+    expect(await screen.findByText("Filters changed. Selection cleared; choose tags again.")).toBeDefined();
   });
 });

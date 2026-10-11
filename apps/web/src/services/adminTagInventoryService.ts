@@ -90,8 +90,13 @@ export type AdminInventoryBulkAction =
 export type AdminInventoryBulkResult = {
   requestedCount: number;
   updatedCount: number;
+  skippedCount: number;
   failures: { tagId: string; tagCode: string; reason: string }[];
 };
+
+export type AdminInventorySelection =
+  | { mode: "ids"; tagIds: string[] }
+  | { mode: "matching"; filters: AdminInventoryListParams; expectedCount: number };
 
 export const stockPurposeLabels: Record<TagStockPurpose, string> = {
   Sale: "Commercial Stock",
@@ -236,7 +241,14 @@ function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
 }
 
 function buildQueryString(params: AdminInventoryListParams) {
-  return buildAdminListQuery(params, { dateOnlyToKeys: ["generatedTo", "updatedTo"] });
+  const query = new URLSearchParams(buildAdminListQuery(params, {
+    dateOnlyToKeys: ["generatedTo", "updatedTo"],
+  }));
+  for (const key of ["generatedFrom", "updatedFrom"]) {
+    const value = query.get(key);
+    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) query.set(key, `${value}T00:00:00Z`);
+  }
+  return query.toString();
 }
 
 export async function listTagInventory(
@@ -268,31 +280,60 @@ export async function listTagInventory(
 
 export async function bulkUpdateTagInventory(
   action: AdminInventoryBulkAction,
-  tagIds: string[]
+  selection: string[] | AdminInventorySelection
 ): Promise<AdminInventoryBulkResult> {
+  const selected = Array.isArray(selection) ? { mode: "ids" as const, tagIds: selection } : selection;
+  const tagIds = selected.mode === "ids" ? [...new Set(selected.tagIds)] : [];
   if (canUseAdminApi()) {
+    const filterQuery = selected.mode === "matching"
+      ? new URLSearchParams(buildQueryString(selected.filters)) : null;
+    for (const key of ["page", "pageSize", "sortBy", "sortDir"]) filterQuery?.delete(key);
+    const filters = filterQuery ? Object.fromEntries(filterQuery) : undefined;
+    const body = selected.mode === "ids"
+      ? { action, selectionMode: "ids", tagIds }
+      : {
+          action,
+          selectionMode: "matching",
+          expectedCount: selected.expectedCount,
+          filters: {
+            ...filters,
+            claimed: filters?.claimed === undefined ? undefined : filters.claimed === "true",
+          },
+        };
     const response = await apiRequest<AdminInventoryBulkResult>(
       "/api/v1/admin/tag-inventory/bulk-status",
-      { method: "POST", body: { action, tagIds } }
+      { method: "POST", body }
     );
 
     return (
-      response.data ?? { requestedCount: tagIds.length, updatedCount: 0, failures: [] }
+      response.data ?? { requestedCount: tagIds.length, updatedCount: 0, skippedCount: 0, failures: [] }
     );
   }
 
   await mockDelay();
   const rule = bulkActionRules[action];
   const inventory = await loadLocalInventory();
+  const resolvedIds = selected.mode === "matching"
+    ? sortLocal(filterLocal(inventory, selected.filters), selected.filters).map((tag) => tag.id)
+    : tagIds;
+  if (selected.mode === "matching" && resolvedIds.length !== selected.expectedCount) {
+    throw new Error("The number of matching tags changed. Refresh the list and select them again.");
+  }
   const inventoryById = new Map(inventory.map((tag) => [tag.id, tag]));
   const failures: AdminInventoryBulkResult["failures"] = [];
   const updates = new Map<string, TagFulfilmentStatus>();
+  let skippedCount = 0;
 
-  for (const tagId of tagIds) {
+  for (const tagId of resolvedIds) {
     const tag = inventoryById.get(tagId);
 
     if (!tag) {
       failures.push({ tagId, tagCode: "", reason: "This tag could not be found." });
+      continue;
+    }
+
+    if (tag.fulfilment === rule.to) {
+      skippedCount++;
       continue;
     }
 
@@ -323,8 +364,9 @@ export async function bulkUpdateTagInventory(
   }
 
   return {
-    requestedCount: tagIds.length,
+    requestedCount: resolvedIds.length,
     updatedCount: updates.size,
+    skippedCount,
     failures,
   };
 }
@@ -521,6 +563,8 @@ function filterLocal(
   const generatedTo = params.generatedTo
     ? Date.parse(`${params.generatedTo}T23:59:59`)
     : null;
+  const updatedFrom = params.updatedFrom ? Date.parse(params.updatedFrom) : null;
+  const updatedTo = params.updatedTo ? Date.parse(`${params.updatedTo}T23:59:59`) : null;
 
   return tags.filter((tag) => {
     if (params.productVariantId && tag.productVariantId !== params.productVariantId) {
@@ -614,6 +658,10 @@ function filterLocal(
     if (generatedTo !== null && generated > generatedTo) {
       return false;
     }
+
+    const updated = parseLocalDate(tag.updatedAt);
+    if (updatedFrom !== null && updated < updatedFrom) return false;
+    if (updatedTo !== null && updated > updatedTo) return false;
 
     return true;
   });

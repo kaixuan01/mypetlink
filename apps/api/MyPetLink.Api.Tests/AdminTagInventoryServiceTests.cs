@@ -264,8 +264,8 @@ public sealed class AdminTagInventoryServiceTests
 
         Assert.Equal(3, response.RequestedCount);
         Assert.Equal(1, response.UpdatedCount);
-        Assert.Equal(2, response.Failures.Count);
-        Assert.Contains(response.Failures, failure => failure.TagId == printed.Id);
+        Assert.Equal(1, response.SkippedCount);
+        Assert.Single(response.Failures);
         Assert.Contains(response.Failures, failure => failure.TagId == missing);
     }
 
@@ -287,6 +287,82 @@ public sealed class AdminTagInventoryServiceTests
         var reloadedArchived = await harness.Db.SmartTags.SingleAsync(tag => tag.Id == archived.Id);
         Assert.Equal(SmartTagStatus.Active, reloadedActive.Status);
         Assert.NotNull(reloadedArchived.ArchivedAt);
+    }
+
+    [Fact]
+    public async Task BulkUpdate_MatchingFiltersProcessesThreeHundredWithoutChangingQaOrOtherBatches()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var generated = await harness.Service.GenerateAsync(AdminUserId,
+            new AdminGenerateTagsRequest(300, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
+        var filters = new AdminTagInventoryQuery
+        {
+            Batch = generated.BatchNo, Variant = "Lightweight", TagType = "QR_NFC",
+            Status = "Unclaimed", StockPurpose = "Sale", Fulfilment = "Generated"
+        };
+        var before = await harness.Db.SmartTags.CountAsync(tag => tag.FulfilmentStatus == TagFulfilmentStatus.Printed);
+
+        var result = await harness.Service.BulkUpdateFulfilmentAsync(AdminUserId,
+            new AdminTagInventoryBulkActionRequest("mark-printed", null)
+            { SelectionMode = "matching", Filters = filters, ExpectedCount = 300 });
+
+        Assert.Equal(300, result.RequestedCount);
+        Assert.Equal(300, result.UpdatedCount);
+        Assert.Equal(0, result.SkippedCount);
+        Assert.Empty(result.Failures);
+        var batchTags = await harness.Db.SmartTags.Where(tag => tag.Batch!.BatchNo == generated.BatchNo).ToArrayAsync();
+        Assert.All(batchTags, tag =>
+        {
+            Assert.Equal(TagFulfilmentStatus.Printed, tag.FulfilmentStatus);
+            Assert.Equal(PhysicalQaStatus.Pending, tag.QaStatus);
+            Assert.Equal(SmartTagStockPurpose.Sale, tag.StockPurpose);
+            Assert.Equal(SmartTagStatus.Unclaimed, tag.Status);
+            Assert.Null(tag.OwnerUserId);
+            Assert.Null(tag.PetId);
+            Assert.Null(tag.OrderId);
+        });
+        Assert.Equal(before + 300, await harness.Db.SmartTags.CountAsync(tag => tag.FulfilmentStatus == TagFulfilmentStatus.Printed));
+        Assert.Equal(300, await harness.Db.AuditLogs.CountAsync(log => log.Action == "tag-inventory.mark-printed"));
+
+        // Replaying the same IDs is safe and does not append duplicate audit rows.
+        var retry = await harness.Service.BulkUpdateFulfilmentAsync(AdminUserId,
+            new AdminTagInventoryBulkActionRequest("mark-printed", generated.Tags.Select(tag => tag.Id).ToArray()));
+        Assert.Equal(0, retry.UpdatedCount);
+        Assert.Equal(300, retry.SkippedCount);
+        Assert.Equal(300, await harness.Db.AuditLogs.CountAsync(log => log.Action == "tag-inventory.mark-printed"));
+    }
+
+    [Fact]
+    public async Task BulkUpdate_MatchingCountChangedRejectsWithoutUpdating()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var generated = await harness.Service.GenerateAsync(AdminUserId,
+            new AdminGenerateTagsRequest(3, NfcLightweightVariantId, SmartTagStockPurpose.Test));
+        var error = await Assert.ThrowsAsync<ApiException>(() => harness.Service.BulkUpdateFulfilmentAsync(
+            AdminUserId, new AdminTagInventoryBulkActionRequest("mark-printed", null)
+            {
+                SelectionMode = "matching", ExpectedCount = 4,
+                Filters = new AdminTagInventoryQuery { Batch = generated.BatchNo, StockPurpose = "Test" }
+            }));
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.All(await harness.Db.SmartTags.Where(tag => tag.Batch!.BatchNo == generated.BatchNo).ToArrayAsync(),
+            tag => Assert.Equal(TagFulfilmentStatus.Generated, tag.FulfilmentStatus));
+    }
+
+    [Fact]
+    public async Task BulkUpdate_RejectsAmbiguousSelectionModes()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var id = await harness.Db.SmartTags.Select(tag => tag.Id).FirstAsync();
+        var ambiguous = await Assert.ThrowsAsync<ApiException>(() => harness.Service.BulkUpdateFulfilmentAsync(
+            AdminUserId, new AdminTagInventoryBulkActionRequest("mark-printed", [id])
+            {
+                SelectionMode = "matching", ExpectedCount = 1, Filters = new AdminTagInventoryQuery()
+            }));
+        var missingIds = await Assert.ThrowsAsync<ApiException>(() => harness.Service.BulkUpdateFulfilmentAsync(
+            AdminUserId, new AdminTagInventoryBulkActionRequest("mark-printed", null)));
+        Assert.Equal("validation_failed", ambiguous.Code);
+        Assert.Equal("validation_failed", missingIds.Code);
     }
 
     [Fact]

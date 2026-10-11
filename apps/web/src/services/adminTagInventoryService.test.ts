@@ -143,7 +143,7 @@ describe("bulkUpdateTagInventory (local data)", () => {
   it("moves Generated unclaimed stock to Printed and reports failures for the rest", async () => {
     const result = await bulkUpdateTagInventory("mark-printed", [
       "inv_a", // Generated + Unclaimed: updates
-      "inv_b", // already Printed: fails
+      "inv_b", // already Printed: skipped
       "inv_c", // archived: fails
       "inv_d", // Active lifecycle: fails
       "missing",
@@ -151,7 +151,8 @@ describe("bulkUpdateTagInventory (local data)", () => {
 
     expect(result.requestedCount).toBe(5);
     expect(result.updatedCount).toBe(1);
-    expect(result.failures).toHaveLength(4);
+    expect(result.skippedCount).toBe(1);
+    expect(result.failures).toHaveLength(3);
 
     const items = await listSeeded({ fulfilment: "Printed" });
     expect(items.map((item) => item.id).sort()).toEqual(["inv_a", "inv_b"]);
@@ -163,6 +164,27 @@ describe("bulkUpdateTagInventory (local data)", () => {
     const [tag] = await listSeeded({ tagCode: "MPL-TEST-AAAA" });
     expect(tag.status).toBe("Unassigned");
     expect(tag.isArchived).toBe(false);
+  });
+
+  it("updates all matching pages from filters and rejects a changed count", async () => {
+    const tags = Array.from({ length: 300 }, (_, index): PetTag => ({
+      id: `bulk_${index}`, tagCode: `MPL-BULK-${String(index).padStart(4, "0")}`,
+      hasNfc: true, variant: "Lightweight", status: "Unassigned",
+      fulfilmentStatus: "Generated", batchNo: "BATCH-300", generatedDate: "01 Jul 2026",
+    }));
+    writeAdminTagCollection([...seedTags(), ...tags]);
+    const filters = { page: 2, pageSize: 20, batch: "BATCH-300", variant: "Lightweight",
+      status: "Unclaimed", fulfilment: "Generated", tagType: "QR_NFC", stockPurpose: "Sale" };
+    await expect(bulkUpdateTagInventory("mark-printed", {
+      mode: "matching", filters, expectedCount: 299,
+    })).rejects.toThrow("matching tags changed");
+    const result = await bulkUpdateTagInventory("mark-printed", {
+      mode: "matching", filters, expectedCount: 300,
+    });
+    expect(result).toMatchObject({ requestedCount: 300, updatedCount: 300, skippedCount: 0 });
+    expect(result.failures).toHaveLength(0);
+    const printed = await listTagInventory({ page: 1, pageSize: 20, batch: "BATCH-300", fulfilment: "Printed" });
+    expect(printed.total).toBe(300);
   });
 });
 

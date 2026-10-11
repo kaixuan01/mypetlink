@@ -56,6 +56,47 @@ public sealed class AdminTagGenerationRelationalTests
     }
 
     [RelationalFact]
+    public async Task BulkFulfilmentUpdatesThreeHundredFilteredTagsInBatches()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        await using (var setup = scope.NewContext()) await SeedAsync(setup);
+        string batchNo;
+        await using (var setup = scope.NewContext())
+        {
+            batchNo = (await Service(setup).GenerateAsync(AdminUserId,
+                new AdminGenerateTagsRequest(300, VariantId, SmartTagStockPurpose.Sale))).BatchNo;
+        }
+
+        await using (var db = scope.NewContext())
+        {
+            var result = await Service(db).BulkUpdateFulfilmentAsync(AdminUserId,
+                new AdminTagInventoryBulkActionRequest("mark-printed", null)
+                {
+                    SelectionMode = "matching", ExpectedCount = 300,
+                    Filters = new AdminTagInventoryQuery
+                    {
+                        Batch = batchNo, Status = "Unclaimed", Fulfilment = "Generated",
+                        StockPurpose = "Sale", Variant = "Lightweight", TagType = "QR_NFC"
+                    }
+                });
+            Assert.Equal(300, result.UpdatedCount);
+            Assert.Empty(result.Failures);
+        }
+
+        await using var check = scope.NewContext();
+        var tags = await check.SmartTags.Where(tag => tag.Batch!.BatchNo == batchNo).ToArrayAsync();
+        Assert.Equal(300, tags.Length);
+        Assert.All(tags, tag =>
+        {
+            Assert.Equal(TagFulfilmentStatus.Printed, tag.FulfilmentStatus);
+            Assert.Equal(PhysicalQaStatus.Pending, tag.QaStatus);
+            Assert.Equal(SmartTagStatus.Unclaimed, tag.Status);
+            Assert.Equal(SmartTagStockPurpose.Sale, tag.StockPurpose);
+        });
+        Assert.Equal(300, await check.AuditLogs.CountAsync(log => log.Action == "tag-inventory.mark-printed"));
+    }
+
+    [RelationalFact]
     public async Task ConcurrentGenerationForTheSameSkuCreatesTwoCompleteUniqueBatches()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
@@ -103,6 +144,58 @@ public sealed class AdminTagGenerationRelationalTests
         Assert.Equal(
             2,
             await check.AuditLogs.CountAsync(log => log.Action == "tag-inventory.generate"));
+    }
+
+    [RelationalFact]
+    public async Task BulkFulfilmentRetriesAConcurrentRowWithoutRepeatingItsAudit()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        await using (var setup = scope.NewContext()) await SeedAsync(setup);
+        Guid[] ids;
+        await using (var setup = scope.NewContext())
+        {
+            var generated = await Service(setup).GenerateAsync(AdminUserId,
+                new AdminGenerateTagsRequest(2, VariantId, SmartTagStockPurpose.Sale));
+            ids = generated.Tags.Select(tag => tag.Id).ToArray();
+        }
+
+        var clock = new OneShotTimeProvider(() =>
+        {
+            // Runs after the bulk service reads the rows but before it saves.
+            using var concurrent = scope.NewContext();
+            var tag = concurrent.SmartTags.Single(item => item.Id == ids[0]);
+            tag.FulfilmentStatus = TagFulfilmentStatus.Printed;
+            tag.PrintedAt = DateTimeOffset.UtcNow;
+            concurrent.SaveChanges();
+        });
+        await using (var db = scope.NewContext())
+        {
+            var service = new AdminTagInventoryService(db,
+                new AuditLogService(db, new HttpContextAccessor()),
+                Options.Create(new PublicSiteOptions { BaseUrl = "https://tags.example" }),
+                new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()), clock);
+            var result = await service.BulkUpdateFulfilmentAsync(AdminUserId,
+                new AdminTagInventoryBulkActionRequest("mark-printed", ids));
+            Assert.Equal(1, result.UpdatedCount);
+            Assert.Equal(1, result.SkippedCount);
+            Assert.Empty(result.Failures);
+        }
+
+        await using var check = scope.NewContext();
+        Assert.Equal(2, await check.SmartTags.CountAsync(tag => ids.Contains(tag.Id)
+            && tag.FulfilmentStatus == TagFulfilmentStatus.Printed));
+        Assert.Equal(1, await check.AuditLogs.CountAsync(log => log.Action == "tag-inventory.mark-printed"));
+    }
+
+    private sealed class OneShotTimeProvider(Action onFirstRead) : TimeProvider
+    {
+        private Action? _callback = onFirstRead;
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            Interlocked.Exchange(ref _callback, null)?.Invoke();
+            return TimeProvider.System.GetUtcNow();
+        }
     }
 
     private static AdminTagInventoryService Service(MyPetLinkDbContext db) => new(

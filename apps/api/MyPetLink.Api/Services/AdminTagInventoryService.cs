@@ -298,21 +298,122 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             throw ValidationFailed("action", "This inventory action is not supported.");
         }
 
-        var requestedIds = request.TagIds.Distinct().ToArray();
-        var tags = await _dbContext.SmartTags
-            .Where(tag => tag.DeletedAt == null && requestedIds.Contains(tag.Id))
-            .ToListAsync(cancellationToken);
-        var tagsById = tags.ToDictionary(tag => tag.Id);
+        var matching = string.Equals(request.SelectionMode, "matching", StringComparison.OrdinalIgnoreCase);
+        if (!matching && !string.Equals(request.SelectionMode, "ids", StringComparison.OrdinalIgnoreCase))
+            throw ValidationFailed("selectionMode", "Choose selected tags or all matching tags.");
 
-        var now = _timeProvider.GetUtcNow();
+        if (matching && (request.Filters is null || request.ExpectedCount is null || request.TagIds is { Length: > 0 }))
+            throw ValidationFailed("selectionMode", "The matching selection is incomplete. Select the tags again.");
+        if (!matching && (request.TagIds is not { Length: > 0 } || request.Filters is not null))
+            throw ValidationFailed("tagIds", "Select at least one tag.");
+
+        // Resolve only IDs on the server. The same predicate as the listing is
+        // used, regardless of the current page, and no tag rows travel to the browser.
+        var requestedIds = matching
+            ? await BuildFilteredQuery(request.Filters!).OrderBy(tag => tag.Id)
+                .Select(tag => tag.Id).Take(10_001).ToArrayAsync(cancellationToken)
+            : request.TagIds!.Distinct().ToArray();
+        if (requestedIds.Length > 10_000)
+            throw ValidationFailed("selectionMode", "Narrow the selection to at most 10,000 tags.");
+        if (matching && requestedIds.Length != request.ExpectedCount)
+            throw new ApiException(StatusCodes.Status409Conflict, "selection_changed",
+                "The number of matching tags changed. Refresh the list and select them again.");
+        if (requestedIds.Length == 0)
+            throw ValidationFailed("tagIds", "No tags match this selection.");
+
         var failures = new List<AdminTagInventoryBulkFailure>();
-        var updatedIds = new List<Guid>();
+        var updatedCount = 0;
+        var skippedCount = 0;
 
-        foreach (var tagId in requestedIds)
+        // SQL Server's parameter ceiling and EF tracking make bounded batches
+        // necessary. SaveChanges commits each batch with its audit rows; a row
+        // version conflict rolls that batch back, then retries tags individually.
+        foreach (var chunk in requestedIds.Chunk(100))
+        {
+            try
+            {
+                var outcome = await ProcessBulkChunkAsync(chunk, matching ? request.Filters : null,
+                    admin.Id, request.Action.Trim().ToLowerInvariant(), transition, cancellationToken);
+                updatedCount += outcome.Updated;
+                skippedCount += outcome.Skipped;
+                failures.AddRange(outcome.Failures);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _dbContext.ChangeTracker.Clear();
+                foreach (var tagId in chunk)
+                {
+                    try
+                    {
+                        var outcome = await ProcessBulkChunkAsync([tagId], matching ? request.Filters : null,
+                            admin.Id, request.Action.Trim().ToLowerInvariant(), transition, cancellationToken);
+                        updatedCount += outcome.Updated;
+                        skippedCount += outcome.Skipped;
+                        failures.AddRange(outcome.Failures);
+                    }
+                    catch (DbUpdateConcurrencyException)
+                    {
+                        _dbContext.ChangeTracker.Clear();
+                        failures.Add(new AdminTagInventoryBulkFailure(tagId, "",
+                            "This tag changed during the update. Refresh and try again."));
+                    }
+                    catch (DbUpdateException)
+                    {
+                        _dbContext.ChangeTracker.Clear();
+                        failures.Add(new AdminTagInventoryBulkFailure(tagId, "",
+                            "This tag could not be updated right now. Refresh and try again."));
+                    }
+                }
+            }
+            catch (DbUpdateException)
+            {
+                _dbContext.ChangeTracker.Clear();
+                failures.AddRange(chunk.Select(tagId => new AdminTagInventoryBulkFailure(tagId, "",
+                    "This tag could not be updated right now. Refresh and try again.")));
+            }
+        }
+
+        return new AdminTagInventoryBulkActionResponse(
+            request.Action.Trim().ToLowerInvariant(), requestedIds.Length, updatedCount, failures)
+        { SkippedCount = skippedCount };
+    }
+
+    private async Task<(int Updated, int Skipped, List<AdminTagInventoryBulkFailure> Failures)> ProcessBulkChunkAsync(
+        Guid[] ids,
+        AdminTagInventoryQuery? filters,
+        Guid adminId,
+        string action,
+        (TagFulfilmentStatus From, TagFulfilmentStatus To) transition,
+        CancellationToken cancellationToken)
+    {
+        _dbContext.ChangeTracker.Clear();
+        var inScope = filters is null ? null : (await BuildFilteredQuery(filters)
+            .Where(tag => ids.Contains(tag.Id)).Select(tag => tag.Id)
+            .ToArrayAsync(cancellationToken)).ToHashSet();
+        var tagsById = (await _dbContext.SmartTags
+            .Where(tag => tag.DeletedAt == null && ids.Contains(tag.Id))
+            .ToListAsync(cancellationToken)).ToDictionary(tag => tag.Id);
+        var failures = new List<AdminTagInventoryBulkFailure>();
+        var updated = 0;
+        var skipped = 0;
+        var now = _timeProvider.GetUtcNow();
+
+        foreach (var tagId in ids)
         {
             if (!tagsById.TryGetValue(tagId, out var tag))
             {
                 failures.Add(new AdminTagInventoryBulkFailure(tagId, "", "This tag could not be found."));
+                continue;
+            }
+            if (inScope is not null && !inScope.Contains(tagId))
+            {
+                failures.Add(new AdminTagInventoryBulkFailure(tagId, tag.TagCode,
+                    "This tag no longer matches the selected filters."));
+                continue;
+            }
+            if (tag.FulfilmentStatus == transition.To)
+            {
+                skipped++;
                 continue;
             }
 
@@ -356,26 +457,21 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                 continue;
             }
             ApplyFulfilment(tag, transition.To, now);
-            updatedIds.Add(tagId);
+            updated++;
 
             // One audit row per tag keeps each tag's history complete and
             // queryable from its detail view.
             _auditLogService.Append(
-                admin.Id, ActorType.Admin, $"tag-inventory.{request.Action.Trim().ToLowerInvariant()}", "SmartTag", tag.Id,
+                adminId, ActorType.Admin, $"tag-inventory.{action}", "SmartTag", tag.Id,
                 new { fulfilmentStatus = transition.From.ToString() },
                 new { fulfilmentStatus = transition.To.ToString(), tagCode = tag.TagCode });
         }
 
-        if (updatedIds.Count > 0)
+        if (updated > 0)
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
-
-        return new AdminTagInventoryBulkActionResponse(
-            request.Action.Trim().ToLowerInvariant(),
-            requestedIds.Length,
-            updatedIds.Count,
-            failures);
+        return (updated, skipped, failures);
     }
 
     // Called by the order flow when a portal order ships: the physical tag has
