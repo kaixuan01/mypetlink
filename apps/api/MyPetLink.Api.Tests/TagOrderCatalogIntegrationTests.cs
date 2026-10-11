@@ -226,6 +226,37 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Empty(await harness.Db.TagOrders.ToListAsync());
     }
 
+    // The release pause: switching a SKU to not purchasable in the Admin Portal
+    // blocks every new checkout and delivery quote for it on the server, while
+    // orders already placed keep their reservation and stay fulfillable.
+    [Fact]
+    public async Task PausingASkuBlocksNewCheckoutsAndQuotesButKeepsExistingOrders()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await AddStockAsync(harness.Db, harness.Variant, "MPL-PAUS-0002");
+        var placed = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "before-pause"));
+        var delivery = new DeliveryService(harness.Db, new TagPricingService(harness.Db), new AuditLogService(harness.Db, new HttpContextAccessor()));
+
+        harness.Variant.IsPurchasable = false;
+        await harness.Db.SaveChangesAsync();
+
+        var checkout = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "during-pause")));
+        Assert.Equal("product_unavailable", checkout.Code);
+        var quote = await Assert.ThrowsAsync<ApiException>(() =>
+            delivery.QuoteAsync(new DeliveryQuoteRequest("KUL", harness.Variant.PublicKey, 1)));
+        Assert.Equal("product_unavailable", quote.Code);
+        Assert.Single(await harness.Db.TagOrders.ToListAsync());
+        Assert.Equal(1, await new TagOrderInventoryAvailabilityService(harness.Db).GetAvailableUnitsAsync(harness.Variant.Id));
+        Assert.Equal(placed.Order.Id, (await harness.Service.GetAsync(OwnerId, placed.Order.Id.ToString())).Id);
+
+        // Resuming reopens checkout against the same stock.
+        harness.Variant.IsPurchasable = true;
+        await harness.Db.SaveChangesAsync();
+        await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "after-pause"));
+        Assert.Equal(2, await harness.Db.TagOrders.CountAsync());
+    }
+
     [Fact]
     public async Task Create_RejectsUnavailableSkuOutOfStockAndAnotherOwnersPet()
     {

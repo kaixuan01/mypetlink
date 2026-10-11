@@ -120,8 +120,8 @@ describe("TagAssignmentModal", () => {
     renderModal(vi.fn<AssignableTagLoader>().mockResolvedValue(page([], 0, 3)));
 
     await screen.findByText("Awaiting Physical QA");
-    expect(screen.getByText(/2 units on this order line still need an inspected tag\. 3 received QR \+ NFC Smart Tag tags are waiting for inspection\./)).toBeTruthy();
-    expect(screen.getByText(/No QR \+ NFC Smart Tag tag has passed physical QA yet/)).toBeTruthy();
+    expect(screen.getByText(/2 units on this order line still need an inspected tag\. 3 received tags of this product are waiting for inspection\./)).toBeTruthy();
+    expect(screen.getByText(/No tag for this order line has passed physical QA yet/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "Assign selected tag" }) as HTMLButtonElement).disabled).toBe(true);
   });
 

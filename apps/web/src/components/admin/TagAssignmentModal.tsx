@@ -270,7 +270,7 @@ export function TagAssignmentModal({
           <div className="mt-4 rounded-xl bg-[#fdf3df] px-4 py-3 text-xs font-bold leading-5 text-[#9a6b18]" role="status">
             <p className="font-black">Awaiting Physical QA</p>
             <p className="mt-0.5">
-              {unitsStillNeeded} unit{unitsStillNeeded === 1 ? "" : "s"} on this order line still need{unitsStillNeeded === 1 ? "s" : ""} an inspected tag. {awaiting} received {productLabel} tag{awaiting === 1 ? " is" : "s are"} waiting for inspection.
+              {unitsStillNeeded} unit{unitsStillNeeded === 1 ? "" : "s"} on this order line still need{unitsStillNeeded === 1 ? "s" : ""} an inspected tag. {awaiting} received tag{awaiting === 1 ? " of this product is" : "s of this product are"} waiting for inspection.
             </p>
           </div>
         ) : null}
@@ -308,14 +308,14 @@ export function TagAssignmentModal({
             ) : current.items.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm font-semibold leading-6 text-slate-500">
                 {term ? (
-                  <p>No inspected {productLabel} tag matches “{term}”.</p>
+                  <p>No inspected tag for this order line matches “{term}”.</p>
                 ) : noInspectedStock && awaiting > 0 ? (
                   <p>
-                    No {productLabel} tag has passed physical QA yet. Inspect a received tag in Tag Inventory, then come back to assign it. Tags waiting for inspection can&apos;t be assigned.
+                    No tag for this order line has passed physical QA yet. Inspect a received tag in Tag Inventory, then come back to assign it. Tags waiting for inspection can&apos;t be assigned.
                   </p>
                 ) : (
                   <p>
-                    No {productLabel} stock is available or waiting for inspection. Keep this order on hold and contact the customer. If they would rather not wait, arrange any refund manually and record it.
+                    No stock for this order line is available or waiting for inspection. Keep this order on hold and contact the customer. If they would rather not wait, arrange any refund manually and record it.
                   </p>
                 )}
               </div>
@@ -328,7 +328,7 @@ export function TagAssignmentModal({
                     <li key={tag.id}>
                       <button
                         aria-pressed={selected}
-                        className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
+                        className={`flex w-full flex-col items-start gap-2 px-4 py-3 text-left transition sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${
                           selected ? "bg-[#eaf2ff]" : "hover:bg-slate-50"
                         }`}
                         onClick={() => setSelectedTag(tag)}
@@ -338,12 +338,12 @@ export function TagAssignmentModal({
                           <span className="font-mono text-sm font-bold text-slate-950">
                             {tag.tagCode}
                           </span>
-                          <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                          <span className="mt-0.5 block break-words text-xs font-semibold text-slate-500">
                             {getTagTypeLabel(tag.hasNfc)} · {tag.variant}
                             {tag.batchNo ? ` · Batch ${tag.batchNo}` : ""}
                           </span>
                         </span>
-                        <span className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="flex shrink-0 flex-wrap items-center gap-1 sm:flex-col sm:items-end">
                           <Badge tone="mint">{tag.qaInspectedAt ? `QA passed ${formatAdminDate(tag.qaInspectedAt)}` : "QA passed"}</Badge>
                           {selected ? <Badge tone="soft">Selected</Badge> : null}
                         </span>

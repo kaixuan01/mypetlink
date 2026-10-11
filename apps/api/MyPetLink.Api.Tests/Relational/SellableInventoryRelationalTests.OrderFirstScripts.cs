@@ -96,6 +96,87 @@ public sealed partial class SellableInventoryRelationalTests
         Assert.Equal(receiptsBefore, await ReceiptSnapshotAsync(scope));
     }
 
+    [RelationalFact]
+    public async Task TheReadinessCheckPassesOnTheConfirmedBaselineAndListsWhatReducesAvailability()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        var seed = await SeedProductionShapeAsync(scope);
+
+        // Before classification nothing is commercial: not ready.
+        Assert.Equal(52190, (await Assert.ThrowsAsync<SqlException>(() =>
+            ReadOrderFirstScriptAsync(scope, "03-release-readiness.sql", ForThisDatabase))).Number);
+
+        await RunScriptAsync(scope, "02-apply-smart-tag-stock-purpose.sql", Commit);
+        await GroupPawsomeSamplesAsync(scope);
+        await using (var db = scope.NewContext())
+        {
+            // Production's migration history ends at the stock purpose migration
+            // (this test database is created from the model, without history).
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE dbo.__EFMigrationsHistory (MigrationId nvarchar(150) NOT NULL PRIMARY KEY, ProductVersion nvarchar(32) NOT NULL);
+                INSERT INTO dbo.__EFMigrationsHistory VALUES ('20261008040433_AddCommunityModerationActions', '8.0.0'),
+                    ('20261011034923_AddSmartTagStockPurpose', '8.0.0');
+                """);
+            AddOrder(db, seed.MybossLw, "MPL-ORD-READY-1", OrderStatus.PaymentConfirmed, 2);
+            AddOrder(db, seed.MybossLw, "MPL-ORD-READY-2", OrderStatus.Cancelled, 5);
+            await db.SaveChangesAsync();
+        }
+        var before = await SnapshotAsync(scope);
+
+        var sets = await ReadOrderFirstScriptAsync(scope, "03-release-readiness.sql", ForThisDatabase);
+
+        Assert.Equal(before, await SnapshotAsync(scope));
+        Assert.All(sets[0], row => Assert.Contains((string)row["Result"]!, new[] { "PASS", "INFO" }));
+        var perSku = sets[1].ToDictionary(row => (string)row["Sku"]!);
+        await using (var db = scope.NewContext())
+        {
+            var stock = new TagOrderInventoryAvailabilityService(db);
+            Assert.Equal(await stock.GetAvailableUnitsAsync(seed.MybossLw), perSku["MYBOSS-LW-QR-NFC"]["AvailableToOrderAfterRelease"]);
+        }
+        Assert.Equal(6, perSku["MYBOSS-LW-QR-NFC"]["AvailableToOrderAfterRelease"]); // 8 orderable - 2 reserved
+        Assert.Equal(3, perSku["MYBOSS-LW-QR-NFC"]["AvailableToOrderToday"]); // 5 Passed - 2 reserved
+        var open = Assert.Single(sets[2]);
+        Assert.Equal("MPL-ORD-READY-1", open["OrderNumber"]);
+        Assert.Equal(2, open["UnitsReserved"]);
+
+        // A sample that is no longer Unclassified, or a migration this release
+        // does not know, makes it not ready.
+        await using (var db = scope.NewContext())
+        {
+            (await db.SmartTags.SingleAsync(t => t.TagCode == "MPL-SMPL-PW01")).StockPurpose = SmartTagStockPurpose.Sale;
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(52190, (await Assert.ThrowsAsync<SqlException>(() =>
+            ReadOrderFirstScriptAsync(scope, "03-release-readiness.sql", ForThisDatabase))).Number);
+        await using (var db = scope.NewContext())
+        {
+            (await db.SmartTags.SingleAsync(t => t.TagCode == "MPL-SMPL-PW01")).StockPurpose = SmartTagStockPurpose.Unclassified;
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES ('29991231000000_FromTheFuture', '8.0.0')");
+        }
+        Assert.Equal(52190, (await Assert.ThrowsAsync<SqlException>(() =>
+            ReadOrderFirstScriptAsync(scope, "03-release-readiness.sql", ForThisDatabase))).Number);
+    }
+
+    // The Production-shaped seed holds 5 Passed and 3 Pending commercial tags,
+    // and its samples sit in two batches of its own.
+    private static string ForThisDatabase(string sql) =>
+        WithSampleBatches(sql)
+            .Replace("DECLARE @ExpectedPassed int = 3;", "DECLARE @ExpectedPassed int = 5;", StringComparison.Ordinal)
+            .Replace("DECLARE @ExpectedPending int = 897;", "DECLARE @ExpectedPending int = 3;", StringComparison.Ordinal);
+
+    private static async Task GroupPawsomeSamplesAsync(RelationalScope scope)
+    {
+        await using var db = scope.NewContext();
+        var pw01 = await db.SmartTags.SingleAsync(t => t.TagCode == "MPL-SMPL-PW01");
+        var pw02 = await db.SmartTags.SingleAsync(t => t.TagCode == "MPL-SMPL-PW02");
+        var batch = new SmartTagBatch { BatchNo = SampleBatchB, Quantity = 2, HasNfc = true, Variant = "Lightweight", ProductVariantId = pw01.ProductVariantId };
+        db.SmartTagBatches.Add(batch);
+        pw01.Batch = batch; pw02.Batch = batch;
+        await db.SaveChangesAsync();
+    }
+
     private static string WithSampleBatches(string sql) =>
         sql.Replace("BATCH-202607-9013", SampleBatchA, StringComparison.Ordinal)
             .Replace("BATCH-202607-8221", SampleBatchB, StringComparison.Ordinal);

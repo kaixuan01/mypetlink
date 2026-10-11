@@ -385,6 +385,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
         var order = await LoadOrderAsync(orderId, trackChanges: false, cancellationToken);
+        // Only an order that assignment, change or replacement can act on lists
+        // stock: never one awaiting payment or cancelled.
+        if (order.Status is OrderStatus.PendingPayment or OrderStatus.PaymentProofSubmitted or OrderStatus.Cancelled)
+        {
+            throw InvalidState("Inventory tags can only be chosen for an order after payment is confirmed.");
+        }
+
         TagOrderItem? item = null;
         if (orderItemId.HasValue)
         {
