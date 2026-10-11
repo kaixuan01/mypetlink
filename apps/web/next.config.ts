@@ -4,6 +4,7 @@ import {
   assertProductionApiConfiguration,
   assertProductionSafetyProfileOwnerUiConfiguration,
 } from "./src/services/apiConfig";
+import { assertProductionReleaseFlags } from "./src/lib/releaseFlags";
 
 // `output: "export"` enforces, even in `next dev`, that any visited dynamic
 // segment must appear in `generateStaticParams()`. Because newly-created pets
@@ -17,6 +18,7 @@ const isProductionBuild = process.env.NODE_ENV === "production";
 
 assertProductionApiConfiguration();
 assertProductionSafetyProfileOwnerUiConfiguration();
+assertProductionReleaseFlags();
 
 const nextConfig: NextConfig = {
   ...(isProductionBuild ? { output: "export" as const } : {}),

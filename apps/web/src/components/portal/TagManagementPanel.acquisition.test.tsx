@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("@/lib/features", () => ({ smartTagOrderingEnabled: true }));
+vi.mock("@/lib/features", () => ({ smartTagOrderingEnabled: true, smartTagPurchaseEnabled: true }));
 vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => false }));
 vi.mock("@/services/petService", () => ({
   getPets: (...args: unknown[]) => mocks.getPets(...args),

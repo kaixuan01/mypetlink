@@ -47,7 +47,7 @@ Confirmed live. This is the honest feature set for the first 30 posts.
 
 | Not available | Why it matters for content |
 | --- | --- |
-| **Smart Tag (physical)** | Pricing page says **Coming Soon** for the RM39.90 QR + NFC Smart Tag, the only physical tag. The QR-only tag is discontinued and must not be mentioned. Tag ordering is **switched off** in production. **No post may drive a tag purchase.** Teasing is fine; a buy CTA is not. |
+| **Smart Tag (physical)** | *Updated 2026-10-10.* The website now sells the RM39.90 QR + NFC Smart Tag ("Available now", one-time, the only physical tag) and online ordering is open. What can actually be bought depends on stock that has passed physical QA — the first 900-tag shipment is still in QA and sales preparation. The QR-only tag is discontinued and must not be mentioned. **Decision pending (owner):** whether posts may carry a buy call-to-action before the first shipment is released by QA. Until that is decided, keep tag posts informational. *(Previously: "Coming Soon", ordering switched off, no buy CTA.)* |
 | **Premium** | Coming Soon. No reminders, family access, scan history, unlimited memories, document upload, or advanced themes. |
 | **GPS / live tracking** | Deliberately never. The site says plainly: a scan "does not track your pet or reveal a live GPS location." **Correcting this misconception is a content opportunity, not a limitation.** |
 

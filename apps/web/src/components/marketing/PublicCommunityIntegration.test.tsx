@@ -182,7 +182,7 @@ describe("the Social kill switch", () => {
     // off the routes still work — this only governs promotion.
     const nav = read("components/layouts/PublicNav.tsx");
     const page = read("app/page.tsx");
-    const seo = read("lib/seo.ts");
+    const seo = read("lib/seoRoutes.ts");
     const layout = read("components/layouts/PublicLayout.tsx");
 
     for (const source of [nav, page, seo, layout]) {

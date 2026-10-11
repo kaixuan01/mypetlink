@@ -94,13 +94,29 @@ website. Their unknown/root requests should remain genuine 404 responses.
 Cloudflare reference:
 <https://developers.cloudflare.com/rules/url-forwarding/examples/redirect-all-different-hostname/>
 
+## Route indexing policy
+
+`apps/web/src/lib/seoRoutes.ts` owns the search-engine policy of every route:
+`index`, `noindex-follow` or `noindex-nofollow`, and whether its headers come
+from a static asset or a Pages Function. The sitemap, the robots tag of every
+marketing page, `public/_headers` and the build verifier all follow it.
+`src/lib/seoRoutes.test.ts` fails when a new `page.tsx` is not classified, or
+when `_headers` disagrees with the table. See `docs/seo/phase-1-implementation.md`.
+
+Flag-dependent pages follow the same flags as their navigation link:
+
+- `/where-to-buy` is indexed and listed only while a purchase channel exists
+  (`publicCommerceAvailability.showWhereToBuy`).
+- `/explore` is indexed and listed only while `NEXT_PUBLIC_SOCIAL_ENABLED=true`.
+
 ## Sitemap maintenance
 
-`apps/web/src/lib/seo.ts` owns the approved sitemap entries and stable
-`lastModified` dates. Update a date only when the corresponding page content or
+The sitemap is generated from the `index` routes in `seoRoutes.ts` (plus the
+approved Topu sample Share Profile in `indexableRecordEntries`), each with a
+stable `lastModified`. Update a date only when that page's visible content or
 its authoritative data changes. Never use build time or request time.
 
-The approved URL set is:
+With the production flags (Smart Tag ordering and Community on) the URL set is:
 
 ```text
 https://mypetlink.com.my/
@@ -108,9 +124,12 @@ https://mypetlink.com.my/pricing
 https://mypetlink.com.my/how-it-works
 https://mypetlink.com.my/smart-pet-tags
 https://mypetlink.com.my/pet-profile
+https://mypetlink.com.my/safety-profile
 https://mypetlink.com.my/sample
 https://mypetlink.com.my/privacy
 https://mypetlink.com.my/terms
+https://mypetlink.com.my/where-to-buy
+https://mypetlink.com.my/explore
 https://mypetlink.com.my/p/topu-pnpr4ipnr6ppelnsn
 ```
 
@@ -120,10 +139,45 @@ After a frontend production build, run:
 npm run verify:seo
 ```
 
-This inspects exported HTML, canonicals, robots metadata, crawlable homepage
-links, sitemap URLs and dates, `robots.txt`, and the static `404.html`
-artifact. A production smoke test must still confirm that an unknown URL
-returns HTTP 404 because that status is supplied by Cloudflare Pages.
+It reads the generated `sitemap.xml` (no page list of its own) and checks every
+listed page's canonical, robots tag, title, description, single H1, initial
+HTML text and JSON-LD; that every other exported page is `noindex`; that
+`robots.txt` allows crawling with no `Disallow`; that `_headers` ships; and the
+`404.html` artifact. A production smoke test must still confirm that an unknown
+URL returns HTTP 404 because that status is supplied by Cloudflare Pages.
+
+## Noindex response headers
+
+Pages carry a robots meta tag, and the responses also carry `X-Robots-Tag`:
+
+| Served by | Routes | Where the header is set |
+| --- | --- | --- |
+| Static asset | Owner Portal, Admin Portal, `/login`, `/search`, `/activate/*`, Community account pages | `apps/web/public/_headers` |
+| Pages Function | `/q/*`, `/n/*`, `/t/*`, `/p/*`, `/u/*`, `/moments/*`, `/social/pets/*` | `apps/web/edge/robotsHeader.ts` and each handler |
+| API | every `api.mypetlink.com.my` response | `SearchIndexingPolicyMiddleware` (`X-Robots-Tag: noindex`) |
+
+Cloudflare does not apply `_headers` to responses produced by Pages Functions,
+so each Function sets its own header. Never add `Disallow` rules to
+`robots.txt` for these routes: a crawler that may not fetch a page never sees
+its noindex, and the API must stay fetchable because search engines render
+`/explore` by calling it.
+
+## Recommended media rules (not applied)
+
+`media.mypetlink.com.my` (Cloudflare R2) currently sends no `X-Robots-Tag` and
+no `Cache-Control` for pet media. Recommended, as Cloudflare dashboard rules on
+the media zone, after review:
+
+1. **Response Header Transform Rule — keep pet media out of image search.**
+   Expression: `(http.host eq "media.mypetlink.com.my" and not starts_with(http.request.uri.path, "/tag-products/"))`.
+   Action: set static response header `X-Robots-Tag` = `noindex`.
+   Product photos under `/tag-products/` stay indexable for the Smart Tag page.
+2. **Cache Rule — cache immutable media at the edge.** Expression:
+   `(http.host eq "media.mypetlink.com.my")`. Eligible for cache; Edge TTL and
+   Browser TTL override `1 year`, provided object keys are content-addressed
+   (new uploads get new keys). Confirm that before enabling.
+
+Rollback: disable the rule. Neither rule changes who can open a media URL.
 
 ## Search Console after deployment
 

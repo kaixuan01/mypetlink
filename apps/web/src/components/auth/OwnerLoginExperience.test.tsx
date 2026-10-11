@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { smartTagPurchaseEnabled } from "@/lib/features";
 import { OwnerLoginExperience } from "./OwnerLoginExperience";
 
 const authMocks = vi.hoisted(() => ({
@@ -260,7 +261,7 @@ describe("OwnerLoginExperience", () => {
     expect((pageSection as HTMLElement).style.maxWidth).toBe("100%");
   });
 
-  it("marks Smart Tag add-ons as Coming Soon while ordering is off", () => {
+  it.runIf(!smartTagPurchaseEnabled)("marks Smart Tag add-ons as Coming Soon while ordering is off", () => {
     render(<OwnerLoginExperience />);
 
     expect(screen.getByText("Smart Tag add-ons — Coming Soon")).toBeTruthy();
@@ -274,7 +275,7 @@ describe("OwnerLoginExperience", () => {
     vi.resetModules();
     vi.doMock("@/lib/features", async () => {
       const actual = await vi.importActual<typeof import("@/lib/features")>("@/lib/features");
-      return { ...actual, smartTagOrderingEnabled: true };
+      return { ...actual, smartTagOrderingEnabled: true, smartTagPurchaseEnabled: true };
     });
 
     try {

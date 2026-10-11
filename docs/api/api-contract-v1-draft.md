@@ -1058,7 +1058,7 @@ Errors:
 - `422` memorial/archived pet
 - `400` invalid delivery phone/address
 
-> **Launch note:** for the initial free-profiles launch, Smart Tag ordering is disabled, so this endpoint returns `403 feature_disabled`. Existing tag/order/admin/`/t` endpoints and payment-proof/fulfilment transitions on already-created orders are unaffected. See `apps/api/README.md` → Feature flags.
+> **Launch note (historical):** for the initial free-profiles launch, Smart Tag ordering was disabled, so this endpoint returned `403 feature_disabled`. As of 2026-10-10 ordering is open on the production website; the switch still defaults to `false` in code and must be set explicitly per environment. Existing tag/order/admin/`/t` endpoints and payment-proof/fulfilment transitions on already-created orders are unaffected. See `apps/api/README.md` → Feature flags.
 
 ### POST `/api/v1/orders/{orderNumber}/payment-proof`
 

@@ -104,14 +104,15 @@ describe("the page container", () => {
     expect(view()).not.toContain('max-w-3xl pt-6');
   });
 
-  it("keeps the toolbar, the suggestions and the heading on one left edge", async () => {
+  it("keeps the toolbar and the suggestions on one left edge", async () => {
     render(<SocialExploreView />);
     await screen.findByTestId("explore-pets");
 
-    // All three are direct children of the one container, so nothing can drift
-    // onto a second vertical line the way the old centred Moments column did.
+    // Both are children of the one container, so nothing can drift onto a
+    // second vertical line the way the old centred Moments column did. The
+    // page heading above them (ExploreIntro) uses the same max-w-5xl measure.
     const container = screen
-      .getByRole("heading", { name: "Community" })
+      .getByTestId("explore-toolbar")
       .closest("div.max-w-5xl") as HTMLElement;
 
     expect(container).toBeTruthy();
@@ -121,13 +122,15 @@ describe("the page container", () => {
 });
 
 describe("the toolbar", () => {
-  it("holds the title and both controls in one row", async () => {
+  it("holds both controls in one row, leaving the page heading to the server", async () => {
     render(<SocialExploreView />);
     await screen.findByTestId("explore-pets");
 
-    const header = screen
-      .getByRole("heading", { name: "Community" })
-      .closest("header") as HTMLElement;
+    const header = screen.getByTestId("explore-toolbar");
+
+    // The H1 is rendered by ExploreIntro outside the Suspense boundary, so it
+    // is in the exported HTML. The view must not add a second one.
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
 
     // The filter used to sit in its own block underneath, which read as three
     // stacked left-aligned rows rather than one set of controls.
@@ -135,10 +138,10 @@ describe("the toolbar", () => {
     expect(within(header).getByTestId("explore-search-trigger")).toBeTruthy();
   });
 
-  it("lets the controls drop to their own row on a phone", () => {
-    // A species name and a Search button will not share 358px without one of
-    // them truncating, so the controls wrap as a pair instead.
-    expect(view()).toContain("order-3 flex w-full items-center gap-2 sm:order-none sm:w-auto");
+  it("keeps the controls together as a pair on a phone", () => {
+    // With the heading moved to ExploreIntro, the toolbar holds only the filter
+    // and Search, which share a 358px row as one full-width pair.
+    expect(view()).toContain('className="flex w-full items-center gap-2 sm:w-auto"');
   });
 
   it("keeps Search visually secondary to the title", async () => {

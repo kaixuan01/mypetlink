@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { smartTagAddOn } from "@/lib/planLimits";
 import { metadata as homeMetadata } from "@/app/page";
@@ -9,6 +11,8 @@ import { metadata as sampleMetadata } from "@/app/sample/page";
 import { metadata as smartTagsMetadata } from "@/app/smart-pet-tags/page";
 import { metadata as termsMetadata } from "@/app/terms/page";
 import { metadata as whereToBuyMetadata } from "@/app/where-to-buy/page";
+import { metadata as safetyProfileMetadata } from "@/app/safety-profile/page";
+import { metadata as exploreMetadata } from "@/app/explore/page";
 import { metadata as loginMetadata } from "@/app/login/page";
 import { metadata as dashboardMetadata } from "@/app/dashboard/layout";
 import { metadata as petsMetadata } from "@/app/pets/layout";
@@ -17,7 +21,10 @@ import { generateMetadata as generateQrMetadata } from "@/app/q/[safetyCode]/pag
 import { generateMetadata as generatePublicProfileMetadata } from "@/app/p/[slug]/page";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
-import { marketingRoutes, samplePet } from "@/lib/routes";
+import { socialEnabled } from "@/lib/features";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
+import { marketingRoutes, samplePet, socialRoutes } from "@/lib/routes";
+import { seoIndexingFor, seoRouteRules } from "@/lib/seoRoutes";
 import {
   buildIndexableRobots,
   canonicalUrl,
@@ -40,6 +47,7 @@ function canonical(metadata: { alternates?: unknown }) {
   return (metadata.alternates as { canonical?: string } | undefined)?.canonical;
 }
 
+// Every page built with createMarketingMetadata.
 const marketingPageCases = [
   [marketingRoutes.home, homeMetadata],
   [marketingRoutes.howItWorks, howItWorksMetadata],
@@ -49,14 +57,48 @@ const marketingPageCases = [
   [marketingRoutes.sample, sampleMetadata],
   [marketingRoutes.smartPetTags, smartTagsMetadata],
   [marketingRoutes.terms, termsMetadata],
+  [marketingRoutes.safetyProfile, safetyProfileMetadata],
+  [marketingRoutes.whereToBuy, whereToBuyMetadata],
+  [socialRoutes.explore, exploreMetadata],
 ] as const;
 
 describe("SEO route policy", () => {
-  it("keeps every public marketing page indexable", () => {
-    for (const [, metadata] of marketingPageCases) {
-      expect(robotsPolicy(metadata).index).toBe(true);
+  it("covers every indexable route of the route table with a metadata case", () => {
+    // A new indexable page must be added here, so its metadata is checked.
+    const covered = new Set(marketingPageCases.map(([path]) => path as string));
+    const conditionallyIndexed: string[] = [marketingRoutes.whereToBuy, socialRoutes.explore];
+    for (const rule of seoRouteRules) {
+      if (rule.indexing === "index" || conditionallyIndexed.includes(rule.route)) {
+        expect(covered.has(rule.route)).toBe(true);
+      }
+    }
+  });
+
+  it("gives every public marketing page the robots policy the route table assigns", () => {
+    for (const [path, metadata] of marketingPageCases) {
+      const indexable = seoIndexingFor(path) === "index";
+      expect(robotsPolicy(metadata).index).toBe(indexable);
+      // Even an unlisted marketing page lets crawlers follow its links.
       expect(robotsPolicy(metadata).follow).toBe(true);
-      expect(JSON.stringify(metadata).toLowerCase()).not.toContain("noindex");
+      if (indexable) {
+        expect(JSON.stringify(metadata).toLowerCase()).not.toContain("noindex");
+      }
+    }
+  });
+
+  it("indexes the always-on marketing pages in every flag configuration", () => {
+    for (const path of [
+      marketingRoutes.home,
+      marketingRoutes.pricing,
+      marketingRoutes.howItWorks,
+      marketingRoutes.smartPetTags,
+      marketingRoutes.petProfile,
+      marketingRoutes.safetyProfile,
+      marketingRoutes.sample,
+      marketingRoutes.privacy,
+      marketingRoutes.terms,
+    ]) {
+      expect(seoIndexingFor(path)).toBe("index");
     }
   });
 
@@ -95,9 +137,16 @@ describe("SEO route policy", () => {
     }
   });
 
-  it("keeps an unavailable Where to Buy page out of search discovery", () => {
-    expect(robotsPolicy(whereToBuyMetadata).index).toBe(false);
+  it("indexes Where to Buy only while there is somewhere to buy", () => {
+    expect(robotsPolicy(whereToBuyMetadata).index).toBe(
+      publicCommerceAvailability.showWhereToBuy
+    );
     expect(robotsPolicy(whereToBuyMetadata).follow).toBe(true);
+  });
+
+  it("indexes Explore only while Community is offered", () => {
+    expect(robotsPolicy(exploreMetadata).index).toBe(socialEnabled);
+    expect(robotsPolicy(exploreMetadata).follow).toBe(true);
   });
 
   it("keeps QR Safety routes noindex while allowing their links to be followed", async () => {
@@ -312,6 +361,53 @@ describe("structured data", () => {
     expect(serialized).not.toContain("reviewcount");
     expect(serialized).not.toContain('"review"');
   });
+
+  it("describes the organisation with only published facts", () => {
+    const [organization, website] = homepageStructuredData["@graph"];
+
+    expect(organization).toMatchObject({
+      "@type": "Organization",
+      "@id": "https://mypetlink.com.my/#organization",
+      name: "MyPetLink",
+      legalName: "GBB Software Solutions",
+      url: "https://mypetlink.com.my/",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://mypetlink.com.my/app-icon-512.png",
+        width: 512,
+        height: 512,
+      },
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: "support@mypetlink.com.my",
+      },
+    });
+    // Nothing MyPetLink has not published: no street address, phone number,
+    // social profiles, ratings or offers.
+    for (const key of ["address", "telephone", "sameAs", "aggregateRating", "review", "offers"]) {
+      expect(organization).not.toHaveProperty(key);
+    }
+    expect(website).toMatchObject({
+      "@type": "WebSite",
+      inLanguage: "en-MY",
+      publisher: { "@id": "https://mypetlink.com.my/#organization" },
+    });
+    expect(website).not.toHaveProperty("potentialAction");
+  });
+
+  it("uses a square logo file that ships with the site", () => {
+    const logo = readFileSync(join(process.cwd(), "public", "app-icon-512.png"));
+    // PNG IHDR: width and height are big-endian at bytes 16 and 20.
+    expect(logo.readUInt32BE(16)).toBe(512);
+    expect(logo.readUInt32BE(20)).toBe(512);
+  });
+
+  it("does not describe the Smart Tag as a Product yet", () => {
+    // Product/Offer markup waits for a product photo and the catalogue naming
+    // decision (docs/seo/seo-audit.md, SEO-H4 and SEO-H5).
+    expect(JSON.stringify(homepageStructuredData)).not.toMatch(/"Product"|"Offer"/);
+  });
 });
 
 describe("robots and sitemap", () => {
@@ -329,8 +425,27 @@ describe("robots and sitemap", () => {
     expect(urls).toEqual(expected);
     expect(urls).toContain(canonicalUrl(marketingRoutes.home));
     expect(urls).toContain(canonicalUrl(samplePet.publicProfilePath));
-    expect(urls).not.toContain(canonicalUrl(marketingRoutes.whereToBuy));
-    expect(urls.some((url) => /\/(admin|dashboard|pets|q|orders|settings)(\/|$)/.test(url))).toBe(false);
+    // Flag-dependent entries follow the same rule as the page's robots tag.
+    expect(urls.includes(canonicalUrl(marketingRoutes.whereToBuy))).toBe(
+      publicCommerceAvailability.showWhereToBuy
+    );
+    expect(urls.includes(canonicalUrl(socialRoutes.explore))).toBe(socialEnabled);
+    // Every listed path is one the route table indexes; the Topu sample is the
+    // only listed record.
+    for (const path of indexableSitemapPaths) {
+      if (path === samplePet.publicProfilePath) continue;
+      expect(seoIndexingFor(path)).toBe("index");
+    }
+    expect(
+      urls.some((url) =>
+        /^\/(admin|dashboard|login|pets|records|moments|tags|orders|settings|community|feed|notifications|search|activate|q|n|t|u)(\/|$)/.test(
+          new URL(url).pathname
+        )
+      )
+    ).toBe(false);
+    expect(
+      urls.filter((url) => new URL(url).pathname.startsWith("/p/"))
+    ).toEqual([canonicalUrl(samplePet.publicProfilePath)]);
     expect(urls.some((url) => url.includes("pages.dev"))).toBe(false);
     expect(urls.some((url) => url.startsWith("http://"))).toBe(false);
     expect(urls.some((url) => url.includes("://www."))).toBe(false);
@@ -351,5 +466,12 @@ describe("robots and sitemap", () => {
           /^\d{4}-\d{2}-\d{2}$/.test(entry.lastModified)
       )
     ).toBe(true);
+    // A date is a content fact, not the build time: none is in the future and
+    // none predates the site.
+    const today = new Date().toISOString().slice(0, 10);
+    for (const entry of entries) {
+      expect((entry.lastModified as string) <= today).toBe(true);
+      expect((entry.lastModified as string) >= "2026-07-01").toBe(true);
+    }
   });
 });

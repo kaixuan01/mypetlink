@@ -2,7 +2,9 @@
 
 This document defines Phase 1 smart tag lifecycle rules. The owner Smart Tags + Orders backend slice is implemented. As of 2026-07-04 the admin side is implemented too: registry list/search (`/api/v1/admin/tags`), audited status actions (`disable`, `mark-lost`, `replace`, `archive`, `restore`), inventory generation (`POST /api/v1/admin/tag-inventory/generate`), and manufacturer CSV export (`GET /api/v1/admin/tag-inventory/export`). Real file storage remains planned later.
 
-> **Launch state:** new Smart Tag **ordering is disabled** for the initial free-profiles launch (`Features:SmartTagOrderingEnabled = false`). Owners can still use free Safety Profiles and Public Share Profiles; the owner UI shows "Smart Tags coming soon". The `/t/:tagCode` scan behaviour and all lifecycle rules below stay intact for existing/test tags and for when ordering is re-enabled — do not promote `/t` as orderable while the flag is off.
+> **Current state (verified 2026-10-10):** Smart Tag online ordering is open on the production website — the public pages say "Available now" and link to `/tags/order`. Whether a design or variant can actually be bought is decided per SKU by the public catalogue's `inStock`, which counts only stock released by physical QA (`PhysicalQaReleaseRules.Released`) and not reserved by another order. The API switch `Features:SmartTagOrderingEnabled` cannot be seen from outside: confirm it in Admin → Operational Status. If it is off, `POST /api/v1/orders` returns `403 feature_disabled` and the owner UI shows "Smart Tags coming soon".
+>
+> **Historical — initial free-profiles launch (July–September 2026):** new Smart Tag **ordering was disabled** for the initial free-profiles launch (`Features:SmartTagOrderingEnabled = false`). Owners can still use free Safety Profiles and Public Share Profiles; the owner UI shows "Smart Tags coming soon". The `/t/:tagCode` scan behaviour and all lifecycle rules below stay intact for existing/test tags and for when ordering is re-enabled — do not promote `/t` as orderable while the flag is off.
 
 ## Route And QR Model
 

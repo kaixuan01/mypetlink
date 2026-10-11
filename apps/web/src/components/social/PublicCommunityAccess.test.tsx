@@ -37,6 +37,9 @@ vi.mock("@/services/socialDiscoveryService", async () => {
 const { SocialExploreView } = await import(
   "@/components/social/SocialExploreView"
 );
+const { socialEnabled } = await import("@/lib/features");
+const { indexableSitemapPaths } = await import("@/lib/seo");
+const { seoIndexingFor } = await import("@/lib/seoRoutes");
 
 /**
  * What a visitor without an account can and cannot do.
@@ -205,13 +208,16 @@ describe("sharing a public link", () => {
 
 describe("what search engines are told", () => {
   it("lists Explore, and only Explore, from Community", () => {
-    const seo = read("lib/seo.ts");
+    // The doorway is listed (while Community is offered); the families and
+    // Moments behind it, and Search, are not.
+    const communityPaths = indexableSitemapPaths.filter((path) =>
+      /^\/(?:explore|search|feed|notifications|u|moments|community)(?:\/|$)/.test(path)
+    );
 
-    expect(seo).toContain("socialRoutes.explore");
-    // The doorway is listed; the families behind it are not.
-    expect(seo).not.toContain("ownerSocialProfilePath");
-    expect(seo).not.toContain("socialRoutes.search");
-    expect(seo).not.toContain("momentPath");
+    expect(communityPaths).toEqual(socialEnabled ? ["/explore"] : []);
+    expect(seoIndexingFor("/search")).toBe("noindex-follow");
+    expect(seoIndexingFor("/u/[handle]")).toBe("noindex-follow");
+    expect(seoIndexingFor("/moments/[momentId]")).toBe("noindex-follow");
   });
 
   it("describes Explore as a public destination", () => {
@@ -243,7 +249,8 @@ describe("what search engines are told", () => {
     const seo = read("lib/seo.ts");
 
     expect(seo).toContain("isSearchIndexableSample");
-    expect(seo).toContain("samplePet.publicProfilePath");
+    expect(read("lib/seoRoutes.ts")).toContain("samplePet.publicProfilePath");
+    expect(seoIndexingFor("/p/[slug]")).toBe("noindex-follow");
   });
 });
 

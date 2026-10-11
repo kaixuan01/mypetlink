@@ -17,6 +17,7 @@ vi.mock("@/lib/features", () => ({
   smartTagsEnabled: false,
   tagOrdersEnabled: false,
   smartTagOrderingEnabled: false,
+  smartTagPurchaseEnabled: false,
 }));
 
 vi.mock("@/services/petService", () => ({

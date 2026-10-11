@@ -195,9 +195,9 @@ is financially or security authoritative** — the API re-checks everything.
 | `NEXT_PUBLIC_NOINDEX` | SEO suppression | Retain |
 | `NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED` | UI gate | Retain |
 | `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | UI gate | Retain; production soft launch requires explicit `true` |
-| `NEXT_PUBLIC_SMART_TAGS_ENABLED` | UI gate | Retain |
-| `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | UI gate | Retain |
-| `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | Mirrors `Features:SmartTagOrderingEnabled` | Retain; documented mirror, fail-closed |
+| `NEXT_PUBLIC_SMART_TAGS_ENABLED` | UI gate | Retain; production builds require an explicit `true`/`false` (`releaseFlags.ts`) |
+| `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | UI gate | Retain; production builds require an explicit `true`/`false` (`releaseFlags.ts`) |
+| `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | Mirrors `Features:SmartTagOrderingEnabled` | Retain; documented mirror, fail-closed. Production builds require an explicit value, and `true` requires both other Smart Tag flags `true`. Public "Available now" derives from `smartTagPurchaseEnabled` (ordering AND tag orders); purchasable stock stays with the catalogue |
 | `NEXT_PUBLIC_DATABASE_WAKE_*` | Cold-start retry UX | Retain |
 
 ## Deprecated / to consolidate (H)

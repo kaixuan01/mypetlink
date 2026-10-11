@@ -8,9 +8,8 @@ import {
   publicProfileSocialImageContentType,
   publicProfileSocialImageSize,
 } from "@/lib/publicProfileSocial";
-import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
-import { socialEnabled } from "@/lib/features";
-import { marketingRoutes, samplePet, socialRoutes } from "@/lib/routes";
+import { marketingRoutes, samplePet } from "@/lib/routes";
+import { seoIndexingFor, sitemapEntries, type SeoIndexing } from "@/lib/seoRoutes";
 import type { PublicPetProfile } from "@/types";
 
 export const privateRobots: NonNullable<Metadata["robots"]> = {
@@ -83,6 +82,19 @@ export function canonicalUrl(path = "/") {
   return new URL(path, `${siteConfig.url}/`).toString();
 }
 
+export function robotsForIndexing(
+  indexing: SeoIndexing
+): NonNullable<Metadata["robots"]> {
+  switch (indexing) {
+    case "index":
+      return indexableRobots;
+    case "noindex-follow":
+      return directAccessRobots;
+    case "noindex-nofollow":
+      return privateRobots;
+  }
+}
+
 export function createMarketingMetadata({
   path,
   title,
@@ -97,7 +109,10 @@ export function createMarketingMetadata({
     title: { absolute: title },
     description,
     alternates: { canonical },
-    robots: indexableRobots,
+    // The route table decides, so a page whose sitemap entry depends on a
+    // release flag (Explore, Where to Buy) can never be listed while noindex
+    // or indexed while unlisted.
+    robots: robotsForIndexing(seoIndexingFor(path)),
     openGraph: {
       title,
       description,
@@ -216,30 +231,10 @@ export function isSearchIndexableSample(publicCode: string) {
   return publicCode.toLowerCase() === samplePet.publicCode.toLowerCase();
 }
 
-// Stable dates from the latest real content changes. Do not replace these with
-// build time: an unchanged deployment must not make every URL look updated.
-export const indexableSitemapEntries = [
-  { path: marketingRoutes.home, lastModified: "2026-07-18" },
-  { path: marketingRoutes.pricing, lastModified: "2026-07-18" },
-  { path: marketingRoutes.howItWorks, lastModified: "2026-07-18" },
-  { path: marketingRoutes.smartPetTags, lastModified: "2026-07-18" },
-  { path: marketingRoutes.petProfile, lastModified: "2026-07-18" },
-  { path: marketingRoutes.safetyProfile, lastModified: "2026-09-17" },
-  { path: marketingRoutes.sample, lastModified: "2026-07-23" },
-  // The Community doorway, and the only social path listed. Individual
-  // profiles and Moments stay out of the index; see app/explore/page.tsx.
-  // Submitted only when Social is actually on: a build with it off should not
-  // be asking search engines to index a Community it is not offering.
-  ...(socialEnabled
-    ? [{ path: socialRoutes.explore, lastModified: "2026-09-17" }]
-    : []),
-  ...(publicCommerceAvailability.showWhereToBuy
-    ? [{ path: marketingRoutes.whereToBuy, lastModified: "2026-09-10" }]
-    : []),
-  { path: marketingRoutes.privacy, lastModified: "2026-07-18" },
-  { path: marketingRoutes.terms, lastModified: "2026-07-18" },
-  { path: samplePet.publicProfilePath, lastModified: "2026-07-23" },
-] as const;
+// The sitemap is derived from the route table in `seoRoutes.ts`, which owns the
+// stable content dates. Never replace them with build time: an unchanged
+// deployment must not make every URL look updated.
+export const indexableSitemapEntries = sitemapEntries;
 
 export const indexableSitemapPaths = indexableSitemapEntries.map(
   ({ path }) => path
@@ -254,7 +249,25 @@ export const homepageStructuredData = {
       name: siteConfig.productName,
       legalName: siteConfig.companyName,
       url: canonicalUrl("/"),
-      logo: canonicalUrl("/logo-horizontal.png"),
+      // The square brand mark (the same file the web app manifest uses).
+      // Google expects an organisation logo to work as a square; the
+      // horizontal wordmark is 540x140.
+      logo: {
+        "@type": "ImageObject",
+        url: canonicalUrl("/app-icon-512.png"),
+        width: 512,
+        height: 512,
+      },
+      // The support address already published in the site footer and the
+      // Privacy Notice. No phone number, street address or social profile is
+      // listed: none is published as an official MyPetLink contact.
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: siteConfig.supportEmail,
+        areaServed: "MY",
+        availableLanguage: ["en"],
+      },
       areaServed: {
         "@type": "Country",
         name: siteConfig.country,

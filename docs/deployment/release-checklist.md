@@ -15,8 +15,11 @@ current controlled-launch decisions and environment matrix are in
 - [ ] **Manual Google popup login test passes** on a preview/prod frontend (real account → `/dashboard`, `/api/v1/auth/me` returns the user).
 - [ ] Frontend production env set in Cloudflare Pages, including the explicit feature matrix in the production soft-launch checklist, and the frontend **rebuilt** so values are baked in.
 - [ ] Pages Functions runtime env includes `PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`; `/p/*` and `/social/pets/*` are present in the deployed Functions routes.
-- [ ] Backend env and secrets match the production soft-launch checklist, including SQL, JWT, Google, exact CORS origins, R2, explicit ordering off, and email off.
-- [ ] Smart Tag ordering flags confirmed **false** for this launch: backend `Features__SmartTagOrderingEnabled` and frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED`. Mismatched values must not ship.
+- [ ] Backend env and secrets match the production soft-launch checklist, including SQL, JWT, Google, exact CORS origins, R2, an explicit Smart Tag ordering value, and email off.
+- [ ] Smart Tag ordering flags confirmed and **matching**: backend `Features__SmartTagOrderingEnabled` and frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` (both `true` for the current production state as of 2026-10-10; both `false` for a pre-sale build). Mismatched values must not ship.
+- [ ] Frontend build states every release flag: a production `next build` fails unless `NEXT_PUBLIC_SMART_TAGS_ENABLED`, `NEXT_PUBLIC_TAG_ORDERS_ENABLED`, `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` and `NEXT_PUBLIC_SOCIAL_ENABLED` are each `true` or `false`, and ordering `true` requires the other two Smart Tag flags `true` (`apps/web/src/lib/releaseFlags.ts`).
+- [ ] `npm --workspace apps/web run verify:seo` passes against the release export (sitemap-driven page checks, noindex on every unlisted page, `_headers` present).
+- [ ] Before promoting Smart Tags, `PUBLIC_API_BASE_URL=<api> NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=<value> NEXT_PUBLIC_TAG_ORDERS_ENABLED=<value> npm --workspace apps/web run verify:smart-tag-catalog` passes (read-only: the public catalogue shows at least one QR + NFC variant `inStock: true` at the advertised price, and no non-QR + NFC variant is offered), and Admin → Tag Inventory confirms that stock has passed physical QA (or is deliberately outside the QA cohort).
 - [ ] Leave `PublicSite__BaseUrl` unset only while physical-tag production is deferred; set it to `https://mypetlink.com.my` before any manufacturer QR/NFC export.
 - [ ] CORS confirmed: production frontend can call the API; other origins are blocked.
 - [ ] Production safety checks pass: `DevAuth__Enabled` and `NEXT_PUBLIC_DEV_AUTH_ENABLED` are unset, `POST /api/v1/dev-auth/admin-login` returns `404`, `/swagger` returns `404`, the Development login action is absent from the production frontend, and no secrets, `.env.local`, or authenticated browser state are committed.
@@ -135,7 +138,7 @@ Owner:
 - [ ] Create a care record; edit it; confirm it persists after reload.
 - [ ] Create a memory (public) and a private memory; confirm the public one appears on `/p/`, the private one does not.
 - [ ] If Smart Tag ordering is disabled for launch, confirm order CTAs are hidden/coming soon and direct `POST /api/v1/orders` returns `403 feature_disabled`.
-- [ ] If Smart Tag ordering is explicitly enabled later, create a smart tag order (price set server-side); submit a payment proof (metadata only).
+- [ ] When Smart Tag ordering is enabled (production as of 2026-10-10), create a smart tag order (price set server-side); submit a payment proof (metadata only).
 
 Admin:
 

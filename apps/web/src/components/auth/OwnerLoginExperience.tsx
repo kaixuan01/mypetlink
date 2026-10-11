@@ -1,7 +1,7 @@
 import { LoginPanel } from "@/components/auth/LoginPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { smartTagPurchaseEnabled } from "@/lib/features";
 
 const portalBenefits: Array<{
   icon: IconName;
@@ -15,7 +15,7 @@ const portalBenefits: Array<{
   // selling it — which is what it did once ordering went live.
   {
     icon: "tag",
-    label: smartTagOrderingEnabled
+    label: smartTagPurchaseEnabled
       ? "Order and manage your QR + NFC Smart Tag"
       : "Smart Tag add-ons — Coming Soon",
   },

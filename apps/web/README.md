@@ -75,7 +75,7 @@ This project is configured with Next.js static export, so `npm run build` writes
 
 - `/` - Marketing landing page
 - `/sample` - Sample public profile and finder safety experiences
-- `/pricing` - Free Profile, Smart Tag Add-ons, Premium Coming Soon, and GPS Safety Coming Later pricing
+- `/pricing` - Free Profile, the QR + NFC Smart Tag add-on, Premium Coming Soon, and GPS Safety Coming Later pricing
 - `/privacy` - Privacy Notice
 - `/terms` - Terms of Use
 - `/login` - Owner login

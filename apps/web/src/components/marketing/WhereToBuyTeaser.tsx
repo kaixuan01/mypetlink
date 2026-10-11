@@ -1,7 +1,13 @@
 import { BrandDecoration } from "@/components/brand/BrandDecoration";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { smartTagAddOn } from "@/lib/planLimits";
 import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes } from "@/lib/routes";
+
+type CommerceAvailability = Pick<
+  typeof publicCommerceAvailability,
+  "onlineOrderingAvailable" | "hasPublicRetailPartners" | "showWhereToBuy"
+>;
 
 /**
  * A short pointer to the buying guide.
@@ -10,11 +16,23 @@ import { marketingRoutes } from "@/lib/routes";
  * The shared availability decision keeps this teaser, navigation, page robots,
  * and sitemap in step without coupling future retail partners to online
  * ordering.
+ *
+ * What it promises follows the channels that actually exist. It used to say
+ * "pick one up from an authorised partner" and offer "Find a Retail Partner"
+ * whenever online ordering was open, while the partner list was empty — the
+ * page it linked to then had no partner to show. Partner wording now appears
+ * only when there is a public partner to find.
  */
-export function WhereToBuyTeaser() {
-  if (!publicCommerceAvailability.showWhereToBuy) {
+export function WhereToBuyTeaser({
+  availability = publicCommerceAvailability,
+}: {
+  availability?: CommerceAvailability;
+}) {
+  if (!availability.showWhereToBuy) {
     return null;
   }
+
+  const copy = teaserCopy(availability);
 
   return (
     <section className="relative overflow-hidden bg-pet-cream">
@@ -30,10 +48,10 @@ export function WhereToBuyTeaser() {
             Where to buy
           </p>
           <h2 className="mt-2 text-xl font-black leading-tight text-pet-ink sm:text-2xl">
-            Find MyPetLink near you.
+            {copy.title}
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-6 text-pet-muted">
-            Order online, or pick one up from an authorised partner.
+            {copy.description}
           </p>
         </div>
         <CTAButton
@@ -42,9 +60,30 @@ export function WhereToBuyTeaser() {
           icon="tag"
           variant="secondary"
         >
-          Find a Retail Partner
+          {copy.action}
         </CTAButton>
       </div>
     </section>
   );
+}
+
+function teaserCopy({
+  onlineOrderingAvailable,
+  hasPublicRetailPartners,
+}: CommerceAvailability) {
+  if (hasPublicRetailPartners) {
+    return {
+      title: "Find MyPetLink near you.",
+      description: onlineOrderingAvailable
+        ? "Order online, or pick one up from an authorised partner."
+        : "Pick one up from an authorised partner near you.",
+      action: "Find a Retail Partner",
+    };
+  }
+
+  return {
+    title: "Order your Smart Tag online.",
+    description: `Buy the ${smartTagAddOn.name} directly from MyPetLink for ${smartTagAddOn.price}, ${smartTagAddOn.billingNote}.`,
+    action: "See How to Buy",
+  };
 }

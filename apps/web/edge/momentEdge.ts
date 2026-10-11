@@ -225,7 +225,7 @@ export function unavailableMomentResponse(state: "not-found" | "error") {
   const title =
     state === "not-found" ? momentNotFoundTitle : momentUnavailableTitle;
   const body =
-    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<!doctype html><html lang="en-MY"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">` +
     `<title>${title} | MyPetLink</title>` +
     `<meta name="robots" content="noindex">` +

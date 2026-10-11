@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { smartTagPurchaseEnabled } from "@/lib/features";
 import { smartTagAddOn, smartTagAddOnsStatus } from "@/lib/planLimits";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
 
@@ -96,7 +96,7 @@ export function SmartTagShowcase() {
               <p className="text-sm font-bold text-pet-muted">
                 {smartTagAddOn.billingNote}
               </p>
-              {smartTagOrderingEnabled ? (
+              {smartTagPurchaseEnabled ? (
                 <CTAButton href={ownerRoutes.tagOrder()} icon="tag" variant="primary">
                   Get a Smart Tag
                 </CTAButton>

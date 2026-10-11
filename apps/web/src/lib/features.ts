@@ -56,6 +56,20 @@ export const tagOrdersEnabled =
   readPublicBoolean(process.env.NEXT_PUBLIC_TAG_ORDERS_ENABLED, false);
 
 /**
+ * Whether a visitor can actually reach a working Smart Tag checkout.
+ *
+ * The order pages (`/tags/order`, `/pets/{id}/tags/order`) open only when tag
+ * orders AND ordering are both on. Public pages used to read the ordering flag
+ * alone, so a build with ordering on but tag orders off said "Available now"
+ * and linked to a page that answered "Smart Tags coming soon". Every public
+ * availability claim derives from this one rule instead. It says nothing about
+ * stock: what can be bought is decided per SKU by the catalogue's `inStock`,
+ * which already applies the physical QA release rule.
+ */
+export const smartTagPurchaseEnabled =
+  tagOrdersEnabled && smartTagOrderingEnabled;
+
+/**
  * MyPetLink Social: the feed, Explore, search, activity and the social entries
  * in navigation. Off by default while it is being built — the routes and the
  * API stay reachable either way, so an owner who already has a handle keeps

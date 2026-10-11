@@ -40,7 +40,7 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 5. **QR Safety `/q`** — open `/q/:safetyCode`; renders finder-first content.
 6. **Care record** — create one on the pet; edit it; reload and confirm it persists.
 7. **Memory (public + private)** — create a Public memory and a Private memory; confirm the public one appears on `/p/`, the private one does not.
-8. **Smart tag ordering flag** — for the initial free-profiles launch, confirm Smart Tag order CTAs are hidden/coming soon and direct `POST {API}/api/v1/orders` returns `403 feature_disabled`. If ordering is explicitly enabled later, order a tag and confirm the price is set server-side (owner does not send it).
+8. **Smart tag ordering flag** — confirm the public pages match the release: with ordering on (production as of 2026-10-10) `/`, `/pricing`, `/smart-pet-tags` and `/where-to-buy` say "Available now" and "Get a Smart Tag" leads to `/tags/order`, which offers only variants the catalogue reports `inStock`; order a tag and confirm the price is set server-side (owner does not send it). With ordering off, confirm Smart Tag order CTAs are hidden/coming soon and direct `POST {API}/api/v1/orders` returns `403 feature_disabled`.
 9. **Payment proof** — only when ordering is enabled: submit a proof; confirm it records metadata only (file name/reference, no file bytes).
 10. **Order Summary PDF** — only when ordering is enabled: before payment is confirmed, download the Order Summary PDF; confirm it opens, is titled "Order Summary", and does not show "Official Receipt" or "Paid". Confirm no `.txt` download remains.
 11. **Logout** — session clears; a protected page (`/pets`) redirects to `/login`.

@@ -2,7 +2,9 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { smartTagPurchaseEnabled } from "@/lib/features";
 import { smartTagAddOn } from "@/lib/planLimits";
+import { ownerRoutes } from "@/lib/routes";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -48,8 +50,16 @@ describe("PricingPage product hierarchy", () => {
     expect(within(nfcCard!).getByText("QR scan")).toBeTruthy();
     expect(within(nfcCard!).getByText("NFC tap")).toBeTruthy();
 
-    const action = within(nfcCard!).getByRole("button", { name: "Coming Soon" });
-    expect((action as HTMLButtonElement).disabled).toBe(true);
+    if (smartTagPurchaseEnabled) {
+      // Ordering is open: the card says so and leads to the real checkout.
+      expect(within(nfcCard!).getByText("Available now")).toBeTruthy();
+      expect(within(nfcCard!).queryByText("Coming Soon")).toBeNull();
+      const action = within(nfcCard!).getByRole("link", { name: "Get a Smart Tag" });
+      expect(action.getAttribute("href")).toBe(ownerRoutes.tagOrder());
+    } else {
+      const action = within(nfcCard!).getByRole("button", { name: "Coming Soon" });
+      expect((action as HTMLButtonElement).disabled).toBe(true);
+    }
   });
 
   it("no longer sells a scan-only tag", () => {

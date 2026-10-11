@@ -30,6 +30,7 @@ vi.mock("@/components/layouts/AppLayout", () => ({
 }));
 
 import { SocialLayout } from "@/components/layouts/SocialLayout";
+import { socialEnabled } from "@/lib/features";
 
 /**
  * Who is looking decides the chrome; the URL decides the content.
@@ -122,7 +123,7 @@ describe("an anonymous visitor", () => {
     expect(header.textContent).toMatch(/create free pet profile/i);
   });
 
-  it("is offered no Community destination while Community is off", () => {
+  it.runIf(!socialEnabled)("is offered no Community destination while Community is off", () => {
     render(
       <SocialLayout>
         <p>profile</p>

@@ -72,7 +72,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="en-MY"
       className={`${poppins.variable} ${notoSans.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-pet-cream text-pet-ink">

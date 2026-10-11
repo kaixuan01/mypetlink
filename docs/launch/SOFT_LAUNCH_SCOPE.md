@@ -1,5 +1,7 @@
 # MyPetLink Soft Launch Scope
 
+> **Historical document.** This describes the soft-launch configuration of August 2026, when Smart Tag ordering was switched off. It is kept as a record and is not the current product state: as of 2026-10-10 the production website sells the QR + NFC Smart Tag (RM39.90, "Available now"), with purchasable stock decided by the catalogue and physical QA. For the current state see `docs/seo/phase-1-implementation.md` and `docs/operations/smart-tag-physical-qa.md`.
+
 **Date:** 2026-08-13 · **Companion documents:** [`SOFT_LAUNCH_READINESS.md`](SOFT_LAUNCH_READINESS.md) · [`CODEX_FIX_BACKLOG.md`](CODEX_FIX_BACKLOG.md)
 
 This document defines what MyPetLink markets and supports at soft launch. It reflects the **actual default configuration** in `apps/web/src/lib/features.ts` and `apps/api/MyPetLink.Api/appsettings.json`, not aspiration.

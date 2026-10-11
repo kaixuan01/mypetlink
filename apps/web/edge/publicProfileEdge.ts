@@ -1,4 +1,10 @@
 import { indexableSamplePublicCode } from "../src/data/publicSample";
+import {
+  noindexFollow,
+  noindexImage,
+  robotsHeaderName,
+  withRobotsHeader,
+} from "./robotsHeader";
 
 export const productionSiteOrigin = "https://mypetlink.com.my";
 export const socialCardCacheControl =
@@ -103,9 +109,10 @@ export async function handlePublicProfileRequest(
     return createOperationalApiFallbackResponse(context);
   }
 
+  const robots = publicProfileRobotsHeader(profileResult.profile);
   if (context.request.method === "HEAD") {
     return new Response(null, {
-      headers: profileHtmlHeaders(),
+      headers: profileHtmlHeaders(undefined, robots),
       status: 200,
     });
   }
@@ -116,8 +123,20 @@ export async function handlePublicProfileRequest(
   }
 
   const metadata = buildPublicProfileHead(profileResult.profile);
-  const headers = profileHtmlHeaders(assetResponse.headers);
+  const headers = profileHtmlHeaders(assetResponse.headers, robots);
   return rewriteProfileHead(assetResponse, metadata, headers);
+}
+
+/**
+ * The header twin of the robots meta tag `buildPublicProfileHead` writes: only
+ * the approved sample is indexable, every owner's Share Profile is not.
+ */
+export function publicProfileRobotsHeader(profile: EdgePublicProfile) {
+  return isIndexableSampleProfile(profile) ? null : noindexFollow;
+}
+
+function isIndexableSampleProfile(profile: EdgePublicProfile) {
+  return profile.publicCode.toLowerCase() === indexableSamplePublicCode;
 }
 
 /**
@@ -158,7 +177,7 @@ async function createOperationalApiFallbackResponse(context: EdgeContext) {
     return createUnavailableProfileResponse("error");
   }
 
-  const headers = profileHtmlHeaders(assetResponse.headers);
+  const headers = profileHtmlHeaders(assetResponse.headers, noindexFollow);
   headers.set("Cache-Control", "no-store");
   headers.set("X-MyPetLink-Metadata", "generic-api-fallback");
   return rewriteProfileHead(
@@ -241,7 +260,7 @@ export async function handleSocialCardRequest(
   }
   if (profileResult.kind === "error") {
     return new Response("Social card temporarily unavailable.", {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "no-store", [robotsHeaderName]: noindexImage },
       status: 503,
     });
   }
@@ -288,7 +307,7 @@ export async function handleSocialCardRequest(
     if (error instanceof SocialCardNotFoundError) return notFoundImageResponse();
     console.error("MyPetLink social-card proxy failed.", safeErrorMessage(error));
     return new Response("Social card temporarily unavailable.", {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "no-store", [robotsHeaderName]: noindexImage },
       status: 503,
     });
   } finally {
@@ -358,7 +377,7 @@ export function buildPublicProfileHead(profile: EdgePublicProfile) {
   const canonical = `${productionSiteOrigin}/p/${encodeURIComponent(profile.publicSlug)}`;
   const socialImage = `${productionSiteOrigin}/social/pets/${encodeURIComponent(profile.publicSlug)}.jpg?v=${encodeURIComponent(profile.publicProfileVersion)}`;
   const imageAlt = `${name}'s profile on MyPetLink`;
-  const robots = profile.publicCode.toLowerCase() === indexableSamplePublicCode
+  const robots = isIndexableSampleProfile(profile)
     ? "index,follow"
     : "noindex,follow";
 
@@ -546,6 +565,9 @@ function payloadToResponse(payload: SocialCardPayload, cacheStatus: "HIT" | "MIS
       "X-Social-Card-Template-Version": payload.templateVersion,
       "X-Social-Card-Variant": payload.variant,
       "X-Content-Type-Options": "nosniff",
+      // A link-preview image, not an image search result. Preview crawlers
+      // ignore this header, so shared links still show the card.
+      [robotsHeaderName]: noindexImage,
     },
     status: 200,
   });
@@ -568,6 +590,7 @@ function withCardResponseHeaders(
   headers.set("X-Social-Card-Template-Version", templateVersion);
   headers.set("X-Social-Card-Variant", variant);
   headers.set("X-Content-Type-Options", "nosniff");
+  headers.set(robotsHeaderName, noindexImage);
   return new Response(response.body, { headers, status: 200 });
 }
 
@@ -608,13 +631,14 @@ function createUnavailableProfileResponse(state: "not-found" | "error") {
   const head = buildUnavailableProfileHead(state);
 
   return new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${head}<style>body{margin:0;background:#fff8e8;color:#102247;font-family:Arial,sans-serif}.wrap{min-height:100vh;display:grid;place-items:center;padding:24px}.card{max-width:560px;background:white;border:1px solid #eadfca;border-radius:32px;padding:40px;text-align:center;box-shadow:0 18px 50px rgba(16,34,71,.12)}h1{font-size:30px;margin:16px 0 10px}p{color:#53627f;line-height:1.6}a{display:inline-block;margin-top:18px;background:#1570ef;color:white;text-decoration:none;border-radius:999px;padding:13px 22px;font-weight:800}.brand{font-size:25px;font-weight:900}</style></head><body><main class="wrap"><section class="card"><div class="brand">MyPetLink</div><h1>${escapeHtmlText(heading)}</h1><p>${escapeHtmlText(description)}</p><a href="${productionSiteOrigin}/">Back to MyPetLink</a></section></main></body></html>`,
+    `<!doctype html><html lang="en-MY"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${head}<style>body{margin:0;background:#fff8e8;color:#102247;font-family:Arial,sans-serif}.wrap{min-height:100vh;display:grid;place-items:center;padding:24px}.card{max-width:560px;background:white;border:1px solid #eadfca;border-radius:32px;padding:40px;text-align:center;box-shadow:0 18px 50px rgba(16,34,71,.12)}h1{font-size:30px;margin:16px 0 10px}p{color:#53627f;line-height:1.6}a{display:inline-block;margin-top:18px;background:#1570ef;color:white;text-decoration:none;border-radius:999px;padding:13px 22px;font-weight:800}.brand{font-size:25px;font-weight:900}</style></head><body><main class="wrap"><section class="card"><div class="brand">MyPetLink</div><h1>${escapeHtmlText(heading)}</h1><p>${escapeHtmlText(description)}</p><a href="${productionSiteOrigin}/">Back to MyPetLink</a></section></main></body></html>`,
     {
       headers: {
         "Cache-Control": state === "not-found" ? "public, max-age=60" : "no-store",
         "Content-Type": "text/html; charset=utf-8",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "X-Content-Type-Options": "nosniff",
+        [robotsHeaderName]: noindexFollow,
       },
       status,
     }
@@ -656,6 +680,7 @@ function unavailableDescription(state: "not-found" | "error") {
 function notFoundImageResponse() {
   return new Response("Social card not found.", {
     headers: {
+      [robotsHeaderName]: noindexImage,
       "Cache-Control": "no-store",
       "Content-Type": "text/plain; charset=utf-8",
       "X-Content-Type-Options": "nosniff",
@@ -664,8 +689,13 @@ function notFoundImageResponse() {
   });
 }
 
-function profileHtmlHeaders(source?: Headers) {
+function profileHtmlHeaders(source: Headers | undefined, robots: string | null) {
   const headers = new Headers(source);
+  // Drop whatever the static asset carried and state this page's own policy.
+  headers.delete(robotsHeaderName);
+  if (robots) {
+    headers.set(robotsHeaderName, robots);
+  }
   headers.delete("accept-ranges");
   headers.delete("content-encoding");
   headers.delete("content-length");
@@ -780,8 +810,9 @@ export async function handleFinderPreviewRequest(
 
   const assetResponse = await getAssetHtmlResponse(context);
   if (!assetResponse) {
-    // Nothing to rewrite; let the platform serve whatever it already resolved.
-    return context.next();
+    // Nothing to rewrite; let the platform serve whatever it already resolved,
+    // still marked as a page that must never become a search result.
+    return withRobotsHeader(await context.next(), noindexFollow);
   }
 
   const code = getSingleParam(context.params.slug);
@@ -790,7 +821,7 @@ export async function handleFinderPreviewRequest(
     ? await fetchFinderPreview(context.env, kind, code, dependencies.fetch ?? fetch)
     : null;
 
-  const headers = profileHtmlHeaders(assetResponse.headers);
+  const headers = profileHtmlHeaders(assetResponse.headers, noindexFollow);
   headers.set(
     "X-MyPetLink-Metadata",
     preview ? "dynamic-finder-profile" : "generic-finder"

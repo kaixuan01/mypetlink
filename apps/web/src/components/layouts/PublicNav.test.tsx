@@ -96,6 +96,9 @@ describe("public navigation structure", () => {
     expect(primaryPublicNav.map((item) => item.label)).toEqual([
       "Community",
       "Pricing",
+      // Present in a build that sells the Smart Tag (production), absent while
+      // there is nowhere to buy one.
+      ...(publicCommerceAvailability.showWhereToBuy ? ["Where to Buy"] : []),
     ]);
   });
 
@@ -146,12 +149,11 @@ describe("public navigation structure", () => {
     vi.resetModules();
   });
 
-  it("hides Where to Buy while no public purchase channel exists", () => {
-    // There is no purchase path and no public partner projection yet, so
-    // linking to a buying guide would be a dead end.
-    expect(publicCommerceAvailability.showWhereToBuy).toBe(false);
+  it("links Where to Buy exactly while a public purchase channel exists", () => {
+    // Without a purchase path a buying guide would be a dead end; with one it
+    // is the page the Smart Tag sections point to.
     expect(primaryPublicNav.some((item) => item.label === "Where to Buy")).toBe(
-      false
+      publicCommerceAvailability.showWhereToBuy
     );
   });
 });
@@ -245,7 +247,9 @@ describe("mobile drawer", () => {
     expect(
       scope.getAllByRole("button", { name: new RegExp(PRIMARY_CTA_LABEL, "i") })
     ).toHaveLength(1);
-    expect(scope.queryByRole("link", { name: "Where to Buy" })).toBeNull();
+    expect(Boolean(scope.queryByRole("link", { name: "Where to Buy" }))).toBe(
+      publicCommerceAvailability.showWhereToBuy
+    );
   });
 
   it("sends the drawer sample action to the Public Share Profile", async () => {

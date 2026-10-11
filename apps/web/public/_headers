@@ -1,0 +1,64 @@
+# X-Robots-Tag for statically served pages that must never be search results.
+#
+# Maintained by hand and checked against src/lib/seoRoutes.ts by
+# src/lib/seoRoutes.test.ts, which fails if a static noindex route has no rule
+# here or a rule disagrees with the route table.
+#
+# Cloudflare Pages applies this file to static assets only. Routes claimed by
+# Pages Functions in _routes.json (/p, /q, /t, /n, /u, /moments/*, /social/pets)
+# set their own X-Robots-Tag in apps/web/edge. Do not use robots.txt Disallow
+# instead: a crawler that may not fetch a page never sees its noindex.
+
+/login
+  X-Robots-Tag: noindex, nofollow
+
+/dashboard
+  X-Robots-Tag: noindex, nofollow
+
+/pets
+  X-Robots-Tag: noindex, nofollow
+
+/pets/*
+  X-Robots-Tag: noindex, nofollow
+
+/records
+  X-Robots-Tag: noindex, nofollow
+
+/moments
+  X-Robots-Tag: noindex, nofollow
+
+/tags
+  X-Robots-Tag: noindex, nofollow
+
+/tags/*
+  X-Robots-Tag: noindex, nofollow
+
+/orders
+  X-Robots-Tag: noindex, nofollow
+
+/orders/*
+  X-Robots-Tag: noindex, nofollow
+
+/settings
+  X-Robots-Tag: noindex, nofollow
+
+/community/*
+  X-Robots-Tag: noindex, nofollow
+
+/feed
+  X-Robots-Tag: noindex, nofollow
+
+/notifications
+  X-Robots-Tag: noindex, nofollow
+
+/admin
+  X-Robots-Tag: noindex, nofollow
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+
+/search
+  X-Robots-Tag: noindex, follow
+
+/activate/*
+  X-Robots-Tag: noindex, follow

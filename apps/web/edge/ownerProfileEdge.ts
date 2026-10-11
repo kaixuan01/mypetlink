@@ -1,6 +1,7 @@
 import {
   productionSiteOrigin,
 } from "./publicProfileEdge";
+import { noindexFollow, robotsHeaderName } from "./robotsHeader";
 import {
   ownerProfileNotFoundTitle,
   ownerProfileTitleMetaName,
@@ -273,9 +274,21 @@ export function buildOwnerProfileHead(profile: EdgeOwnerProfile) {
   return tags.join("\n");
 }
 
-export function ownerHtmlHeaders(source?: Headers) {
+/**
+ * Headers for every HTML response a Community route produces.
+ *
+ * `robots` is stated here as well as in the page's meta tag: Cloudflare does
+ * not apply `public/_headers` to Function responses, and the meta tag on these
+ * routes comes from the static shell, so the header is what the edge itself
+ * guarantees. Profiles and Moments are reachable by link and never indexed.
+ */
+export function ownerHtmlHeaders(
+  source?: Headers,
+  robots: string = noindexFollow
+) {
   const headers = new Headers(source);
   headers.set("content-type", "text/html; charset=utf-8");
+  headers.set(robotsHeaderName, robots);
   // A profile can be switched off at any moment; never let an intermediary hold
   // a copy of one.
   headers.set("cache-control", "no-store");
@@ -290,7 +303,7 @@ export function unavailableOwnerResponse(state: "not-found" | "error") {
     state === "not-found"
       ? ownerProfileNotFoundTitle
       : ownerProfileUnavailableTitle;
-  const body = `<!doctype html><html lang="en"><head><meta charset="utf-8">`
+  const body = `<!doctype html><html lang="en-MY"><head><meta charset="utf-8">`
     + `<meta name="viewport" content="width=device-width, initial-scale=1">`
     + `<title>${title} | MyPetLink</title>`
     + `<meta name="robots" content="noindex">`

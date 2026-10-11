@@ -543,6 +543,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseMiddleware<RequestContextMiddleware>();
+app.UseMiddleware<SearchIndexingPolicyMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())

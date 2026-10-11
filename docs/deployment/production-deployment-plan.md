@@ -111,7 +111,7 @@ Backend Azure App Service:
 - `GoogleAuth__ClientId=<same Web client id as frontend>`
 - `Cors__AllowedOrigins__0=https://mypetlink.com.my`
 - `Cors__AllowedOrigins__1=https://www.mypetlink.com.my` if `www` is served
-- `Features__SmartTagOrderingEnabled=false` for the initial free-profiles launch
+- `Features__SmartTagOrderingEnabled` set explicitly to match the frontend's `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` (`false` for the initial free-profiles launch; ordering is open on the production website as of 2026-10-10)
 
 Frontend Cloudflare Pages:
 

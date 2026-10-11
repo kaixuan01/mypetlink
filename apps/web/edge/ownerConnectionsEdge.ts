@@ -4,6 +4,7 @@ import {
   resolveOwnerHandle,
   unavailableOwnerResponse,
 } from "./ownerProfileEdge";
+import { noindexNofollow } from "./robotsHeader";
 
 /**
  * Serves `/u/{handle}/followers` and `/u/{handle}/following`.
@@ -79,7 +80,7 @@ export async function handleOwnerConnectionsRequest(
   }
 
   if (context.request.method === "HEAD") {
-    return new Response(null, { headers: ownerHtmlHeaders(), status: 200 });
+    return new Response(null, { headers: ownerHtmlHeaders(undefined, noindexNofollow), status: 200 });
   }
 
   const assetHeaders = new Headers(context.request.headers);
@@ -103,7 +104,7 @@ export async function handleOwnerConnectionsRequest(
   );
 
   return new Response(rewritten, {
-    headers: ownerHtmlHeaders(assetResponse.headers),
+    headers: ownerHtmlHeaders(assetResponse.headers, noindexNofollow),
     status: 200,
   });
 }

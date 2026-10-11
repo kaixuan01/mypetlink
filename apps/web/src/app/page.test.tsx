@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRIMARY_CTA_LABEL } from "@/components/layouts/PublicNav";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { smartTagPurchaseEnabled } from "@/lib/features";
+import { ownerRoutes } from "@/lib/routes";
 import {
   freePlanLimits,
   smartTagAddOn,
@@ -177,10 +178,35 @@ describe("landing page commercial claims", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("offers no purchase action while Smart Tag ordering is disabled", () => {
+  // These two run in different flag configurations: the default suite has
+  // ordering off, the production-flag project (vitest.config.ts) has it on.
+  it.runIf(smartTagPurchaseEnabled)(
+    "offers the Smart Tag checkout, and online ordering rather than a partner, while ordering is open",
+    () => {
+      render(<HomePage />);
+
+      const buyLinks = main().getAllByRole("link", { name: /get a smart tag/i });
+      expect(buyLinks.length).toBeGreaterThan(0);
+      for (const link of buyLinks) {
+        expect(link.getAttribute("href")).toBe(ownerRoutes.tagOrder());
+      }
+      // The tag is on sale, so it is never called "coming soon" here.
+      expect(screen.getByRole("main").textContent).not.toMatch(
+        /smart tags? (?:add-ons? )?(?:are )?coming soon/i
+      );
+      // There are no public retail partners yet, so the teaser must not offer
+      // to find one.
+      expect(
+        main().getByRole("heading", { name: "Order your Smart Tag online." })
+      ).toBeTruthy();
+      expect(main().queryByText(/authorised partner/i)).toBeNull();
+      expect(main().queryByRole("link", { name: /find a retail partner/i })).toBeNull();
+    }
+  );
+
+  it.runIf(!smartTagPurchaseEnabled)("offers no purchase action while Smart Tag ordering is disabled", () => {
     // The default build has ordering off and there is no waitlist flow, so
     // nothing on the page may look like a way to buy or reserve a tag.
-    expect(smartTagOrderingEnabled).toBe(false);
     render(<HomePage />);
 
     expect(

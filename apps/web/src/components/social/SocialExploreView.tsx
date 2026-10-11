@@ -158,18 +158,17 @@ export function SocialExploreView() {
     */
     <div className="mx-auto w-full max-w-5xl pt-6">
       {/*
-        Title and controls on one line from `sm` up, so the three things that
-        steer this page read as one toolbar instead of three left-aligned rows
-        with a filter drifting underneath. On a phone the filter drops to its
-        own row, because a species name and a Search button will not share 358px
-        without one of them truncating.
+        The page's heading and introduction live in `ExploreIntro`, rendered on
+        the server above this view so they exist before any script runs. This
+        row is the toolbar alone: the filter and Search side by side, which
+        still fits a 358px phone without either one truncating.
       */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-black text-pet-ink sm:text-3xl">
-          Community
-        </h1>
-
-        <div className="order-3 flex w-full items-center gap-2 sm:order-none sm:w-auto">
+      <header
+        aria-label="Explore filters"
+        className="flex flex-wrap items-center justify-between gap-3"
+        data-testid="explore-toolbar"
+      >
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <SpeciesFilterSelect
             onChange={setSpecies}
             options={options}

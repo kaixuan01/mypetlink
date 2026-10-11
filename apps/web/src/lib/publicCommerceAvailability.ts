@@ -1,4 +1,4 @@
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { smartTagPurchaseEnabled } from "@/lib/features";
 
 export type PublicRetailPartner = {
   name: string;
@@ -36,6 +36,6 @@ const publicRetailPartners: readonly PublicRetailPartner[] = [];
 
 export const publicCommerceAvailability =
   resolvePublicCommerceAvailability({
-    onlineOrderingAvailable: smartTagOrderingEnabled,
+    onlineOrderingAvailable: smartTagPurchaseEnabled,
     publicRetailPartners,
   });

@@ -1,5 +1,7 @@
 # MyPetLink Soft Launch Readiness
 
+> **Historical document.** This describes the soft-launch configuration of August 2026, when Smart Tag ordering was switched off. It is kept as a record and is not the current product state: as of 2026-10-10 the production website sells the QR + NFC Smart Tag (RM39.90, "Available now"), with purchasable stock decided by the catalogue and physical QA. For the current state see `docs/seo/phase-1-implementation.md` and `docs/operations/smart-tag-physical-qa.md`.
+
 **Audit date:** 2026-08-13 · **Production E2E verification:** 2026-08-14
 **Branch audited:** `main` @ `a06ab48` (clean, in sync with `origin/main`)
 **Method:** repository/configuration inspection (2026-08-13), then live production

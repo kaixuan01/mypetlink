@@ -24,6 +24,7 @@ vi.mock("@/lib/features", () => ({
   publicProfilesEnabled: true,
   safetyProfilesOwnerUiEnabled: true,
   smartTagOrderingEnabled: false,
+  smartTagPurchaseEnabled: false,
   smartTagsEnabled: false,
   tagOrdersEnabled: false,
 }));

@@ -9,26 +9,24 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { smartTagAddOn, smartTagAddOnsStatus } from "@/lib/planLimits";
 import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
-import { createMarketingMetadata, directAccessRobots } from "@/lib/seo";
+import { createMarketingMetadata } from "@/lib/seo";
 
-const marketingMetadata = createMarketingMetadata({
+// Indexed only while a purchase channel exists; the route table in
+// `seoRoutes.ts` applies the same availability rule as the navigation link.
+export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.whereToBuy,
   title: "Where to Buy | MyPetLink Smart Tags Malaysia",
   description:
     "How to get a MyPetLink QR + NFC Smart Tag in Malaysia, and where the tag is available.",
 });
 
-export const metadata: Metadata = publicCommerceAvailability.showWhereToBuy
-  ? marketingMetadata
-  : { ...marketingMetadata, robots: directAccessRobots };
-
 /**
  * Where to Buy.
  *
  * Two channels are planned: buying online from MyPetLink, and picking one up
  * from an authorised retail partner. Only the first is a real channel today,
- * and it is not open yet — so this page states availability honestly instead
- * of listing places that do not exist.
+ * and whether it is open follows `publicCommerceAvailability` — so this page
+ * states availability honestly instead of listing places that do not exist.
  *
  * The retail section renders only when the shared public-commerce model has
  * partners to show. There is no supported partner projection yet, so it stays

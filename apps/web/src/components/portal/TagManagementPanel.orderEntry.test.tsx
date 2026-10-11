@@ -22,6 +22,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/features", () => ({
   smartTagOrderingEnabled: true,
+  smartTagPurchaseEnabled: true,
 }));
 
 vi.mock("@/services/apiConfig", () => ({
