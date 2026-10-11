@@ -51,6 +51,14 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:5281
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
           NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED: "true"
+          # Release flags. Production builds must state each one explicitly
+          # (apps/web/src/lib/releaseFlags.ts fails the build otherwise).
+          # These match the production release: Smart Tags sold online,
+          # Community on.
+          NEXT_PUBLIC_SMART_TAGS_ENABLED: "true"
+          NEXT_PUBLIC_TAG_ORDERS_ENABLED: "true"
+          NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED: "true"
+          NEXT_PUBLIC_SOCIAL_ENABLED: "true"
         run: npm run build:web
 
       - name: Compile Cloudflare Pages Functions
