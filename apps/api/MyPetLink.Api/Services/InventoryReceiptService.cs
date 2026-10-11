@@ -209,7 +209,10 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 throw new ApiException(
                     StatusCodes.Status409Conflict,
                     "receipt_inventory_shortfall",
-                    $"Only {tags.Length} eligible unreceived tag(s) are available for this receipt.");
+                    batch is not null
+                        ? $"Only {tags.Length} tag(s) in batch {batch.BatchNo} are still without a stock receipt. "
+                            + "If this batch was already received, it appears in the receipts list."
+                        : $"Only {tags.Length} eligible unreceived tag(s) are available for this receipt.");
 
             _dbContext.InventoryReceipts.Add(receipt);
             foreach (var tag in tags)
@@ -232,6 +235,13 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 {
                     await _dbContext.SaveChangesAsync(cancellationToken);
                     break;
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // One of the tags changed after it was selected (another
+                    // receipt, an assignment, a QA result). The transaction is
+                    // not committed, so nothing was recorded.
+                    throw TagsChangedDuringSave();
                 }
                 catch (DbUpdateException exception) when (
                     UniqueConstraintViolation.IsFor(
@@ -275,7 +285,14 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                     });
             }
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw TagsChangedDuringSave();
+            }
             if (transaction is not null)
                 await transaction.CommitAsync(cancellationToken);
             return ToResponse(receipt, variant.Sku, variant.TagProduct.Name, batch?.BatchNo);
@@ -668,6 +685,11 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
         decimal.Round(value, 2, MidpointRounding.AwayFromZero);
     private static string? Trim(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static ApiException TagsChangedDuringSave() => new(
+        StatusCodes.Status409Conflict,
+        "receipt_inventory_changed",
+        "Some of these tags changed while the receipt was being saved. Nothing was recorded. Refresh and try again.");
+
     private static ApiException Validation(string field, string message) => new(
         StatusCodes.Status400BadRequest, "validation_failed", "Please check the submitted fields.",
         new Dictionary<string, string[]> { [field] = [message] });

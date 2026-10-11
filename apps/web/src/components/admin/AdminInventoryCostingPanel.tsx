@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminActionButton, AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { canUseAdminApi } from "@/services/adminService";
+import { isApiClientError } from "@/services/apiClient";
 import {
   createInventoryReceipt,
   getProfitabilityReport,
@@ -23,6 +24,25 @@ const nextDay = (value: string) => {
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString();
 };
+
+const unconfirmedSave = "We couldn't confirm whether this stock receipt was saved. Check the receipts list before trying again.";
+
+// A refusal the server explained (validation, not enough unreceived tags, a
+// conflict) means nothing was recorded. Anything else — a server error or a
+// lost connection — leaves the outcome unknown.
+function isUnconfirmedFailure(error: unknown) {
+  return !(isApiClientError(error) && error.status >= 400 && error.status < 500);
+}
+
+function receiptFailureMessage(error: unknown) {
+  if (isApiClientError(error)) {
+    const fieldMessage = error.details ? Object.values(error.details).flat()[0] : undefined;
+    if (fieldMessage) return fieldMessage;
+    if (!isUnconfirmedFailure(error)) return error.message;
+    return error.requestId ? `${unconfirmedSave} Reference: ${error.requestId}.` : unconfirmedSave;
+  }
+  return unconfirmedSave;
+}
 
 export function AdminInventoryCostingPanel({ canManageReceipts }: { canManageReceipts: boolean }) {
   const connected = canUseAdminApi();
@@ -69,10 +89,40 @@ export function AdminInventoryCostingPanel({ canManageReceipts }: { canManageRec
     void Promise.resolve().then(refresh).catch(() => setMessage("Stock receipts could not be loaded."));
   }, [refresh]);
 
-  async function save() {
-    setBusy(true); setMessage("");
+  // After a failure whose outcome is unknown, the receipts list is the truth:
+  // if the receipt landed, say so, so it is never recorded twice.
+  async function explainFailure(error: unknown, known: Set<string>, attempt: { variantId: string; batchId: string; quantity: number }) {
+    const message = receiptFailureMessage(error);
+    if (!isUnconfirmedFailure(error)) return message;
     try {
-      const receipt = await createInventoryReceipt({
+      const latest = await listInventoryReceipts();
+      setReceipts(latest);
+      const saved = latest.find((receipt) => !known.has(receipt.id)
+        && receipt.productVariantId === attempt.variantId
+        && (receipt.smartTagBatchId ?? "") === attempt.batchId
+        && receipt.quantityReceived === attempt.quantity);
+      if (!saved) return message;
+      setOptions(await listInventoryReceiptOptions());
+      return `${saved.receiptNumber} was saved and linked to ${saved.quantityReceived} serialized tag(s). Do not save it again.`;
+    } catch {
+      return message;
+    }
+  }
+
+  async function save() {
+    const batch = selected?.batches.find((option) => option.id === batchId);
+    if (batch && quantity > batch.unreceivedEligibleQuantity) {
+      setMessage(batch.unreceivedEligibleQuantity === 0
+        ? `Every tag in batch ${batch.batchNumber} already has a stock receipt.`
+        : `Batch ${batch.batchNumber} has only ${batch.unreceivedEligibleQuantity} tag(s) without a stock receipt.`);
+      return;
+    }
+    setBusy(true); setMessage("");
+    const known = new Set(receipts.map((receipt) => receipt.id));
+    const attempt = { variantId, batchId, quantity };
+    let receipt: InventoryReceipt;
+    try {
+      receipt = await createInventoryReceipt({
         productVariantId: variantId,
         smartTagBatchId: batchId || undefined,
         quantityReceived: quantity,
@@ -89,12 +139,22 @@ export function AdminInventoryCostingPanel({ canManageReceipts }: { canManageRec
         customsTaxCost: mode === "Detailed" ? customs : undefined,
         otherLandedCost: mode === "Detailed" ? other : undefined,
       });
-      setMessage(`${receipt.receiptNumber} saved and linked to ${receipt.quantityReceived} serialized tag(s).`);
-      setBatchId(""); setQuantity(1); setNotes("");
-      await refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The stock receipt could not be saved.");
-    } finally { setBusy(false); }
+      setMessage(await explainFailure(error, known, attempt));
+      setBusy(false);
+      return;
+    }
+    // The receipt is saved. A list that fails to reload must never turn that
+    // into an error message, or the operator would record it twice.
+    let saved = `${receipt.receiptNumber} saved and linked to ${receipt.quantityReceived} serialized tag(s).`;
+    setBatchId(""); setQuantity(1); setNotes("");
+    try {
+      await refresh();
+    } catch {
+      saved += " The receipts list couldn't be refreshed; reload the page to see it.";
+    }
+    setMessage(saved);
+    setBusy(false);
   }
 
   async function runReport() {

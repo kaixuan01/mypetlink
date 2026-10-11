@@ -18,15 +18,19 @@ public sealed class InventoryReceiptQuery : PagedQuery
     public bool IncludeSuperseded { get; init; }
 }
 
+// Validation attributes target the constructor parameters. A [property:]
+// target is ignored for validation and makes MVC throw on every request,
+// which is how this endpoint failed with a generic error until 2026-10-11.
 public sealed record CreateInventoryReceiptRequest(
     Guid ProductVariantId,
     Guid? SmartTagBatchId,
-    [property: Range(1, 100000)] int QuantityReceived,
+    [Range(1, 100000, ErrorMessage = "Enter a quantity from 1 to 100,000.")] int QuantityReceived,
     DateTimeOffset ReceivedAt,
-    [property: MaxLength(200)] string? SupplierName,
-    [property: MaxLength(120)] string? SupplierReference,
-    [property: MaxLength(2000)] string? Notes,
-    [property: Required, StringLength(3, MinimumLength = 3)] string PurchaseCurrency,
+    [MaxLength(200, ErrorMessage = "Keep the supplier name to 200 characters or fewer.")] string? SupplierName,
+    [MaxLength(120, ErrorMessage = "Keep the supplier reference to 120 characters or fewer.")] string? SupplierReference,
+    [MaxLength(2000, ErrorMessage = "Keep the notes to 2,000 characters or fewer.")] string? Notes,
+    [Required(ErrorMessage = "Use a three-letter currency code."),
+     StringLength(3, MinimumLength = 3, ErrorMessage = "Use a three-letter currency code.")] string PurchaseCurrency,
     decimal? ExchangeRateToMyr,
     InventoryReceiptCostMode CostMode,
     decimal? UnitLandedCostMyr,
@@ -35,7 +39,7 @@ public sealed record CreateInventoryReceiptRequest(
     decimal? CustomsTaxCost,
     decimal? OtherLandedCost,
     Guid? CorrectsReceiptId,
-    [property: MaxLength(1000)] string? CorrectionReason,
+    [MaxLength(1000, ErrorMessage = "Keep the correction reason to 1,000 characters or fewer.")] string? CorrectionReason,
     /// <summary>
     /// The corrected receipt's concurrency token. Required whenever
     /// <see cref="CorrectsReceiptId"/> is set, so two administrators cannot
