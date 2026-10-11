@@ -13,31 +13,16 @@ namespace MyPetLink.Api.Services;
 public static class MerchantInventoryEligibility
 {
     /// <summary>
-    /// A tag is eligible when it is a printed-or-generated, unclaimed unit of
-    /// the requested SKU that nobody else has a claim on: no owner, no pet, no
-    /// retail order, no live merchant allocation, and not already handed to a
-    /// reseller. Lost, Disabled, Replaced, Active and Archived are all excluded
-    /// by the Unclaimed test, which is the only status that means "in stock".
-    /// A tag held by physical QA is never eligible.
+    /// A tag is eligible when it is a sellable unit of the requested SKU: on the
+    /// shelf with nobody's claim on it, and passed physical inspection. A merchant
+    /// allocation is a new commitment, so it uses exactly the rule retail
+    /// checkout and order assignment use (<see cref="SellableInventoryRules"/>);
+    /// untested (NULL), Pending, Failed and Needs Review stock is never eligible.
     /// </summary>
     public static Expression<Func<SmartTag, bool>> For(
         MyPetLinkDbContext dbContext,
         Guid productVariantId) =>
-        PhysicalQaReleaseRules.AndReleased(tag =>
-            tag.ProductVariantId == productVariantId
-            && tag.Status == SmartTagStatus.Unclaimed
-            && tag.ArchivedAt == null
-            && tag.DeletedAt == null
-            // Production readiness: a tag still being generated or already sent
-            // onward is not sellable stock.
-            && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
-                || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
-            && tag.OwnerUserId == null
-            && tag.PetId == null
-            && tag.OrderId == null
-            && tag.OrderItemId == null
-            && !dbContext.MerchantOrderAllocatedTags.Any(allocation =>
-                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null));
+        SellableInventoryRules.SellableUnitOf(dbContext, productVariantId);
 
     /// <summary>
     /// Deterministic pick order for automatic allocation: oldest approved

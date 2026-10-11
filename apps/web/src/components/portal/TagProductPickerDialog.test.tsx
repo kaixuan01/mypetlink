@@ -78,7 +78,7 @@ const products: TagProduct[] = [
 afterEach(cleanup);
 
 describe("TagProductPickerDialog", () => {
-  it("groups sellable SKUs by product, uses the primary image, and omits unavailable capabilities", () => {
+  it("groups SKUs by product, uses the primary image, and marks each option's stock", () => {
     render(
       <TagProductPickerDialog
         lineLabel="Tag 1"
@@ -94,6 +94,7 @@ describe("TagProductPickerDialog", () => {
     const pawsomeCard = pawsomeHeading.closest("article");
     expect(pawsomeCard).not.toBeNull();
     expect(within(pawsomeCard!).getAllByRole("radio")).toHaveLength(2);
+    expect(within(pawsomeCard!).getAllByText("In stock")).toHaveLength(2);
     expect(screen.getAllByRole("heading", { name: "Pawsome Pet Tag" })).toHaveLength(1);
 
     const primaryImage = screen.getByRole("img", { name: "Pawsome tag front" });
@@ -104,7 +105,12 @@ describe("TagProductPickerDialog", () => {
     expect(screen.getByRole("radio", { name: /Pawsome Pet Tag, Lightweight, QR, RM\s*19\.90/ }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("radio", { name: /Pawsome Pet Tag, Lightweight, QR \+ NFC, RM\s*39\.90/ })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /Queen Pet Tag, Lightweight, QR, RM\s*19\.90/ })).toBeTruthy();
-    expect(screen.queryByRole("radio", { name: /Queen Pet Tag.*QR \+ NFC/ })).toBeNull();
+    // A temporarily out-of-stock option stays visible — the product is on
+    // sale — but cannot be chosen, and is never called "coming soon".
+    const outOfStock = screen.getByRole("radio", { name: /Queen Pet Tag.*QR \+ NFC.*Temporarily out of stock/ });
+    expect((outOfStock as HTMLButtonElement).disabled).toBe(true);
+    expect(outOfStock.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.queryByText(/coming soon/i)?.textContent).toBe("Product image coming soon");
     expect(screen.queryByText("INTERNAL-PAWSOME-QR")).toBeNull();
     expect(screen.queryByText("-")).toBeNull();
   });
@@ -126,6 +132,22 @@ describe("TagProductPickerDialog", () => {
     expect((option as HTMLButtonElement).tabIndex).toBe(0);
     fireEvent.click(option);
     expect(onSelect).toHaveBeenCalledWith("PAWSOME-NFC");
+  });
+
+  it("never selects an option that is temporarily out of stock", () => {
+    const onSelect = vi.fn();
+    render(
+      <TagProductPickerDialog
+        lineLabel="Tag 1"
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        products={products}
+        selectedVariantKey="PAWSOME-QR"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /Temporarily out of stock/ }));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("closes with Escape and returns focus to the trigger", async () => {

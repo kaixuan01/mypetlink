@@ -641,7 +641,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         ApplyOrderConcurrency(order, rowVersion);
         var oldState = OrderStateSnapshot(order);
         var now = _timeProvider.GetUtcNow();
-        PhysicalQaReleaseRules.RequireReleased(RequireAllAssignedOrderTags(order, "mark ready to ship"));
+        // Fulfilment hold: only inspected tags leave the warehouse.
+        SellableInventoryRules.RequirePassedForFulfilment(RequireAllAssignedOrderTags(order, "mark ready to ship"));
         order.Status = OrderStatus.ReadyToShip;
         order.ReadyToShipAt ??= now;
         order.TrackingStatus = "Your tag is ready to ship.";
@@ -752,7 +753,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         order.TrackingStatus = $"Shipped with {order.CourierProvider}.";
         order.UpdatedAt = now;
         var shippedTags = RequireAllAssignedOrderTags(order, "ship");
-        PhysicalQaReleaseRules.RequireReleased(shippedTags);
+        SellableInventoryRules.RequirePassedForFulfilment(shippedTags);
         // The physical tag has left our hands for the owner; keep the
         // fulfilment trail in sync with the order without touching lifecycle.
         foreach (var shippedTag in shippedTags)
@@ -1891,7 +1892,9 @@ public sealed class AdminService : SkeletonService, IAdminService
         }
 
         var tag = await LoadTagAsync(tagId, trackChanges: true, cancellationToken);
-        PhysicalQaReleaseRules.RequireReleased([tag]);
+        // Committing a unit to an order is a new commitment: it must have passed
+        // physical QA. Legacy NULL stock is not inspected stock.
+        SellableInventoryRules.RequirePassedForNewCommitment([tag]);
 
         if (tag.Status != SmartTagStatus.Unclaimed
             || tag.ArchivedAt.HasValue

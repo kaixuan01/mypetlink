@@ -297,6 +297,11 @@ public sealed class AdminTagInventoryServiceTests
             .Where(tag => tag.FulfilmentStatus == TagFulfilmentStatus.Printed && tag.Status == SmartTagStatus.Unclaimed)
             .Select(tag => tag.Id)
             .ToArrayAsync();
+        // Sending shelf stock to a reseller issues it, so the stock must have
+        // passed physical inspection.
+        foreach (var tag in await harness.Db.SmartTags.Where(tag => printed.Contains(tag.Id)).ToListAsync())
+            tag.QaStatus = PhysicalQaStatus.Passed;
+        await harness.Db.SaveChangesAsync();
 
         var sent = await harness.Service.BulkUpdateFulfilmentAsync(
             AdminUserId, new AdminTagInventoryBulkActionRequest("send-to-reseller", printed));
@@ -757,6 +762,8 @@ public sealed class AdminTagInventoryServiceTests
         tag.OwnerUserId = OwnerUserId;
         tag.PetId = PetId;
         tag.Status = SmartTagStatus.Preparing;
+        // Inspected: only tags that passed physical QA leave the warehouse.
+        tag.QaStatus = PhysicalQaStatus.Passed;
         harness.Db.TagOrders.Add(order);
         await harness.Db.SaveChangesAsync();
         tag.OrderId = order.Id;

@@ -200,6 +200,7 @@ public sealed class ConcurrencyRelationalTests
                 HasNfc = variant.SupportsNfc,
                 Variant = variant.TagVariant,
                 Status = SmartTagStatus.Unclaimed,
+                QaStatus = PhysicalQaStatus.Passed,
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             var first = ConfirmedOrder(variant, "ORD-REL-1");
@@ -349,6 +350,7 @@ public sealed class ConcurrencyRelationalTests
             HasNfc = variant.SupportsNfc,
             Variant = variant.TagVariant,
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var first = ConfirmedOrder(variant, "ORD-REL-A");
@@ -377,6 +379,7 @@ public sealed class ConcurrencyRelationalTests
                 HasNfc = variant.SupportsNfc,
                 Variant = variant.TagVariant,
                 Status = SmartTagStatus.Unclaimed,
+                QaStatus = PhysicalQaStatus.Passed,
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);
@@ -435,6 +438,7 @@ public sealed class ConcurrencyRelationalTests
                 HasNfc = variant.SupportsNfc,
                 Variant = variant.TagVariant,
                 Status = SmartTagStatus.Unclaimed,
+                QaStatus = PhysicalQaStatus.Passed,
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);

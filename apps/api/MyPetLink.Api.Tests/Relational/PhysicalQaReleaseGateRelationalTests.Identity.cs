@@ -11,8 +11,8 @@ namespace MyPetLink.Api.Tests.Relational;
 
 /// <summary>
 /// Regression tests for the second audit: chip identity (F1, F2), immutable
-/// shipment manifests (F3) and the merchant quotation stock race (F4), all on
-/// SQL Server through the real services.
+/// shipment manifests (F3) and non-binding merchant quotations racing QA (F4),
+/// all on SQL Server through the real services.
 /// </summary>
 public sealed partial class PhysicalQaReleaseGateRelationalTests
 {
@@ -212,7 +212,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             variantId = await SeedRetailAsync(seed, tags: 4);
             orderId = await SeedConfirmedOrderAsync(seed, variantId, "ORD-QA-F3");
         }
-        await using (var db = scope.NewContext()) await Admin(db).AssignInventoryTagAsync(AdminId, orderId, await TagIdAsync(scope, Code(1)));
+        await LinkHistoricalOrderTagAsync(scope, orderId, Code(1));
 
         await using (var db = scope.NewContext())
         {
@@ -250,14 +250,16 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         Assert.Equal(1, await db.SmartTags.CountAsync(t => t.QaShipmentReference == "QA-B-0001"));
     }
 
-    // --- F4: quotation stock checks and QA withdrawals are serialized ------------------
+    // --- F4: quotations are non-binding and never wait for a QA decision --------------
 
-    [RelationalFact]
-    public async Task F4_ConversionWaitsForAQaWithdrawalInProgressAndThenRefuses()
+    [RelationalTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task F4_SendAndConvertNeitherWaitForNorAreRefusedByAQaDecisionInProgress(bool convert)
     {
         var pause = new PauseInterceptor();
         await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
-        var (quotationId, _) = await SeedQuotationAsync(scope, accepted: true);
+        var (quotationId, _) = await SeedQuotationAsync(scope, accepted: convert);
 
         await using var qaDb = scope.NewContext();
         await using var salesDb = scope.NewContext();
@@ -265,68 +267,23 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         var withdrawal = WithdrawOneAsync(qaDb);
         await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
-        var conversion = Capture(() => Sales(salesDb).ConvertQuotationAsync(null, quotationId, null, default));
-        await Task.Delay(1500);
-        // The QA result holds the SKU lock, so the conversion must still be waiting.
-        Assert.False(conversion.IsCompleted, "Conversion committed while a QA withdrawal was in progress.");
+        // The QA result holds the SKU lock. A quotation takes no stock lock and
+        // reserves nothing, so it completes while QA is still deciding.
+        var outcome = await Capture(async () => convert
+            ? (object)await Sales(salesDb).ConvertQuotationAsync(null, quotationId, null, default)
+            : await Sales(salesDb).TransitionQuotationAsync(null, quotationId, MerchantQuotationStatus.Sent, null, default))
+            .WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Null(outcome.Error);
+        Assert.False(withdrawal.IsCompleted, "The QA decision should still be paused.");
         pause.Release.SetResult();
         await withdrawal;
 
-        var error = Assert.IsType<ApiException>((await conversion).Error);
-        Assert.Equal("physical_qa_stock_unavailable", error.Code);
         await using var check = scope.NewContext();
-        Assert.False(await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == quotationId));
-        Assert.Equal(MerchantQuotationStatus.Accepted, (await check.MerchantQuotations.SingleAsync(q => q.Id == quotationId)).Status);
-    }
-
-    [RelationalFact]
-    public async Task F4_SendWaitsForAQaWithdrawalInProgressAndThenRefuses()
-    {
-        var pause = new PauseInterceptor();
-        await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
-        var (quotationId, _) = await SeedQuotationAsync(scope, accepted: false);
-
-        await using var qaDb = scope.NewContext();
-        await using var salesDb = scope.NewContext();
-        pause.ArmAfterStockLock(qaDb);
-        var withdrawal = WithdrawOneAsync(qaDb);
-        await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
-
-        var send = Capture(() => Sales(salesDb).TransitionQuotationAsync(null, quotationId, MerchantQuotationStatus.Sent, null, default));
-        await Task.Delay(1500);
-        Assert.False(send.IsCompleted, "Send went out while a QA withdrawal was in progress.");
-        pause.Release.SetResult();
-        await withdrawal;
-
-        Assert.Equal("physical_qa_stock_unavailable", Assert.IsType<ApiException>((await send).Error).Code);
-        await using var check = scope.NewContext();
-        Assert.Equal(MerchantQuotationStatus.Draft, (await check.MerchantQuotations.SingleAsync(q => q.Id == quotationId)).Status);
-    }
-
-    [RelationalFact]
-    public async Task F4_AQaWithdrawalWaitsForAConversionInProgress()
-    {
-        var pause = new PauseInterceptor();
-        await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
-        var (quotationId, _) = await SeedQuotationAsync(scope, accepted: true);
-
-        await using var salesDb = scope.NewContext();
-        await using var qaDb = scope.NewContext();
-        pause.ArmAfterStockCount(salesDb);
-        var conversion = Capture(() => Sales(salesDb).ConvertQuotationAsync(null, quotationId, null, default));
-        await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
-
-        var withdrawal = WithdrawOneAsync(qaDb);
-        await Task.Delay(1500);
-        // Stock was counted under the lock; QA must wait for the order to commit.
-        Assert.False(withdrawal.IsCompleted, "A QA withdrawal landed between the stock check and the order.");
-        pause.Release.SetResult();
-
-        Assert.Null((await conversion).Error);
-        await withdrawal;
-        await using var check = scope.NewContext();
-        Assert.True(await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == quotationId));
+        Assert.Equal(convert ? MerchantQuotationStatus.Converted : MerchantQuotationStatus.Sent,
+            (await check.MerchantQuotations.SingleAsync(q => q.Id == quotationId)).Status);
+        Assert.Equal(convert, await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == quotationId));
         Assert.Equal(1, await check.SmartTags.CountAsync(t => t.QaStatus == PhysicalQaStatus.Failed));
+        Assert.False(await check.MerchantOrderAllocatedTags.AnyAsync());
     }
 
     [RelationalFact]
@@ -413,20 +370,18 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
 
     /// <summary>
     /// Holds one chosen context at a precise point so a competing operation can
-    /// be started deterministically: either just after it took the SKU stock
-    /// lock and read the tag, or just after it counted released stock.
+    /// be started deterministically: just after it took the SKU stock lock and
+    /// read the tag.
     /// </summary>
     private sealed class PauseInterceptor : DbCommandInterceptor
     {
         private DbContext? _target;
-        private bool _afterLock;
         private bool _lockTaken;
         private int _fired;
         public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public void ArmAfterStockLock(DbContext target) { _target = target; _afterLock = true; }
-        public void ArmAfterStockCount(DbContext target) { _target = target; _afterLock = false; }
+        public void ArmAfterStockLock(DbContext target) => _target = target;
 
         public override ValueTask<int> NonQueryExecutedAsync(DbCommand command, CommandExecutedEventData eventData, int result, CancellationToken cancellationToken = default)
         {
@@ -449,8 +404,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         private async Task MaybePauseAsync(DbCommand command, CommandExecutedEventData eventData)
         {
             if (eventData.Context != _target || !command.CommandText.Contains("[SmartTags]")) return;
-            var hit = _afterLock ? _lockTaken : command.CommandText.Contains("COUNT(");
-            if (!hit || Interlocked.Exchange(ref _fired, 1) == 1) return;
+            if (!_lockTaken || Interlocked.Exchange(ref _fired, 1) == 1) return;
             Reached.SetResult();
             await Release.Task;
         }

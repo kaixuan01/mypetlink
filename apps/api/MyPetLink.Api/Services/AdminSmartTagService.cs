@@ -253,7 +253,14 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             }
 
             EnsureAssignmentLifecycle(tag, operation);
-            if (operation is "claim" or "assign-pet" or "transfer") PhysicalQaReleaseRules.RequireReleased([tag]);
+            // A claim hands an unowned tag to an owner for the first time: Passed,
+            // or a legacy tag that was already issued. Pet reassignment and
+            // transfer act on a tag already in a customer's hands, so legacy NULL
+            // tags keep those flows.
+            if (operation == "claim"
+                && !await SellableInventoryRules.MayBeHandedToOwnerAsync(_dbContext, tag, cancellationToken))
+                SellableInventoryRules.RequirePassedForNewCommitment([tag]);
+            if (operation is "assign-pet" or "transfer") PhysicalQaReleaseRules.RequireReleased([tag]);
             var oldOwnerId = tag.OwnerUserId;
             var oldPetId = tag.PetId;
             var oldStatus = tag.Status;

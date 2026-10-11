@@ -240,18 +240,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         // to this check in the production request path.
         foreach (var (productVariantId, requested) in requestedInventory)
         {
-            var physicalStock = await _dbContext.SmartTags.Where(PhysicalQaReleaseRules.Released).CountAsync(tag =>
-                tag.ProductVariantId == productVariantId
-                && tag.Status == SmartTagStatus.Unclaimed
-                && tag.ArchivedAt == null
-                && tag.DeletedAt == null
-                && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
-                    || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
-                && tag.OwnerUserId == null
-                && tag.PetId == null
-                && tag.OrderId == null
-                && tag.OrderItemId == null,
-                cancellationToken);
+            // Sellable means on the shelf AND passed physical QA; untested stock
+            // is never sold (SellableInventoryRules).
+            var physicalStock = await _dbContext.SmartTags
+                .Where(SellableInventoryRules.SellableUnitOf(_dbContext, productVariantId))
+                .CountAsync(cancellationToken);
             if (physicalStock < requested)
             {
                 throw new ApiException(

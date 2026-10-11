@@ -194,9 +194,16 @@ public sealed class PhysicalQaTests
         Assert.Equal(0, (await stock.GetAvailableUnitsAsync([VariantId]))[VariantId]);
         Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
         Assert.Throws<ApiException>(() => PhysicalQaReleaseRules.RequireReleased([tag]));
+        // Never inspected (NULL) is still not stock for a new sale or allocation,
+        // though a legacy tag already committed keeps its existing flows.
         tag.QaStatus = null; await db.SaveChangesAsync();
-        Assert.Equal(1, await stock.GetAvailableUnitsAsync(VariantId));
+        Assert.Equal(0, await stock.GetAvailableUnitsAsync(VariantId));
+        Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
+        Assert.Throws<ApiException>(() => SellableInventoryRules.RequirePassedForNewCommitment([tag]));
         PhysicalQaReleaseRules.RequireReleased([tag]);
+        tag.QaStatus = PhysicalQaStatus.Passed; await db.SaveChangesAsync();
+        Assert.Equal(1, await stock.GetAvailableUnitsAsync(VariantId));
+        Assert.Single(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
     }
     [Fact]
     public async Task CohortEnrollmentUsesExactExistingManifestAndPreservesHistoricalTags()
@@ -217,20 +224,21 @@ public sealed class PhysicalQaTests
         Assert.Equal(1, summary.TotalExpected); Assert.Equal(1, summary.Pending); Assert.Equal(0, summary.Inspected);
     }
     [Fact]
-    public async Task NewMerchantCommitmentsCannotCountUnpassedStockAndCsvReconcilesEscapedRemarks()
+    public async Task NewMerchantAllocationsCannotUseUnpassedStockAndCsvReconcilesEscapedRemarks()
     {
         await using var db = await Db();
-        var lines = new[] { new MerchantQuotationItem { ProductVariantId = VariantId, Quantity = 1 } };
-        Assert.Equal("physical_qa_stock_unavailable", (await Assert.ThrowsAsync<ApiException>(() =>
-            PhysicalQaReleaseRules.RequireMerchantQaStockAsync(db, lines, default))).Code);
+        // Quotations are non-binding and never read stock; the merchant
+        // commitment is the allocation, which takes only QA-passed units.
+        Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
         var qa = Service(db);
         await qa.SaveAsync(UserId, TagId, new(Guid.NewGuid(), 1, PhysicalQaStatus.Failed, PhysicalTagCondition.Damaged, null, null, "=supplier exception"), default);
         var csv = System.Text.Encoding.UTF8.GetString((await qa.ExportAsync(UserId, new PhysicalQaQuery { Shipment = "SHIPMENT-900" }, default)).Content);
         Assert.Contains("SHIPMENT-900", csv); Assert.Contains("Failed", csv); Assert.Contains("'=supplier exception", csv);
         Assert.Equal(1, (await qa.ListAsync(new PhysicalQaQuery { QaStatus = "Failed", Sku = "QA-NFC", TagCode = "ABCD" }, default)).Total);
         Assert.Equal(1, (await qa.SummaryAsync(new PhysicalQaQuery { QaStatus = "Passed" }, default)).Failed);
+        Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
         var tag = await db.SmartTags.SingleAsync(); tag.QaStatus = null; await db.SaveChangesAsync();
-        await PhysicalQaReleaseRules.RequireMerchantQaStockAsync(db, lines, default);
+        Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
     }
 
     private sealed class AdjustableClock : TimeProvider

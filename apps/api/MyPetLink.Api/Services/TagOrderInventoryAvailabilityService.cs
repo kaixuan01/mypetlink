@@ -25,7 +25,13 @@ public interface ITagOrderInventoryAvailabilityService
 // Order items double as SKU-level reservations until individual inventory tags
 // are assigned. This keeps public Tag Codes undisclosed during checkout while
 // preventing two concurrent unpaid/paid orders from silently overselling the
-// same finite stock. Cancelled orders release their outstanding reservation.
+// same finite stock. Cancelled orders release their outstanding reservation,
+// and an order that has shipped holds nothing any more.
+//
+// Available units = sellable units on the shelf (SellableInventoryRules: on the
+// shelf AND passed physical QA) minus outstanding reservations. The public
+// catalogue's inStock, the delivery quote and checkout all read this one
+// number, so a SKU is advertised exactly when a checkout for it can succeed.
 public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAvailabilityService
 {
     private readonly MyPetLinkDbContext _dbContext;
@@ -39,42 +45,8 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
         Guid productVariantId,
         CancellationToken cancellationToken = default)
     {
-        // Physical QA: a held tag is not stock that can be promised.
-        var unclaimed = await _dbContext.SmartTags.Where(PhysicalQaReleaseRules.Released).CountAsync(tag =>
-            tag.ProductVariantId == productVariantId
-            && tag.Status == SmartTagStatus.Unclaimed
-            && tag.ArchivedAt == null
-            && tag.DeletedAt == null
-            && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
-                || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
-            && tag.OwnerUserId == null
-            && tag.PetId == null
-            && tag.OrderId == null
-            && tag.OrderItemId == null
-            // A tag held for a merchant order is no longer retail stock.
-            && !_dbContext.MerchantOrderAllocatedTags.Any(allocation =>
-                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null),
-            cancellationToken);
-
-        var reserved = await _dbContext.TagOrderItems
-            .Where(item =>
-                item.ProductVariantId == productVariantId
-                && item.Order.Status != OrderStatus.Cancelled)
-            .Select(item => new
-            {
-                item.Quantity,
-                Assigned = item.AssignedTags.Count(tag =>
-                    tag.ArchivedAt == null
-                    && tag.DeletedAt == null
-                    && (tag.Status == SmartTagStatus.Pending
-                        || tag.Status == SmartTagStatus.Preparing
-                        || tag.Status == SmartTagStatus.Delivered
-                        || tag.Status == SmartTagStatus.Active))
-            })
-            .ToListAsync(cancellationToken);
-
-        var outstanding = reserved.Sum(item => Math.Max(0, item.Quantity - item.Assigned));
-        return Math.Max(0, unclaimed - outstanding);
+        var available = await GetAvailableUnitsAsync([productVariantId], cancellationToken);
+        return available[productVariantId];
     }
 
     public async Task<IReadOnlyDictionary<Guid, int>> GetAvailableUnitsAsync(
@@ -88,32 +60,34 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
 
         var ids = productVariantIds.Distinct().ToArray();
 
-        var unclaimed = await _dbContext.SmartTags
-            .Where(PhysicalQaReleaseRules.Released)
-            .Where(tag =>
-                tag.ProductVariantId != null
-                && ids.Contains(tag.ProductVariantId.Value)
-                && tag.Status == SmartTagStatus.Unclaimed
-                && tag.ArchivedAt == null
-                && tag.DeletedAt == null
-                && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
-                    || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
-                && tag.OwnerUserId == null
-                && tag.PetId == null
-                && tag.OrderId == null
-                && tag.OrderItemId == null
-                // A tag held for a merchant order is no longer retail stock.
-                && !_dbContext.MerchantOrderAllocatedTags.Any(allocation =>
-                    allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null))
+        var sellable = await _dbContext.SmartTags
+            .Where(SellableInventoryRules.SellableUnit(_dbContext))
+            .Where(tag => tag.ProductVariantId != null && ids.Contains(tag.ProductVariantId.Value))
             .GroupBy(tag => tag.ProductVariantId!.Value)
             .Select(group => new { VariantId = group.Key, Count = group.Count() })
             .ToDictionaryAsync(row => row.VariantId, row => row.Count, cancellationToken);
 
-        var reservations = await _dbContext.TagOrderItems
-            .Where(item =>
-                item.ProductVariantId != null
-                && ids.Contains(item.ProductVariantId.Value)
-                && item.Order.Status != OrderStatus.Cancelled)
+        var outstanding = await GetOutstandingReservationsAsync(_dbContext, ids, cancellationToken);
+
+        return ids.ToDictionary(
+            id => id,
+            id => Math.Max(0, sellable.GetValueOrDefault(id) - outstanding.GetValueOrDefault(id)));
+    }
+
+    /// <summary>
+    /// Units promised by open orders that no assigned tag fulfils yet, per SKU.
+    /// The single reservation definition: availability and the physical QA
+    /// enrollment preview both read it.
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<Guid, int>> GetOutstandingReservationsAsync(
+        MyPetLinkDbContext dbContext,
+        IReadOnlyCollection<Guid> productVariantIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = productVariantIds.Distinct().ToArray();
+        var reservations = await dbContext.TagOrderItems
+            .Where(SellableInventoryRules.ItemHoldsReservation)
+            .Where(item => item.ProductVariantId != null && ids.Contains(item.ProductVariantId.Value))
             .Select(item => new
             {
                 VariantId = item.ProductVariantId!.Value,
@@ -128,15 +102,11 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
             })
             .ToListAsync(cancellationToken);
 
-        var outstanding = reservations
+        return reservations
             .GroupBy(row => row.VariantId)
             .ToDictionary(
                 group => group.Key,
                 group => group.Sum(row => Math.Max(0, row.Quantity - row.Assigned)));
-
-        return ids.ToDictionary(
-            id => id,
-            id => Math.Max(0, unclaimed.GetValueOrDefault(id) - outstanding.GetValueOrDefault(id)));
     }
 
     public async Task EnsureAvailableAsync(

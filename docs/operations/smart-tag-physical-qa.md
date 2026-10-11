@@ -16,12 +16,30 @@ notifications to owners, or finder activity are produced by QA.
 | Passed | Released, subject to existing inventory and lifecycle rules |
 | Failed | Held; move package to the failure tray |
 | Needs Review | Held; separate package for investigation |
-| NULL | Outside the QA cohort; keeps its pre-QA behaviour |
+| NULL | Never inspected. **Not sellable** for any new commitment; a legacy tag already issued or committed keeps its existing flows |
 
-**NULL is released on purpose.** It marks stock that existed before physical
-QA and was never enrolled from a shipment manifest; those tags keep exactly the
-behaviour they had before. The consequence is the deployment window described
-below: until the 900-code shipment is enrolled, its tags are NULL and sellable.
+> **Inventory-safety remediation (prepared 2026-10-11, not yet deployed).**
+> With that release, new sales and allocations consume only stock that passed
+> physical QA. Catalogue `inStock`, checkout, order assignment / change /
+> replacement, merchant allocation, bulk Send to Owner / Reseller, Admin claim
+> and public retail activation of an unowned tag all use
+> `SellableInventoryRules`. NULL is never treated as Passed. The rule described
+> below (`Released`, "NULL or Passed") now governs only tags already in a
+> customer's hands: activation of an assigned tag, pet reassignment and
+> transfer. Every warehouse exit (retail and merchant ready to ship / shipped)
+> requires Passed — a legacy tag committed to an order or allocation before the
+> change is held there until it is inspected or the assigned tag is changed.
+> A legacy NULL tag with trustworthy issuance history recorded on that tag
+> (sent out, received, delivered, its own merchant shipment, or an owner
+> activation) can still be handed to its owner. Scan history and order-level
+> links do not count. See `docs/operations/smart-tag-inventory-safety-remediation.md`.
+> Until that release is deployed, the paragraph below describes production.
+
+**NULL is released on purpose (behaviour before the remediation).** It marks
+stock that existed before physical QA and was never enrolled from a shipment
+manifest; those tags keep exactly the behaviour they had before. The
+consequence is the deployment window described below: until the 900-code
+shipment is enrolled, its tags are NULL and sellable.
 
 There is one release rule, `PhysicalQaReleaseRules.Released`
 (`QaStatus IS NULL OR QaStatus = 'Passed'`), used as SQL by every stock count

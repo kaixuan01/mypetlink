@@ -111,8 +111,10 @@ public sealed class MerchantDocumentService : IMerchantDocumentService
             Currency: currency,
             PaymentInstructions: null,
             CustomerNotes: quotation.CustomerNotes,
+            // A quotation does not reserve stock: say so on the document itself.
             ClosingNotice:
-                "This is a quotation, not an invoice and not proof of payment. Prices are held "
+                "Quotation only. Product availability is subject to confirmation at the time of order fulfilment. "
+                + "This is a quotation, not an invoice and not proof of payment. Prices are held "
                 + "until the valid-until date above. An invoice is issued once the quotation is "
                 + "accepted and converted into an order.",
             ShowPaidBadge: false);

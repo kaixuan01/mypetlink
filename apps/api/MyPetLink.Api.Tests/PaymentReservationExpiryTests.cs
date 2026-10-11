@@ -206,6 +206,7 @@ public class PaymentReservationExpiryTests
                     TagCode = $"MPL-SPARE-{index}",
                     ProductVariantId = VariantId,
                     Status = SmartTagStatus.Unclaimed,
+                    QaStatus = PhysicalQaStatus.Passed,
                     FulfilmentStatus = TagFulfilmentStatus.Generated,
                 });
             }

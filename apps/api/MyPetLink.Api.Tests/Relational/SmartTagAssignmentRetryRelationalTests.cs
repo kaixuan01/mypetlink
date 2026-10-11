@@ -386,6 +386,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             HasNfc = variant.SupportsNfc,
             Variant = variant.TagVariant,
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         seed.AddRange(product, variant, tag);

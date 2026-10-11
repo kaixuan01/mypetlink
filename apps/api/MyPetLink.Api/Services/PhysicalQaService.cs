@@ -329,10 +329,7 @@ public sealed class PhysicalQaService
             .OrderBy(s => s.Sku, StringComparer.Ordinal).ToArray();
 
         var variants = tags.Where(t => t.ProductVariantId != null).Select(t => t.ProductVariantId!.Value).Distinct().ToArray();
-        var reservations = await _db.TagOrderItems.Where(i => i.ProductVariantId != null && variants.Contains(i.ProductVariantId.Value) && i.Order.Status != OrderStatus.Cancelled)
-            .Select(i => new { i.Quantity, Assigned = i.AssignedTags.Count(t => t.ArchivedAt == null && t.DeletedAt == null &&
-                (t.Status == SmartTagStatus.Pending || t.Status == SmartTagStatus.Preparing || t.Status == SmartTagStatus.Delivered || t.Status == SmartTagStatus.Active)) }).ToListAsync(ct);
-        var outstanding = reservations.Sum(r => Math.Max(0, r.Quantity - r.Assigned));
+        var outstanding = (await TagOrderInventoryAvailabilityService.GetOutstandingReservationsAsync(_db, variants, ct)).Values.Sum();
 
         var truncated = duplicates.Length > ReconciliationListLimit || invalid.Length > ReconciliationListLimit
             || missing.Length > ReconciliationListLimit || commitments.Count > ReconciliationListLimit || problems.Count > ReconciliationListLimit

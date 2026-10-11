@@ -555,6 +555,7 @@ public sealed class TagOrderCatalogIntegrationTests
             HasNfc = false,
             Variant = "Lightweight",
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated
         };
         harness.Db.AddRange(otherVariant, wrongStock);
@@ -611,6 +612,7 @@ public sealed class TagOrderCatalogIntegrationTests
             HasNfc = false,
             Variant = "Lightweight",
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated
         };
         harness.Db.AddRange(secondPet, qrVariant, qrStock);
@@ -908,6 +910,7 @@ public sealed class TagOrderCatalogIntegrationTests
             HasNfc = variant.SupportsNfc,
             Variant = variant.TagVariant,
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         });
         await db.SaveChangesAsync();
@@ -1033,6 +1036,7 @@ public sealed class TagOrderCatalogIntegrationTests
                 HasNfc = true,
                 Variant = "Standard",
                 Status = SmartTagStatus.Unclaimed,
+                QaStatus = PhysicalQaStatus.Passed,
                 FulfilmentStatus = TagFulfilmentStatus.Generated
             };
             var deliveryRate = new DeliveryRate

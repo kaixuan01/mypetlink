@@ -73,6 +73,8 @@ public sealed class MerchantQuotationEmailTemplateRenderer : IEmailTemplateRende
                 $"These prices are held until {validUntil}. Reply to this email to accept the "
                 + "quotation and we will raise your invoice.")
             + _layout.Paragraph(
+                "Quotation only. Product availability is subject to confirmation at the time of order fulfilment.", subdued: true)
+            + _layout.Paragraph(
                 "This quotation is not an invoice and is not proof of payment.", subdued: true);
 
         var text = string.Join("\n", new[]
@@ -90,6 +92,7 @@ public sealed class MerchantQuotationEmailTemplateRenderer : IEmailTemplateRende
             $"These prices are held until {validUntil}. Reply to this email to accept the",
             "quotation and we will raise your invoice.",
             "",
+            "Quotation only. Product availability is subject to confirmation at the time of order fulfilment.",
             "This quotation is not an invoice and is not proof of payment.",
             "",
             $"Questions? Email {data.SupportEmail}.",

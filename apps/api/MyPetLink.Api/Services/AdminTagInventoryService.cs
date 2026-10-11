@@ -324,8 +324,10 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                 continue;
             }
 
+            // Both moves take a unit off our shelf and issue it, so they are new
+            // commitments: only stock that passed physical QA may go.
             if (transition.To is TagFulfilmentStatus.SentToOwner or TagFulfilmentStatus.SentToReseller
-                && !PhysicalQaReleaseRules.IsReleased(tag))
+                && !SellableInventoryRules.IsPassed(tag))
             {
                 failures.Add(new AdminTagInventoryBulkFailure(tagId, tag.TagCode, "This tag must pass physical inspection before it can be sent onward."));
                 continue;

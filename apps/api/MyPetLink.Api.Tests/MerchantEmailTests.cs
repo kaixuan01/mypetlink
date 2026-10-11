@@ -48,6 +48,20 @@ public sealed class MerchantEmailTests
     }
 
     [Fact]
+    public async Task QuotationEmail_SaysAvailabilityIsConfirmedAtFulfilment()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var quotation = await h.SentQuotationAsync();
+        await h.Emails.QueueQuotationAsync(null, quotation.Id);
+
+        var rendered = h.Renderer.Render(await h.OutboxAsync(EmailMessageType.MerchantQuotation));
+
+        // A quotation reserves no stock; both bodies say so.
+        foreach (var body in new[] { rendered.HtmlBody, rendered.TextBody })
+            Assert.Contains("Quotation only. Product availability is subject to confirmation at the time of order fulfilment.", body);
+    }
+
+    [Fact]
     public async Task QuotationEmail_CarriesExactlyOneQuotationPdf()
     {
         using var h = await MerchantDocumentHarness.CreateAsync();

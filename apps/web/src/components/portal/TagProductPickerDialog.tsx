@@ -22,9 +22,11 @@ export function TagProductPickerDialog({
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const availableProducts = products
-    .map((product) => ({ ...product, variants: product.variants.filter((variant) => variant.inStock) }))
-    .filter((product) => product.variants.length > 0);
+  // Every offered design and option stays visible. Stock is a per-option fact
+  // from the catalogue (QA-passed units not already reserved): an option that is
+  // temporarily out of stock is shown as such and cannot be chosen, rather than
+  // disappearing — the product itself is still on sale.
+  const availableProducts = products.filter((product) => product.variants.length > 0);
 
   useModalDialogFocus({
     dialogRef: panelRef,
@@ -89,13 +91,18 @@ export function TagProductPickerDialog({
                         const selected = variant.key === selectedVariantKey;
                         const technology = tagTechnology(variant);
                         const variantLabel = customerVariantLabel(variant.tagVariant);
+                        const stockLabel = variant.inStock ? "In stock" : "Temporarily out of stock";
                         return (
                           <button
                             aria-checked={selected}
-                            aria-label={`${conciseProductName(product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(variant.price.finalPrice, variant.price.currency)}`}
-                            className={`grid min-h-20 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-pet-teal ${selected ? "border-pet-teal bg-white ring-2 ring-pet-teal/20" : "border-pet-border bg-white hover:border-pet-teal/50"}`}
+                            aria-disabled={!variant.inStock || undefined}
+                            aria-label={`${conciseProductName(product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(variant.price.finalPrice, variant.price.currency)}, ${stockLabel}`}
+                            className={`grid min-h-20 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-pet-teal ${!variant.inStock ? "cursor-not-allowed border-pet-border bg-pet-cream/60 opacity-70" : selected ? "border-pet-teal bg-white ring-2 ring-pet-teal/20" : "border-pet-border bg-white hover:border-pet-teal/50"}`}
+                            disabled={!variant.inStock}
                             key={variant.key}
-                            onClick={() => onSelect(variant.key)}
+                            onClick={() => {
+                              if (variant.inStock) onSelect(variant.key);
+                            }}
                             role="radio"
                             type="button"
                           >
@@ -107,6 +114,7 @@ export function TagProductPickerDialog({
                               {!sharedVariantLabel && variantLabel ? <span className="mt-1 block text-xs font-bold text-pet-muted">{variantLabel}</span> : null}
                               <span className="mt-1 block text-xs font-semibold leading-4 text-pet-muted">{technology.description}</span>
                               {variant.price.promotionLabel ? <span className="mt-1 block text-xs font-black text-pet-coral">{variant.price.promotionLabel}</span> : null}
+                              <span className={`mt-1 block text-xs font-black ${variant.inStock ? "text-pet-sage" : "text-pet-muted"}`}>{stockLabel}</span>
                             </span>
                             <TagPrice variant={variant} />
                           </button>

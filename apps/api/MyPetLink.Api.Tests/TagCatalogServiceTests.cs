@@ -204,6 +204,7 @@ public sealed class TagCatalogServiceTests
             HasNfc = false,
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated
         });
         await harness.Db.SaveChangesAsync();
@@ -248,6 +249,7 @@ public sealed class TagCatalogServiceTests
             HasNfc = false,
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         });
         await harness.Db.SaveChangesAsync();
@@ -395,6 +397,7 @@ public sealed class TagCatalogServiceTests
             HasNfc = false,
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var order = new TagOrder
@@ -444,6 +447,41 @@ public sealed class TagCatalogServiceTests
         Assert.True(Assert.Single(Assert.Single(releasedCatalog).Variants).InStock);
     }
 
+    // The catalogue's inStock is what the order flow lets an owner pick, so it
+    // counts only stock that passed physical inspection: stock still being
+    // inspected, failed, set aside for review, or never inspected at all (QA
+    // NULL — historical or un-enrolled) is never offered for sale, even when the
+    // units are physically in the warehouse.
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(PhysicalQaStatus.Pending, false)]
+    [InlineData(PhysicalQaStatus.Failed, false)]
+    [InlineData(PhysicalQaStatus.NeedsReview, false)]
+    [InlineData(PhysicalQaStatus.Passed, true)]
+    public async Task Catalog_AdvertisesStockOnlyWhenPhysicalQaHasPassed(
+        PhysicalQaStatus? qaStatus,
+        bool expectedInStock)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateVariantAsync(
+            AdminId, harness.Product.Id, harness.ValidVariant("MPL-QA-HELD-V1"));
+        harness.Db.SmartTags.Add(new SmartTag
+        {
+            TagCode = "MPL-QAH-0001",
+            ProductVariantId = created.Id,
+            HasNfc = true,
+            Variant = "Standard",
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated,
+            QaStatus = qaStatus,
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var catalog = await harness.Service.ListPublicAsync();
+
+        Assert.Equal(expectedInStock, Assert.Single(Assert.Single(catalog).Variants).InStock);
+    }
+
     [Fact]
     public async Task CatalogOptions_ProjectsSelectableProductsAndSkus_ExcludingArchived_WithInventoryCounts()
     {
@@ -451,8 +489,8 @@ public sealed class TagCatalogServiceTests
         // Active + purchasable SKU with two inventory tags.
         var active = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-ACTIVE"));
         harness.Db.SmartTags.AddRange(
-            new SmartTag { TagCode = "MPL-OPT-0001", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated },
-            new SmartTag { TagCode = "MPL-OPT-0002", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated });
+            new SmartTag { TagCode = "MPL-OPT-0001", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated, QaStatus = PhysicalQaStatus.Passed },
+            new SmartTag { TagCode = "MPL-OPT-0002", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated, QaStatus = PhysicalQaStatus.Passed });
         // Inactive-but-not-archived SKU (still returned; picker filters by isActive itself).
         await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-INACTIVE") with { IsActive = false, IsPurchasable = false });
         // Archived SKU must be excluded.

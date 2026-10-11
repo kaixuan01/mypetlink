@@ -280,6 +280,7 @@ public sealed class PaymentReservationConcurrencyRelationalTests
             HasNfc = false,
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
+            QaStatus = PhysicalQaStatus.Passed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var order = new TagOrder

@@ -509,7 +509,8 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         }
 
         var now = _timeProvider.GetUtcNow();
-        PhysicalQaReleaseRules.RequireReleased(await _dbContext.MerchantOrderAllocatedTags
+        // Fulfilment hold: only inspected tags leave the warehouse.
+        SellableInventoryRules.RequirePassedForFulfilment(await _dbContext.MerchantOrderAllocatedTags
             .Where(a => a.MerchantOrderId == order.Id && a.ReleasedAt == null)
             .Select(a => a.SmartTag!).ToListAsync(cancellationToken));
         order.FulfilmentStatus = MerchantOrderFulfilmentStatus.ReadyToShip;
@@ -617,7 +618,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         await _inventoryCosting.SnapshotMerchantShipmentAsync(
             order, allocations, now, cancellationToken);
 
-        PhysicalQaReleaseRules.RequireReleased(allocations.Select(a => a.SmartTag!));
+        SellableInventoryRules.RequirePassedForFulfilment(allocations.Select(a => a.SmartTag!));
         foreach (var allocation in allocations)
         {
             allocation.Status = MerchantAllocationStatus.SentToMerchant;

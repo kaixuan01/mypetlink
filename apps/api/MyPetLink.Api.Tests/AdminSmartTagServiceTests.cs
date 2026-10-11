@@ -463,6 +463,10 @@ public sealed class AdminSmartTagServiceTests
         tag.ReplacementForTagId = previousTag.Id;
         tag.ReplacementForTag = previousTag;
         tag.ActivatedAt = Harness.Now.AddDays(-30);
+        // Inspected stock, so the re-activation below is allowed. A returned tag
+        // is inventory again; re-issuing one that was never inspected is
+        // covered by SellableInventoryRulesTests.
+        tag.QaStatus = PhysicalQaStatus.Passed;
         var historicalScan = new TagScan
         {
             SmartTagId = tag.Id,
@@ -629,7 +633,9 @@ public sealed class AdminSmartTagServiceTests
                 Tag("MPL-DISABLED-01", SmartTagStatus.Disabled, false, pet, owner, Now.AddDays(-3)),
                 Tag("MPL-REPLACED-01", SmartTagStatus.Replaced, false, pet, owner, Now.AddDays(-2)),
                 Tag("MPL-ARCHIVE-01", SmartTagStatus.Archived, false, pet, owner, Now.AddDays(-1), archived: true),
-                Tag("MPL-UNCLAIMED-01", SmartTagStatus.Unclaimed, false, null, null, Now),
+                // Inspected stock: handing an unowned tag to an owner is a new
+                // commitment and needs physical QA Passed.
+                Tag("MPL-UNCLAIMED-01", SmartTagStatus.Unclaimed, false, null, null, Now, qa: PhysicalQaStatus.Passed),
                 Tag("MPL-DISABLED-FREE", SmartTagStatus.Disabled, true, null, null, Now.AddMinutes(1)),
             };
             db.Users.AddRange(admin, owner, secondOwner);
@@ -644,8 +650,8 @@ public sealed class AdminSmartTagServiceTests
             return new Harness(db);
         }
 
-        private static SmartTag Tag(string code, SmartTagStatus status, bool nfc, Pet? pet, User? owner, DateTimeOffset created, DateTimeOffset? activated = null, bool archived = false)
-            => new() { TagCode = code, Status = status, HasNfc = nfc, Variant = nfc ? "Lightweight" : "Standard",
+        private static SmartTag Tag(string code, SmartTagStatus status, bool nfc, Pet? pet, User? owner, DateTimeOffset created, DateTimeOffset? activated = null, bool archived = false, PhysicalQaStatus? qa = null)
+            => new() { TagCode = code, Status = status, HasNfc = nfc, Variant = nfc ? "Lightweight" : "Standard", QaStatus = qa,
                 Pet = pet, PetId = pet?.Id, OwnerUser = owner, OwnerUserId = owner?.Id, CreatedAt = created, UpdatedAt = created,
                 ActivatedAt = activated, LastScannedAt = code == "MPL-ACTIVE-01" ? Now.AddDays(-1) : null,
                 ArchivedAt = archived ? Now : null };

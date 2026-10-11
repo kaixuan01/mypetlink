@@ -11,16 +11,20 @@ using MyPetLink.Api.Services;
 namespace MyPetLink.Api.Tests.Relational;
 
 /// <summary>
-/// The third audit's F4 races, on SQL Server through the real services:
-/// F4-A, a draft edit changing the quotation's SKUs around Send or Convert; and
-/// F4-B, a lost SQL session or an ambiguous commit during Send or Convert.
+/// The third audit's F4 races, on SQL Server through the real services, under
+/// the non-binding quotation rule: a quotation neither reads nor reserves stock,
+/// so Send and Convert take only the quotation's own lock and never a SKU stock
+/// lock. F4-A, a draft edit changing the quotation's SKUs around Send or
+/// Convert; and F4-B, a lost SQL session or an ambiguous commit during Send or
+/// Convert. Stock is decided later, when an order is allocated from QA-passed
+/// units.
 /// </summary>
 public sealed partial class PhysicalQaReleaseGateRelationalTests
 {
-    // --- F4-A: draft edits cannot change the SKUs a Send or Convert is protecting -------
+    // --- F4-A: draft edits cannot change the lines a Send or Convert is writing ---------
 
     [RelationalFact]
-    public async Task F4A_AnEditToAnotherSkuWaitsForSendAndSendNeverCommitsAgainstWithdrawnStock()
+    public async Task F4A_AnEditToAnotherSkuWaitsForSendAndQaNeverWaitsForEither()
     {
         var race = new QuotationRaceInterceptor();
         await using var scope = await RelationalDatabase.CreateAsync(race, enableRetryOnFailure: true);
@@ -28,58 +32,33 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
 
         await using var salesDb = scope.NewContext();
         race.Target = salesDb;
-        var lockHeld = race.PauseAfterStockLock();
+        var lockHeld = race.PauseAfterQuotationLock();
         var send = CaptureOutcome(() => Sales(salesDb).TransitionQuotationAsync(null, seed.QuotationId, MerchantQuotationStatus.Sent, null, default));
         await lockHeld.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         // Another admin moves the draft from SKU A to SKU B — without a concurrency token.
         var edit = EditToAsync(scope, seed, seed.SkuB);
         await Task.Delay(1500);
-        Assert.False(edit.IsCompleted, "The draft changed while Send held its locks.");
+        Assert.False(edit.IsCompleted, "The draft changed while Send held the quotation.");
 
-        // QA withdraws SKU B stock while Send is between its stock check and its save.
-        var counted = race.PauseAfterStockCount();
+        // QA takes no quotation lock: withdrawing the quoted stock completes at once.
+        await WithdrawAsync(scope, seed.SkuACodes[0]).WaitAsync(TimeSpan.FromSeconds(10));
+        await WithdrawAsync(scope, seed.SkuACodes[1]).WaitAsync(TimeSpan.FromSeconds(10));
         lockHeld.Release.SetResult();
-        await counted.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        await WithdrawAsync(scope, seed.SkuBCodes[0]);
-        counted.Release.SetResult();
 
+        // Sending is not a stock commitment, so the withdrawal does not refuse it.
         Assert.Null((await send).Error);
         Assert.Equal("quotation_not_editable", Assert.IsType<ApiException>((await edit).Error).Code);
+        Assert.Equal(0, race.StockLocks);
         await using var check = scope.NewContext();
         var quotation = await check.MerchantQuotations.Include(q => q.Items).SingleAsync(q => q.Id == seed.QuotationId);
         Assert.Equal(MerchantQuotationStatus.Sent, quotation.Status);
-        // What was sent is exactly what was validated: SKU A, whose stock is intact.
+        // What was sent is exactly what Send loaded: SKU A, never the edit's SKU B.
         Assert.All(quotation.Items, item => Assert.Equal(seed.SkuA, item.ProductVariantId));
     }
 
     [RelationalFact]
-    public async Task F4A_AnEditAfterTheProtectedStockCheckWaitsUntilSendCommits()
-    {
-        var race = new QuotationRaceInterceptor();
-        await using var scope = await RelationalDatabase.CreateAsync(race, enableRetryOnFailure: true);
-        var seed = await SeedTwoSkuQuotationAsync(scope, MerchantQuotationStatus.Draft);
-
-        await using var salesDb = scope.NewContext();
-        race.Target = salesDb;
-        var counted = race.PauseAfterStockCount();
-        var send = CaptureOutcome(() => Sales(salesDb).TransitionQuotationAsync(null, seed.QuotationId, MerchantQuotationStatus.Sent, null, default));
-        await counted.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
-
-        var edit = EditToAsync(scope, seed, seed.SkuB);
-        await Task.Delay(1500);
-        Assert.False(edit.IsCompleted, "The draft changed after Send's stock check and before its commit.");
-        counted.Release.SetResult();
-
-        Assert.Null((await send).Error);
-        Assert.Equal("quotation_not_editable", Assert.IsType<ApiException>((await edit).Error).Code);
-        await using var check = scope.NewContext();
-        Assert.All(await check.MerchantQuotationItems.Where(i => i.QuotationId == seed.QuotationId).ToListAsync(),
-            item => Assert.Equal(seed.SkuA, item.ProductVariantId));
-    }
-
-    [RelationalFact]
-    public async Task F4A_AnEditDuringConvertWaitsAndTheOrderUsesTheValidatedLines()
+    public async Task F4A_AnEditDuringConvertWaitsAndTheOrderUsesTheLinesConvertLoaded()
     {
         var race = new QuotationRaceInterceptor();
         await using var scope = await RelationalDatabase.CreateAsync(race, enableRetryOnFailure: true);
@@ -87,17 +66,18 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
 
         await using var salesDb = scope.NewContext();
         race.Target = salesDb;
-        var lockHeld = race.PauseAfterStockLock();
+        var lockHeld = race.PauseAfterQuotationLock();
         var convert = CaptureOutcome(() => Sales(salesDb).ConvertQuotationAsync(null, seed.QuotationId, null, default));
         await lockHeld.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         var edit = EditToAsync(scope, seed, seed.SkuB);
         await Task.Delay(1500);
-        Assert.False(edit.IsCompleted, "A quotation edit ran while Convert held its locks.");
+        Assert.False(edit.IsCompleted, "A quotation edit ran while Convert held the quotation.");
         lockHeld.Release.SetResult();
 
         Assert.Null((await convert).Error);
         Assert.Equal("quotation_not_editable", Assert.IsType<ApiException>((await edit).Error).Code);
+        Assert.Equal(0, race.StockLocks);
         await using var check = scope.NewContext();
         var order = await check.MerchantOrders.Include(o => o.Items).SingleAsync(o => o.SourceQuotationId == seed.QuotationId);
         Assert.All(order.Items, item => Assert.Equal(seed.SkuA, item.ProductVariantId));
@@ -108,7 +88,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     [RelationalTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task F4B_AConnectionLostAfterLockingRetriesFromScratchAndRefusesWithdrawnStock(bool convert)
+    public async Task F4B_AConnectionLostAfterLockingRetriesFromScratchAndQaMeanwhileDoesNotRefuseIt(bool convert)
     {
         var race = new QuotationRaceInterceptor();
         await using var scope = await RelationalDatabase.CreateAsync(race, enableRetryOnFailure: true);
@@ -117,26 +97,31 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         await using var salesDb = scope.NewContext();
         race.Target = salesDb;
         // The commercial write is about to run: the session dies (taking its
-        // locks with it), and QA withdraws stock before the operation retries.
+        // lock with it), and QA withdraws every quoted unit before the retry.
         race.BeforeWrite(convert ? "INSERT INTO [MerchantOrders]" : "UPDATE [MerchantQuotations]", async command =>
         {
             await KillSessionAsync(command);
             await WithdrawAsync(scope, seed.SkuACodes[0]);
-            throw new TimeoutException("Simulated transport failure after the locks were taken.");
+            await WithdrawAsync(scope, seed.SkuACodes[1]);
+            throw new TimeoutException("Simulated transport failure after the lock was taken.");
         });
 
         var outcome = await CaptureOutcome(() => convert
             ? (Task)Sales(salesDb).ConvertQuotationAsync(null, seed.QuotationId, null, default)
             : Sales(salesDb).TransitionQuotationAsync(null, seed.QuotationId, MerchantQuotationStatus.Sent, null, default));
 
-        Assert.Equal("physical_qa_stock_unavailable", Assert.IsType<ApiException>(outcome.Error).Code);
-        // The retry took its locks again and counted stock again.
-        Assert.True(race.StockLocks >= 2, $"Stock locks taken: {race.StockLocks}");
-        Assert.True(race.StockCounts >= 2, $"Stock counts: {race.StockCounts}");
+        // A quotation is non-binding: the retry succeeds without counting stock.
+        Assert.Null(outcome.Error);
+        Assert.True(race.QuotationLocks >= 2, $"Quotation locks taken: {race.QuotationLocks}");
+        Assert.Equal((0, 0), (race.StockLocks, race.StockCounts));
         await using var check = scope.NewContext();
-        Assert.Equal(convert ? MerchantQuotationStatus.Accepted : MerchantQuotationStatus.Draft,
+        Assert.Equal(convert ? MerchantQuotationStatus.Converted : MerchantQuotationStatus.Sent,
             (await check.MerchantQuotations.SingleAsync(q => q.Id == seed.QuotationId)).Status);
-        Assert.False(await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == seed.QuotationId));
+        Assert.Equal(convert ? 1 : 0, await check.MerchantOrders.CountAsync(o => o.SourceQuotationId == seed.QuotationId));
+        Assert.Equal(1, await check.AuditLogs.CountAsync(a => a.Action == (convert ? "merchant-order.created" : "quotation.sent")));
+        // Converting allocated nothing; the withdrawn units stay withdrawn.
+        Assert.False(await check.MerchantOrderAllocatedTags.AnyAsync());
+        Assert.Equal(2, await check.SmartTags.CountAsync(t => t.QaStatus == PhysicalQaStatus.Failed));
     }
 
     [RelationalTheory]
@@ -212,10 +197,10 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         Assert.Same(all, await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(45))));
 
         await using var check = scope.NewContext();
-        var status = (await check.MerchantQuotations.SingleAsync(q => q.Id == seed.QuotationId)).Status;
-        // Either Send counted both SKUs before the withdrawals, or it saw them and refused.
-        if ((await send).Error is { } error) Assert.Equal("physical_qa_stock_unavailable", Assert.IsType<ApiException>(error).Code);
-        else Assert.Equal(MerchantQuotationStatus.Sent, status);
+        // Send never depends on stock, whichever way the QA results land.
+        Assert.Null((await send).Error);
+        Assert.Equal(MerchantQuotationStatus.Sent, (await check.MerchantQuotations.SingleAsync(q => q.Id == seed.QuotationId)).Status);
+        Assert.Equal(2, await check.SmartTags.CountAsync(t => t.QaStatus == PhysicalQaStatus.Failed));
     }
 
     [RelationalFact]
@@ -246,7 +231,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
 
         await using var salesDb = scope.NewContext();
         race.Target = salesDb;
-        var lockHeld = race.PauseAfterStockLock();
+        var lockHeld = race.PauseAfterQuotationLock();
         using var cancel = new CancellationTokenSource();
         var send = CaptureOutcome(() => Sales(salesDb).TransitionQuotationAsync(null, seed.QuotationId, MerchantQuotationStatus.Sent, null, cancel.Token));
         await lockHeld.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -334,8 +319,8 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         var result = await Sales(salesDb).ConvertQuotationAsync(null, seed.QuotationId, null, default);
 
         Assert.False(result.AlreadyConverted);
-        Assert.True(race.StockLocks >= 2, $"Stock locks taken: {race.StockLocks}");
-        Assert.True(race.StockCounts >= 2, $"Stock counts: {race.StockCounts}");
+        Assert.True(race.QuotationLocks >= 2, $"Quotation locks taken: {race.QuotationLocks}");
+        Assert.Equal((0, 0), (race.StockLocks, race.StockCounts));
         await using var check = scope.NewContext();
         var order = await check.MerchantOrders.SingleAsync(o => o.SourceQuotationId == seed.QuotationId);
         Assert.Equal(order.Id, result.Order.Id);
@@ -343,7 +328,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     }
 
     [RelationalFact]
-    public async Task F4B_ScenarioE_StockWithdrawnBeforeTheRetryIsRefused()
+    public async Task F4B_ScenarioE_StockWithdrawnBeforeTheRetryDoesNotChangeTheConversion()
     {
         var race = new QuotationRaceInterceptor();
         await using var scope = await RelationalDatabase.CreateAsync(race, enableRetryOnFailure: true);
@@ -355,11 +340,14 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         race.OnVerification(() => WithdrawAsync(scope, seed.SkuACodes[0]));
         var outcome = await CaptureOutcome(() => Sales(salesDb).ConvertQuotationAsync(null, seed.QuotationId, null, default));
 
-        Assert.Equal("physical_qa_stock_unavailable", Assert.IsType<ApiException>(outcome.Error).Code);
+        // Converting is not a stock commitment: the retry creates the one order,
+        // and allocation later takes only QA-passed units.
+        Assert.False(Assert.IsType<ConvertQuotationResult>(outcome.Value).AlreadyConverted);
         await using var check = scope.NewContext();
-        Assert.False(await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == seed.QuotationId));
-        Assert.Equal(MerchantQuotationStatus.Accepted, (await check.MerchantQuotations.SingleAsync(q => q.Id == seed.QuotationId)).Status);
-        Assert.False(await check.AuditLogs.AnyAsync(a => a.Action == "merchant-order.created"));
+        var order = await check.MerchantOrders.SingleAsync(o => o.SourceQuotationId == seed.QuotationId);
+        Assert.Equal(MerchantQuotationStatus.Converted, (await check.MerchantQuotations.SingleAsync(q => q.Id == seed.QuotationId)).Status);
+        Assert.Equal(order.Id, (await check.AuditLogs.SingleAsync(a => a.Action == "merchant-order.created")).EntityId);
+        Assert.False(await check.MerchantOrderAllocatedTags.AnyAsync());
     }
 
     [RelationalFact]
@@ -488,21 +476,22 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     }
 
     /// <summary>
-    /// Scripted faults for one chosen context: pause after it takes a SKU stock
-    /// lock or counts released stock, run an action just before a commercial
-    /// write, or fail the client after a commit that did succeed.
+    /// Scripted faults for one chosen context: pause after it takes the
+    /// quotation's lock, run an action just before a commercial write, or fail
+    /// the client after a commit that did succeed. It also counts any SKU stock
+    /// lock or stock count, which a non-binding quotation must never take.
     /// </summary>
     private sealed class QuotationRaceInterceptor : DbCommandInterceptor, IDbTransactionInterceptor
     {
         public DbContext? Target { get; set; }
+        public int QuotationLocks;
         public int StockLocks;
         public int StockCounts;
         public bool FailAfterNextCommit { get; set; }
         public bool FailBeforeNextCommit { get; set; }
         private bool _commitFailed;
         private Func<Task>? _onVerification;
-        private Gate? _afterStockLock;
-        private Gate? _afterStockCount;
+        private Gate? _afterQuotationLock;
         private (string Text, Func<DbCommand, Task> Action)? _beforeWrite;
 
         public sealed class Gate
@@ -511,19 +500,20 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
-        public Gate PauseAfterStockLock() => _afterStockLock = new Gate();
-        public Gate PauseAfterStockCount() => _afterStockCount = new Gate();
+        public Gate PauseAfterQuotationLock() => _afterQuotationLock = new Gate();
         public void BeforeWrite(string text, Func<DbCommand, Task> action) => _beforeWrite = (text, action);
         // Runs once, when the failed commit's outcome is first looked up.
         public void OnVerification(Func<Task> action) => _onVerification = action;
 
         public override async ValueTask<int> NonQueryExecutedAsync(DbCommand command, CommandExecutedEventData eventData, int result, CancellationToken cancellationToken = default)
         {
-            if (eventData.Context == Target && command.CommandText.Contains("sp_getapplock")
-                && command.Parameters.Cast<DbParameter>().Any(p => p.Value is string s && s.Contains("TagOrderInventory")))
+            if (eventData.Context != Target || !command.CommandText.Contains("sp_getapplock")) return result;
+            var resources = command.Parameters.Cast<DbParameter>().Select(p => p.Value).OfType<string>().ToArray();
+            if (resources.Any(s => s.Contains("TagOrderInventory"))) Interlocked.Increment(ref StockLocks);
+            if (resources.Any(s => s.Contains("MerchantQuotation:")))
             {
-                Interlocked.Increment(ref StockLocks);
-                await PassAsync(Interlocked.Exchange(ref _afterStockLock, null));
+                Interlocked.Increment(ref QuotationLocks);
+                await PassAsync(Interlocked.Exchange(ref _afterQuotationLock, null));
             }
             return result;
         }
@@ -578,11 +568,11 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             return Task.CompletedTask;
         }
 
-        private async Task CountedAsync(DbCommand command, CommandExecutedEventData eventData)
+        private Task CountedAsync(DbCommand command, CommandExecutedEventData eventData)
         {
-            if (eventData.Context != Target || !command.CommandText.Contains("[SmartTags]") || !command.CommandText.Contains("COUNT(")) return;
-            Interlocked.Increment(ref StockCounts);
-            await PassAsync(Interlocked.Exchange(ref _afterStockCount, null));
+            if (eventData.Context == Target && command.CommandText.Contains("[SmartTags]") && command.CommandText.Contains("COUNT("))
+                Interlocked.Increment(ref StockCounts);
+            return Task.CompletedTask;
         }
 
         private static async Task PassAsync(Gate? gate)

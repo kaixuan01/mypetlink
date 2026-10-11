@@ -877,7 +877,9 @@ public sealed class AdminOrderServiceTests
                 Id = Guid.NewGuid(), TagCode = "MPL-PREP-0001", HasNfc = true,
                 Variant = TagVariants.Standard, Status = SmartTagStatus.Preparing,
                 OwnerUserId = OwnerId, OwnerUser = owner, PetId = PetId, Pet = pet,
-                OrderId = orders[3].Id, Order = orders[3]
+                OrderId = orders[3].Id, Order = orders[3],
+                // Inspected: only tags that passed physical QA leave the warehouse.
+                QaStatus = PhysicalQaStatus.Passed,
             };
             orders[3].SmartTagId = preparingTag.Id;
             orders[3].SmartTag = preparingTag;

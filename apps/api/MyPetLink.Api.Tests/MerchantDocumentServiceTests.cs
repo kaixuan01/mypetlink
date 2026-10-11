@@ -111,6 +111,8 @@ public sealed class MerchantDocumentServiceTests
 
         Assert.Contains(Squash("Quotation"), text);
         Assert.Contains(Squash("not an invoice and not proof of payment"), text);
+        // A quotation reserves nothing, and the document says so.
+        Assert.Contains(Squash("Quotation only. Product availability is subject to confirmation at the time of order fulfilment."), text);
     }
 
     [Fact]

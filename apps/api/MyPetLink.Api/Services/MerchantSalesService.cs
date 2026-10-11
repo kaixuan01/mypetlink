@@ -483,7 +483,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
     {
         // Holds the quotation lock through the save, so a draft can never change
         // its lines while a Send or a conversion of it is in progress.
-        await RunQuotationUnitAsync(id, lockStock: false, async (quotation, ct) =>
+        await RunQuotationUnitAsync(id, async (quotation, ct) =>
         {
             // Smallest safe rule: money is editable only while the quotation is a
             // Draft. Once it has been Sent the merchant has seen these figures, so
@@ -527,9 +527,10 @@ public sealed class MerchantSalesService : IMerchantSalesService
         Guid? actorId, Guid id, MerchantQuotationStatus target, string? concurrencyToken,
         CancellationToken cancellationToken)
     {
-        // Sending re-checks released stock, so it also locks the SKUs of the
-        // quotation's current lines for the whole check-and-save.
-        await RunQuotationUnitAsync(id, lockStock: target == MerchantQuotationStatus.Sent, async (quotation, ct) =>
+        // A quotation is non-binding: it neither reads nor reserves stock, so a
+        // transition locks only the quotation itself. Availability is decided
+        // when an order is allocated, from QA-passed stock.
+        await RunQuotationUnitAsync(id, async (quotation, ct) =>
         {
             // Asking for the state it is already in succeeds without doing anything,
             // so a retry after a dropped response is safe.
@@ -599,7 +600,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
         Guid? createdOrderId = null;
         try
         {
-            await RunQuotationUnitAsync(id, lockStock: true, async (quotation, ct) =>
+            await RunQuotationUnitAsync(id, async (quotation, ct) =>
             {
                 existingOrderId = null;
                 createdOrderId = null;
@@ -634,8 +635,10 @@ public sealed class MerchantSalesService : IMerchantSalesService
                         "This merchant is inactive and cannot receive a new order.");
                 }
 
+                // Converting creates a merchant order, not a stock commitment: no
+                // inventory is reserved or allocated here. Allocation and
+                // fulfilment take only QA-passed, eligible units.
                 await RevalidateVariantsAsync(quotation.Items, ct);
-                await PhysicalQaReleaseRules.RequireMerchantQaStockAsync(_dbContext, quotation.Items, ct);
 
                 var now = _timeProvider.GetUtcNow();
                 var order = new MerchantOrder
@@ -734,16 +737,15 @@ public sealed class MerchantSalesService : IMerchantSalesService
 
     // Runs one decision about a quotation as a single retriable unit of work.
     // Every attempt, from scratch: open a transaction; lock the quotation, so no
-    // other edit, transition or conversion of it can interleave; reload it; when
-    // stock matters, lock the SKUs of its current lines (in SKU order, after the
-    // quotation); then validate and write. The locks are owned by that
-    // transaction, so a lost connection rolls the attempt back and releases them
-    // together, and the next attempt re-locks and re-validates. Nothing is ever
-    // released by hand, so cleanup cannot fail or hide the real outcome. When a
-    // commit's response is lost, `committed` decides whether it landed.
+    // other edit, transition or conversion of it can interleave; reload it; then
+    // validate and write. Quotations are non-binding and never read stock, so no
+    // inventory lock is taken. The lock is owned by that transaction, so a lost
+    // connection rolls the attempt back and releases it, and the next attempt
+    // re-locks and re-validates. Nothing is ever released by hand, so cleanup
+    // cannot fail or hide the real outcome. When a commit's response is lost,
+    // `committed` decides whether it landed.
     private async Task RunQuotationUnitAsync(
         Guid quotationId,
-        bool lockStock,
         Func<MerchantQuotation, CancellationToken, Task> operation,
         Func<CancellationToken, Task<bool>> committed,
         CancellationToken cancellationToken)
@@ -760,12 +762,6 @@ public sealed class MerchantSalesService : IMerchantSalesService
                 _dbContext.ChangeTracker.Clear();
                 await LockAsync([$"MyPetLink:MerchantQuotation:{quotationId:N}"], ct);
                 var quotation = await RequireQuotationAsync(quotationId, ct, tracked: true);
-                if (lockStock)
-                {
-                    await LockAsync(SqlServerInventoryReservationLock.InventoryResources(
-                        quotation.Items.Select(item => item.ProductVariantId)), ct);
-                }
-
                 await operation(quotation, ct);
             },
             async ct =>
@@ -786,7 +782,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
         catch (ApiException exception) when (exception.Code == "inventory_busy")
         {
             throw Conflict("inventory_busy",
-                "This quotation or its stock is being updated right now. Try again in a moment.");
+                "This quotation is being updated right now. Try again in a moment.");
         }
     }
 
@@ -1303,7 +1299,6 @@ public sealed class MerchantSalesService : IMerchantSalesService
     private async Task RequireSellableLinesAsync(
         MerchantQuotation quotation, CancellationToken cancellationToken)
     {
-        await PhysicalQaReleaseRules.RequireMerchantQaStockAsync(_dbContext, quotation.Items, cancellationToken);
         var variantIds = quotation.Items.Select(item => item.ProductVariantId).Distinct().ToArray();
         if (variantIds.Length == 0) return;
 

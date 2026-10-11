@@ -260,7 +260,7 @@ function ChooseTagsStep({ cart, choices, products, pets, maxed, error, onAdd, on
 
   return (
     <StepShell title="Choose your physical tags" description="Choose a pet, tag design, and quantity for each line. You can include tags for different pets in one order.">
-      {!hasAvailable ? <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">This product is temporarily unavailable. Please check again later.</p> : null}
+      {!hasAvailable ? <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Every tag option is temporarily out of stock. Please check back soon.</p> : null}
       <div className="space-y-4">
         {cart.map((line, index) => {
           const selected = choices.find((choice) => choice.variant.key === line.productVariantKey);
@@ -355,6 +355,7 @@ function SelectedTagChoice({ index, selected, onOpen }: { index: number; selecte
                 <span className="whitespace-nowrap text-sm font-black text-pet-teal">{formatCatalogPrice(selected.variant.price.finalPrice, selected.variant.price.currency)}</span>
               </span>
               {selected.variant.price.promotionLabel ? <span className="mt-1 text-xs font-black text-pet-coral">{selected.variant.price.promotionLabel}</span> : null}
+              {!selected.variant.inStock ? <span className="mt-1 text-xs font-black text-amber-800">Temporarily out of stock. Choose another option.</span> : null}
               <span className="mt-2 text-xs font-black text-pet-teal underline">Change</span>
             </>
           ) : (

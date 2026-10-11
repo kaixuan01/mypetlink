@@ -142,11 +142,12 @@ describe("TagOrderFlow catalog pricing", () => {
     expect(screen.getByText("QR + NFC")).toBeTruthy();
   });
 
-  it("shows a product-level unavailable state when every option is unavailable", async () => {
+  it("says every option is temporarily out of stock, never coming soon, when nothing is in stock", async () => {
     catalogData = [{ ...catalog[0], variants: [{ ...catalog[0].variants[0], inStock: false }] }];
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    expect(await screen.findByText("This product is temporarily unavailable. Please check again later.")).toBeTruthy();
+    expect(await screen.findByText("Every tag option is temporarily out of stock. Please check back soon.")).toBeTruthy();
+    expect(screen.queryByText(/coming soon/i)).toBeNull();
     expect(screen.queryByText(/choose another option/i)).toBeNull();
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
   });

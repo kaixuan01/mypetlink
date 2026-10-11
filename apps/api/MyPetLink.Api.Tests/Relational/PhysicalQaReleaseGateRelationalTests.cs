@@ -171,6 +171,40 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         }
     }
 
+    [RelationalFact]
+    public async Task ALegacyTagOnAPaidOrderShipsOnceItHasBeenInspected()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        Guid variantId, orderId;
+        await using (var seed = scope.NewContext())
+        {
+            variantId = await SeedRetailAsync(seed, tags: 1);
+            orderId = await SeedConfirmedOrderAsync(seed, variantId, "ORD-QA-HOLD");
+        }
+        // Paid and assigned before the new-sale rule (QA NULL): held at the warehouse exit.
+        await LinkHistoricalOrderTagAsync(scope, orderId, Code(0));
+        await using (var db = scope.NewContext())
+        {
+            await Admin(db).MarkOrderPreparingAsync(AdminId, orderId, await OrderVersionAsync(db, orderId));
+            Assert.Equal("physical_qa_required", (await Assert.ThrowsAsync<ApiException>(async () =>
+                await Admin(db).MarkOrderReadyToShipAsync(AdminId, orderId, await OrderVersionAsync(db, orderId)))).Code);
+        }
+
+        // Resolved by inspection: enroll the tag with its commitment acknowledged,
+        // pass it, and the same order ships with the same tag.
+        await EnrollAsync(scope, [Code(0)], acknowledge: true, shipment: "SHIP-HOLD");
+        await PassAsync(scope, Code(0));
+        await using (var db = scope.NewContext())
+        {
+            await Admin(db).MarkOrderReadyToShipAsync(AdminId, orderId, await OrderVersionAsync(db, orderId));
+            await Admin(db).MarkOrderShippedAsync(AdminId, orderId, new MarkOrderShippedRequest(
+                "Test Courier", "Standard", "QA-TRK-HOLD", null, null, await OrderVersionAsync(db, orderId)));
+        }
+        await using var check = scope.NewContext();
+        var tag = await check.SmartTags.SingleAsync(t => t.TagCode == Code(0));
+        Assert.Equal((orderId, PhysicalQaStatus.Passed, TagFulfilmentStatus.SentToOwner), (tag.OrderId!.Value, tag.QaStatus!.Value, tag.FulfilmentStatus));
+    }
+
     // --- Direct claim, transfer and bulk outbound actions -----------------------
 
     [RelationalFact]
@@ -183,9 +217,10 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             variantId = await SeedRetailAsync(seed, tags: 2);
             orderId = await SeedConfirmedOrderAsync(seed, variantId, "ORD-QA-3");
         }
-        // The second tag is promised to an order before the shipment is enrolled.
+        // The second tag was promised to an order before the shipment was
+        // enrolled (a historical commitment the service no longer makes).
         var committed = await TagIdAsync(scope, Code(1));
-        await using (var db = scope.NewContext()) await Admin(db).AssignInventoryTagAsync(AdminId, orderId, committed);
+        await LinkHistoricalOrderTagAsync(scope, orderId, Code(1));
         await EnrollAsync(scope, [Code(0), Code(1)], acknowledge: true);
 
         var unclaimed = await TagIdAsync(scope, Code(0));
@@ -217,7 +252,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     [RelationalTheory]
     [InlineData("send-to-owner", TagFulfilmentStatus.SentToOwner)]
     [InlineData("send-to-reseller", TagFulfilmentStatus.SentToReseller)]
-    public async Task BulkSendOnwardMovesOnlyReleasedTags(string action, TagFulfilmentStatus expected)
+    public async Task BulkSendOnwardMovesOnlyPassedTags(string action, TagFulfilmentStatus expected)
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
         await using (var seed = scope.NewContext())
@@ -233,30 +268,34 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         await using (var db = scope.NewContext())
         {
             var result = await Inventory(db).BulkUpdateFulfilmentAsync(AdminId, new AdminTagInventoryBulkActionRequest(action, [held, passed, historical]));
-            var failure = Assert.Single(result.Failures);
-            Assert.Equal(held, failure.TagId);
+            // Sending shelf stock onward issues it. A never-inspected legacy tag
+            // (QA NULL) is not inspected stock, so it stays with the held one.
+            Assert.Equal([held, historical], result.Failures.Select(f => f.TagId).OrderBy(id => id == held ? 0 : 1));
         }
         await using (var check = scope.NewContext())
         {
             Assert.Equal(TagFulfilmentStatus.Printed, (await check.SmartTags.SingleAsync(t => t.Id == held)).FulfilmentStatus);
             Assert.Equal(expected, (await check.SmartTags.SingleAsync(t => t.Id == passed)).FulfilmentStatus);
-            Assert.Equal(expected, (await check.SmartTags.SingleAsync(t => t.Id == historical)).FulfilmentStatus);
+            Assert.Equal(TagFulfilmentStatus.Printed, (await check.SmartTags.SingleAsync(t => t.Id == historical)).FulfilmentStatus);
         }
     }
 
     // --- Public activation --------------------------------------------------------
 
     [RelationalFact]
-    public async Task PublicActivationRefusesHeldStockAndKeepsHistoricalBehaviour()
+    public async Task PublicActivationRefusesHeldAndNeverIssuedStockAndKeepsIssuedLegacyTags()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
         Guid variantId, orderId;
         await using (var seed = scope.NewContext())
         {
-            variantId = await SeedRetailAsync(seed, tags: 5);
+            variantId = await SeedRetailAsync(seed, tags: 6);
             orderId = await SeedConfirmedOrderAsync(seed, variantId, "ORD-QA-4");
+            // A legacy tag that left our stock through a reseller before QA existed.
+            (await seed.SmartTags.SingleAsync(t => t.TagCode == Code(5))).FulfilmentStatus = TagFulfilmentStatus.Received;
+            await seed.SaveChangesAsync();
         }
-        await using (var db = scope.NewContext()) await Admin(db).AssignInventoryTagAsync(AdminId, orderId, await TagIdAsync(scope, Code(3)));
+        await LinkHistoricalOrderTagAsync(scope, orderId, Code(3));
         await EnrollAsync(scope, [Code(0), Code(1), Code(2), Code(3)], acknowledge: true);
         await SaveAsync(scope, Code(1), PhysicalQaStatus.Failed, PhysicalTagCondition.Damaged, "Chip unreadable");
         await PassAsync(scope, Code(2));
@@ -273,8 +312,13 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
                 Activation(db).ActivateAsync(OwnerId, Code(3), new ActivateTagRequest(null)))).Code);
 
         await using (var db = scope.NewContext()) await Activation(db).ActivateAsync(OwnerId, Code(2), new ActivateTagRequest(PetId));
-        // Historical stock outside the QA cohort activates exactly as before.
-        await using (var db = scope.NewContext()) await Activation(db).ActivateAsync(OwnerId, Code(4), new ActivateTagRequest(PetId));
+        // A legacy tag (QA NULL) still on our shelf was never issued or inspected:
+        // handing it to an owner would be a new commitment of untested stock.
+        await using (var db = scope.NewContext())
+            Assert.Equal("tag_not_ready", (await Assert.ThrowsAsync<ApiException>(() =>
+                Activation(db).ActivateAsync(OwnerId, Code(4), new ActivateTagRequest(PetId)))).Code);
+        // A legacy tag already issued through a reseller activates as before.
+        await using (var db = scope.NewContext()) await Activation(db).ActivateAsync(OwnerId, Code(5), new ActivateTagRequest(PetId));
 
         await using var check = scope.NewContext();
         var statuses = await check.SmartTags.ToDictionaryAsync(t => t.TagCode, t => t.Status);
@@ -282,7 +326,8 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         Assert.Equal(SmartTagStatus.Unclaimed, statuses[Code(1)]);
         Assert.Equal(SmartTagStatus.Active, statuses[Code(2)]);
         Assert.NotEqual(SmartTagStatus.Active, statuses[Code(3)]);
-        Assert.Equal(SmartTagStatus.Active, statuses[Code(4)]);
+        Assert.Equal(SmartTagStatus.Unclaimed, statuses[Code(4)]);
+        Assert.Equal(SmartTagStatus.Active, statuses[Code(5)]);
         Assert.Empty(await check.TagScans.ToListAsync());
     }
 
@@ -300,6 +345,11 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             var service = Service(db);
             await service.AutoAllocateAsync(AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(QrItemId, 10));
             await service.AutoAllocateAsync(AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(NfcItemId, 4));
+            // These allocations stand for commitments made before physical QA
+            // existed: the NFC shipment had never been inspected (QA NULL).
+            foreach (var tag in await db.SmartTags.Where(t => t.ProductVariantId == NfcVariantId).ToListAsync())
+                tag.QaStatus = null;
+            await db.SaveChangesAsync();
         }
 
         var nfcCodes = Enumerable.Range(0, 6).Select(Code).ToArray();
@@ -348,7 +398,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     // --- Quotations ------------------------------------------------------------------
 
     [RelationalFact]
-    public async Task QuotationSendAndConvertCountOnlyReleasedStockForEnrolledSkus()
+    public async Task QuotationsAreNonBindingWhateverTheQaStateOfTheirStock()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
         Guid quotationId, variantId;
@@ -370,28 +420,26 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
                 [new UpsertQuotationItemRequest(variantId, 2, 12.50m)]), default)).Id;
         }
 
-        await using (var db = scope.NewContext())
-            Assert.Equal("physical_qa_stock_unavailable", (await Assert.ThrowsAsync<ApiException>(() =>
-                Sales(db).TransitionQuotationAsync(null, quotationId, MerchantQuotationStatus.Sent, null, default))).Code);
-
-        await SetQaAsync(scope, variantId, PhysicalQaStatus.Passed);
+        // Nothing has passed inspection, and a quotation may still be sent: it
+        // promises a price, not stock.
         await using (var db = scope.NewContext())
         {
             await Sales(db).TransitionQuotationAsync(null, quotationId, MerchantQuotationStatus.Sent, null, default);
             await Sales(db).TransitionQuotationAsync(null, quotationId, MerchantQuotationStatus.Accepted, null, default);
         }
 
-        // One unit fails before conversion: the order would promise stock we no longer have.
+        // Every unit fails before conversion; converting still creates the order,
+        // because it reserves and allocates nothing. Allocation and shipping take
+        // only QA-passed units (MerchantCommitmentsEnrollHeldAndCannotBeReadied...).
+        await SetQaAsync(scope, variantId, PhysicalQaStatus.Failed);
         await using (var db = scope.NewContext())
-        {
-            var tag = await db.SmartTags.FirstAsync(t => t.ProductVariantId == variantId);
-            tag.QaStatus = PhysicalQaStatus.Failed; await db.SaveChangesAsync();
-        }
-        await using (var db = scope.NewContext())
-            Assert.Equal("physical_qa_stock_unavailable", (await Assert.ThrowsAsync<ApiException>(() =>
-                Sales(db).ConvertQuotationAsync(null, quotationId, null, default))).Code);
-        await using (var check = scope.NewContext())
-            Assert.False(await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == quotationId));
+            Assert.False((await Sales(db).ConvertQuotationAsync(null, quotationId, null, default)).AlreadyConverted);
+        await using var check = scope.NewContext();
+        Assert.True(await check.MerchantOrders.AnyAsync(o => o.SourceQuotationId == quotationId));
+        Assert.False(await check.MerchantOrderAllocatedTags.AnyAsync());
+        Assert.All(await check.SmartTags.Where(t => t.ProductVariantId == variantId).ToListAsync(), tag =>
+            Assert.Equal((SmartTagStatus.Unclaimed, PhysicalQaStatus.Failed), (tag.Status, tag.QaStatus)));
+        Assert.Equal(0, await new TagOrderInventoryAvailabilityService(check).GetAvailableUnitsAsync(variantId));
     }
 
     // --- Generation ------------------------------------------------------------------
@@ -435,15 +483,11 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             orderId = await SeedConfirmedOrderAsync(seed, variantId, "ORD-QA-5");
             shippedOrderId = await SeedConfirmedOrderAsync(seed, variantId, "ORD-QA-6");
         }
-        await using (var db = scope.NewContext())
-        {
-            await Admin(db).AssignInventoryTagAsync(AdminId, orderId, await TagIdAsync(scope, Code(1)));
-            await Admin(db).AssignInventoryTagAsync(AdminId, shippedOrderId, await TagIdAsync(scope, Code(2)));
-            await Admin(db).MarkOrderPreparingAsync(AdminId, shippedOrderId, await OrderVersionAsync(db, shippedOrderId));
-            await Admin(db).MarkOrderReadyToShipAsync(AdminId, shippedOrderId, await OrderVersionAsync(db, shippedOrderId));
-            await Admin(db).MarkOrderShippedAsync(AdminId, shippedOrderId, new MarkOrderShippedRequest(
-                "Test Courier", "Standard", "QA-TRK-5", null, null, await OrderVersionAsync(db, shippedOrderId)));
-        }
+        // Both assignments were made before the new-sale rule, with legacy
+        // (QA NULL) stock; the second order also shipped before it.
+        await LinkHistoricalOrderTagAsync(scope, orderId, Code(1));
+        await LinkHistoricalOrderTagAsync(scope, shippedOrderId, Code(2));
+        await MarkHistoricallyShippedAsync(scope, shippedOrderId, Code(2));
 
         // Codes 0-3 are the shipment; code 2 has already shipped, and the
         // manifest also carries a duplicate, a malformed entry and an unknown code.
@@ -635,6 +679,47 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     {
         await using var db = scope.NewContext();
         foreach (var tag in await db.SmartTags.Where(t => t.ProductVariantId == variantId).ToListAsync()) tag.QaStatus = status;
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// A commitment made before the new-sale rule existed: a legacy tag (QA
+    /// NULL) assigned to a paid order. The service no longer creates these, so
+    /// the state is seeded exactly as AdminService.LinkTagToOrder wrote it.
+    /// </summary>
+    internal static async Task LinkHistoricalOrderTagAsync(RelationalScope scope, Guid orderId, string code)
+    {
+        await using var db = scope.NewContext();
+        var order = await db.TagOrders.Include(o => o.Items).SingleAsync(o => o.Id == orderId);
+        var tag = await db.SmartTags.SingleAsync(t => t.TagCode == code);
+        Assert.Null(tag.QaStatus);
+        var item = order.Items.Single();
+        tag.OwnerUserId = order.OwnerUserId;
+        tag.PetId = item.PetId ?? order.PetId;
+        tag.OrderId = order.Id;
+        tag.OrderItemId = item.Id;
+        tag.Status = SmartTagStatus.Preparing;
+        order.SmartTagId ??= tag.Id;
+        order.TrackingStatus = "All inventory tags are assigned. Tag preparation is next.";
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// An order that shipped before the fulfilment hold existed, carrying a
+    /// legacy (QA NULL) tag: seeded as AdminService.MarkOrderShippedAsync left it.
+    /// </summary>
+    internal static async Task MarkHistoricallyShippedAsync(RelationalScope scope, Guid orderId, string code)
+    {
+        await using var db = scope.NewContext();
+        var order = await db.TagOrders.SingleAsync(o => o.Id == orderId);
+        var tag = await db.SmartTags.SingleAsync(t => t.TagCode == code);
+        var shippedAt = DateTimeOffset.UtcNow.AddDays(-3);
+        order.Status = OrderStatus.Shipped;
+        order.ShippedAt = shippedAt;
+        order.CourierProvider = "Test Courier";
+        order.TrackingNumber = "QA-TRK-HIST";
+        tag.FulfilmentStatus = TagFulfilmentStatus.SentToOwner;
+        tag.SentToOwnerAt = shippedAt;
         await db.SaveChangesAsync();
     }
 

@@ -222,7 +222,13 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
                 throw InvalidState("This tag cannot be activated yet.");
             }
 
-            RequirePhysicallyReleased(tag);
+            // Nobody owns this tag yet, so activating it is its first hand-over:
+            // it must have passed physical QA, or be a legacy tag that already
+            // left our stock through a reseller, an owner shipment or a merchant.
+            if (!await SellableInventoryRules.MayBeHandedToOwnerAsync(_dbContext, tag, cancellationToken))
+            {
+                throw TagNotReadyToActivate();
+            }
 
             tag.OwnerUserId = userId;
             tag.PetId = pet.Id;
@@ -231,7 +237,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             tag.ActivatedAt ??= now;
 
             _auditLogService.Append(
-                userId, ActorType.Owner, "tag.activate-retail", "SmartTag", tag.Id,
+                userId, ActorType.Owner, SellableInventoryRules.OwnerActivatedRetailAuditAction, "SmartTag", tag.Id,
                 null, TagStateSnapshot(tag, "Retail activation"));
 
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -282,7 +288,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         }
 
         _auditLogService.Append(
-            userId, ActorType.Owner, "tag.activate-assigned", "SmartTag", tag.Id,
+            userId, ActorType.Owner, SellableInventoryRules.OwnerActivatedAssignedAuditAction, "SmartTag", tag.Id,
             null, TagStateSnapshot(tag, "Assigned portal tag activation"));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -558,17 +564,19 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
 
     // A tag still held by physical QA (Pending, Failed or Needs Review) is not
     // released stock, so nobody can activate it — even with the tag in hand.
-    // Historical tags outside the QA cohort activate exactly as before.
+    // A legacy tag already assigned to its owner (QA NULL) activates as before.
     private static void RequirePhysicallyReleased(SmartTag tag)
     {
         if (!PhysicalQaReleaseRules.IsReleased(tag))
         {
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "tag_not_ready",
-                "This tag isn't ready to activate yet. Please contact MyPetLink Support.");
+            throw TagNotReadyToActivate();
         }
     }
+
+    private static ApiException TagNotReadyToActivate() => new(
+        StatusCodes.Status409Conflict,
+        "tag_not_ready",
+        "This tag isn't ready to activate yet. Please contact MyPetLink Support.");
 
     private static SmartTagStatus ParseStatus(string value)
     {
