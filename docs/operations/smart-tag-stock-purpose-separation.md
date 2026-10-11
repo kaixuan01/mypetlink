@@ -12,6 +12,13 @@
 | Testing sample mapping (2 MYBOSS-LW + 2 PAWSOME-LW) | **Unresolved:** tag codes not yet identified. Script 01 lists the candidates; nothing is classified Test until each code is confirmed and listed |
 | Deployment | **Not approved.** Follows the remediation release and its blockers (X1–X4) |
 
+> **Superseded in part by order first, QA before shipping** (prepared 2026-10-11):
+> the catalogue, checkout and delivery quote now count *orderable* stock
+> (Sale AND received AND QA Pending or Passed), and only *fulfillable* stock
+> (Sale AND QA Passed) can be assigned, allocated or shipped. The purpose rule
+> below is unchanged: only `Sale` stock is ever orderable or fulfillable. See
+> [`smart-tag-order-first-implementation.md`](smart-tag-order-first-implementation.md).
+
 **The safety property does not depend on the unresolved mapping.** After this change, only `Sale` stock that has also passed QA can be sold. Every existing row starts `Unclassified`, which is never sellable. The older samples are therefore excluded from sale from the moment the API is deployed, whether or not anyone ever labels them `Test`. Labelling them `Test` is for clarity and audit.
 
 ---

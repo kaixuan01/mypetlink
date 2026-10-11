@@ -22,7 +22,7 @@ public static class MerchantInventoryEligibility
     public static Expression<Func<SmartTag, bool>> For(
         MyPetLinkDbContext dbContext,
         Guid productVariantId) =>
-        SellableInventoryRules.SellableUnitOf(dbContext, productVariantId);
+        SellableInventoryRules.FulfillableUnitOf(dbContext, productVariantId);
 
     /// <summary>
     /// Deterministic pick order for automatic allocation: oldest approved

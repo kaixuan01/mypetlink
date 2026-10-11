@@ -443,6 +443,7 @@ public sealed class ConcurrencyRelationalTests
                 Status = SmartTagStatus.Unclaimed,
                 QaStatus = PhysicalQaStatus.Passed,
                 StockPurpose = SmartTagStockPurpose.Sale,
+                InventoryReceipt = ReceivedStockFixture.Receipt(seed, variant.Id),
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);

@@ -33,7 +33,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
     // --- Checkout -------------------------------------------------------------
 
     [RelationalFact]
-    public async Task CheckoutRefusesHeldStockAndSellsItOncePassed()
+    public async Task CheckoutTakesEnrolledReceivedStockButOnlyAPassedTagCanBeAssigned()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
         Guid variantId;
@@ -47,24 +47,47 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             });
             await seed.SaveChangesAsync();
         }
-        await EnrollAsync(scope, [Code(0)]);
-
+        // Received but never enrolled for inspection: not orderable.
         await using (var db = scope.NewContext())
         {
             Assert.Equal(0, await new TagOrderInventoryAvailabilityService(db).GetAvailableUnitsAsync(variantId));
-            var refused = await Assert.ThrowsAsync<ApiException>(() => Checkout(db).CreateAsync(OwnerId, CheckoutRequest(db, variantId, "held")));
+            var refused = await Assert.ThrowsAsync<ApiException>(() => Checkout(db).CreateAsync(OwnerId, CheckoutRequest(db, variantId, "unenrolled")));
             Assert.Equal("out_of_stock", refused.Code);
-            Assert.Equal(0, await db.TagOrders.CountAsync());
         }
 
-        await PassAsync(scope, Code(0));
+        // Enrolled and waiting for its inspection: a customer can order it.
+        await EnrollAsync(scope, [Code(0)]);
+        Guid orderId;
         await using (var db = scope.NewContext())
         {
             Assert.Equal(1, await new TagOrderInventoryAvailabilityService(db).GetAvailableUnitsAsync(variantId));
             Assert.Equal(1, (await new TagOrderInventoryAvailabilityService(db).GetAvailableUnitsAsync([variantId]))[variantId]);
-            await Checkout(db).CreateAsync(OwnerId, CheckoutRequest(db, variantId, "passed"));
-            Assert.Equal(1, await db.TagOrders.CountAsync());
+            orderId = (await Checkout(db).CreateAsync(OwnerId, CheckoutRequest(db, variantId, "ordered"))).Order.Id;
+            // The one unit is now reserved.
+            Assert.Equal(0, await new TagOrderInventoryAvailabilityService(db).GetAvailableUnitsAsync(variantId));
+            Assert.Equal("out_of_stock", (await Assert.ThrowsAsync<ApiException>(() =>
+                Checkout(db).CreateAsync(OwnerId, CheckoutRequest(db, variantId, "second")))).Code);
         }
+
+        // Paid, but its tag has not passed: it cannot be assigned.
+        await using (var db = scope.NewContext())
+        {
+            var order = await db.TagOrders.SingleAsync(o => o.Id == orderId);
+            order.Status = OrderStatus.PaymentConfirmed; order.PaymentStatus = PaymentStatus.Confirmed;
+            await db.SaveChangesAsync();
+        }
+        var tagId = await TagIdAsync(scope, Code(0));
+        await using (var db = scope.NewContext())
+            Assert.Equal("physical_qa_required", (await Assert.ThrowsAsync<ApiException>(() =>
+                Admin(db).AssignInventoryTagAsync(AdminId, orderId, tagId))).Code);
+
+        // Inspected and passed: now it is assigned.
+        await PassAsync(scope, Code(0));
+        await using (var db = scope.NewContext())
+            await Admin(db).AssignInventoryTagAsync(AdminId, orderId, tagId);
+        await using var check = scope.NewContext();
+        Assert.Equal(orderId, (await check.SmartTags.SingleAsync(t => t.Id == tagId)).OrderId);
+        Assert.Equal(1, await check.TagOrders.CountAsync());
     }
 
     // --- Retail assignment, change, downgrade and shipping ----------------------
@@ -761,11 +784,14 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         };
         var batch = new SmartTagBatch { BatchNo = "QA-B-0001", ProductVariant = variant, Quantity = tags, HasNfc = true, Variant = "Standard" };
         db.AddRange(product, variant, batch);
+        // The shipment was physically received: a stock receipt owns its tags.
+        var received = ReceivedStockFixture.Receipt(db, variant.Id);
         for (var index = 0; index < tags; index++)
             db.SmartTags.Add(new SmartTag
             {
                 TagCode = Code(index), ProductVariant = variant, Batch = batch, HasNfc = true, Variant = "Standard",
                 Status = SmartTagStatus.Unclaimed, FulfilmentStatus = fulfilment, StockPurpose = SmartTagStockPurpose.Sale,
+                InventoryReceipt = received,
             });
         await db.SaveChangesAsync();
         return variant.Id;

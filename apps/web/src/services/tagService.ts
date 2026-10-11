@@ -1326,6 +1326,112 @@ export async function adminRejectOrderPayment(orderId: string, reason: string) {
   return mockResponse(updatedOrder);
 }
 
+// A tag an admin may hand to this order: unclaimed, commercial stock of the
+// order line's product that has passed physical QA. Tags still waiting for
+// their inspection are only counted, never offered.
+export type AdminAssignableTag = {
+  id: string;
+  tagCode: string;
+  batchNo?: string;
+  productVariantId?: string;
+  sku?: string;
+  hasNfc: boolean;
+  variant: TagVariant;
+  qaInspectedAt?: string;
+};
+
+export type AdminAssignableTagsResult = {
+  items: AdminAssignableTag[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** Units of this product received and waiting for physical QA. */
+  awaitingInspection: number;
+};
+
+type BackendAdminAssignableTags = {
+  items: Array<{
+    id: string;
+    tagCode: string;
+    batchNo?: string | null;
+    productVariantId?: string | null;
+    sku?: string | null;
+    hasNfc: boolean;
+    variant: string;
+    qaInspectedAt?: string | null;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+  awaitingInspection: number;
+};
+
+export async function adminListAssignableOrderTags(
+  orderId: string,
+  options: { orderItemId?: string; search?: string; page?: number; pageSize?: number } = {},
+  signal?: AbortSignal
+): Promise<AdminAssignableTagsResult> {
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 20));
+  const search = options.search?.trim() ?? "";
+
+  if (canUseOwnerTagApi()) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (options.orderItemId) query.set("orderItemId", options.orderItemId);
+    if (search) query.set("search", search);
+    const response = await apiRequest<BackendAdminAssignableTags>(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/assignable-tags?${query.toString()}`,
+      { signal }
+    );
+    const data = response.data;
+    return {
+      items: (data?.items ?? []).map((item) => ({
+        id: item.id,
+        tagCode: item.tagCode,
+        batchNo: item.batchNo ?? undefined,
+        productVariantId: item.productVariantId ?? undefined,
+        sku: item.sku ?? undefined,
+        hasNfc: item.hasNfc,
+        variant: item.variant,
+        qaInspectedAt: item.qaInspectedAt ?? undefined,
+      })),
+      total: data?.total ?? 0,
+      page: data?.page ?? page,
+      pageSize: data?.pageSize ?? pageSize,
+      awaitingInspection: data?.awaitingInspection ?? 0,
+    };
+  }
+
+  await mockDelay();
+  const order = getOrderCollection().find((item) => item.id === orderId);
+  if (!order) {
+    return { items: [], total: 0, page, pageSize, awaitingInspection: 0 };
+  }
+  const term = search.toUpperCase();
+  const matches = getTagCollection().filter(
+    (tag) =>
+      tag.status === "Unassigned" &&
+      !tag.petId &&
+      !tag.isArchived &&
+      tag.hasNfc === order.tagType.includes("NFC") &&
+      tag.variant === order.variant &&
+      (!term || tag.tagCode.toUpperCase().includes(term) || (tag.batchNo ?? "").toUpperCase().includes(term))
+  );
+  return {
+    items: matches.slice((page - 1) * pageSize, page * pageSize).map((tag) => ({
+      id: tag.id,
+      tagCode: tag.tagCode,
+      batchNo: tag.batchNo,
+      hasNfc: tag.hasNfc,
+      variant: tag.variant,
+    })),
+    total: matches.length,
+    page,
+    pageSize,
+    awaitingInspection: 0,
+  };
+}
+
 export async function adminAssignInventoryTag(orderId: string, tagId: string, orderItemId?: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(

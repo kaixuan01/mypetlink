@@ -17,38 +17,50 @@ namespace MyPetLink.Api.Tests.Relational;
 /// </summary>
 public sealed partial class SellableInventoryRelationalTests
 {
+    // Orderable: Sale, received, enrolled and not failed (Pending or Passed).
+    // Fulfillable (assignment, merchant allocation, shipping): Sale and Passed.
     [RelationalTheory]
-    [InlineData(SmartTagStockPurpose.Sale, null, false)]
-    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Pending, false)]
-    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Passed, true)]
-    [InlineData(SmartTagStockPurpose.Test, PhysicalQaStatus.Passed, false)]
-    [InlineData(SmartTagStockPurpose.Test, null, false)]
-    [InlineData(SmartTagStockPurpose.Unclassified, PhysicalQaStatus.Passed, false)]
-    [InlineData(SmartTagStockPurpose.Unclassified, null, false)]
-    public async Task StockPurposeAndPhysicalQaTogetherDecideWhatIsSellable(
-        SmartTagStockPurpose purpose, PhysicalQaStatus? qa, bool sellable)
+    [InlineData(SmartTagStockPurpose.Sale, null, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Pending, true, true, false)]
+    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Passed, true, true, true)]
+    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Failed, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.NeedsReview, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Pending, false, false, false)]
+    [InlineData(SmartTagStockPurpose.Sale, PhysicalQaStatus.Passed, false, false, true)]
+    [InlineData(SmartTagStockPurpose.Test, PhysicalQaStatus.Passed, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Test, PhysicalQaStatus.Pending, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Test, null, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Unclassified, PhysicalQaStatus.Passed, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Unclassified, PhysicalQaStatus.Pending, true, false, false)]
+    [InlineData(SmartTagStockPurpose.Unclassified, null, true, false, false)]
+    public async Task PurposeReceiptAndPhysicalQaDecideWhatIsOrderableAndWhatIsFulfillable(
+        SmartTagStockPurpose purpose, PhysicalQaStatus? qa, bool received, bool orderable, bool fulfillable)
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        Guid variantId;
+        Guid variantId, tagId;
         await using (var seed = scope.NewContext())
         {
             await SeedPeopleAsync(seed);
             variantId = await SeedVariantAsync(seed, "PURP");
-            AddShelfTag(seed, variantId, "MPL-PURP-0001", qa, purpose: purpose);
+            tagId = AddShelfTag(seed, variantId, "MPL-PURP-0001", qa, purpose: purpose, received: received);
             await seed.SaveChangesAsync();
         }
 
         await using (var db = scope.NewContext())
         {
-            Assert.Equal(sellable ? 1 : 0, await new TagOrderInventoryAvailabilityService(db).GetAvailableUnitsAsync(variantId));
-            Assert.Equal(sellable, await InStockAsync(db, variantId));
-            Assert.Equal(sellable ? 1 : 0, await db.SmartTags.Where(MerchantInventoryEligibility.For(db, variantId)).CountAsync());
+            Assert.Equal(orderable ? 1 : 0, await new TagOrderInventoryAvailabilityService(db).GetAvailableUnitsAsync(variantId));
+            Assert.Equal(orderable, await InStockAsync(db, variantId));
+            Assert.Equal(fulfillable ? 1 : 0, await db.SmartTags.Where(MerchantInventoryEligibility.For(db, variantId)).CountAsync());
+            var tag = await db.SmartTags.AsNoTracking().SingleAsync(t => t.Id == tagId);
+            var commitment = Record.Exception(() => SellableInventoryRules.RequireSellableForNewCommitment([tag]));
+            if (fulfillable) Assert.Null(commitment);
+            else Assert.IsType<ApiException>(commitment);
         }
 
         await using (var db = scope.NewContext())
         {
             var checkout = await Record.ExceptionAsync(() => Checkout(db).CreateAsync(OwnerId, CheckoutRequest(db, variantId, "purpose")));
-            if (sellable) Assert.Null(checkout);
+            if (orderable) Assert.Null(checkout);
             else Assert.Equal("out_of_stock", Assert.IsType<ApiException>(checkout).Code);
         }
     }
@@ -218,7 +230,7 @@ public sealed partial class SellableInventoryRelationalTests
         {
             await SeedPeopleAsync(seed);
             variantId = await SeedVariantAsync(seed, "LSTS");
-            AddShelfTag(seed, variantId, "MPL-LSTS-0001", PhysicalQaStatus.Passed);
+            AddShelfTag(seed, variantId, "MPL-LSTS-0001", PhysicalQaStatus.Pending);
             AddShelfTag(seed, variantId, "MPL-LSTS-0002", PhysicalQaStatus.Passed, purpose: SmartTagStockPurpose.Test);
             AddShelfTag(seed, variantId, "MPL-LSTS-0003", PhysicalQaStatus.Passed, purpose: SmartTagStockPurpose.Test);
             AddShelfTag(seed, variantId, "MPL-LSTS-0004", PhysicalQaStatus.Passed, purpose: SmartTagStockPurpose.Unclassified);

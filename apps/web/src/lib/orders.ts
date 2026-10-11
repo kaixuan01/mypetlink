@@ -116,7 +116,7 @@ export function getOrderNextStep(order: TagOrder) {
   }
 
   if (order.status === "Payment Confirmed") {
-    return "Payment is confirmed. Tag preparation is next.";
+    return "Payment is confirmed. Every MyPetLink Smart Tag is individually quality-checked before dispatch, and we'll prepare yours once it has passed.";
   }
 
   if (order.status === "Preparing") {

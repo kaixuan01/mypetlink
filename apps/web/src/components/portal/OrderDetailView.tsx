@@ -946,7 +946,7 @@ function buildFallbackTimeline(order: TagOrder): OrderTimelineEvent[] {
 function unassignedTagMessage(status: OrderStatus) {
   switch (status) {
     case "Payment Confirmed":
-      return "Your tag preparation will begin shortly.";
+      return "Every MyPetLink Smart Tag is individually quality-checked before dispatch. We'll prepare yours once it has passed.";
     case "Preparing":
       return "Your physical tag is being prepared.";
     case "Ready to Ship":

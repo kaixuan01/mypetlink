@@ -401,6 +401,7 @@ public sealed class TagCatalogServiceTests
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
             StockPurpose = SmartTagStockPurpose.Sale,
+            InventoryReceipt = ReceivedStockFixture.Receipt(harness.Db, created.Id),
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var order = new TagOrder
@@ -450,19 +451,23 @@ public sealed class TagCatalogServiceTests
         Assert.True(Assert.Single(Assert.Single(releasedCatalog).Variants).InStock);
     }
 
-    // The catalogue's inStock is what the order flow lets an owner pick, so it
-    // counts only stock that passed physical inspection: stock still being
-    // inspected, failed, set aside for review, or never inspected at all (QA
-    // NULL — historical or un-enrolled) is never offered for sale, even when the
-    // units are physically in the warehouse.
+    // The catalogue's inStock is what the order flow lets an owner pick. It
+    // counts orderable stock: received commercial stock enrolled for physical
+    // inspection that has not failed it (Pending or Passed). Each unit is still
+    // inspected and must pass before it is assigned or shipped. Stock that
+    // failed, is set aside for review, was never enrolled (QA NULL), or was
+    // never received, is not offered, even when it is in the warehouse.
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(PhysicalQaStatus.Pending, false)]
-    [InlineData(PhysicalQaStatus.Failed, false)]
-    [InlineData(PhysicalQaStatus.NeedsReview, false)]
-    [InlineData(PhysicalQaStatus.Passed, true)]
-    public async Task Catalog_AdvertisesStockOnlyWhenPhysicalQaHasPassed(
+    [InlineData(null, true, false)]
+    [InlineData(PhysicalQaStatus.Pending, true, true)]
+    [InlineData(PhysicalQaStatus.Failed, true, false)]
+    [InlineData(PhysicalQaStatus.NeedsReview, true, false)]
+    [InlineData(PhysicalQaStatus.Passed, true, true)]
+    [InlineData(PhysicalQaStatus.Pending, false, false)]
+    [InlineData(PhysicalQaStatus.Passed, false, false)]
+    public async Task Catalog_AdvertisesReceivedStockThatHasNotFailedPhysicalQa(
         PhysicalQaStatus? qaStatus,
+        bool received,
         bool expectedInStock)
     {
         await using var harness = await Harness.CreateAsync();
@@ -478,6 +483,7 @@ public sealed class TagCatalogServiceTests
             FulfilmentStatus = TagFulfilmentStatus.Generated,
             QaStatus = qaStatus,
             StockPurpose = SmartTagStockPurpose.Sale,
+            InventoryReceipt = received ? ReceivedStockFixture.Receipt(harness.Db, created.Id) : null,
         });
         await harness.Db.SaveChangesAsync();
 

@@ -265,6 +265,7 @@ public sealed class MerchantFulfilmentRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await ReceivedStockFixture.ReceiveAllAsync(db, QrVariantId);
         await IssueInvoiceAsync(db);
         var service = Service(db);
         await AllocateEverythingAsync(service);

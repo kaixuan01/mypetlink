@@ -370,6 +370,74 @@ public sealed class AdminService : SkeletonService, IAdminService
         return ToAdminOrderResponse(order);
     }
 
+    // The tags an order line can be fulfilled with: inspected, Passed commercial
+    // stock of the line's SKU, on the shelf. It is the set assignment, change
+    // and replacement accept, searched and paged on the server, with the most
+    // recently inspected first so a tag that has just passed is at the top.
+    public async Task<AdminAssignableTagsResponse> ListAssignableTagsAsync(
+        Guid orderId,
+        Guid? orderItemId,
+        string? search,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+        var order = await LoadOrderAsync(orderId, trackChanges: false, cancellationToken);
+        TagOrderItem? item = null;
+        if (orderItemId.HasValue)
+        {
+            item = order.Items.SingleOrDefault(entry => entry.Id == orderItemId.Value)
+                ?? throw ValidationFailed("orderItemId", "Choose an item from this order.");
+        }
+        else if (order.Items.Count > 0)
+        {
+            item = order.Items.FirstOrDefault(entry => CurrentAssignmentCount(entry) < entry.Quantity)
+                ?? order.Items.First();
+        }
+
+        IQueryable<SmartTag> SameProduct(IQueryable<SmartTag> tags)
+        {
+            if (item?.ProductVariantId is { } productVariantId)
+                return tags.Where(tag => tag.ProductVariantId == productVariantId);
+            // Legacy orders without item-level SKUs keep their type/variant rule.
+            var hasNfc = order.TagType == TagType.QrNfcSmartTag;
+            return tags.Where(tag => tag.HasNfc == hasNfc && tag.Variant == order.Variant);
+        }
+
+        var candidates = SameProduct(_dbContext.SmartTags.AsNoTracking()
+            .Where(SellableInventoryRules.FulfillableUnit(_dbContext)));
+        var term = NormalizeOptional(search)?.ToUpperInvariant();
+        if (term is not null)
+        {
+            candidates = candidates.Where(tag =>
+                tag.TagCode.Contains(term) || (tag.Batch != null && tag.Batch.BatchNo.Contains(term)));
+        }
+
+        var total = await candidates.CountAsync(cancellationToken);
+        var items = await candidates
+            .OrderByDescending(tag => tag.QaInspectedAt)
+            .ThenBy(tag => tag.TagCode)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(tag => new AdminAssignableTagItem(
+                tag.Id,
+                tag.TagCode,
+                tag.Batch == null ? null : tag.Batch.BatchNo,
+                tag.ProductVariantId,
+                tag.ProductVariant == null ? null : tag.ProductVariant.Sku,
+                tag.HasNfc,
+                tag.Variant,
+                tag.QaInspectedAt))
+            .ToListAsync(cancellationToken);
+        var awaiting = await SameProduct(_dbContext.SmartTags.AsNoTracking()
+                .Where(SellableInventoryRules.OrderableUnit(_dbContext))
+                .Where(tag => tag.QaStatus == PhysicalQaStatus.Pending))
+            .CountAsync(cancellationToken);
+        return new AdminAssignableTagsResponse(items, total, page, pageSize, awaiting);
+    }
+
     // Swap the assigned inventory tag before the order ships. The old tag was
     // never shipped or activated, so it goes back to Unclaimed inventory and the
     // new tag takes its place.

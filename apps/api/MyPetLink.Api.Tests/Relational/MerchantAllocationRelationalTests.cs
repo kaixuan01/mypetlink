@@ -90,6 +90,7 @@ public sealed class MerchantAllocationRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await ReceivedStockFixture.ReceiveAllAsync(db, QrVariantId);
         var availability = new TagOrderInventoryAvailabilityService(db);
 
         var before = await availability.GetAvailableUnitsAsync(QrVariantId);
@@ -404,6 +405,7 @@ public sealed class MerchantAllocationRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await ReceivedStockFixture.ReceiveAllAsync(db, QrVariantId);
         var availability = new TagOrderInventoryAvailabilityService(db);
         var service = Service(db);
 

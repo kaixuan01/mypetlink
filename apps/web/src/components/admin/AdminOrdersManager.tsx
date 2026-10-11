@@ -32,7 +32,6 @@ import {
   type AdminOrderDetail,
   type AdminOrderListParams,
 } from "@/services/adminOrderService";
-import { listTagInventory } from "@/services/adminTagInventoryService";
 import {
   listShippingCourierOptions,
   type ShippingCourierOption,
@@ -54,7 +53,6 @@ import {
   adminReplaceTag,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
-import type { PetTag } from "@/types";
 
 const filterKeys = [
   "stage",
@@ -291,7 +289,7 @@ export function AdminOrdersManager() {
   const [actualCourierCost, setActualCourierCost] = useState("");
   const [shippingNotes, setShippingNotes] = useState("");
   const [dialogError, setDialogError] = useState("");
-  const [tagModal, setTagModal] = useState<{ mode: TagAssignmentMode; detail: AdminOrderDetail; tags: Array<PetTag & { productVariantId?: string }> } | null>(null);
+  const [tagModal, setTagModal] = useState<{ mode: TagAssignmentMode; detail: AdminOrderDetail } | null>(null);
   const [detachedOrder, setDetachedOrder] = useState<AdminOrder | null>(null);
 
   useEffect(() => {
@@ -374,39 +372,8 @@ export function AdminOrdersManager() {
   async function requestAction(action: AdminOrderAction, detail: AdminOrderDetail) {
     setMessage("");
     if (action === "assign-tag" || action === "change-tag" || action === "replace-tag") {
-      setBusy(true);
-      try {
-        const productVariantIds = [...new Set((detail.fulfilmentItems ?? []).map((item) => item.productVariantId).filter((id): id is string => Boolean(id)))];
-        const inventories = productVariantIds.length
-          ? await Promise.all(productVariantIds.map((productVariantId) => listTagInventory({ page: 1, pageSize: 100, status: "Unclaimed", productVariantId, sortBy: "tagCode", sortDir: "asc" })))
-          : [await listTagInventory({
-              page: 1,
-              pageSize: 100,
-              status: "Unclaimed",
-              productVariantId: detail.productVariantId,
-              tagType: detail.productVariantId ? undefined : detail.order.tagType.includes("NFC") ? "QR_NFC" : "QR",
-              variant: detail.productVariantId ? undefined : detail.order.variant,
-              sortBy: "tagCode",
-              sortDir: "asc",
-            })];
-        const tags: Array<PetTag & { productVariantId?: string }> = inventories.flatMap((inventory) => inventory.items)
-          .filter((tag) => tag.fulfilment === "Generated" || tag.fulfilment === "Printed")
-          .map((tag) => ({
-          id: tag.id,
-          tagCode: tag.tagCode,
-          productVariantId: tag.productVariantId,
-          hasNfc: tag.hasNfc,
-          variant: tag.variant,
-          status: "Unassigned",
-          batchNo: tag.batchNo,
-          generatedDate: formatAdminDate(tag.generatedAt),
-          }));
-        setTagModal({ mode: action === "assign-tag" ? "assign" : action === "change-tag" ? "change" : "replace", detail, tags });
-      } catch (caught) {
-        setMessage(getFriendlyTagErrorMessage(caught));
-      } finally {
-        setBusy(false);
-      }
+      // The picker searches inspected stock itself, page by page.
+      setTagModal({ mode: action === "assign-tag" ? "assign" : action === "change-tag" ? "change" : "replace", detail });
       return;
     }
 
@@ -730,7 +697,6 @@ export function AdminOrdersManager() {
 
       {tagModal ? (
         <TagAssignmentModal
-          availableTags={tagModal.tags}
           busy={busy}
           currentTag={tagModal.detail.order.tagId ? { id: tagModal.detail.order.tagId, tagCode: tagModal.detail.backendOrder?.smartTagCode ?? "Assigned tag", hasNfc: tagModal.detail.order.tagType.includes("NFC"), variant: tagModal.detail.order.variant, status: tagModal.detail.order.status === "Delivered" ? "Delivered" : "Preparing" } : undefined}
           fulfilmentItems={tagModal.detail.fulfilmentItems}

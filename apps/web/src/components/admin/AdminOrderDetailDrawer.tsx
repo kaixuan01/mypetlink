@@ -234,6 +234,12 @@ export function AdminOrderDetailDrawer({
               {detail.fulfilmentItems?.length ? (
                 <section>
                   <h3 className="text-sm font-black text-slate-900">Tag assignment progress</h3>
+                  {awaitingInspectedTags(detail) > 0 ? (
+                    <div className="mt-2 rounded-xl bg-[#fdf3df] px-3 py-2 text-xs font-bold leading-5 text-[#9a6b18]" role="status">
+                      <p className="font-black">Awaiting Physical QA</p>
+                      <p>{awaitingInspectedTags(detail)} unit{awaitingInspectedTags(detail) === 1 ? "" : "s"} still need{awaitingInspectedTags(detail) === 1 ? "s" : ""} a tag that has passed physical QA before this order can be prepared. Inspect a received tag, then assign it.</p>
+                    </div>
+                  ) : null}
                   <div className="mt-2 grid gap-2">
                     {detail.fulfilmentItems.map((item) => (
                       <div className="rounded-xl border border-slate-200 p-3" key={item.orderItemId}>
@@ -432,6 +438,13 @@ function adminPriceLines(order: AdminOrderDetail["order"], summary: AdminOrder):
     finalAmount: summary.finalAmount ?? summary.amount,
     promotionName: summary.promotionName,
   }];
+}
+
+// A paid order waits for inspected tags: every unit ships with a tag that has
+// passed physical QA, so the units still without one are awaiting inspection.
+function awaitingInspectedTags(detail: AdminOrderDetail) {
+  if (detail.order.status !== "Payment Confirmed") return 0;
+  return (detail.fulfilmentItems ?? []).reduce((count, item) => count + Math.max(0, item.quantity - item.assignedTags.length), 0);
 }
 
 function getDetailActions(summary: AdminOrder, detail: AdminOrderDetail): AdminOrderAction[] {

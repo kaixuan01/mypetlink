@@ -224,7 +224,7 @@ export function AdminPhysicalQaPanel({ canManage, canExport, onSaved }: { canMan
   const passBlocked = decision === "Passed" && (!qr?.matches || !nfc?.matches || !nfc.chipId || condition === "Damaged" || condition === "NeedsReview");
   const remarksMissing = (Boolean(item?.inspectedAt) || decision === "Failed" || decision === "NeedsReview") && !remarks.trim();
 
-  return <AdminSection title="Physical tag inspection" description="Read each packaged tag, check its condition and release only passed stock for sale.">
+  return <AdminSection title="Physical tag inspection" description="Read each packaged tag, check its condition and release only passed tags for assignment and dispatch.">
     <div className="grid gap-4 p-4">
       {!connected ? <AdminNotice>Physical inspections require a live MyPetLink connection. No inspection results are saved on this device.</AdminNotice> : null}
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}

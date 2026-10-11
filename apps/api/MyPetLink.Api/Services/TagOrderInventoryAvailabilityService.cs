@@ -28,10 +28,12 @@ public interface ITagOrderInventoryAvailabilityService
 // same finite stock. Cancelled orders release their outstanding reservation,
 // and an order that has shipped holds nothing any more.
 //
-// Available units = sellable units on the shelf (SellableInventoryRules: on the
-// shelf AND passed physical QA) minus outstanding reservations. The public
-// catalogue's inStock, the delivery quote and checkout all read this one
-// number, so a SKU is advertised exactly when a checkout for it can succeed.
+// Available units = orderable units (SellableInventoryRules.OrderableUnit:
+// received commercial stock, enrolled for physical QA and not failed, on the
+// shelf) minus outstanding reservations. The public catalogue's inStock, the
+// delivery quote and checkout all read this one number, so a SKU is advertised
+// exactly when a checkout for it can succeed. Fulfilment is separate: a paid
+// order is assigned only an inspected, Passed tag.
 public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAvailabilityService
 {
     private readonly MyPetLinkDbContext _dbContext;
@@ -61,7 +63,7 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
         var ids = productVariantIds.Distinct().ToArray();
 
         var sellable = await _dbContext.SmartTags
-            .Where(SellableInventoryRules.SellableUnit(_dbContext))
+            .Where(SellableInventoryRules.OrderableUnit(_dbContext))
             .Where(tag => tag.ProductVariantId != null && ids.Contains(tag.ProductVariantId.Value))
             .GroupBy(tag => tag.ProductVariantId!.Value)
             .Select(group => new { VariantId = group.Key, Count = group.Count() })

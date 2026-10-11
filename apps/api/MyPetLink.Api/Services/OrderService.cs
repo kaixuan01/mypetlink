@@ -240,10 +240,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         // to this check in the production request path.
         foreach (var (productVariantId, requested) in requestedInventory)
         {
-            // Sellable means on the shelf AND passed physical QA; untested stock
-            // is never sold (SellableInventoryRules).
+            // Orderable means received commercial stock, enrolled for physical
+            // QA and not failed, on the shelf. Each unit is still inspected and
+            // must pass before it is assigned or shipped (SellableInventoryRules).
             var physicalStock = await _dbContext.SmartTags
-                .Where(SellableInventoryRules.SellableUnitOf(_dbContext, productVariantId))
+                .Where(SellableInventoryRules.OrderableUnitOf(_dbContext, productVariantId))
                 .CountAsync(cancellationToken);
             if (physicalStock < requested)
             {

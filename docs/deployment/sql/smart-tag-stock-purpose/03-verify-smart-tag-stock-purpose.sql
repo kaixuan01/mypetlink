@@ -12,10 +12,13 @@
 --     sample is Test;
 --   * testing samples and unclassified stock are never counted as sellable,
 --     even when they passed QA;
---   * commercial stock still needs QA Passed: Sale units by QA status;
+--   * commercial stock by physical QA status: only Passed units can be
+--     assigned or shipped;
 --   * per QR + NFC SKU, the stock the public catalogue should report, using
---     the API's rule (on the shelf AND QA Passed AND Sale, minus open
---     reservations) - compare it with GET /api/v1/tag-products after deploy;
+--     the API's order-first rule (Sale AND received AND QA Pending or Passed
+--     AND on the shelf, minus open reservations), next to the fulfillable
+--     stock (Sale AND QA Passed AND on the shelf) - compare it with
+--     GET /api/v1/tag-products after deploy;
 --   * anything unexpected: Sale outside the confirmed batches, unclassified
 --     units on the shelf, classification without an audit record.
 --
@@ -66,6 +69,7 @@ DECLARE @Tags TABLE (
     QaStatus nvarchar(32) NULL,
     Status nvarchar(32) NOT NULL,
     StockPurpose nvarchar(32) NOT NULL,
+    Received bit NOT NULL,
     OnShelf bit NOT NULL,
     InSaleBatch bit NOT NULL,
     ExpectedSaleSku nvarchar(80) NULL,
@@ -75,6 +79,7 @@ INSERT INTO @Tags
 EXEC sys.sp_executesql N'
 SELECT
     t.Id, t.TagCode, t.ProductVariantId, v.Sku, b.BatchNo, t.QaStatus, t.Status, t.StockPurpose,
+    CASE WHEN t.InventoryReceiptId IS NULL THEN 0 ELSE 1 END,
     CASE WHEN t.Status = N''Unclaimed''
               AND t.ArchivedAt IS NULL
               AND t.FulfilmentStatus IN (N''Generated'', N''Printed'')
@@ -136,17 +141,18 @@ INSERT INTO @Checks VALUES (N'Sale units outside the confirmed batches',
 SET @Count = (SELECT COUNT(*) FROM @Tags WHERE (InSaleBatch = 1 OR ListedAsTest = 1) AND StockPurpose <> N'Unclassified' AND ClassificationAudits = 0);
 INSERT INTO @Checks VALUES (N'Every classified unit has an audit record', CASE WHEN @Count = 0 THEN N'PASS' ELSE N'FAIL' END, CONCAT(@Count, N' without one'));
 
--- C7. Nothing that is not Sale is ever counted as sellable (the API rule).
+-- C7. Nothing that is not Sale is ever counted as orderable (the API rule).
 SET @Count = (SELECT COUNT(*) FROM @Tags WHERE StockPurpose <> N'Sale' AND QaStatus = N'Passed' AND OnShelf = 1);
 INSERT INTO @Checks VALUES (N'Passed shelf units excluded because they are not commercial stock', N'INFO',
     CONCAT(@Count, N' (testing samples or unclassified; never sold)'));
 
--- C8. Commercial stock still needs QA Passed.
+-- C8. Commercial stock by physical QA. Received Pending and Passed units can
+--     be ordered; only Passed units can be assigned or shipped.
 INSERT INTO @Checks VALUES (N'Commercial units by physical QA', N'INFO', CONCAT(
-    (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus = N'Passed'), N' Passed (sellable when on the shelf), ',
-    (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus = N'Pending'), N' Pending, ',
+    (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus = N'Passed'), N' Passed (orderable and fulfillable when on the shelf), ',
+    (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus = N'Pending'), N' Pending (orderable when received and on the shelf; inspect before assigning), ',
     (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus IS NULL), N' not enrolled, ',
-    (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus IN (N'Failed', N'NeedsReview')), N' Failed or Needs Review (none of these sell)'));
+    (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Sale' AND QaStatus IN (N'Failed', N'NeedsReview')), N' Failed or Needs Review (never orderable)'));
 
 -- C9. Unclassified stock on the shelf.
 SET @Count = (SELECT COUNT(*) FROM @Tags WHERE StockPurpose = N'Unclassified' AND OnShelf = 1);
@@ -176,7 +182,9 @@ PerSku AS (
            SUM(CASE WHEN x.StockPurpose = N'Sale' THEN 1 ELSE 0 END) AS SaleUnits,
            SUM(CASE WHEN x.StockPurpose = N'Test' THEN 1 ELSE 0 END) AS TestUnits,
            SUM(CASE WHEN x.StockPurpose = N'Unclassified' THEN 1 ELSE 0 END) AS UnclassifiedUnits,
-           SUM(CASE WHEN x.StockPurpose = N'Sale' AND x.QaStatus = N'Passed' AND x.OnShelf = 1 THEN 1 ELSE 0 END) AS SellableUnits,
+           SUM(CASE WHEN x.StockPurpose = N'Sale' AND x.Received = 1 AND x.QaStatus IN (N'Pending', N'Passed') AND x.OnShelf = 1
+                    THEN 1 ELSE 0 END) AS OrderableUnits,
+           SUM(CASE WHEN x.StockPurpose = N'Sale' AND x.QaStatus = N'Passed' AND x.OnShelf = 1 THEN 1 ELSE 0 END) AS FulfillableUnits,
            SUM(CASE WHEN x.StockPurpose <> N'Sale' AND x.QaStatus = N'Passed' AND x.OnShelf = 1 THEN 1 ELSE 0 END) AS PassedButNotForSale
     FROM dbo.TagProductVariants v
     JOIN dbo.TagProducts p ON p.Id = v.TagProductId
@@ -184,10 +192,10 @@ PerSku AS (
     WHERE v.SupportsQr = 1 AND v.SupportsNfc = 1
     GROUP BY v.Id, v.Sku, p.IsPublished, p.IsArchived, v.ArchivedAt, v.IsActive, v.IsPurchasable
 )
-SELECT s.Sku, s.OfferedPublicly, s.SaleUnits, s.TestUnits, s.UnclassifiedUnits, s.SellableUnits,
+SELECT s.Sku, s.OfferedPublicly, s.SaleUnits, s.TestUnits, s.UnclassifiedUnits, s.OrderableUnits, s.FulfillableUnits,
        COALESCE(o.Units, 0) AS OpenReservations,
-       CASE WHEN s.SellableUnits - COALESCE(o.Units, 0) > 0 THEN s.SellableUnits - COALESCE(o.Units, 0) ELSE 0 END AS AvailableUnits,
-       CASE WHEN s.OfferedPublicly = 1 AND s.SellableUnits - COALESCE(o.Units, 0) > 0 THEN 1 ELSE 0 END AS ExpectedCatalogueInStock,
+       CASE WHEN s.OrderableUnits - COALESCE(o.Units, 0) > 0 THEN s.OrderableUnits - COALESCE(o.Units, 0) ELSE 0 END AS AvailableUnits,
+       CASE WHEN s.OfferedPublicly = 1 AND s.OrderableUnits - COALESCE(o.Units, 0) > 0 THEN 1 ELSE 0 END AS ExpectedCatalogueInStock,
        s.PassedButNotForSale
 FROM PerSku s LEFT JOIN Outstanding o ON o.ProductVariantId = s.Id
 ORDER BY s.Sku;

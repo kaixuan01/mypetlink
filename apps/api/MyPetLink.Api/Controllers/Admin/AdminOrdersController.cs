@@ -141,6 +141,26 @@ public sealed class AdminOrdersController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    // Inspected tags this order line can be fulfilled with, searched on the
+    // server. Same capability as assigning one.
+    [HttpGet("{orderId:guid}/assignable-tags")]
+    [Authorize(Policy = AdminCapabilities.OrdersTagsAssign)]
+    public async Task<IActionResult> AssignableTags(
+        Guid orderId,
+        [FromQuery] Guid? orderItemId,
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (search is { Length: > 80 })
+            return BadRequest(ApiEnvelope.Error(HttpContext, "validation_failed", "Please check the submitted fields.",
+                new Dictionary<string, string[]> { ["search"] = ["Keep the search to 80 characters or fewer."] }));
+        var response = await _adminService.ListAssignableTagsAsync(
+            orderId, orderItemId, search, page, pageSize, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpPost("{orderId:guid}/assign-tag")]
     [Authorize(Policy = AdminCapabilities.OrdersTagsAssign)]
     public async Task<IActionResult> AssignTag(

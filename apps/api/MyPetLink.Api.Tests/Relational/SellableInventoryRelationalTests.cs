@@ -31,7 +31,7 @@ public sealed partial class SellableInventoryRelationalTests
     // --- Last unit and concurrency ----------------------------------------------
 
     [RelationalFact]
-    public async Task TheLastPassedUnitSellsExactlyOnceUnderConcurrentCheckouts()
+    public async Task TheLastOrderableUnitSellsExactlyOnceUnderConcurrentCheckouts()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
         Guid variantId;
@@ -39,11 +39,14 @@ public sealed partial class SellableInventoryRelationalTests
         {
             await SeedPeopleAsync(seed);
             variantId = await SeedVariantAsync(seed, "LAST");
-            // One sellable unit, surrounded by stock that must never be sold.
-            AddShelfTag(seed, variantId, "MPL-LAST-0001", PhysicalQaStatus.Passed);
+            // One orderable unit (received and waiting for its inspection),
+            // surrounded by stock that must never be ordered: never enrolled,
+            // not received, failed, set aside for review.
+            AddShelfTag(seed, variantId, "MPL-LAST-0001", PhysicalQaStatus.Pending);
             AddShelfTag(seed, variantId, "MPL-LAST-0002", null);
-            AddShelfTag(seed, variantId, "MPL-LAST-0003", PhysicalQaStatus.Pending);
+            AddShelfTag(seed, variantId, "MPL-LAST-0003", PhysicalQaStatus.Passed, received: false);
             AddShelfTag(seed, variantId, "MPL-LAST-0004", PhysicalQaStatus.Failed);
+            AddShelfTag(seed, variantId, "MPL-LAST-0005", PhysicalQaStatus.NeedsReview);
             await seed.SaveChangesAsync();
         }
 
@@ -147,7 +150,7 @@ public sealed partial class SellableInventoryRelationalTests
             {
                 var id = await Variant(key);
                 AddShelfTag(seed, id, $"MPL-{key}-0001", qa);
-                cases.Add(($"shelf, QA {qa?.ToString() ?? "NULL"}", id, qa == PhysicalQaStatus.Passed));
+                cases.Add(($"shelf, QA {qa?.ToString() ?? "NULL"}", id, qa is PhysicalQaStatus.Passed or PhysicalQaStatus.Pending));
             }
 
             // Passed units on the shelf that are not commercial stock.
@@ -157,6 +160,12 @@ public sealed partial class SellableInventoryRelationalTests
             var unclassified = await Variant("QUNC");
             AddShelfTag(seed, unclassified, "MPL-QUNC-0001", PhysicalQaStatus.Passed, purpose: SmartTagStockPurpose.Unclassified);
             cases.Add(("Passed but unclassified", unclassified, false));
+
+            // Enrolled units that were never received.
+            var notReceived = await Variant("QNRC");
+            AddShelfTag(seed, notReceived, "MPL-QNRC-0001", PhysicalQaStatus.Pending, received: false);
+            AddShelfTag(seed, notReceived, "MPL-QNRC-0002", PhysicalQaStatus.Passed, received: false);
+            cases.Add(("Pending and Passed but never received", notReceived, false));
 
             // Passed units that are not on the shelf.
             var lost = await Variant("LOST");
@@ -733,8 +742,8 @@ public sealed partial class SellableInventoryRelationalTests
         return (await catalog.ListPublicAsync()).SelectMany(p => p.Variants).Single(v => v.Key == key).InStock;
     }
 
-    private static CreateTagOrderRequest CheckoutRequest(MyPetLinkDbContext db, Guid variantId, string key) => new(
-        PetId, db.TagProductVariants.AsNoTracking().Single(v => v.Id == variantId).PublicKey, 1,
+    private static CreateTagOrderRequest CheckoutRequest(MyPetLinkDbContext db, Guid variantId, string key, int quantity = 1) => new(
+        PetId, db.TagProductVariants.AsNoTracking().Single(v => v.Id == variantId).PublicKey, quantity,
         new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "KUL", null),
         null, key);
 
@@ -778,12 +787,14 @@ public sealed partial class SellableInventoryRelationalTests
     // the variable these tests exercise.
     private static Guid AddShelfTag(MyPetLinkDbContext db, Guid variantId, string code, PhysicalQaStatus? qa,
         TagFulfilmentStatus fulfilment = TagFulfilmentStatus.Generated, string? shipment = null, Action<SmartTag>? configure = null,
-        SmartTagStockPurpose purpose = SmartTagStockPurpose.Sale)
+        SmartTagStockPurpose purpose = SmartTagStockPurpose.Sale, bool received = true)
     {
         var tag = new SmartTag
         {
             TagCode = code, ProductVariantId = variantId, HasNfc = true, Variant = "Lightweight",
             Status = SmartTagStatus.Unclaimed, FulfilmentStatus = fulfilment, QaStatus = qa, StockPurpose = purpose,
+            // Physically received stock unless a test says otherwise.
+            InventoryReceipt = received ? ReceivedStockFixture.Receipt(db, variantId) : null,
             QaShipmentReference = qa is null ? null : shipment ?? "SELL-SHIP", QaVersion = qa is null ? 0 : 1,
         };
         configure?.Invoke(tag);

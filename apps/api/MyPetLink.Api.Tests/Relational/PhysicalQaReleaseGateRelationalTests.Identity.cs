@@ -95,7 +95,10 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
         await using var check = scope.NewContext();
         Assert.Equal(PhysicalQaStatus.Pending, (await check.SmartTags.SingleAsync(t => t.TagCode == Code(1))).QaStatus);
         Assert.Equal(1, await check.SmartTags.CountAsync(t => t.QaNfcSerialNumber == "04AABBCCDDEEFF"));
-        Assert.Equal(1, await new TagOrderInventoryAvailabilityService(check).GetAvailableUnitsAsync(variantId));
+        // One tag passed; the other is still waiting for its inspection. Both
+        // can be ordered, only the passed one can be fulfilled.
+        Assert.Equal(2, await new TagOrderInventoryAvailabilityService(check).GetAvailableUnitsAsync(variantId));
+        Assert.Equal(1, await check.SmartTags.CountAsync(MerchantInventoryEligibility.For(check, variantId)));
     }
 
     [RelationalFact]

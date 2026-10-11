@@ -12,11 +12,18 @@ notifications to owners, or finder activity are produced by QA.
 
 | QA status | Stock use |
 | --- | --- |
-| Pending | Held |
-| Passed | Released, subject to existing inventory and lifecycle rules |
-| Failed | Held; move package to the failure tray |
-| Needs Review | Held; separate package for investigation |
+| Pending | Held. **Orderable** when it is received commercial stock on the shelf (order first); never assignable or shippable until it passes |
+| Passed | Released, subject to existing inventory and lifecycle rules. Orderable and fulfillable |
+| Failed | Held; move package to the failure tray. Neither orderable nor fulfillable |
+| Needs Review | Held; separate package for investigation. Neither orderable nor fulfillable |
 | NULL | Never inspected. **Not sellable** for any new commitment; a legacy tag already issued or committed keeps its existing flows |
+
+> **Order first, QA before shipping (prepared 2026-10-11, not yet deployed).**
+> Customers may order received commercial stock that is still waiting for its
+> inspection; each unit must pass before it is assigned, allocated or shipped.
+> The catalogue, checkout and delivery quote count *orderable* stock; every
+> assignment and warehouse exit still requires Passed. See
+> `docs/operations/smart-tag-order-first-implementation.md`.
 
 > **Inventory-safety remediation (prepared 2026-10-11, not yet deployed).**
 > With that release, new sales and allocations consume only stock that passed

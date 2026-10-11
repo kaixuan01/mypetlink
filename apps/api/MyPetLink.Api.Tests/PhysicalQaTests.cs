@@ -28,7 +28,7 @@ public sealed class PhysicalQaTests
         var variant = new TagProductVariant { Id = VariantId, TagProduct = product, Sku = "QA-NFC", DisplayName = "Standard", SupportsNfc = true, SupportsQr = true, IsActive = true, IsPurchasable = true };
         db.AddRange(admin, variant, new SmartTag { Id = TagId, TagCode = Code, HasNfc = true, ProductVariantId = VariantId,
             QaStatus = PhysicalQaStatus.Pending, QaShipmentReference = "SHIPMENT-900", QaVersion = 1,
-            StockPurpose = SmartTagStockPurpose.Sale });
+            StockPurpose = SmartTagStockPurpose.Sale, InventoryReceipt = ReceivedStockFixture.Receipt(variant, admin.AdminUser) });
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
     }
     private static async Task<MyPetLinkDbContext> Db()
@@ -185,15 +185,22 @@ public sealed class PhysicalQaTests
         Assert.True(qr.Matches, qr.Problem); Assert.True(nfc.Matches, nfc.Problem);
         Assert.Equal(Code, qr.ObservedCode); Assert.Equal(Code, nfc.ObservedCode);
     }
+    // Order first, inspect before shipping: received commercial stock waiting
+    // for its inspection (Pending) can be ordered, but no unpassed unit is ever
+    // merchant-eligible, assignable or shippable. Failed and Needs Review stock
+    // is neither orderable nor fulfillable.
     [Theory]
     [InlineData(PhysicalQaStatus.Pending)] [InlineData(PhysicalQaStatus.Failed)] [InlineData(PhysicalQaStatus.NeedsReview)]
-    public async Task UnpassedStockIsExcludedFromBothStockCountersMerchantEligibilityAndShippingGuard(PhysicalQaStatus status)
+    public async Task UnpassedStockIsNeverFulfillableAndOnlyPendingStockIsOrderable(PhysicalQaStatus status)
     {
         await using var db = await Db(); var tag = await db.SmartTags.SingleAsync(); tag.QaStatus = status; await db.SaveChangesAsync();
         var stock = new TagOrderInventoryAvailabilityService(db);
-        Assert.Equal(0, await stock.GetAvailableUnitsAsync(VariantId));
-        Assert.Equal(0, (await stock.GetAvailableUnitsAsync([VariantId]))[VariantId]);
+        var orderable = status == PhysicalQaStatus.Pending ? 1 : 0;
+        Assert.Equal(orderable, await stock.GetAvailableUnitsAsync(VariantId));
+        Assert.Equal(orderable, (await stock.GetAvailableUnitsAsync([VariantId]))[VariantId]);
         Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
+        Assert.Throws<ApiException>(() => SellableInventoryRules.RequirePassedForNewCommitment([tag]));
+        Assert.Throws<ApiException>(() => SellableInventoryRules.RequirePassedForFulfilment([tag]));
         Assert.Throws<ApiException>(() => PhysicalQaReleaseRules.RequireReleased([tag]));
         // Never inspected (NULL) is still not stock for a new sale or allocation,
         // though a legacy tag already committed keeps its existing flows.

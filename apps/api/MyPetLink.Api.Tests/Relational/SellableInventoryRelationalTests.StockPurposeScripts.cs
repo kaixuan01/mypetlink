@@ -72,11 +72,15 @@ public sealed partial class SellableInventoryRelationalTests
             Assert.Equal(after.Where(r => r.Purpose != SmartTagStockPurpose.Unclassified).Select(r => r.Id).OrderBy(id => id),
                 audits.Select(entry => entry.EntityId!.Value).OrderBy(id => id));
 
-            // The catalogue rule now agrees: only Sale + Passed shelf units count.
+            // The catalogue now offers received Sale units enrolled for
+            // inspection that have not failed it (5 Passed + 3 Pending). The
+            // receipt-linked, enrolled testing sample never counts.
             var stock = new TagOrderInventoryAvailabilityService(check);
-            Assert.Equal(5, await stock.GetAvailableUnitsAsync(seed.MybossLw));
-            Assert.Equal(0, await stock.GetAvailableUnitsAsync(seed.PawsomeLw)); // a Passed testing sample is not stock
-            Assert.Equal(0, await stock.GetAvailableUnitsAsync(seed.PawsomeSd)); // commercial, but nothing passed QA yet
+            Assert.Equal(8, await stock.GetAvailableUnitsAsync(seed.MybossLw));
+            Assert.Equal(0, await stock.GetAvailableUnitsAsync(seed.PawsomeLw)); // 2 failed, the rest never enrolled; the sample is Test
+            Assert.Equal(0, await stock.GetAvailableUnitsAsync(seed.PawsomeSd)); // commercial and received, but never enrolled
+            // Only the 5 Passed units can be fulfilled.
+            Assert.Equal(5, await check.SmartTags.CountAsync(MerchantInventoryEligibility.For(check, seed.MybossLw)));
         }
 
         await RunScriptAsync(scope, "03-verify-smart-tag-stock-purpose.sql", sql => WithSamples(sql, VerifiedSamples));
@@ -265,6 +269,8 @@ public sealed partial class SellableInventoryRelationalTests
         {
             var batch = new SmartTagBatch { BatchNo = batchNo, Quantity = 300, HasNfc = true, Variant = "Lightweight", ProductVariantId = variantId };
             db.SmartTagBatches.Add(batch);
+            // Every commercial unit was physically received (as in Production).
+            var received = ReceivedStockFixture.Receipt(db, variantId);
             for (var n = 1; n <= 300; n++)
             {
                 var qa = index switch
@@ -279,6 +285,7 @@ public sealed partial class SellableInventoryRelationalTests
                     TagCode = $"MPL-C{index}{n:0000}", Batch = batch, ProductVariantId = variantId, HasNfc = true, Variant = "Lightweight",
                     Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Printed,
                     QaStatus = qa, QaShipmentReference = qa is null ? null : batchNo, QaVersion = qa is null ? 0 : 1,
+                    InventoryReceipt = received,
                 };
                 // One commercial unit already sold and active with its owner.
                 if (index == 2 && n == 10)
@@ -293,6 +300,9 @@ public sealed partial class SellableInventoryRelationalTests
 
         var sampleBatch = new SmartTagBatch { BatchNo = "MPL-BAT-250101000000-0001", Quantity = 2, HasNfc = true, Variant = "Lightweight", ProductVariantId = mybossLw };
         db.SmartTagBatches.Add(sampleBatch);
+        // One sample batch also has a stock receipt; a receipt never makes a
+        // sample orderable.
+        var sampleReceipt = ReceivedStockFixture.Receipt(db, mybossLw);
         db.SmartTags.AddRange(
             new SmartTag
             {
@@ -304,6 +314,7 @@ public sealed partial class SellableInventoryRelationalTests
             {
                 TagCode = "MPL-SMPL-MB02", Batch = sampleBatch, ProductVariantId = mybossLw, HasNfc = true, Variant = "Lightweight",
                 Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Printed,
+                QaStatus = PhysicalQaStatus.Pending, QaShipmentReference = "SAMPLES-MB", QaVersion = 1, InventoryReceipt = sampleReceipt,
             },
             new SmartTag
             {

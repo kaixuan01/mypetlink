@@ -282,6 +282,7 @@ public sealed class PaymentReservationConcurrencyRelationalTests
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
             StockPurpose = SmartTagStockPurpose.Sale,
+            InventoryReceipt = ReceivedStockFixture.Receipt(db, variant.Id),
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var order = new TagOrder

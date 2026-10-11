@@ -7,22 +7,30 @@ using MyPetLink.Api.Entities;
 namespace MyPetLink.Api.Services;
 
 /// <summary>
-/// The single definition of which physical tags a NEW commitment may consume,
-/// and of which existing orders still hold stock.
+/// The single definition of which physical tags may be ordered, which may be
+/// committed to a customer, and which existing orders still hold stock.
 ///
-/// Two questions used to share one rule (<see cref="PhysicalQaReleaseRules.Released"/>,
-/// "QA NULL or Passed"). They are different questions:
+/// Ordering and fulfilment are different questions (order first, inspect
+/// before shipping):
 ///
-/// - <b>May this unit be sold, assigned, allocated or sent out now?</b> Only a
-///   unit that is commercial stock (<see cref="SmartTagStockPurpose.Sale"/>)
-///   AND has passed physical inspection. The two are independent: a NULL QA
-///   status means nobody has inspected the tag — it is historical stock, or a
-///   shipment that was never enrolled — and is never treated as Passed; testing
-///   samples and unclassified stock are never commercial stock, whatever their
-///   QA result. Every new sale-side commitment (catalogue stock, delivery
-///   quote, checkout, order assignment, change and replacement, merchant
-///   allocation, outbound shipment) uses <see cref="SellableUnit"/>,
-///   <see cref="RequireSellableForNewCommitment"/> or <see cref="IsCommercialStock"/>.
+/// - <b>May a customer order and pay for this SKU?</b> Only against
+///   <see cref="OrderableUnit"/> stock: commercial stock
+///   (<see cref="SmartTagStockPurpose.Sale"/>) that was physically received (it
+///   has a stock receipt), is enrolled for inspection and has not failed it
+///   (QA Pending or Passed), and is on the shelf. An order reserves a quantity
+///   of the SKU, never a tag. The catalogue's inStock, the delivery quote and
+///   checkout all read this one number. Never-inspected (QA NULL), Failed and
+///   Needs Review stock, testing samples, unclassified stock and generated
+///   codes not yet received never count.
+///
+/// - <b>May this unit be committed to a customer or leave our hands?</b> Only a
+///   <see cref="FulfillableUnit"/>: commercial stock AND passed physical
+///   inspection, on the shelf. Order assignment, change and replacement,
+///   merchant allocation and outbound shipment use it or
+///   <see cref="RequireSellableForNewCommitment"/>; every warehouse exit
+///   re-checks it (<see cref="RequirePassedForFulfilment"/>). A paid order
+///   therefore waits at Payment Confirmed until a tag of its SKU is inspected,
+///   passes and is assigned. Passing never happens automatically.
 ///   The first hand-over of a unit someone already holds (public retail
 ///   activation, Admin claim) depends on inspection only
 ///   (<see cref="MayBeHandedToOwnerAsync"/>), so internal testing keeps working.
@@ -77,15 +85,43 @@ public static class SellableInventoryRules
                 allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null);
 
     /// <summary>
-    /// The unit a new sale, assignment, allocation or outbound shipment may
+    /// The unit an assignment, merchant allocation or outbound shipment may
     /// consume: on the shelf AND passed physical inspection AND commercial stock.
     /// </summary>
-    public static Expression<Func<SmartTag, bool>> SellableUnit(MyPetLinkDbContext dbContext) =>
+    public static Expression<Func<SmartTag, bool>> FulfillableUnit(MyPetLinkDbContext dbContext) =>
         And(And(OnShelf(dbContext), PassedPhysicalQa), CommercialStock);
 
-    /// <summary><see cref="SellableUnit"/> for one SKU.</summary>
-    public static Expression<Func<SmartTag, bool>> SellableUnitOf(MyPetLinkDbContext dbContext, Guid productVariantId) =>
-        And(SellableUnit(dbContext), tag => tag.ProductVariantId == productVariantId);
+    /// <summary><see cref="FulfillableUnit"/> for one SKU.</summary>
+    public static Expression<Func<SmartTag, bool>> FulfillableUnitOf(MyPetLinkDbContext dbContext, Guid productVariantId) =>
+        And(FulfillableUnit(dbContext), tag => tag.ProductVariantId == productVariantId);
+
+    /// <summary>
+    /// Physically received: linked to a stock receipt. A generated code with no
+    /// receipt may not exist as a physical tag yet, so it is never orderable.
+    /// </summary>
+    public static readonly Expression<Func<SmartTag, bool>> ReceivedStock =
+        tag => tag.InventoryReceiptId != null;
+
+    /// <summary>
+    /// Enrolled for inspection and not failed: Pending (on the shipment's
+    /// manifest, waiting for its individual inspection) or Passed. Never
+    /// inspected (NULL), Failed and Needs Review are excluded.
+    /// </summary>
+    public static readonly Expression<Func<SmartTag, bool>> EnrolledNotFailed =
+        tag => tag.QaStatus == PhysicalQaStatus.Pending || tag.QaStatus == PhysicalQaStatus.Passed;
+
+    /// <summary>
+    /// The unit a customer may order and pay for before it is individually
+    /// inspected: on the shelf, commercial stock, received, and Pending or
+    /// Passed. It is never a promise of a particular tag; fulfilment still
+    /// needs a <see cref="FulfillableUnit"/>.
+    /// </summary>
+    public static Expression<Func<SmartTag, bool>> OrderableUnit(MyPetLinkDbContext dbContext) =>
+        And(And(And(OnShelf(dbContext), CommercialStock), ReceivedStock), EnrolledNotFailed);
+
+    /// <summary><see cref="OrderableUnit"/> for one SKU.</summary>
+    public static Expression<Func<SmartTag, bool>> OrderableUnitOf(MyPetLinkDbContext dbContext, Guid productVariantId) =>
+        And(OrderableUnit(dbContext), tag => tag.ProductVariantId == productVariantId);
 
     /// <summary>
     /// Order items whose order still holds SKU-level stock: placed and not yet

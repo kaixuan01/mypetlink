@@ -927,6 +927,14 @@ public interface IAdminService : ISkeletonService
         Guid? orderItemId = null,
         CancellationToken cancellationToken = default);
 
+    Task<AdminAssignableTagsResponse> ListAssignableTagsAsync(
+        Guid orderId,
+        Guid? orderItemId,
+        string? search,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
     Task<AdminTagOrderResponse> ChangeAssignedTagAsync(
         Guid? currentUserId,
         Guid orderId,

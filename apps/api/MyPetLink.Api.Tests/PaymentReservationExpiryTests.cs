@@ -198,6 +198,7 @@ public class PaymentReservationExpiryTests
                 Species = "Dog",
                 LifecycleStatus = PetLifecycleStatus.Active,
             });
+            var received = spareTags > 0 ? ReceivedStockFixture.Receipt(db, VariantId) : null;
             for (var index = 0; index < spareTags; index++)
             {
                 db.SmartTags.Add(new SmartTag
@@ -208,6 +209,7 @@ public class PaymentReservationExpiryTests
                     Status = SmartTagStatus.Unclaimed,
                     QaStatus = PhysicalQaStatus.Passed,
                     StockPurpose = SmartTagStockPurpose.Sale,
+                    InventoryReceipt = received,
                     FulfilmentStatus = TagFulfilmentStatus.Generated,
                 });
             }

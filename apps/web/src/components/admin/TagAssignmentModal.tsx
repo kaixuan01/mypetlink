@@ -1,14 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminActionButton } from "@/components/admin/AdminPanels";
 import { Badge } from "@/components/ui/Badge";
-import { getTagTypeLabel } from "@/components/admin/adminDisplay";
+import { formatAdminDate, getTagTypeLabel } from "@/components/admin/adminDisplay";
 import { formatOrderNumber, getOrderStatusDisplay } from "@/lib/orders";
 import type { AdminOrderFulfilmentItem } from "@/services/adminOrderService";
+import {
+  adminListAssignableOrderTags,
+  type AdminAssignableTag,
+  type AdminAssignableTagsResult,
+} from "@/services/tagService";
 import type { PetTag, TagOrder } from "@/types";
 
 export type TagAssignmentMode = "assign" | "change" | "replace";
+
+export type AssignableTagLoader = (
+  orderId: string,
+  options: { orderItemId?: string; search?: string; page?: number; pageSize?: number },
+  signal?: AbortSignal
+) => Promise<AdminAssignableTagsResult>;
+
+const PAGE_SIZE = 20;
+const SEARCH_DELAY_MS = 250;
 
 // Replacement reasons for a shipped/delivered/active tag.
 const replaceReasons = [
@@ -26,21 +40,30 @@ const copy: Record<
   assign: {
     title: "Assign inventory tag",
     intro:
-      "Choose a matching unclaimed tag to fulfil this order. Stock is used only once you assign it.",
+      "Choose an unclaimed tag that has passed physical QA. Stock is used only once you assign it.",
     submit: "Assign selected tag",
   },
   change: {
     title: "Change assigned tag",
     intro:
-      "Swap in a different unclaimed tag before the order ships. The current tag returns to available inventory.",
+      "Swap in a different tag that has passed physical QA before the order ships. The current tag returns to available inventory.",
     submit: "Change to selected tag",
   },
   replace: {
     title: "Replace tag",
     intro:
-      "Issue a replacement tag. The current tag is retired and a fresh tag re-enters preparation.",
+      "Issue a replacement tag that has passed physical QA. The current tag is retired and the new tag enters preparation.",
     submit: "Replace with selected tag",
   },
+};
+
+type LoadedPage = {
+  key: string;
+  items: AdminAssignableTag[];
+  total: number;
+  page: number;
+  awaitingInspection: number;
+  failed: boolean;
 };
 
 export function TagAssignmentModal({
@@ -50,7 +73,7 @@ export function TagAssignmentModal({
   petName,
   currentTag,
   fulfilmentItems = [],
-  availableTags,
+  loadTags = adminListAssignableOrderTags,
   busy,
   onCancel,
   onSubmit,
@@ -61,7 +84,7 @@ export function TagAssignmentModal({
   petName: string;
   currentTag?: PetTag;
   fulfilmentItems?: AdminOrderFulfilmentItem[];
-  availableTags: Array<PetTag & { productVariantId?: string }>;
+  loadTags?: AssignableTagLoader;
   busy: boolean;
   onCancel: () => void;
   onSubmit: (input: { tagId: string; reason: string; note: string; orderItemId?: string; currentTagId?: string }) => void;
@@ -70,33 +93,75 @@ export function TagAssignmentModal({
     mode === "assign" ? item.assignedTags.length < item.quantity : item.assignedTags.length > 0
   );
   const [orderItemId, setOrderItemId] = useState(eligibleItems[0]?.orderItemId ?? "");
-  const [selectedTagId, setSelectedTagId] = useState("");
+  const [selectedTag, setSelectedTag] = useState<AdminAssignableTag | null>(null);
   const [search, setSearch] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
+  const [reloadCount, setReloadCount] = useState(0);
+  const [loaded, setLoaded] = useState<LoadedPage | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const text = copy[mode];
   const selectedItem = eligibleItems.find((item) => item.orderItemId === orderItemId) ?? eligibleItems[0];
   const [currentTagId, setCurrentTagId] = useState(selectedItem?.assignedTags[0]?.id ?? currentTag?.id ?? "");
   const productLabel = selectedItem?.productName ?? getTagTypeLabel(order.tagType.includes("NFC"));
+  const lineItemId = selectedItem?.orderItemId;
+  const term = search.trim();
+  const requestKey = `${lineItemId ?? ""}|${term}|${reloadCount}`;
+  const current = loaded?.key === requestKey ? loaded : null;
+  const loading = current === null;
 
-  const term = search.trim().toLowerCase();
-  const selectedProductVariantId = selectedItem?.productVariantId;
-  const filteredTags = availableTags.filter((tag) => {
-    const matchesVariant = !selectedProductVariantId || tag.productVariantId === selectedProductVariantId;
-    const matchesSearch = !term || tag.tagCode.toLowerCase().includes(term) || (tag.batchNo ?? "").toLowerCase().includes(term);
-    return matchesVariant && matchesSearch;
-  });
+  // Ask for the first page whenever the order line or the search changes.
+  // Typing waits briefly so each keystroke does not start a new search.
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      loadTags(order.id, { orderItemId: lineItemId, search: term, page: 1, pageSize: PAGE_SIZE }, controller.signal)
+        .then((result) => {
+          setLoaded({ key: requestKey, items: result.items, total: result.total, page: 1, awaitingInspection: result.awaitingInspection, failed: false });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setLoaded({ key: requestKey, items: [], total: 0, page: 1, awaitingInspection: 0, failed: true });
+          }
+        });
+    }, term ? SEARCH_DELAY_MS : 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [loadTags, order.id, lineItemId, term, requestKey]);
+
+  async function showMore() {
+    if (!current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = await loadTags(order.id, { orderItemId: lineItemId, search: term, page: current.page + 1, pageSize: PAGE_SIZE });
+      setLoaded((previous) =>
+        previous && previous.key === current.key
+          ? { ...previous, items: [...previous.items, ...next.items.filter((item) => !previous.items.some((existing) => existing.id === item.id))], total: next.total, page: current.page + 1, awaitingInspection: next.awaitingInspection }
+          : previous
+      );
+    } catch {
+      setLoaded((previous) => (previous && previous.key === current.key ? { ...previous, failed: true } : previous));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const unitsStillNeeded = selectedItem ? Math.max(0, selectedItem.quantity - selectedItem.assignedTags.length) : order.tagId ? 0 : 1;
+  const awaiting = current?.awaitingInspection ?? 0;
+  const noInspectedStock = Boolean(current && !current.failed && !term && current.total === 0);
 
   const reasonRequired = mode === "replace";
   const canSubmit =
-    Boolean(selectedTagId) && Boolean(orderItemId || fulfilmentItems.length === 0) && (mode === "assign" || Boolean(currentTagId)) && (!reasonRequired || Boolean(reason)) && !busy;
+    Boolean(selectedTag) && Boolean(orderItemId || fulfilmentItems.length === 0) && (mode === "assign" || Boolean(currentTagId)) && (!reasonRequired || Boolean(reason)) && !busy;
 
   function handleSubmit() {
-    if (!canSubmit) {
+    if (!canSubmit || !selectedTag) {
       return;
     }
 
-    onSubmit({ tagId: selectedTagId, reason, note, orderItemId: orderItemId || undefined, currentTagId: currentTagId || undefined });
+    onSubmit({ tagId: selectedTag.id, reason, note, orderItemId: orderItemId || undefined, currentTagId: currentTagId || undefined });
   }
 
   return (
@@ -128,7 +193,7 @@ export function TagAssignmentModal({
         {eligibleItems.length > 1 ? (
           <label className="mt-4 block">
             <span className="text-xs font-black uppercase tracking-wide text-slate-500">Order line</span>
-            <select className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900" onChange={(event) => { const next = eligibleItems.find((item) => item.orderItemId === event.target.value); setOrderItemId(event.target.value); setCurrentTagId(next?.assignedTags[0]?.id ?? ""); setSelectedTagId(""); }} value={selectedItem?.orderItemId ?? ""}>
+            <select className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900" onChange={(event) => { const next = eligibleItems.find((item) => item.orderItemId === event.target.value); setOrderItemId(event.target.value); setCurrentTagId(next?.assignedTags[0]?.id ?? ""); setSelectedTag(null); }} value={selectedItem?.orderItemId ?? ""}>
               {eligibleItems.map((item) => <option key={item.orderItemId} value={item.orderItemId}>{item.petName} — {item.productName} — {item.variantName} ({item.assignedTags.length}/{item.quantity} assigned)</option>)}
             </select>
           </label>
@@ -201,38 +266,72 @@ export function TagAssignmentModal({
           </>
         ) : null}
 
-        {/* Available inventory */}
+        {mode === "assign" && unitsStillNeeded > 0 && awaiting > 0 ? (
+          <div className="mt-4 rounded-xl bg-[#fdf3df] px-4 py-3 text-xs font-bold leading-5 text-[#9a6b18]" role="status">
+            <p className="font-black">Awaiting Physical QA</p>
+            <p className="mt-0.5">
+              {unitsStillNeeded} unit{unitsStillNeeded === 1 ? "" : "s"} on this order line still need{unitsStillNeeded === 1 ? "s" : ""} an inspected tag. {awaiting} received {productLabel} tag{awaiting === 1 ? " is" : "s are"} waiting for inspection.
+            </p>
+          </div>
+        ) : null}
+
+        {/* Inspected inventory */}
         <div className="mt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-              Available matching inventory
+              Inspected matching inventory{current && !current.failed ? ` · ${current.total}` : ""}
             </p>
             <input
+              aria-label="Search tag code or batch"
               className="min-h-9 w-48 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-900 outline-none focus:border-slate-400"
+              maxLength={80}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search tag code / batch"
               value={search}
             />
           </div>
 
-          <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200">
-            {filteredTags.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm font-semibold text-slate-500">
-                No matching unclaimed {productLabel} · {order.variant} tags are
-                available. Generate matching inventory first.
-              </p>
+          {selectedTag ? (
+            <p className="mt-2 text-xs font-bold text-slate-600">
+              Selected: <span className="font-mono text-slate-950">{selectedTag.tagCode}</span>
+            </p>
+          ) : null}
+
+          <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-slate-200">
+            {loading ? (
+              <p className="px-4 py-6 text-center text-sm font-semibold text-slate-500">Loading inspected tags…</p>
+            ) : current.failed && current.items.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm font-semibold text-slate-500">
+                <p>We couldn&apos;t load inspected tags right now. Please try again in a moment.</p>
+                <button className="mt-2 font-black text-[#2f6fd6] underline" onClick={() => setReloadCount((count) => count + 1)} type="button">Try again</button>
+              </div>
+            ) : current.items.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm font-semibold leading-6 text-slate-500">
+                {term ? (
+                  <p>No inspected {productLabel} tag matches “{term}”.</p>
+                ) : noInspectedStock && awaiting > 0 ? (
+                  <p>
+                    No {productLabel} tag has passed physical QA yet. Inspect a received tag in Tag Inventory, then come back to assign it. Tags waiting for inspection can&apos;t be assigned.
+                  </p>
+                ) : (
+                  <p>
+                    No {productLabel} stock is available or waiting for inspection. Keep this order on hold and contact the customer. If they would rather not wait, arrange any refund manually and record it.
+                  </p>
+                )}
+              </div>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {filteredTags.map((tag) => {
-                  const selected = tag.id === selectedTagId;
+                {current.items.map((tag) => {
+                  const selected = tag.id === selectedTag?.id;
 
                   return (
                     <li key={tag.id}>
                       <button
+                        aria-pressed={selected}
                         className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
                           selected ? "bg-[#eaf2ff]" : "hover:bg-slate-50"
                         }`}
-                        onClick={() => setSelectedTagId(tag.id)}
+                        onClick={() => setSelectedTag(tag)}
                         type="button"
                       >
                         <span className="min-w-0">
@@ -242,10 +341,12 @@ export function TagAssignmentModal({
                           <span className="mt-0.5 block text-xs font-semibold text-slate-500">
                             {getTagTypeLabel(tag.hasNfc)} · {tag.variant}
                             {tag.batchNo ? ` · Batch ${tag.batchNo}` : ""}
-                            {tag.generatedDate ? ` · ${tag.generatedDate}` : ""}
                           </span>
                         </span>
-                        {selected ? <Badge tone="mint">Selected</Badge> : null}
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          <Badge tone="mint">{tag.qaInspectedAt ? `QA passed ${formatAdminDate(tag.qaInspectedAt)}` : "QA passed"}</Badge>
+                          {selected ? <Badge tone="soft">Selected</Badge> : null}
+                        </span>
                       </button>
                     </li>
                   );
@@ -253,6 +354,15 @@ export function TagAssignmentModal({
               </ul>
             )}
           </div>
+
+          {current && current.items.length < current.total ? (
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-500">
+              <span>Showing {current.items.length} of {current.total}</span>
+              <AdminActionButton disabled={loadingMore} onClick={() => void showMore()}>
+                {loadingMore ? "Loading..." : "Show more"}
+              </AdminActionButton>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">

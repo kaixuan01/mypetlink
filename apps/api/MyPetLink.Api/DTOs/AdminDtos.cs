@@ -103,6 +103,29 @@ public sealed record UpdateShipmentDetailsRequest(
     [Required] string? RowVersion,
     [MaxLength(32)] string? CourierProviderCode = null);
 
+// The tags an order line can be fulfilled with right now: commercial stock that
+// passed physical inspection, on the shelf, of the line's SKU. Exactly the set
+// assignment accepts, searched on the server so every tag is reachable.
+public sealed record AdminAssignableTagItem(
+    Guid Id,
+    string TagCode,
+    string? BatchNo,
+    Guid? ProductVariantId,
+    string? Sku,
+    bool HasNfc,
+    string Variant,
+    DateTimeOffset? QaInspectedAt);
+
+public sealed record AdminAssignableTagsResponse(
+    IReadOnlyCollection<AdminAssignableTagItem> Items,
+    int Total,
+    int Page,
+    int PageSize,
+    // Packages of the same SKU still waiting for their individual inspection
+    // (orderable but not yet Passed). Zero with no Items means no tag can be
+    // fulfilled from stock until more is received or inspected.
+    int AwaitingInspection);
+
 public sealed record AssignInventoryTagRequest(
     [Required] Guid? TagId,
     Guid? OrderItemId = null);

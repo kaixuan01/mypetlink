@@ -202,6 +202,25 @@ describe("AdminOrderDetailDrawer", () => {
     expect(onAction).toHaveBeenCalledWith("assign-tag", detail);
   });
 
+  it("shows a paid order awaiting Physical QA with the units that still need an inspected tag", async () => {
+    const item = { orderItemId: "item-1", productVariantId: "variant-1", sku: "MPL-QRNFC-LW", productName: "QR + NFC Smart Tag", variantName: "Lightweight", petId: "pet-1", petName: "Topu", quantity: 3 };
+    serviceMocks.getDetail.mockResolvedValue({ ...detail, fulfilmentItems: [{ ...item, assignedTags: [{ id: "tag-1", tagCode: "MPL-PASS-0001", status: "Preparing" }] }] });
+    render(<AdminOrderDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} refreshKey={0} summary={summary} />);
+
+    await screen.findByText("Awaiting Physical QA");
+    expect(screen.getByText(/2 units still need a tag that has passed physical QA/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Assign inventory tag" })).toBeTruthy();
+  });
+
+  it("drops the Physical QA notice once every unit has an inspected tag", async () => {
+    const item = { orderItemId: "item-1", productVariantId: "variant-1", sku: "MPL-QRNFC-LW", productName: "QR + NFC Smart Tag", variantName: "Lightweight", petId: "pet-1", petName: "Topu", quantity: 1 };
+    serviceMocks.getDetail.mockResolvedValue({ ...detail, fulfilmentItems: [{ ...item, assignedTags: [{ id: "tag-1", tagCode: "MPL-PASS-0001", status: "Preparing" }] }] });
+    render(<AdminOrderDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} refreshKey={0} summary={summary} />);
+
+    await screen.findByText("Tag assignment progress");
+    expect(screen.queryByText("Awaiting Physical QA")).toBeNull();
+  });
+
   it("shows the manual shipment controls and admin-only fields when ready to ship", async () => {
     const readySummary: AdminOrder = {
       ...summary,

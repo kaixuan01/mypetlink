@@ -557,6 +557,7 @@ public sealed class TagOrderCatalogIntegrationTests
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
             StockPurpose = SmartTagStockPurpose.Sale,
+            InventoryReceipt = ReceivedStockFixture.Receipt(harness.Db, otherVariant.Id),
             FulfilmentStatus = TagFulfilmentStatus.Generated
         };
         harness.Db.AddRange(otherVariant, wrongStock);
@@ -615,6 +616,7 @@ public sealed class TagOrderCatalogIntegrationTests
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
             StockPurpose = SmartTagStockPurpose.Sale,
+            InventoryReceipt = ReceivedStockFixture.Receipt(harness.Db, qrVariant.Id),
             FulfilmentStatus = TagFulfilmentStatus.Generated
         };
         harness.Db.AddRange(secondPet, qrVariant, qrStock);
@@ -914,6 +916,7 @@ public sealed class TagOrderCatalogIntegrationTests
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
             StockPurpose = SmartTagStockPurpose.Sale,
+            InventoryReceipt = ReceivedStockFixture.Receipt(db, variant.Id),
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         });
         await db.SaveChangesAsync();
@@ -1041,6 +1044,7 @@ public sealed class TagOrderCatalogIntegrationTests
                 Status = SmartTagStatus.Unclaimed,
                 QaStatus = PhysicalQaStatus.Passed,
                 StockPurpose = SmartTagStockPurpose.Sale,
+                InventoryReceipt = ReceivedStockFixture.Receipt(variant, admin.AdminUser),
                 FulfilmentStatus = TagFulfilmentStatus.Generated
             };
             var deliveryRate = new DeliveryRate
