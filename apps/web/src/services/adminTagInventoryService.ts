@@ -14,6 +14,7 @@ import type {
   TagFulfilmentStatus,
   TagOrder,
   TagStatus,
+  TagStockPurpose,
   TagVariant,
 } from "@/types";
 
@@ -31,6 +32,7 @@ export type AdminInventoryListParams = {
   batch?: string;
   status?: string;
   fulfilment?: string;
+  stockPurpose?: string;
   tagType?: string;
   variant?: string;
   claimed?: string;
@@ -47,6 +49,7 @@ export type AdminInventoryTag = {
   id: string;
   tagCode: string;
   qaStatus?: "Pending" | "Passed" | "Failed" | "NeedsReview" | null;
+  stockPurpose?: TagStockPurpose;
   productVariantId?: string;
   sku?: string;
   productName?: string;
@@ -88,6 +91,12 @@ export type AdminInventoryBulkResult = {
   requestedCount: number;
   updatedCount: number;
   failures: { tagId: string; tagCode: string; reason: string }[];
+};
+
+export const stockPurposeLabels: Record<TagStockPurpose, string> = {
+  Sale: "Commercial Stock",
+  Test: "Testing Sample",
+  Unclassified: "Unclassified",
 };
 
 export const fulfilmentLabels: Record<TagFulfilmentStatus, string> = {
@@ -137,7 +146,10 @@ export function canApplyBulkAction(
     !tag.isArchived &&
     tag.status === "Unassigned" &&
     tag.fulfilment === bulkActionRules[action].from &&
-    (!(["send-to-owner", "send-to-reseller"] as string[]).includes(action) || tag.qaStatus == null || tag.qaStatus === "Passed")
+    (!(["send-to-owner", "send-to-reseller"] as string[]).includes(action) ||
+      ((tag.qaStatus == null || tag.qaStatus === "Passed") &&
+        // Sending onward is a sale step: testing samples and unclassified stock never go.
+        (tag.stockPurpose == null || tag.stockPurpose === "Sale")))
   );
 }
 
@@ -145,6 +157,7 @@ type BackendInventoryItem = {
   id: string;
   tagCode: string;
   qaStatus?: "Pending" | "Passed" | "Failed" | "NeedsReview" | null;
+  stockPurpose?: TagStockPurpose | null;
   productVariantId?: string | null;
   sku?: string | null;
   productName?: string | null;
@@ -204,6 +217,7 @@ function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
     isArchived: item.isArchived,
     fulfilment: item.fulfilmentStatus,
     qaStatus: item.qaStatus,
+    stockPurpose: item.stockPurpose ?? undefined,
     petId: item.petId ?? undefined,
     petName: item.petName ?? undefined,
     ownerName: item.ownerName ?? undefined,
@@ -471,6 +485,8 @@ async function loadLocalInventory(): Promise<AdminInventoryTag[]> {
         batchNo: tag.batchNo,
         status: tag.status,
         isArchived: Boolean(tag.isArchived),
+        // Locally stored inventory is the commercial sample data set.
+        stockPurpose: "Sale" as TagStockPurpose,
         fulfilment: deriveLocalFulfilment(tag, orders.data),
         petId: tag.petId,
         petName: pet?.name,
@@ -552,6 +568,13 @@ function filterLocal(
     }
 
     if (params.fulfilment && tag.fulfilment !== params.fulfilment) {
+      return false;
+    }
+
+    if (
+      params.stockPurpose &&
+      (tag.stockPurpose ?? "").toLowerCase() !== params.stockPurpose.toLowerCase()
+    ) {
       return false;
     }
 

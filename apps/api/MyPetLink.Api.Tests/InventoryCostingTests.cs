@@ -151,12 +151,14 @@ public sealed class InventoryCostingTests
             TagCode = "MPL-TIMING-NEW", ProductVariant = variant,
             InventoryReceipt = assignedReceipt, HasNfc = true, Variant = "Standard",
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
         };
         var replacement = new SmartTag
         {
             TagCode = "MPL-TIMING-REP", ProductVariant = variant,
             InventoryReceipt = replacementReceipt, HasNfc = true, Variant = "Standard",
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
         };
         order.SmartTag = original;
         order.AssignedTags.Add(original);

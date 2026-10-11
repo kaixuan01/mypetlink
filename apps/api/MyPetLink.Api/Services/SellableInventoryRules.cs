@@ -14,12 +14,18 @@ namespace MyPetLink.Api.Services;
 /// "QA NULL or Passed"). They are different questions:
 ///
 /// - <b>May this unit be sold, assigned, allocated or sent out now?</b> Only a
-///   unit that has passed physical inspection. A NULL QA status means nobody
-///   has inspected the tag — it is historical stock, or a shipment that was
-///   never enrolled — and is never treated as Passed. Every new commitment
-///   (catalogue stock, delivery quote, checkout, order assignment, change and
-///   replacement, merchant allocation, outbound shipment, first hand-over to an
-///   owner) uses <see cref="SellableUnit"/> or <see cref="RequirePassedForNewCommitment"/>.
+///   unit that is commercial stock (<see cref="SmartTagStockPurpose.Sale"/>)
+///   AND has passed physical inspection. The two are independent: a NULL QA
+///   status means nobody has inspected the tag — it is historical stock, or a
+///   shipment that was never enrolled — and is never treated as Passed; testing
+///   samples and unclassified stock are never commercial stock, whatever their
+///   QA result. Every new sale-side commitment (catalogue stock, delivery
+///   quote, checkout, order assignment, change and replacement, merchant
+///   allocation, outbound shipment) uses <see cref="SellableUnit"/>,
+///   <see cref="RequireSellableForNewCommitment"/> or <see cref="IsCommercialStock"/>.
+///   The first hand-over of a unit someone already holds (public retail
+///   activation, Admin claim) depends on inspection only
+///   (<see cref="MayBeHandedToOwnerAsync"/>), so internal testing keeps working.
 ///
 /// - <b>May a tag that is already in, or promised to, a customer's hands keep
 ///   working?</b> Yes, for legacy NULL tags as well: activation of an assigned
@@ -39,6 +45,17 @@ public static class SellableInventoryRules
     private static readonly Func<SmartTag, bool> PassedCompiled = PassedPhysicalQa.Compile();
 
     public static bool IsPassed(SmartTag tag) => PassedCompiled(tag);
+
+    /// <summary>
+    /// Commercial stock: classified for sale. Testing samples and unclassified
+    /// (legacy, not yet reviewed) stock are never sold, whatever their QA status.
+    /// </summary>
+    public static readonly Expression<Func<SmartTag, bool>> CommercialStock =
+        tag => tag.StockPurpose == SmartTagStockPurpose.Sale;
+
+    private static readonly Func<SmartTag, bool> CommercialCompiled = CommercialStock.Compile();
+
+    public static bool IsCommercialStock(SmartTag tag) => CommercialCompiled(tag);
 
     /// <summary>
     /// A unit sitting in our stock with nobody's claim on it: unclaimed, not
@@ -61,10 +78,10 @@ public static class SellableInventoryRules
 
     /// <summary>
     /// The unit a new sale, assignment, allocation or outbound shipment may
-    /// consume: on the shelf AND passed physical inspection.
+    /// consume: on the shelf AND passed physical inspection AND commercial stock.
     /// </summary>
     public static Expression<Func<SmartTag, bool>> SellableUnit(MyPetLinkDbContext dbContext) =>
-        And(OnShelf(dbContext), PassedPhysicalQa);
+        And(And(OnShelf(dbContext), PassedPhysicalQa), CommercialStock);
 
     /// <summary><see cref="SellableUnit"/> for one SKU.</summary>
     public static Expression<Func<SmartTag, bool>> SellableUnitOf(MyPetLinkDbContext dbContext, Guid productVariantId) =>
@@ -111,6 +128,27 @@ public static class SellableInventoryRules
                 $"Tag {blocked.TagCode} has not passed physical inspection. Choose a passed tag before proceeding.");
         }
     }
+
+    /// <summary>
+    /// A unit committed to a customer order (assignment, change, replacement):
+    /// passed inspection, then commercial stock. Inspection is checked first so
+    /// an uninspected unit keeps its existing explanation.
+    /// </summary>
+    public static void RequireSellableForNewCommitment(IEnumerable<SmartTag> tags)
+    {
+        var list = tags as IReadOnlyCollection<SmartTag> ?? tags.ToArray();
+        RequirePassedForNewCommitment(list);
+        var blocked = list.FirstOrDefault(tag => !IsCommercialStock(tag));
+        if (blocked is not null)
+        {
+            throw new ApiException(409, "stock_not_for_sale", NotForSaleMessage(blocked));
+        }
+    }
+
+    /// <summary>Why this unit cannot be used for a sale, in operator wording.</summary>
+    public static string NotForSaleMessage(SmartTag tag) => tag.StockPurpose == SmartTagStockPurpose.Test
+        ? $"Tag {tag.TagCode} is a testing sample and is never used for a customer order. Choose commercial stock."
+        : $"Tag {tag.TagCode} has not been classified as commercial stock. Choose commercial stock.";
 
     /// <summary>
     /// May this unlinked tag be handed to an owner for the first time (public

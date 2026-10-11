@@ -1397,6 +1397,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
                 tag.Id,
                 tag.TagCode,
                 tag.ProductVariantId,
+                tag.StockPurpose,
                 Allocated = _dbContext.MerchantOrderAllocatedTags.Any(allocation =>
                     allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null),
             })
@@ -1426,6 +1427,17 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
                 StatusCodes.Status409Conflict,
                 "inventory_already_allocated",
                 $"Tag {taken.TagCode} is already allocated to another merchant order.");
+        }
+
+        var notForSale = rows.FirstOrDefault(row => row.StockPurpose != SmartTagStockPurpose.Sale);
+        if (notForSale is not null)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "stock_not_for_sale",
+                notForSale.StockPurpose == SmartTagStockPurpose.Test
+                    ? $"Tag {notForSale.TagCode} is a testing sample and is never allocated to a merchant order."
+                    : $"Tag {notForSale.TagCode} has not been classified as commercial stock.");
         }
 
         throw new ApiException(

@@ -12,6 +12,8 @@ The production diagnostic results ([`diagnose-smart-tag-sellable-inventory.sql`]
 - The code changes and tests are ready for review. The release must not be deployed until the diagnostic has been run and §8 step 1 is complete.
 - The final business decisions are implemented (next section). The only open blockers are the production checks X1–X4.
 
+> **Stock purpose (2026-10-11).** A new sale now also requires the unit to be commercial stock (`StockPurpose = Sale`). Testing samples and unclassified stock are never sold. This ships in the same API build and adds one migration. See [`smart-tag-stock-purpose-separation.md`](smart-tag-stock-purpose-separation.md). The diagnostic's `SellableAfterRemediation` column does not account for purpose; use script 03's expected catalogue stock instead.
+
 ## Final business decisions (2026-10-11): implemented, deployment still BLOCKED
 
 The decisions below were made after the pre-deployment review and are now implemented and tested. They supersede the recommendations in §R1, §R3 and §R4 and decisions D2, D3 and D5 in §7. Production diagnostic results are **still unavailable**, so deployment remains **BLOCKED** (see "Remaining release blockers" below).

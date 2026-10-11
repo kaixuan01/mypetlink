@@ -76,6 +76,10 @@ public sealed class SmartTag : AuditableEntity
     public Guid? QaInspectedByAdminUserId { get; set; }
     public AdminUser? QaInspectedByAdminUser { get; set; }
 
+    // Commercial purpose of this unit, independent of QaStatus: a new sale needs
+    // Sale AND Passed (SellableInventoryRules). Existing rows are Unclassified.
+    public SmartTagStockPurpose StockPurpose { get; set; } = SmartTagStockPurpose.Unclassified;
+
     public User? OwnerUser { get; set; }
     public Pet? Pet { get; set; }
     public TagOrder? Order { get; set; }

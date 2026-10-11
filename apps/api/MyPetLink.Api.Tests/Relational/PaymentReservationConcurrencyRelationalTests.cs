@@ -281,6 +281,7 @@ public sealed class PaymentReservationConcurrencyRelationalTests
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var order = new TagOrder

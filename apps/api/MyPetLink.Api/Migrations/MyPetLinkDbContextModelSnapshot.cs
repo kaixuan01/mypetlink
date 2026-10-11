@@ -6399,6 +6399,13 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<string>("StockPurpose")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("Unclassified");
+
                     b.Property<string>("TagCode")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -6463,7 +6470,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("ProductVariantId", "QaStatus", "Status");
 
-                    b.ToTable("SmartTags", (string)null);
+                    b.ToTable("SmartTags", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SmartTags_StockPurpose", "[StockPurpose] IN (N'Unclassified', N'Sale', N'Test')");
+                        });
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.SmartTagBatch", b =>

@@ -133,6 +133,8 @@ export const ADMIN_TAG_GENERATION_MAX_QUANTITY = 500;
 
 export type AdminGenerateRetailTagsResult = {
   batchNo: string;
+  // As confirmed by the server; absent only from a server that predates it.
+  stockPurpose?: AdminGenerationStockPurpose;
   requestedQuantity: number;
   generatedQuantity: number;
   productVariantId: string;
@@ -1688,11 +1690,16 @@ export async function adminCancelOrder(orderId: string, reason: string) {
   return mockResponse(updatedOrder);
 }
 
+// A new batch is either commercial stock or testing samples; there is no
+// default, so samples can never become sellable stock by omission.
+export type AdminGenerationStockPurpose = "Sale" | "Test";
+
 // Creates unclaimed retail stock: tags with a TagCode but no pet and no owner.
 // New tags activate through the printed /q entry; legacy /t remains compatible.
 export async function adminGenerateRetailTags(
   count: number,
-  productVariantId: string
+  productVariantId: string,
+  stockPurpose: AdminGenerationStockPurpose
 ) {
   if (
     !Number.isInteger(count) ||
@@ -1711,9 +1718,15 @@ export async function adminGenerateRetailTags(
     );
   }
 
+  if (stockPurpose !== "Sale" && stockPurpose !== "Test") {
+    const message = "Choose whether this batch is commercial stock or testing samples.";
+    throw new ApiClientError(400, "validation_failed", message, { stockPurpose: [message] });
+  }
+
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<{
       batchNo: string;
+      stockPurpose?: AdminGenerationStockPurpose;
       quantity: number;
       requestedQuantity?: number;
       generatedQuantity?: number;
@@ -1728,6 +1741,7 @@ export async function adminGenerateRetailTags(
       body: {
         quantity: count,
         productVariantId,
+        stockPurpose,
       },
     });
 
@@ -1756,6 +1770,7 @@ export async function adminGenerateRetailTags(
 
     const result: AdminGenerateRetailTagsResult = {
       batchNo: response.data.batchNo,
+      stockPurpose: response.data.stockPurpose,
       requestedQuantity,
       generatedQuantity,
       productVariantId: response.data.productVariantId,

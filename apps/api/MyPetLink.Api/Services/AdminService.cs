@@ -1893,8 +1893,9 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         var tag = await LoadTagAsync(tagId, trackChanges: true, cancellationToken);
         // Committing a unit to an order is a new commitment: it must have passed
-        // physical QA. Legacy NULL stock is not inspected stock.
-        SellableInventoryRules.RequirePassedForNewCommitment([tag]);
+        // physical QA and be commercial stock. Legacy NULL stock is not inspected
+        // stock; testing samples and unclassified stock are never sold.
+        SellableInventoryRules.RequireSellableForNewCommitment([tag]);
 
         if (tag.Status != SmartTagStatus.Unclaimed
             || tag.ArchivedAt.HasValue

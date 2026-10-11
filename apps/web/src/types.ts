@@ -419,6 +419,11 @@ export type TagFulfilmentStatus =
   | "Received"
   | "SentToOwner";
 
+// What a physical unit is for, independent of physical inspection. Only
+// commercial stock ("Sale") that has also passed inspection is ever sold;
+// testing samples and unclassified stock never are.
+export type TagStockPurpose = "Sale" | "Test" | "Unclassified";
+
 export type TagStatus =
   | "Unassigned"
   | "Pending"

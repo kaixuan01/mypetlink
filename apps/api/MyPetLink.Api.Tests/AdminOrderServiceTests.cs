@@ -880,6 +880,7 @@ public sealed class AdminOrderServiceTests
                 OrderId = orders[3].Id, Order = orders[3],
                 // Inspected: only tags that passed physical QA leave the warehouse.
                 QaStatus = PhysicalQaStatus.Passed,
+                StockPurpose = SmartTagStockPurpose.Sale,
             };
             orders[3].SmartTagId = preparingTag.Id;
             orders[3].SmartTag = preparingTag;

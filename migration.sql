@@ -11039,3 +11039,37 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261011034923_AddSmartTagStockPurpose'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [StockPurpose] nvarchar(32) NOT NULL DEFAULT N'Unclassified';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261011034923_AddSmartTagStockPurpose'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SmartTags] ADD CONSTRAINT [CK_SmartTags_StockPurpose] CHECK ([StockPurpose] IN (N''Unclassified'', N''Sale'', N''Test''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261011034923_AddSmartTagStockPurpose'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261011034923_AddSmartTagStockPurpose', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

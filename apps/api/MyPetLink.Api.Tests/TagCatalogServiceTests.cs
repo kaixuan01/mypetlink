@@ -205,6 +205,7 @@ public sealed class TagCatalogServiceTests
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated
         });
         await harness.Db.SaveChangesAsync();
@@ -250,6 +251,7 @@ public sealed class TagCatalogServiceTests
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         });
         await harness.Db.SaveChangesAsync();
@@ -398,6 +400,7 @@ public sealed class TagCatalogServiceTests
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var order = new TagOrder
@@ -474,6 +477,7 @@ public sealed class TagCatalogServiceTests
             Status = SmartTagStatus.Unclaimed,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
             QaStatus = qaStatus,
+            StockPurpose = SmartTagStockPurpose.Sale,
         });
         await harness.Db.SaveChangesAsync();
 
@@ -489,8 +493,8 @@ public sealed class TagCatalogServiceTests
         // Active + purchasable SKU with two inventory tags.
         var active = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-ACTIVE"));
         harness.Db.SmartTags.AddRange(
-            new SmartTag { TagCode = "MPL-OPT-0001", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated, QaStatus = PhysicalQaStatus.Passed },
-            new SmartTag { TagCode = "MPL-OPT-0002", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated, QaStatus = PhysicalQaStatus.Passed });
+            new SmartTag { TagCode = "MPL-OPT-0001", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated, QaStatus = PhysicalQaStatus.Passed, StockPurpose = SmartTagStockPurpose.Sale },
+            new SmartTag { TagCode = "MPL-OPT-0002", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated, QaStatus = PhysicalQaStatus.Passed, StockPurpose = SmartTagStockPurpose.Sale });
         // Inactive-but-not-archived SKU (still returned; picker filters by isActive itself).
         await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-INACTIVE") with { IsActive = false, IsPurchasable = false });
         // Archived SKU must be excluded.

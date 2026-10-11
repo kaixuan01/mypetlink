@@ -31,7 +31,7 @@ public sealed class AdminTagGenerationRelationalTests
         {
             var response = await Service(db).GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(300, VariantId));
+                new AdminGenerateTagsRequest(300, VariantId, SmartTagStockPurpose.Sale));
 
             Assert.Equal(300, response.RequestedQuantity);
             Assert.Equal(300, response.GeneratedQuantity);
@@ -71,7 +71,7 @@ public sealed class AdminTagGenerationRelationalTests
             await using var db = scope.NewContext();
             return await Service(db).GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(51, VariantId));
+                new AdminGenerateTagsRequest(51, VariantId, SmartTagStockPurpose.Sale));
         }).ToArray();
 
         gate.Release(2);

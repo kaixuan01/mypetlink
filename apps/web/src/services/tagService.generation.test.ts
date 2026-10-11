@@ -77,13 +77,13 @@ describe("adminGenerateRetailTags", () => {
     async (quantity) => {
       mocks.apiRequest.mockResolvedValue(generationEnvelope(quantity));
 
-      const response = await adminGenerateRetailTags(quantity, "variant-1");
+      const response = await adminGenerateRetailTags(quantity, "variant-1", "Sale");
 
       expect(mocks.apiRequest).toHaveBeenCalledWith(
         "/api/v1/admin/tag-inventory/generate",
         {
           method: "POST",
-          body: { quantity, productVariantId: "variant-1" },
+          body: { quantity, productVariantId: "variant-1", stockPurpose: "Sale" },
         }
       );
       expect(response.data.requestedQuantity).toBe(quantity);
@@ -95,7 +95,7 @@ describe("adminGenerateRetailTags", () => {
   it.each([0, -1, ADMIN_TAG_GENERATION_MAX_QUANTITY + 1, 1.5, Number.NaN])(
     "rejects invalid quantity %s without sending a request",
     async (quantity) => {
-      await expect(adminGenerateRetailTags(quantity, "variant-1")).rejects.toMatchObject({
+      await expect(adminGenerateRetailTags(quantity, "variant-1", "Sale")).rejects.toMatchObject({
         status: 400,
         code: "validation_failed",
       });
@@ -110,9 +110,33 @@ describe("adminGenerateRetailTags", () => {
     partial.data.tags = partial.data.tags.slice(0, 50);
     mocks.apiRequest.mockResolvedValue(partial);
 
-    await expect(adminGenerateRetailTags(300, "variant-1")).rejects.toMatchObject({
+    await expect(adminGenerateRetailTags(300, "variant-1", "Sale")).rejects.toMatchObject({
       status: 502,
       code: "tag_generation_incomplete",
     } satisfies Partial<ApiClientError>);
+  });
+
+  it("refuses a batch without a stock purpose and never sends it", async () => {
+    for (const purpose of [undefined, "", "Unclassified"]) {
+      await expect(adminGenerateRetailTags(5, "variant-1", purpose as never)).rejects.toMatchObject({
+        status: 400,
+        code: "validation_failed",
+        details: { stockPurpose: ["Choose whether this batch is commercial stock or testing samples."] },
+      });
+    }
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
+  });
+
+  it("sends testing samples as such and reports the purpose the server confirmed", async () => {
+    const envelope = generationEnvelope(2);
+    mocks.apiRequest.mockResolvedValue({ ...envelope, data: { ...envelope.data, stockPurpose: "Test" } });
+
+    const response = await adminGenerateRetailTags(2, "variant-1", "Test");
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith("/api/v1/admin/tag-inventory/generate", {
+      method: "POST",
+      body: { quantity: 2, productVariantId: "variant-1", stockPurpose: "Test" },
+    });
+    expect(response.data.stockPurpose).toBe("Test");
   });
 });

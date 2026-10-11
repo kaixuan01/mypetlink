@@ -19,7 +19,7 @@ namespace MyPetLink.Api.Tests.Relational;
 /// shipped no longer reserves stock whatever later happens to its tag; and
 /// legacy (QA NULL) tags already issued or committed keep their flows.
 /// </summary>
-public sealed class SellableInventoryRelationalTests
+public sealed partial class SellableInventoryRelationalTests
 {
     private static readonly Guid AdminId = Guid.Parse("d8111111-1111-4111-8111-111111111111");
     private static readonly Guid OwnerId = Guid.Parse("d8222222-2222-4222-8222-222222222222");
@@ -149,6 +149,14 @@ public sealed class SellableInventoryRelationalTests
                 AddShelfTag(seed, id, $"MPL-{key}-0001", qa);
                 cases.Add(($"shelf, QA {qa?.ToString() ?? "NULL"}", id, qa == PhysicalQaStatus.Passed));
             }
+
+            // Passed units on the shelf that are not commercial stock.
+            var sample = await Variant("QTST");
+            AddShelfTag(seed, sample, "MPL-QTST-0001", PhysicalQaStatus.Passed, purpose: SmartTagStockPurpose.Test);
+            cases.Add(("Passed testing sample", sample, false));
+            var unclassified = await Variant("QUNC");
+            AddShelfTag(seed, unclassified, "MPL-QUNC-0001", PhysicalQaStatus.Passed, purpose: SmartTagStockPurpose.Unclassified);
+            cases.Add(("Passed but unclassified", unclassified, false));
 
             // Passed units that are not on the shelf.
             var lost = await Variant("LOST");
@@ -766,13 +774,16 @@ public sealed class SellableInventoryRelationalTests
         return variant.Id;
     }
 
+    // Shelf stock is commercial (Sale) unless a test says otherwise, so QA stays
+    // the variable these tests exercise.
     private static Guid AddShelfTag(MyPetLinkDbContext db, Guid variantId, string code, PhysicalQaStatus? qa,
-        TagFulfilmentStatus fulfilment = TagFulfilmentStatus.Generated, string? shipment = null, Action<SmartTag>? configure = null)
+        TagFulfilmentStatus fulfilment = TagFulfilmentStatus.Generated, string? shipment = null, Action<SmartTag>? configure = null,
+        SmartTagStockPurpose purpose = SmartTagStockPurpose.Sale)
     {
         var tag = new SmartTag
         {
             TagCode = code, ProductVariantId = variantId, HasNfc = true, Variant = "Lightweight",
-            Status = SmartTagStatus.Unclaimed, FulfilmentStatus = fulfilment, QaStatus = qa,
+            Status = SmartTagStatus.Unclaimed, FulfilmentStatus = fulfilment, QaStatus = qa, StockPurpose = purpose,
             QaShipmentReference = qa is null ? null : shipment ?? "SELL-SHIP", QaVersion = qa is null ? 0 : 1,
         };
         configure?.Invoke(tag);

@@ -453,7 +453,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
 
         AdminGenerateTagsResponse response;
         await using (var db = scope.NewContext())
-            response = await Inventory(db).GenerateAsync(AdminId, new AdminGenerateTagsRequest(5, variantId));
+            response = await Inventory(db).GenerateAsync(AdminId, new AdminGenerateTagsRequest(5, variantId, SmartTagStockPurpose.Sale));
 
         await using var check = scope.NewContext();
         var tags = await check.SmartTags.Include(t => t.Batch).Where(t => t.ProductVariantId == variantId).ToListAsync();
@@ -765,7 +765,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             db.SmartTags.Add(new SmartTag
             {
                 TagCode = Code(index), ProductVariant = variant, Batch = batch, HasNfc = true, Variant = "Standard",
-                Status = SmartTagStatus.Unclaimed, FulfilmentStatus = fulfilment,
+                Status = SmartTagStatus.Unclaimed, FulfilmentStatus = fulfilment, StockPurpose = SmartTagStockPurpose.Sale,
             });
         await db.SaveChangesAsync();
         return variant.Id;

@@ -300,7 +300,9 @@ public sealed class AdminTagInventoryServiceTests
         // Sending shelf stock to a reseller issues it, so the stock must have
         // passed physical inspection.
         foreach (var tag in await harness.Db.SmartTags.Where(tag => printed.Contains(tag.Id)).ToListAsync())
-            tag.QaStatus = PhysicalQaStatus.Passed;
+        {
+            tag.QaStatus = PhysicalQaStatus.Passed; tag.StockPurpose = SmartTagStockPurpose.Sale;
+        }
         await harness.Db.SaveChangesAsync();
 
         var sent = await harness.Service.BulkUpdateFulfilmentAsync(
@@ -535,11 +537,77 @@ public sealed class AdminTagInventoryServiceTests
     }
 
     [Fact]
+    public async Task Generate_RequiresAStockPurposeAndStampsItOnEveryNewTag()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var before = await harness.Db.SmartTags.CountAsync();
+
+        // No default: a batch of samples must never become commercial stock by omission.
+        foreach (var purpose in new SmartTagStockPurpose?[] { null, SmartTagStockPurpose.Unclassified, (SmartTagStockPurpose)99 })
+        {
+            var error = await Assert.ThrowsAsync<ApiException>(() => harness.Service.GenerateAsync(
+                AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, purpose)));
+            Assert.Equal("validation_failed", error.Code);
+            Assert.Contains("stockPurpose", error.Details!.Keys);
+        }
+        Assert.Equal(before, await harness.Db.SmartTags.CountAsync());
+
+        var samples = await harness.Service.GenerateAsync(
+            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, SmartTagStockPurpose.Test));
+        var commercial = await harness.Service.GenerateAsync(
+            AdminUserId, new AdminGenerateTagsRequest(3, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
+
+        Assert.Equal((SmartTagStockPurpose.Test, SmartTagStockPurpose.Sale), (samples.StockPurpose, commercial.StockPurpose));
+        foreach (var (batchNo, purpose, count) in new[] { (samples.BatchNo, SmartTagStockPurpose.Test, 2), (commercial.BatchNo, SmartTagStockPurpose.Sale, 3) })
+        {
+            var stored = await harness.Db.SmartTags.AsNoTracking().Where(tag => tag.Batch!.BatchNo == batchNo).ToListAsync();
+            Assert.Equal(count, stored.Count);
+            // Purpose never replaces inspection: new stock still starts Pending.
+            Assert.All(stored, tag => Assert.Equal((purpose, PhysicalQaStatus.Pending), (tag.StockPurpose, tag.QaStatus!.Value)));
+        }
+
+        var audits = await harness.Db.AuditLogs.AsNoTracking().Where(entry => entry.Action == "tag-inventory.generate").ToListAsync();
+        Assert.Contains(audits, entry => entry.NewValue!.Contains("\"stockPurpose\":\"Test\""));
+        Assert.Contains(audits, entry => entry.NewValue!.Contains("\"stockPurpose\":\"Sale\""));
+    }
+
+    [Fact]
+    public async Task List_FiltersByStockPurposeAndShowsItOnEveryRow()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        await harness.Service.GenerateAsync(AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
+        await harness.Service.GenerateAsync(AdminUserId, new AdminGenerateTagsRequest(1, NfcLightweightVariantId, SmartTagStockPurpose.Test));
+
+        var (commercial, commercialTotal) = await harness.Service.ListAsync(new AdminTagInventoryQuery { StockPurpose = "Sale" });
+        Assert.Equal(2, commercialTotal);
+        Assert.All(commercial, item => Assert.Equal(SmartTagStockPurpose.Sale, item.StockPurpose));
+
+        var (samples, samplesTotal) = await harness.Service.ListAsync(new AdminTagInventoryQuery { StockPurpose = "test" });
+        Assert.Equal(1, samplesTotal);
+        Assert.Equal(SmartTagStockPurpose.Test, Assert.Single(samples).StockPurpose);
+
+        // Stock that existed before classification is Unclassified.
+        var (unclassified, unclassifiedTotal) = await harness.Service.ListAsync(new AdminTagInventoryQuery { StockPurpose = "Unclassified" });
+        Assert.True(unclassifiedTotal > 0);
+        Assert.All(unclassified, item => Assert.Equal(SmartTagStockPurpose.Unclassified, item.StockPurpose));
+
+        var (_, allTotal) = await harness.Service.ListAsync(new AdminTagInventoryQuery { PageSize = 100 });
+        Assert.Equal(commercialTotal + samplesTotal + unclassifiedTotal, allTotal);
+
+        foreach (var unsupported in new[] { "Exempt", "7" })
+        {
+            var error = await Assert.ThrowsAsync<ApiException>(() =>
+                harness.Service.ListAsync(new AdminTagInventoryQuery { StockPurpose = unsupported }));
+            Assert.Contains("stockPurpose", error.Details!.Keys);
+        }
+    }
+
+    [Fact]
     public async Task ManufacturerExport_NfcTagsCarryDistinctQrAndNfcContent()
     {
         using var harness = await InventoryHarness.CreateAsync();
         var generated = await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId));
+            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
 
         var export = await harness.Service.ExportManufacturerAsync(
             AdminUserId, new AdminTagInventoryQuery { Batch = generated.BatchNo }, null);
@@ -631,7 +699,7 @@ public sealed class AdminTagInventoryServiceTests
     {
         using var harness = await InventoryHarness.CreateAsync();
         var generated = await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId));
+            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId, SmartTagStockPurpose.Sale));
         var selected = await harness.Db.SmartTags
             .Where(tag => tag.TagCode == "MPL-AAAA-AAAA" || tag.Batch!.BatchNo == generated.BatchNo)
             .Select(tag => tag.Id)
@@ -763,7 +831,7 @@ public sealed class AdminTagInventoryServiceTests
         tag.PetId = PetId;
         tag.Status = SmartTagStatus.Preparing;
         // Inspected: only tags that passed physical QA leave the warehouse.
-        tag.QaStatus = PhysicalQaStatus.Passed;
+        tag.QaStatus = PhysicalQaStatus.Passed; tag.StockPurpose = SmartTagStockPurpose.Sale;
         harness.Db.TagOrders.Add(order);
         await harness.Db.SaveChangesAsync();
         tag.OrderId = order.Id;
@@ -795,7 +863,7 @@ public sealed class AdminTagInventoryServiceTests
         var failure = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(3, QrLightweightVariantId)));
+                new AdminGenerateTagsRequest(3, QrLightweightVariantId, SmartTagStockPurpose.Sale)));
 
         Assert.Contains(
             "NFC capability",
@@ -816,7 +884,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(quantity, NfcLightweightVariantId));
+            new AdminGenerateTagsRequest(quantity, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
 
         Assert.Equal(quantity, response.Quantity);
         Assert.Equal(quantity, response.RequestedQuantity);
@@ -867,7 +935,7 @@ public sealed class AdminTagInventoryServiceTests
         var failure = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(quantity, NfcLightweightVariantId)));
+                new AdminGenerateTagsRequest(quantity, NfcLightweightVariantId, SmartTagStockPurpose.Sale)));
 
         Assert.Equal("validation_failed", failure.Code);
         Assert.Contains("quantity", failure.Details!.Keys);
@@ -905,10 +973,10 @@ public sealed class AdminTagInventoryServiceTests
 
         var first = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(51, NfcLightweightVariantId));
+            new AdminGenerateTagsRequest(51, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
         var second = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(51, NfcLightweightVariantId));
+            new AdminGenerateTagsRequest(51, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
 
         Assert.NotEqual(first.BatchNo, second.BatchNo);
         Assert.Empty(first.Tags.Select(tag => tag.TagCode).Intersect(second.Tags.Select(tag => tag.TagCode)));
@@ -927,7 +995,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, NfcLightweightVariantId));
+            new AdminGenerateTagsRequest(3, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
 
         Assert.Equal("MPL-BAT-260728000506-1234", response.BatchNo);
         var batches = await harness.Db.SmartTagBatches
@@ -959,7 +1027,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var generated = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(1, NfcLightweightVariantId));
+            new AdminGenerateTagsRequest(1, NfcLightweightVariantId, SmartTagStockPurpose.Sale));
         Assert.Equal("MPL-BAT-260727150809-2222", generated.BatchNo);
 
     }
@@ -985,7 +1053,7 @@ public sealed class AdminTagInventoryServiceTests
         var error = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(1, NfcLightweightVariantId)));
+                new AdminGenerateTagsRequest(1, NfcLightweightVariantId, SmartTagStockPurpose.Sale)));
 
         Assert.Equal("batch_number_generation_failed", error.Code);
         Assert.Equal(before, await harness.Db.SmartTags.CountAsync());

@@ -466,7 +466,7 @@ public sealed class AdminSmartTagServiceTests
         // Inspected stock, so the re-activation below is allowed. A returned tag
         // is inventory again; re-issuing one that was never inspected is
         // covered by SellableInventoryRulesTests.
-        tag.QaStatus = PhysicalQaStatus.Passed;
+        tag.QaStatus = PhysicalQaStatus.Passed; tag.StockPurpose = SmartTagStockPurpose.Sale;
         var historicalScan = new TagScan
         {
             SmartTagId = tag.Id,

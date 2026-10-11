@@ -409,9 +409,10 @@ internal static class MerchantFulfilmentFixture
             Variant = hasNfc ? "Standard" : "Lightweight",
             Status = SmartTagStatus.Unclaimed,
             FulfilmentStatus = TagFulfilmentStatus.Printed,
-            // Inspected stock: merchant allocation is a new commitment and only
-            // takes units that passed physical QA.
+            // Inspected commercial stock: merchant allocation is a new
+            // commitment and only takes Sale units that passed physical QA.
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             PrintedAt = createdAt,
             CreatedAt = createdAt,
             UpdatedAt = createdAt,

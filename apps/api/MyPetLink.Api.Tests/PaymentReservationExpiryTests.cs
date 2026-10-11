@@ -207,6 +207,7 @@ public class PaymentReservationExpiryTests
                     ProductVariantId = VariantId,
                     Status = SmartTagStatus.Unclaimed,
                     QaStatus = PhysicalQaStatus.Passed,
+                    StockPurpose = SmartTagStockPurpose.Sale,
                     FulfilmentStatus = TagFulfilmentStatus.Generated,
                 });
             }

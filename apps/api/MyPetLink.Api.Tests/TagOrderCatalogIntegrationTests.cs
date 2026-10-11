@@ -556,6 +556,7 @@ public sealed class TagOrderCatalogIntegrationTests
             Variant = "Lightweight",
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated
         };
         harness.Db.AddRange(otherVariant, wrongStock);
@@ -613,6 +614,7 @@ public sealed class TagOrderCatalogIntegrationTests
             Variant = "Lightweight",
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated
         };
         harness.Db.AddRange(secondPet, qrVariant, qrStock);
@@ -911,6 +913,7 @@ public sealed class TagOrderCatalogIntegrationTests
             Variant = variant.TagVariant,
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         });
         await db.SaveChangesAsync();
@@ -1037,6 +1040,7 @@ public sealed class TagOrderCatalogIntegrationTests
                 Variant = "Standard",
                 Status = SmartTagStatus.Unclaimed,
                 QaStatus = PhysicalQaStatus.Passed,
+                StockPurpose = SmartTagStockPurpose.Sale,
                 FulfilmentStatus = TagFulfilmentStatus.Generated
             };
             var deliveryRate = new DeliveryRate

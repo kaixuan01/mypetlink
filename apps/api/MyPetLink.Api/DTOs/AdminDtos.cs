@@ -135,7 +135,10 @@ public sealed record AdminGenerateTagsRequest(
         AdminGenerateTagsLimits.MaximumQuantity,
         ErrorMessage = "Quantity must be a whole number from 1 to 500.")]
     int Quantity,
-    [Required] Guid? ProductVariantId);
+    [Required] Guid? ProductVariantId,
+    // Required by the service (commercial stock or testing samples), with
+    // operator wording; never defaulted.
+    SmartTagStockPurpose? StockPurpose = null);
 
 public sealed record AdminGenerateTagsResponse(
     string BatchNo,
@@ -149,7 +152,10 @@ public sealed record AdminGenerateTagsResponse(
     string ProductName,
     string VariantName,
     int CurrentInventoryCount,
-    IReadOnlyCollection<SmartTagResponse> Tags);
+    IReadOnlyCollection<SmartTagResponse> Tags)
+{
+    public SmartTagStockPurpose StockPurpose { get; init; }
+}
 
 public sealed record AdminOwnerListItemResponse(
     Guid UserId,

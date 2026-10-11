@@ -47,6 +47,7 @@ import {
   isManufacturerExportAvailable,
   lifecycleLabel,
   listTagInventory,
+  stockPurposeLabels,
   type AdminInventoryBulkAction,
   type AdminInventoryListParams,
   type AdminInventoryTag,
@@ -57,6 +58,7 @@ import {
   ADMIN_TAG_GENERATION_MIN_QUANTITY,
   adminGenerateRetailTags,
   getFriendlyTagErrorMessage,
+  type AdminGenerationStockPurpose,
 } from "@/services/tagService";
 import {
   listAdminTagCatalogOptions,
@@ -64,7 +66,7 @@ import {
   type AdminCatalogOptionProduct,
   type AdminCatalogOptionVariant,
 } from "@/services/tagCatalogService";
-import type { TagFulfilmentStatus, TagVariant } from "@/types";
+import type { TagFulfilmentStatus, TagStockPurpose, TagVariant } from "@/types";
 
 // Fallback variant filter values used only until the configured variant
 // presets have loaded (they match the two built-in presets every install has).
@@ -73,6 +75,7 @@ const fallbackVariantOptions: TagVariant[] = ["Lightweight", "Standard"];
 const filterKeys = [
   "status",
   "fulfilment",
+  "stockPurpose",
   "type",
   "variant",
   "batch",
@@ -112,6 +115,16 @@ const buildFilterDefs = (variantOptions: TagVariant[]): AdminFilterDef[] => [
   },
   {
     type: "select",
+    key: "stockPurpose",
+    label: "Stock purpose",
+    options: [
+      { value: "Sale", label: "Commercial Stock" },
+      { value: "Test", label: "Testing Samples" },
+      { value: "Unclassified", label: "Unclassified" },
+    ],
+  },
+  {
+    type: "select",
     key: "type",
     label: "Type",
     options: [
@@ -141,6 +154,14 @@ const buildFilterDefs = (variantOptions: TagVariant[]): AdminFilterDef[] => [
   { type: "text", key: "reseller", label: "Reseller", advanced: true },
   { type: "date-range", key: "updated", label: "Updated", advanced: true },
 ];
+
+const stockPurposeTone: Record<TagStockPurpose, "soft" | "warm" | "mint"> = {
+  Sale: "mint",
+  Test: "warm",
+  Unclassified: "soft",
+};
+
+const generationPurposeMessage = "Choose whether this batch is commercial stock or testing samples.";
 
 const fulfilmentTone: Record<
   TagFulfilmentStatus,
@@ -193,6 +214,7 @@ export function AdminTagInventoryManager() {
       batch: query.filters.batch,
       status: query.filters.status,
       fulfilment: query.filters.fulfilment,
+      stockPurpose: query.filters.stockPurpose,
       tagType: query.filters.type,
       variant: query.filters.variant,
       claimed: query.filters.claimed,
@@ -239,6 +261,7 @@ export function AdminTagInventoryManager() {
   const [catalogProducts, setCatalogProducts] = useState<AdminCatalogOptionProduct[]>([]);
   const [productId, setProductId] = useState("");
   const [productVariantId, setProductVariantId] = useState("");
+  const [stockPurpose, setStockPurpose] = useState<AdminGenerationStockPurpose | "">("");
   const [generateMessage, setGenerateMessage] = useState("");
 
   const [variantPresets, setVariantPresets] = useState<TagVariant[]>([]);
@@ -351,6 +374,10 @@ export function AdminTagInventoryManager() {
       setGenerateMessage("Choose a product SKU before generating inventory.");
       return;
     }
+    if (!stockPurpose) {
+      setGenerateMessage(generationPurposeMessage);
+      return;
+    }
     const selected = catalogProducts.flatMap((product) => product.variants).find((variant) => variant.id === productVariantId);
     const missing = selected ? missingProductionFields(selected) : [];
     if (missing.length > 0) {
@@ -361,7 +388,7 @@ export function AdminTagInventoryManager() {
     setGenerateBusy(true);
     setGenerateMessage("");
     try {
-      const result = await adminGenerateRetailTags(requestedQuantity, productVariantId);
+      const result = await adminGenerateRetailTags(requestedQuantity, productVariantId, stockPurpose);
       setCatalogProducts((products) =>
         products.map((product) => ({
           ...product,
@@ -372,10 +399,18 @@ export function AdminTagInventoryManager() {
           ),
         }))
       );
+      const generatedAs =
+        result.data.stockPurpose === "Test"
+          ? "testing samples"
+          : result.data.stockPurpose === "Sale"
+            ? "commercial stock"
+            : "unclaimed stock";
       setGenerateMessage(
         `${result.data.generatedQuantity} new ${result.data.sku} tag code${
           result.data.generatedQuantity === 1 ? "" : "s"
-        } generated as unclaimed stock in batch ${result.data.batchNo}.`
+        } generated as ${generatedAs} in batch ${result.data.batchNo}.${
+          result.data.stockPurpose === "Test" ? " Testing samples are never sold." : ""
+        }`
       );
       refresh();
     } catch (caught) {
@@ -531,6 +566,16 @@ export function AdminTagInventoryManager() {
       cell: (tag) => <span className="text-sm">{tag.qaStatus === "NeedsReview" ? "Needs Review" : tag.qaStatus ?? "Historical stock"}</span>,
     },
     {
+      id: "stockPurpose",
+      header: "Stock purpose",
+      cell: (tag) =>
+        tag.stockPurpose ? (
+          <Badge tone={stockPurposeTone[tag.stockPurpose]}>{stockPurposeLabels[tag.stockPurpose]}</Badge>
+        ) : (
+          <span className="text-sm">—</span>
+        ),
+    },
+    {
       id: "fulfilment",
       header: "Fulfilment",
       sortId: "fulfilment",
@@ -670,11 +715,27 @@ export function AdminTagInventoryManager() {
               value={count}
             />
           </label>
+          <label className="grid min-w-52 gap-1 text-xs font-extrabold uppercase text-slate-500">
+            Stock purpose
+            <select
+              className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
+              aria-describedby="tag-generation-purpose-help"
+              onChange={(event) => setStockPurpose(event.target.value as AdminGenerationStockPurpose | "")}
+              value={stockPurpose}
+            >
+              <option value="">Choose stock purpose</option>
+              <option value="Sale">Commercial stock</option>
+              <option value="Test">Testing samples</option>
+            </select>
+          </label>
           <AdminActionButton disabled={generateBusy || !selectedCatalogVariant || missingProductionFields(selectedCatalogVariant).length > 0} onClick={() => void generate()} tone="primary">
             {generateBusy ? "Generating…" : "Generate Tag Codes"}
           </AdminActionButton>
           <p className="max-w-56 text-xs font-semibold leading-5 text-slate-500" id="tag-generation-quantity-help">
             Generate 1–{ADMIN_TAG_GENERATION_MAX_QUANTITY} tags in one batch. A batch reference is assigned automatically.
+          </p>
+          <p className="max-w-64 text-xs font-semibold leading-5 text-slate-500" id="tag-generation-purpose-help">
+            Commercial stock can be sold once it passes physical inspection. Testing samples are never sold.
           </p>
         </div>
         {selectedCatalogVariant ? (
@@ -856,6 +917,8 @@ function getTagGenerationErrorMessage(error: unknown) {
   if (isApiClientError(error)) {
     const quantityMessage = error.details?.quantity?.[0];
     if (quantityMessage) return quantityMessage;
+    const purposeMessage = error.details?.stockPurpose?.[0];
+    if (purposeMessage) return purposeMessage;
     if (
       error.code === "tag_generation_incomplete" ||
       error.code === "tag_code_generation_failed" ||

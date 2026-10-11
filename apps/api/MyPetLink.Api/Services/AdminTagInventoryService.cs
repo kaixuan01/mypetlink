@@ -115,6 +115,15 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             throw ValidationFailed("productVariantId", "Choose a product SKU.");
         }
 
+        // Every new batch says what it is for. There is no default: a batch of
+        // manufacturer samples must never become commercial stock by omission.
+        if (request.StockPurpose is not (SmartTagStockPurpose.Sale or SmartTagStockPurpose.Test))
+        {
+            throw ValidationFailed("stockPurpose", "Choose whether this batch is commercial stock or testing samples.");
+        }
+
+        var stockPurpose = request.StockPurpose.Value;
+
         var strategy = _dbContext.Database.CreateExecutionStrategy();
         for (var persistenceAttempt = 0; persistenceAttempt < 12; persistenceAttempt++)
         {
@@ -172,6 +181,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                             QaStatus = PhysicalQaStatus.Pending,
                             QaShipmentReference = batchNo,
                             QaVersion = 1,
+                            StockPurpose = stockPurpose,
                             FulfilmentStatus = TagFulfilmentStatus.Generated
                         });
                     }
@@ -186,7 +196,8 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                             request.Quantity,
                             productVariant.Id,
                             productVariant.Sku,
-                            productVariant.TagProduct.Name
+                            productVariant.TagProduct.Name,
+                            stockPurpose = stockPurpose.ToString()
                         });
 
                     await _dbContext.SaveChangesAsync(cancellationToken);
@@ -219,7 +230,10 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                         productVariant.TagProduct.Name,
                         productVariant.DisplayName,
                         currentInventoryCount,
-                        tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
+                        tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray())
+                    {
+                        StockPurpose = stockPurpose
+                    };
                 });
             }
             catch (DbUpdateException exception) when (
@@ -325,11 +339,20 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             }
 
             // Both moves take a unit off our shelf and issue it, so they are new
-            // commitments: only stock that passed physical QA may go.
+            // commitments: only commercial stock that passed physical QA may go.
             if (transition.To is TagFulfilmentStatus.SentToOwner or TagFulfilmentStatus.SentToReseller
                 && !SellableInventoryRules.IsPassed(tag))
             {
                 failures.Add(new AdminTagInventoryBulkFailure(tagId, tag.TagCode, "This tag must pass physical inspection before it can be sent onward."));
+                continue;
+            }
+
+            if (transition.To is TagFulfilmentStatus.SentToOwner or TagFulfilmentStatus.SentToReseller
+                && !SellableInventoryRules.IsCommercialStock(tag))
+            {
+                failures.Add(new AdminTagInventoryBulkFailure(tagId, tag.TagCode, tag.StockPurpose == SmartTagStockPurpose.Test
+                    ? "Testing samples are never sent onward for sale."
+                    : "Only commercial stock can be sent onward. This tag has not been classified as commercial stock."));
                 continue;
             }
             ApplyFulfilment(tag, transition.To, now);
@@ -970,6 +993,15 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             tags = tags.Where(tag => tag.FulfilmentStatus == parsed);
         }
 
+        var stockPurpose = NormalizeOptional(query.StockPurpose);
+        if (stockPurpose is not null)
+        {
+            var parsed = ParseEnum<SmartTagStockPurpose>(stockPurpose, "stockPurpose", "Stock purpose is not supported.");
+            if (!Enum.IsDefined(parsed))
+                throw ValidationFailed("stockPurpose", "Stock purpose is not supported.");
+            tags = tags.Where(tag => tag.StockPurpose == parsed);
+        }
+
         var tagType = NormalizeOptional(query.TagType);
         if (tagType is not null)
         {
@@ -1115,7 +1147,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             tag.SentToOwnerAt,
             tag.ActivatedAt,
             tag.DeliveredAt,
-            tag.LastScannedAt) { QaStatus = tag.QaStatus });
+            tag.LastScannedAt) { QaStatus = tag.QaStatus, StockPurpose = tag.StockPurpose });
     }
 
     // --- Display labels -------------------------------------------------------------

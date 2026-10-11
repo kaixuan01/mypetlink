@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/services/apiClient";
 import { AdminTagInventoryManager } from "./AdminTagInventoryManager";
@@ -86,10 +86,11 @@ const catalog = [{
   }],
 }];
 
-function success(quantity: number, currentInventoryCount = quantity + 20) {
+function success(quantity: number, currentInventoryCount = quantity + 20, stockPurpose: "Sale" | "Test" = "Sale") {
   return {
     data: {
       batchNo: "MPL-BAT-260910120000-1234",
+      stockPurpose,
       requestedQuantity: quantity,
       generatedQuantity: quantity,
       productVariantId,
@@ -115,6 +116,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// The generation form's stock purpose (the filter bar has a field of the same name).
+function choosePurpose(value: "" | "Sale" | "Test") {
+  const select = screen.getAllByLabelText("Stock purpose").find(
+    (element) => element.getAttribute("aria-describedby") === "tag-generation-purpose-help"
+  );
+  expect(select).toBeDefined();
+  fireEvent.change(select!, { target: { value } });
+}
+
 async function renderReady() {
   render(<AdminTagInventoryManager />);
   await waitFor(() =>
@@ -131,17 +141,18 @@ describe("AdminTagInventoryManager generation", () => {
     await renderReady();
 
     fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "300" } });
+    choosePurpose("Sale");
     const button = screen.getByRole("button", { name: "Generate Tag Codes" });
     fireEvent.click(button);
     fireEvent.click(button);
 
     expect(mocks.generate).toHaveBeenCalledTimes(1);
-    expect(mocks.generate).toHaveBeenCalledWith(300, productVariantId);
+    expect(mocks.generate).toHaveBeenCalledWith(300, productVariantId, "Sale");
     expect((screen.getByRole("button", { name: "Generating…" }) as HTMLButtonElement).disabled).toBe(true);
 
     resolveRequest?.(success(300, 320));
     expect(await screen.findByText(
-      "300 new MYBOSS-LW-QR-NFC tag codes generated as unclaimed stock in batch MPL-BAT-260910120000-1234."
+      "300 new MYBOSS-LW-QR-NFC tag codes generated as commercial stock in batch MPL-BAT-260910120000-1234."
     )).toBeDefined();
     await waitFor(() => expect(screen.getByText("320 tags")).toBeDefined());
   });
@@ -166,9 +177,73 @@ describe("AdminTagInventoryManager generation", () => {
       { quantity: ["Quantity must be a whole number from 1 to 500."] }
     ));
     await renderReady();
+    choosePurpose("Sale");
 
     fireEvent.click(screen.getByRole("button", { name: "Generate Tag Codes" }));
 
     expect(await screen.findByText("Quantity must be a whole number from 1 to 500.")).toBeDefined();
+  });
+
+  it("never generates a batch until its stock purpose is chosen", async () => {
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate Tag Codes" }));
+
+    expect(await screen.findByText("Choose whether this batch is commercial stock or testing samples.")).toBeDefined();
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("generates testing samples and says they are never sold", async () => {
+    mocks.generate.mockResolvedValue(success(2, 22, "Test"));
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
+    choosePurpose("Test");
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate Tag Codes" }));
+
+    expect(mocks.generate).toHaveBeenCalledWith(2, productVariantId, "Test");
+    expect(await screen.findByText(
+      "2 new MYBOSS-LW-QR-NFC tag codes generated as testing samples in batch MPL-BAT-260910120000-1234. Testing samples are never sold."
+    )).toBeDefined();
+  });
+
+  it("shows the server's stock purpose validation message", async () => {
+    mocks.generate.mockRejectedValue(new ApiClientError(
+      400,
+      "validation_failed",
+      "Please check the submitted fields.",
+      { stockPurpose: ["Choose whether this batch is commercial stock or testing samples."] }
+    ));
+    await renderReady();
+    choosePurpose("Sale");
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate Tag Codes" }));
+
+    expect(await screen.findByText("Choose whether this batch is commercial stock or testing samples.")).toBeDefined();
+  });
+});
+
+describe("AdminTagInventoryManager stock purpose", () => {
+  it("labels every row with its stock purpose and offers the purpose filter", async () => {
+    const row = (id: string, tagCode: string, stockPurpose?: "Sale" | "Test" | "Unclassified") => ({
+      id, tagCode, stockPurpose, qaStatus: "Passed" as const, hasNfc: true, variant: "Lightweight",
+      status: "Unassigned" as const, isArchived: false, fulfilment: "Printed" as const,
+    });
+    mocks.listInventory.mockResolvedValue({
+      items: [row("t1", "MPL-SALE-0001", "Sale"), row("t2", "MPL-TEST-0001", "Test"), row("t3", "MPL-UNCL-0001", "Unclassified")],
+      total: 3,
+    });
+    await renderReady();
+
+    const rowOf = async (tagCode: string) => (await screen.findByText(tagCode)).closest("tr") as HTMLElement;
+    expect(within(await rowOf("MPL-SALE-0001")).getByText("Commercial Stock")).toBeDefined();
+    expect(within(await rowOf("MPL-TEST-0001")).getByText("Testing Sample")).toBeDefined();
+    expect(within(await rowOf("MPL-UNCL-0001")).getByText("Unclassified")).toBeDefined();
+    const filter = screen.getAllByLabelText("Stock purpose").find(
+      (element) => element.getAttribute("aria-describedby") !== "tag-generation-purpose-help"
+    ) as HTMLSelectElement;
+    expect([...filter.options].map((option) => option.textContent)).toEqual(
+      expect.arrayContaining(["Commercial Stock", "Testing Samples", "Unclassified"])
+    );
   });
 });

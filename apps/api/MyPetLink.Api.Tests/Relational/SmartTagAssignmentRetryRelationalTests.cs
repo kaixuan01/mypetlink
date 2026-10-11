@@ -387,6 +387,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             Variant = variant.TagVariant,
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         seed.AddRange(product, variant, tag);

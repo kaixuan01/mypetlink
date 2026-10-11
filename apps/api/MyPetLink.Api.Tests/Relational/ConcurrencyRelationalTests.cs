@@ -201,6 +201,7 @@ public sealed class ConcurrencyRelationalTests
                 Variant = variant.TagVariant,
                 Status = SmartTagStatus.Unclaimed,
                 QaStatus = PhysicalQaStatus.Passed,
+                StockPurpose = SmartTagStockPurpose.Sale,
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             var first = ConfirmedOrder(variant, "ORD-REL-1");
@@ -351,6 +352,7 @@ public sealed class ConcurrencyRelationalTests
             Variant = variant.TagVariant,
             Status = SmartTagStatus.Unclaimed,
             QaStatus = PhysicalQaStatus.Passed,
+            StockPurpose = SmartTagStockPurpose.Sale,
             FulfilmentStatus = TagFulfilmentStatus.Generated,
         };
         var first = ConfirmedOrder(variant, "ORD-REL-A");
@@ -380,6 +382,7 @@ public sealed class ConcurrencyRelationalTests
                 Variant = variant.TagVariant,
                 Status = SmartTagStatus.Unclaimed,
                 QaStatus = PhysicalQaStatus.Passed,
+                StockPurpose = SmartTagStockPurpose.Sale,
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);
@@ -439,6 +442,7 @@ public sealed class ConcurrencyRelationalTests
                 Variant = variant.TagVariant,
                 Status = SmartTagStatus.Unclaimed,
                 QaStatus = PhysicalQaStatus.Passed,
+                StockPurpose = SmartTagStockPurpose.Sale,
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);

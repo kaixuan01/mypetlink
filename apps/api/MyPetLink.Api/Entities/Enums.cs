@@ -123,6 +123,20 @@ public enum TagFulfilmentStatus
     SentToOwner
 }
 
+// What a physical unit is for, recorded independently of physical QA and of
+// the lifecycle. Only Sale stock may ever be sold, assigned to an order or
+// allocated to a merchant, and only once it has also passed inspection.
+// Unclassified is the default for every row that existed before the field and
+// for any code path that does not choose, so nothing becomes sellable by
+// omission. Test (manufacturer or internal samples) never becomes sellable,
+// even after it passes inspection.
+public enum SmartTagStockPurpose
+{
+    Unclassified,
+    Sale,
+    Test
+}
+
 public enum InventoryReceiptCostMode
 {
     Simple,

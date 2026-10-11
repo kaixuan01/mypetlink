@@ -29,6 +29,10 @@ public sealed class AdminTagInventoryQuery : PagedQuery
     [MaxLength(32)]
     public string? Fulfilment { get; init; }
 
+    // SmartTagStockPurpose: Sale, Test or Unclassified.
+    [MaxLength(32)]
+    public string? StockPurpose { get; init; }
+
     [MaxLength(32)]
     public string? TagType { get; init; }
 
@@ -91,6 +95,7 @@ public sealed record AdminTagInventoryItemResponse(
     DateTimeOffset? LastScannedAt)
 {
     public PhysicalQaStatus? QaStatus { get; init; }
+    public SmartTagStockPurpose StockPurpose { get; init; }
 }
 
 public sealed record AdminTagInventoryBulkActionRequest(

@@ -27,7 +27,8 @@ public sealed class PhysicalQaTests
         var product = new TagProduct { Name = "Smart Tag", Slug = "qa-test", IsPublished = true };
         var variant = new TagProductVariant { Id = VariantId, TagProduct = product, Sku = "QA-NFC", DisplayName = "Standard", SupportsNfc = true, SupportsQr = true, IsActive = true, IsPurchasable = true };
         db.AddRange(admin, variant, new SmartTag { Id = TagId, TagCode = Code, HasNfc = true, ProductVariantId = VariantId,
-            QaStatus = PhysicalQaStatus.Pending, QaShipmentReference = "SHIPMENT-900", QaVersion = 1 });
+            QaStatus = PhysicalQaStatus.Pending, QaShipmentReference = "SHIPMENT-900", QaVersion = 1,
+            StockPurpose = SmartTagStockPurpose.Sale });
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
     }
     private static async Task<MyPetLinkDbContext> Db()
@@ -201,7 +202,7 @@ public sealed class PhysicalQaTests
         Assert.Empty(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
         Assert.Throws<ApiException>(() => SellableInventoryRules.RequirePassedForNewCommitment([tag]));
         PhysicalQaReleaseRules.RequireReleased([tag]);
-        tag.QaStatus = PhysicalQaStatus.Passed; await db.SaveChangesAsync();
+        tag.QaStatus = PhysicalQaStatus.Passed; tag.StockPurpose = SmartTagStockPurpose.Sale; await db.SaveChangesAsync();
         Assert.Equal(1, await stock.GetAvailableUnitsAsync(VariantId));
         Assert.Single(await db.SmartTags.Where(MerchantInventoryEligibility.For(db, VariantId)).ToListAsync());
     }

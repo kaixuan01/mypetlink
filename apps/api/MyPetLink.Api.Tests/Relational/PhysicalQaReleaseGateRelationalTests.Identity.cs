@@ -331,7 +331,7 @@ public sealed partial class PhysicalQaReleaseGateRelationalTests
             db.SmartTags.Add(new SmartTag
             {
                 TagCode = Code(index), ProductVariantId = variantId, HasNfc = true, Status = SmartTagStatus.Unclaimed,
-                FulfilmentStatus = TagFulfilmentStatus.Printed, QaStatus = PhysicalQaStatus.Passed, QaShipmentReference = "QUOTE-SHIP", QaVersion = 1,
+                FulfilmentStatus = TagFulfilmentStatus.Printed, QaStatus = PhysicalQaStatus.Passed, StockPurpose = SmartTagStockPurpose.Sale, QaShipmentReference = "QUOTE-SHIP", QaVersion = 1,
             });
         await db.SaveChangesAsync();
         var quotationId = await CreateQuotationAsync(db, variantId, 2);

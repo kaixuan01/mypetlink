@@ -2379,7 +2379,11 @@ public sealed class MyPetLinkDbContext : DbContext
 
         modelBuilder.Entity<SmartTag>(entity =>
         {
-            entity.ToTable("SmartTags");
+            // Classification is written by reviewed SQL as well as by the API, so
+            // the database refuses any value the application could not read.
+            entity.ToTable("SmartTags", table => table.HasCheckConstraint(
+                "CK_SmartTags_StockPurpose",
+                "[StockPurpose] IN (N'Unclassified', N'Sale', N'Test')"));
             entity.Property(item => item.TagCode).HasMaxLength(32);
             entity.Property(item => item.Variant).HasMaxLength(80);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
@@ -2391,6 +2395,12 @@ public sealed class MyPetLinkDbContext : DbContext
             // the column existed would have read anyway.
             entity.Property(item => item.AssignmentVersion).HasDefaultValue(0);
             entity.Property(item => item.QaStatus).HasConversion<string>().HasMaxLength(32);
+            // Existing rows become Unclassified, which is never sellable; stock is
+            // classified as Sale or Test deliberately, by batch, never by default.
+            entity.Property(item => item.StockPurpose)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .HasDefaultValue(SmartTagStockPurpose.Unclassified);
             entity.Property(item => item.QaShipmentReference).HasMaxLength(100);
             entity.Property(item => item.QaVersion).HasDefaultValue(0).IsConcurrencyToken();
             entity.Property(item => item.QaQrUrl).HasMaxLength(600);
