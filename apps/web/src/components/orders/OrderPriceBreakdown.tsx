@@ -5,6 +5,7 @@ export type OrderPriceLine = {
   id: string;
   productName: string;
   optionName: string;
+  physicalSummary?: string;
   features?: string;
   petName: string;
   quantity: number;
@@ -95,6 +96,7 @@ export function OrderPriceBreakdown({
             <div className="min-w-0">
               <p className="break-words font-black text-pet-ink">{line.productName}</p>
               <p className="mt-1 break-words text-sm font-semibold text-pet-muted">{line.optionName}</p>
+              {line.physicalSummary ? <p className="mt-1 break-words text-xs font-semibold text-pet-muted">{line.physicalSummary}</p> : null}
               {line.features ? <p className="mt-1 break-words text-xs font-semibold text-pet-muted">{line.features}</p> : null}
               <p className="mt-1 break-words text-xs font-semibold text-pet-muted">For {line.petName}</p>
               <p className="mt-1 text-xs font-semibold text-pet-muted">

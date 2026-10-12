@@ -7,6 +7,7 @@ import { cloneElement, useEffect, useMemo, useRef, useState, useSyncExternalStor
 import { OrderPriceBreakdown, type OrderPriceLine } from "@/components/orders/OrderPriceBreakdown";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { TagProductPickerDialog, conciseProductName, customerVariantLabel, tagTechnology } from "@/components/portal/TagProductPickerDialog";
+import { TagPhysicalFacts } from "@/components/portal/TagPhysicalFacts";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,6 +18,7 @@ import { formatOrderProduct, formatStateAndZone } from "@/lib/orderDisplay";
 import { readOwnerSettings } from "@/lib/ownerSettings";
 import { isActivePet, getActivePets } from "@/lib/petLifecycle";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
+import { formatTagPhysicalSpecs } from "@/lib/tagPhysicalSpecs";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getDeliveryQuote, listMalaysiaStates, resolveLegacyStateCode, type DeliveryQuote, type MalaysiaState } from "@/services/deliveryService";
@@ -326,8 +328,9 @@ function SelectedTagChoice({ index, selected, onOpen }: { index: number; selecte
   const image = selected?.product.media[0];
   const technology = selected ? tagTechnology(selected.variant) : null;
   const variantLabel = customerVariantLabel(selected?.variant.tagVariant);
+  const physical = selected ? formatTagPhysicalSpecs(selected.variant) : null;
   const accessibleLabel = selected && technology
-    ? `Change tag for Tag ${index + 1}: ${conciseProductName(selected.product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(selected.variant.price.finalPrice, selected.variant.price.currency)}`
+    ? `Change tag for Tag ${index + 1}: ${conciseProductName(selected.product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(selected.variant.price.finalPrice, selected.variant.price.currency)}${physical?.summary ? `, ${physical.summary}` : ""}`
     : `Choose a tag for Tag ${index + 1}`;
   return (
     <div className="grid min-w-0 gap-2">
@@ -350,6 +353,7 @@ function SelectedTagChoice({ index, selected, onOpen }: { index: number; selecte
             <>
               <span className="break-words font-black leading-5 text-pet-ink">{conciseProductName(selected.product.name)}</span>
               {variantLabel ? <span className="mt-1 text-xs font-bold text-pet-muted">{variantLabel}</span> : null}
+              <TagPhysicalFacts variant={selected.variant} />
               <span className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-[#e8f8f0] px-2.5 py-1 text-xs font-black text-pet-sage">{technology.label}</span>
                 <span className="whitespace-nowrap text-sm font-black text-pet-teal">{formatCatalogPrice(selected.variant.price.finalPrice, selected.variant.price.currency)}</span>
@@ -378,7 +382,7 @@ function ConfirmationStep({ delivery, lines, quote, quoteState }: { delivery: De
 }
 
 function buildPriceLines(cart: CartLine[], choices: CatalogChoice[], pets: PetListItem[]): OrderPriceLine[] {
-  return cart.flatMap((line) => { const choice = choices.find((item) => item.variant.key === line.productVariantKey); const pet = pets.find((item) => item.id === line.petId); if (!choice) return []; const unit = choice.variant.price.finalPrice; return [{ id: line.id, productName: choice.product.name, optionName: formatProductOption(choice.variant), features: [choice.variant.supportsQr ? "QR code" : null, choice.variant.supportsNfc ? "NFC tap" : null].filter(Boolean).join(" · "), petName: pet?.name ?? "Select a pet", quantity: line.quantity, unitPrice: choice.variant.price.basePrice, subtotal: choice.variant.price.basePrice * line.quantity, discountAmount: choice.variant.price.discountAmount * line.quantity, finalAmount: unit * line.quantity, promotionName: choice.variant.price.promotionLabel ?? undefined }]; });
+  return cart.flatMap((line) => { const choice = choices.find((item) => item.variant.key === line.productVariantKey); const pet = pets.find((item) => item.id === line.petId); if (!choice) return []; const unit = choice.variant.price.finalPrice; return [{ id: line.id, productName: choice.product.name, optionName: formatProductOption(choice.variant), physicalSummary: formatTagPhysicalSpecs(choice.variant).summary, features: [choice.variant.supportsQr ? "QR code" : null, choice.variant.supportsNfc ? "NFC tap" : null].filter(Boolean).join(" · "), petName: pet?.name ?? "Select a pet", quantity: line.quantity, unitPrice: choice.variant.price.basePrice, subtotal: choice.variant.price.basePrice * line.quantity, discountAmount: choice.variant.price.discountAmount * line.quantity, finalAmount: unit * line.quantity, promotionName: choice.variant.price.promotionLabel ?? undefined }]; });
 }
 function selectedCurrency(cart: CartLine[], choices: CatalogChoice[]) { return choices.find((choice) => choice.variant.key === cart[0]?.productVariantKey)?.variant.price.currency ?? "MYR"; }
 function StepShell({ title, description, children }: { title: string; description: string; children: ReactNode }) { return <div><h2 className="text-2xl font-black text-pet-ink">{title}</h2><p className="mt-2 text-sm leading-6 text-pet-muted">{description}</p><div className="mt-5">{children}</div></div>; }

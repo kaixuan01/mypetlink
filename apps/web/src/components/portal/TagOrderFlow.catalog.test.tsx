@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import type { TagProduct } from "@/services/tagCatalogService";
@@ -102,6 +102,12 @@ const lightweightVariant = {
   supportsQr: true,
   supportsNfc: true,
   tagVariant: "Lightweight",
+  widthMm: 25,
+  heightMm: 25,
+  thicknessMm: 1.5,
+  weightGrams: 5,
+  material: "Aluminium",
+  shape: "Round",
   price: { ...catalog[0].variants[0].price, basePrice: 29.9, discountAmount: 0, finalPrice: 29.9, promotionName: null, promotionLabel: null },
 };
 
@@ -196,6 +202,60 @@ describe("TagOrderFlow catalog pricing", () => {
 
     expect(await screen.findByRole("button", { name: /Change tag for Tag 1: Smart Tag, Lightweight, QR \+ NFC, RM\s*29\.90/ })).toBeTruthy();
     expect(screen.queryByText("Standard")).toBeNull();
+  });
+
+  it("shows each SKU's own physical details and keeps out-of-stock options disabled", async () => {
+    catalogData = [{ ...catalog[0], variants: [catalog[0].variants[0], { ...lightweightVariant, inStock: false }] }];
+    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Change tag for Tag 1/ }));
+    const dialog = within(screen.getByRole("dialog", { name: "Choose a tag" }));
+    const standard = dialog.getByRole("radio", { name: /Smart Tag, Standard, QR \+ NFC/ });
+    const lightweight = dialog.getByRole("radio", { name: /Smart Tag, Lightweight, QR \+ NFC/ });
+
+    expect(within(standard).getByText("Diameter 32 mm · Weight 8 g")).toBeTruthy();
+    expect(within(lightweight).getByText("Diameter 25 mm · Weight 5 g")).toBeTruthy();
+    expect(within(lightweight).getByText("Thickness 1.5 mm · Aluminium")).toBeTruthy();
+    expect((lightweight as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(lightweight);
+    expect(screen.getByRole("dialog", { name: "Choose a tag" })).toBeTruthy();
+    expect(standard.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("keeps size and weight consistent after selection through review and confirmation", async () => {
+    catalogData = [{ ...catalog[0], variants: [catalog[0].variants[0], lightweightVariant] }];
+    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Change tag for Tag 1/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Smart Tag, Lightweight, QR \+ NFC/ }));
+    expect(screen.getByText("Diameter 25 mm · Weight 5 g")).toBeTruthy();
+    expect(screen.queryByText("Diameter 32 mm · Weight 8 g")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText("Review tags")).toBeTruthy();
+    expect(screen.getByText("Diameter 25 mm · Weight 5 g")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Step 3/ }));
+    fireEvent.change(screen.getByLabelText(/Recipient name/), { target: { value: "Kai Xuan" } });
+    fireEvent.change(screen.getByLabelText(/Phone number/), { target: { value: "123456789" } });
+    fireEvent.change(screen.getByLabelText(/Address line 1/), { target: { value: "12 Jalan Mawar" } });
+    fireEvent.change(screen.getByLabelText(/Postcode/), { target: { value: "47300" } });
+    fireEvent.change(screen.getByLabelText(/City/), { target: { value: "Petaling Jaya" } });
+    fireEvent.change(screen.getByLabelText(/State/), { target: { value: "SGR" } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: /Step 4/ }));
+    expect(screen.getByText("Diameter 25 mm · Weight 5 g")).toBeTruthy();
+    expect(screen.queryByText("Diameter 32 mm · Weight 8 g")).toBeNull();
+  });
+
+  it("omits absent details and shows a partial size without substituting measurements", async () => {
+    catalogData = [{ ...catalog[0], variants: [{ ...catalog[0].variants[0], widthMm: 28, heightMm: null, weightGrams: null, thicknessMm: null, material: null }] }];
+    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+
+    expect(await screen.findByText("Width 28 mm")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Change tag for Tag 1/ }));
+    expect(within(screen.getByRole("dialog", { name: "Choose a tag" })).getByText("Width 28 mm")).toBeTruthy();
+    expect(screen.queryByText(/Weight 8 g/)).toBeNull();
   });
 
   it("keeps product selections independent across multiple tag lines", async () => {

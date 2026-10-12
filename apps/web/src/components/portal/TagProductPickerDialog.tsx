@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { useId, useRef } from "react";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
+import { formatTagPhysicalSpecs } from "@/lib/tagPhysicalSpecs";
 import { formatCatalogPrice, type TagProduct, type TagProductMedia, type TagProductVariant } from "@/services/tagCatalogService";
+import { TagPhysicalFacts } from "@/components/portal/TagPhysicalFacts";
 
 export function TagProductPickerDialog({
   products,
@@ -73,8 +75,6 @@ export function TagProductPickerDialog({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6">
           <div aria-label="Available tag designs" className={`grid gap-4 ${availableProducts.length > 1 ? "md:grid-cols-2" : ""}`} role="radiogroup">
             {availableProducts.map((product) => {
-              const variantLabels = new Set(product.variants.map((variant) => customerVariantLabel(variant.tagVariant)).filter(Boolean));
-              const sharedVariantLabel = variantLabels.size === 1 ? Array.from(variantLabels)[0] : "";
               const image = product.media[0];
               return (
                 <article className="min-w-0 overflow-hidden rounded-[1.5rem] border border-pet-border bg-pet-cream/45" key={product.slug}>
@@ -82,7 +82,6 @@ export function TagProductPickerDialog({
                   <div className="grid gap-4 p-4">
                     <div className="min-w-0">
                       <h3 className="break-words text-lg font-black text-pet-ink">{conciseProductName(product.name)}</h3>
-                      {sharedVariantLabel ? <p className="mt-1 text-sm font-bold text-pet-muted">{sharedVariantLabel}</p> : null}
                       {product.shortDescription ? <p className="mt-2 line-clamp-2 text-sm leading-5 text-pet-muted">{product.shortDescription}</p> : null}
                     </div>
 
@@ -91,12 +90,13 @@ export function TagProductPickerDialog({
                         const selected = variant.key === selectedVariantKey;
                         const technology = tagTechnology(variant);
                         const variantLabel = customerVariantLabel(variant.tagVariant);
+                        const physical = formatTagPhysicalSpecs(variant);
                         const stockLabel = variant.inStock ? "In stock" : "Temporarily out of stock";
                         return (
                           <button
                             aria-checked={selected}
                             aria-disabled={!variant.inStock || undefined}
-                            aria-label={`${conciseProductName(product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(variant.price.finalPrice, variant.price.currency)}, ${stockLabel}`}
+                            aria-label={`${conciseProductName(product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(variant.price.finalPrice, variant.price.currency)}, ${stockLabel}${physical.summary ? `, ${physical.summary}` : ""}`}
                             className={`grid min-h-20 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-pet-teal ${!variant.inStock ? "cursor-not-allowed border-pet-border bg-pet-cream/60 opacity-70" : selected ? "border-pet-teal bg-white ring-2 ring-pet-teal/20" : "border-pet-border bg-white hover:border-pet-teal/50"}`}
                             disabled={!variant.inStock}
                             key={variant.key}
@@ -108,11 +108,11 @@ export function TagProductPickerDialog({
                           >
                             <span className="min-w-0">
                               <span className="flex flex-wrap items-center gap-2">
-                                <span className="text-base font-black text-pet-ink">{technology.label}</span>
+                                <span className="text-base font-black text-pet-ink">{variantLabel || variant.name}</span>
+                                <span className="rounded-full bg-[#e8f8f0] px-2 py-0.5 text-[0.68rem] font-black text-pet-sage">{technology.label}</span>
                                 {selected ? <span className="rounded-full bg-pet-teal px-2 py-0.5 text-[0.68rem] font-black uppercase tracking-wide text-white">Selected</span> : null}
                               </span>
-                              {!sharedVariantLabel && variantLabel ? <span className="mt-1 block text-xs font-bold text-pet-muted">{variantLabel}</span> : null}
-                              <span className="mt-1 block text-xs font-semibold leading-4 text-pet-muted">{technology.description}</span>
+                              <TagPhysicalFacts secondary variant={variant} />
                               {variant.price.promotionLabel ? <span className="mt-1 block text-xs font-black text-pet-coral">{variant.price.promotionLabel}</span> : null}
                               <span className={`mt-1 block text-xs font-black ${variant.inStock ? "text-pet-sage" : "text-pet-muted"}`}>{stockLabel}</span>
                             </span>
