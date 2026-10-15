@@ -28,6 +28,18 @@ async function select(file = new File(["image"], "logo.png", { type: "image/png"
 }
 
 describe("Merchant logo editing", () => {
+  it("uses compact contained preview controls and an accessible error association", async () => {
+    get.mockResolvedValue(saved); panel();
+    const preview = await screen.findByAltText("Merchant logo preview");
+    expect(preview.className).toContain("object-contain");
+    expect(preview.parentElement?.className).toContain("h-20 w-20");
+    expect(screen.getByRole("button", { name: "Replace logo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save logo" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Merchant logo"), { target: { files: [new File(["svg"], "logo.svg", { type: "image/svg+xml" })] } });
+    const error = await screen.findByRole("alert");
+    expect(screen.getByLabelText("Merchant logo").getAttribute("aria-describedby")).toBe(error.id);
+    expect(screen.getByText(/One logo shared by all store locations/)).toBeTruthy();
+  });
   it("uploads only on Save, persists the reference, and reloads its preview", async () => {
     const dirty = vi.fn(); const view = panel(true, dirty); await select();
     expect(upload).not.toHaveBeenCalled(); expect(dirty).toHaveBeenLastCalledWith(true);
@@ -43,11 +55,11 @@ describe("Merchant logo editing", () => {
   it("keeps merchant and branch drafts when a logo is saved", async () => {
     panel(); await screen.findByLabelText("Business description");
     fireEvent.change(screen.getByLabelText("Business description"), { target: { value: "Unsaved description" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add branch" }));
-    fireEvent.change(screen.getByLabelText("Branch name"), { target: { value: "Unsaved branch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add location" }));
+    fireEvent.change(screen.getByLabelText("Store name / Location name"), { target: { value: "Unsaved branch" } });
     await select(); fireEvent.click(screen.getByRole("button", { name: "Save logo" })); await screen.findByText("Merchant logo saved.");
     expect((screen.getByLabelText("Business description") as HTMLTextAreaElement).value).toBe("Unsaved description");
-    expect((screen.getByLabelText("Branch name") as HTMLInputElement).value).toBe("Unsaved branch");
+    expect((screen.getByLabelText("Store name / Location name") as HTMLInputElement).value).toBe("Unsaved branch");
     fireEvent.click(screen.getByRole("button", { name: "Save listing settings" }));
     await waitFor(() => expect(updateListing).toHaveBeenCalledWith("merchant-1", expect.objectContaining({ concurrencyToken: "Ag==", businessDescription: "Unsaved description" })));
   });

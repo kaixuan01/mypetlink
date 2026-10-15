@@ -19,6 +19,8 @@ type ImageUploadFieldProps = {
   maxBytes?: number;
   preserveTransparency?: boolean;
   onReadingChange?: (reading: boolean) => void;
+  layout?: "default" | "compact";
+  children?: ReactNode;
 };
 
 export function ImageUploadField({
@@ -36,6 +38,8 @@ export function ImageUploadField({
   maxBytes = 10 * 1024 * 1024,
   preserveTransparency = false,
   onReadingChange,
+  layout = "default",
+  children,
 }: ImageUploadFieldProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +86,32 @@ export function ImageUploadField({
   }
 
   const message = error || localError;
+
+  const input = <input accept={acceptedTypes?.join(",") ?? "image/*"} disabled={disabled || isReading}
+    aria-label={label} aria-describedby={message ? `${inputId}-error` : helper ? `${inputId}-helper` : undefined}
+    aria-invalid={Boolean(message)} className="hidden" id={inputId}
+    onChange={event => handleFiles(event.target.files)} ref={inputRef} type="file" />;
+
+  if (layout === "compact") return <div className="grid min-w-0 grid-cols-[80px_minmax(0,1fr)] items-start gap-x-3 gap-y-2">
+    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl sm:row-span-2 border border-pet-border bg-pet-cream">
+      {value && failedValue !== value ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt={`${label} preview`} src={value} className="h-full w-full object-contain p-1.5" onError={() => setFailedValue(value)} />
+      ) : <span role="img" aria-label={`${label} ${value ? "unavailable" : "placeholder"}`} className="text-pet-teal">{emptyIcon ?? <Icon name="home" className="h-7 w-7" />}</span>}
+    </div>
+    <div className="min-w-0"><label htmlFor={inputId} className="text-sm font-bold text-pet-ink">{label}</label>
+      {helper && <p id={`${inputId}-helper`} className="mt-1 text-xs leading-5 text-pet-muted">{helper}</p>}
+      {message && <p id={`${inputId}-error`} role="alert" className="mt-1 text-xs font-bold text-[#a63c2e]">{message}</p>}
+    </div>
+    <div className="col-span-2 flex min-w-0 flex-wrap gap-2 sm:col-span-1 sm:col-start-2">
+      <button className="inline-flex min-h-11 items-center justify-center rounded-full border border-pet-border bg-white px-3 text-sm font-bold text-pet-ink hover:bg-pet-cream disabled:opacity-50"
+        onClick={() => inputRef.current?.click()} type="button" disabled={disabled || isReading}>{isReading ? "Preparing image…" : value ? "Replace logo" : "Upload logo"}</button>
+      {value && <button className="inline-flex min-h-11 items-center justify-center rounded-full border border-pet-border bg-white px-3 text-sm font-bold text-pet-coral hover:bg-pet-apricot disabled:opacity-50"
+        onClick={() => { setLocalError(""); onFileSelected?.(undefined); onChange(""); }} type="button" disabled={disabled || isReading}>Remove</button>}
+      {children}
+    </div>
+    {input}
+  </div>;
 
   return (
     <div className="grid min-w-0 gap-2">
@@ -148,22 +178,13 @@ export function ImageUploadField({
         </label>
       )}
 
-      <input
-        accept={acceptedTypes?.join(",") ?? "image/*"}
-        disabled={disabled || isReading}
-        aria-label={label}
-        className="hidden"
-        id={inputId}
-        onChange={(event) => handleFiles(event.target.files)}
-        ref={inputRef}
-        type="file"
-      />
+      {input}
 
       {helper && !message ? (
-        <span className="text-xs font-semibold text-pet-muted">{helper}</span>
+        <span id={`${inputId}-helper`} className="text-xs font-semibold text-pet-muted">{helper}</span>
       ) : null}
       {message ? (
-        <span className="text-xs font-bold text-[#a63c2e]">{message}</span>
+        <span id={`${inputId}-error`} className="text-xs font-bold text-[#a63c2e]">{message}</span>
       ) : null}
     </div>
   );

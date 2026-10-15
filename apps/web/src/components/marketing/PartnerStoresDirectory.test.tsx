@@ -18,6 +18,40 @@ beforeEach(() => { list.mockReset(); window.history.replaceState(null, "", "/whe
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("PartnerStoresDirectory", () => {
+  it.each(["Happy Pets", " happy-pets! "])("uses a direct single-store layout and suppresses duplicate name %s", async name => {
+    list.mockResolvedValue({ items: [{ ...store, branches: [{ ...store.branches[0], name }] }], total: 1 });
+    render(<PartnerStoresDirectory />);
+    const heading = await screen.findByRole("heading", { name: "Happy Pets", level: 3 });
+    const card = heading.closest("article")!;
+    expect(card.querySelectorAll("section")).toHaveLength(0);
+    expect(card.querySelectorAll("h4")).toHaveLength(0);
+    expect(screen.getByText(/1 Pet Street/)).toBeTruthy();
+    expect(screen.queryByText(/Our Locations/)).toBeNull();
+    expect(screen.getByRole("link", { name: "Google Maps" })).toBeTruthy();
+  });
+  it("bases the layout on the public locations alone and keeps a meaningful location name", async () => {
+    list.mockResolvedValue({ items: [{ ...store, internalBranchCount: 5, branches: [store.branches[0]] }], total: 1 });
+    render(<PartnerStoresDirectory />);
+    expect(await screen.findByRole("heading", { name: "Main", level: 4 })).toBeTruthy();
+    expect(screen.queryByText(/Our Locations/)).toBeNull();
+    expect(screen.queryByText("North")).toBeNull(); expect(screen.queryByText(/2 Pet Street/)).toBeNull();
+    expect(screen.getByText("Happy Pets").closest("article")?.querySelectorAll("section")).toHaveLength(0);
+  });
+  it("groups three eligible locations without displaying internal counts", async () => {
+    list.mockResolvedValue({ items: [{ ...store, internalBranchCount: 5, branches: [...store.branches, { ...store.branches[0], name: "South" }] }], total: 1 });
+    render(<PartnerStoresDirectory />);
+    expect(await screen.findByRole("heading", { name: "Our Locations (3)", level: 4 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "South", level: 5 })).toBeTruthy();
+    expect(screen.getByText("Happy Pets").closest("article")?.querySelectorAll("section")).toHaveLength(3);
+    expect(screen.queryByText(/Locations \(5\)/)).toBeNull();
+  });
+  it("does not render an empty merchant if an unexpected response has no eligible locations", async () => {
+    list.mockResolvedValue({ items: [{ ...store, branches: [], logoUrl: "https://example.test/private.png" }], total: 1 });
+    render(<PartnerStoresDirectory />);
+    await screen.findByText(/No partner stores are listed yet/);
+    expect(screen.queryByText("Happy Pets")).toBeNull();
+    expect(screen.queryByAltText("Happy Pets logo")).toBeNull();
+  });
   it("displays one merchant logo above multiple branches with contained, stable sizing", async () => {
     list.mockResolvedValue({ items: [{ ...store, logoUrl: "https://media.example.test/logo.png" }], total: 1 });
     render(<PartnerStoresDirectory />);
@@ -52,7 +86,7 @@ describe("PartnerStoresDirectory", () => {
       const link = screen.getByRole("link", { name });
       expect(link.getAttribute("target")).toBe("_blank"); expect(link.getAttribute("rel")).toBe("noopener noreferrer");
     }
-    expect(screen.getByRole("link", { name: "Call branch" }).getAttribute("href")).toBe("tel:+60123456789");
+    expect(screen.getByRole("link", { name: "Call store" }).getAttribute("href")).toBe("tel:+60123456789");
   });
   it("supports searching by location and paginates", async () => {
     list.mockResolvedValue({ items: [store], total: 41 }); render(<PartnerStoresDirectory />);

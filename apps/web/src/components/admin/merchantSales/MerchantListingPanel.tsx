@@ -13,6 +13,10 @@ import { getMerchantSalesError, getMerchantSalesFieldErrors } from "@/services/a
 import { getMerchantListing, saveMerchantBranch, updateMerchantListing, type MerchantListing, type BranchInput, type AdminBranch, type PublicationPermission } from "@/services/merchantDirectoryService";
 import { fieldClass, primaryButton, secondaryButton, InlineError } from "./shared";
 
+const locationCopy = (message: string) => message.replace(/\bbranches\b/gi, word => word[0] === "B" ? "Store locations" : "store locations")
+  .replace(/\bbranch\b/gi, word => word[0] === "B" ? "Store location" : "store location");
+const locationFieldErrors = (error: unknown) => Object.fromEntries(Object.entries(getMerchantSalesFieldErrors(error)).map(([key, message]) => [key, locationCopy(message)]));
+
 const freshBranch = (): BranchInput => ({ name: "", address: { addressLine1: "", addressLine2: null, city: "", state: "", postcode: "", country: "Malaysia" }, googleMapsUrl: null, wazeUrl: null, latitude: null, longitude: null, contactPhone: null, whatsApp: null, businessHours: null, isActive: true, showOnWebsite: false, displayOrder: 0 });
 const emptyPermission = (): PublicationPermission => ({ source: "WhatsApp", reference: "" });
 type MerchantDraft = { description: string; visible: boolean; savedDescription: string; savedVisible: boolean; token: string; permission: PublicationPermission; withdrawalReason: string; confirmedScope: string };
@@ -25,7 +29,7 @@ function PermissionFields({ value, onChange, errors }: { value: PublicationPermi
     <label className="grid gap-1 text-sm font-bold">Permission source<select className={fieldClass} value={value.source} onChange={e => onChange({ ...value, source: e.target.value as PublicationPermission["source"] })}>
       <option value="WhatsApp">WhatsApp</option><option value="Email">Email</option><option value="WrittenAgreement">Written agreement</option><option value="Other">Other</option></select>{errors["permission.source"] && <span className="text-red-700">{errors["permission.source"]}</span>}</label>
     <label className="grid gap-1 text-sm font-bold">Permission reference<input className={fieldClass} required maxLength={500} value={value.reference} onChange={e => onChange({ ...value, reference: e.target.value })} />{errors["permission.reference"] && <span className="text-red-700">{errors["permission.reference"]}</span>}</label>
-    <p className="text-sm text-slate-600">Record the contact, agreement date and message or document reference. This is kept privately in activity history. Confirm that permission covers the selected branch details.</p>
+    <p className="text-sm text-slate-600">Record the contact, agreement date and message or document reference. This is kept privately in activity history. Confirm that permission covers the selected store location details.</p>
   </fieldset>;
 }
 
@@ -75,7 +79,7 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
   useEffect(() => {
     const controller = new AbortController();
     getMerchantListing(merchantId, controller.signal).then(value => { if (!controller.signal.aborted) accept(value); }).catch(() => {
-      if (!controller.signal.aborted) setError("We couldn’t load the branches. Please try again.");
+      if (!controller.signal.aborted) setError("We couldn’t load store locations. Please try again.");
     });
     return () => controller.abort();
   }, [merchantId, merchantToken, accept]);
@@ -91,11 +95,11 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
         : await saveMerchantBranch(merchantId, branchId, { ...draft!, merchantConcurrencyToken: listing.concurrencyToken });
       accept(value, kind);
       if (kind === "branch") setDraft(null);
-      setMessage(kind === "listing" ? "Public listing settings saved." : "Branch saved.");
+      setMessage(kind === "listing" ? "Public listing settings saved." : "Store location saved.");
       onMerchantChanged?.();
     } catch (caught) {
-      setError(getMerchantSalesError(caught, "We couldn’t save these changes. Please try again."));
-      setFields(getMerchantSalesFieldErrors(caught));
+      setError(locationCopy(getMerchantSalesError(caught, "We couldn’t save these changes. Please try again.")));
+      setFields(locationFieldErrors(caught));
     } finally { setBusy(false); }
   }
   function edit(branch?: AdminBranch) {
@@ -106,7 +110,7 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
   async function reloadListing() {
     setBusy(true); setError(""); setFields({});
     try { accept(await getMerchantListing(merchantId), "listing"); setDraft(null); setLogoDraft(null); setMessage("Listing reloaded."); }
-    catch (caught) { setError(getMerchantSalesError(caught, "We couldn’t load the branches. Please try again.")); }
+    catch (caught) { setError(getMerchantSalesError(caught, "We couldn’t load store locations. Please try again.")); }
     finally { setBusy(false); }
   }
   async function saveLogo() {
@@ -123,7 +127,7 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
     } catch (caught) {
       if (uploadedId) await deleteMedia(uploadedId).catch(() => undefined);
       setError(getMerchantSalesError(caught, caught instanceof Error ? caught.message : "We couldn’t save the logo. Please try again."));
-      setFields(getMerchantSalesFieldErrors(caught));
+      setFields(locationFieldErrors(caught));
     } finally { setBusy(false); }
   }
   const parentActive = listing?.merchantIsActive ?? merchantActive;
@@ -143,16 +147,16 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
     </label>
   );
   return <section className="grid gap-4 rounded-2xl border border-slate-200 p-4">
-    <div className="flex flex-wrap items-center gap-3"><h3 className="font-bold">Partner Directory &amp; Branches</h3>
+    <div className="flex flex-wrap items-center gap-3"><h3 className="font-bold">Partner Directory &amp; Store Locations</h3>
       <Badge tone={published ? "teal" : "soft"}>{!parentActive ? "Inactive" : published ? "Published" : "Hidden"}</Badge>
       {published && listing?.publicCode && <a className={secondaryButton} href={partnerStorePath(listing.publicCode)} target="_blank" rel="noopener noreferrer">View public listing</a>}
       {listing && <button className={secondaryButton} type="button" disabled={busy} onClick={() => { const action = () => void reloadListing(); if (dirty) setPendingDiscard(() => action); else action(); }}>Reload listing</button>}
     </div>
     <InlineError message={error} />
     {message && <p role="status" className="text-sm text-teal-700">{message}</p>}
-    {!listing ? <div><p role="status">{error ? "Branches are unavailable." : "Loading branches…"}</p>{error && <button className={secondaryButton} type="button" onClick={() => { setError(""); void getMerchantListing(merchantId).then(accept).catch(() => setError("We couldn’t load the branches. Please try again.")); }}>Retry</button>}</div> : <>
+    {!listing ? <div><p role="status">{error ? "Store locations are unavailable." : "Loading store locations…"}</p>{error && <button className={secondaryButton} type="button" onClick={() => { setError(""); void getMerchantListing(merchantId).then(accept).catch(() => setError("We couldn’t load store locations. Please try again.")); }}>Retry</button>}</div> : <>
       {canManage ? <form className="grid gap-3 rounded-xl border border-slate-200 p-4" onSubmit={e => { e.preventDefault(); void saveLogo(); }}>
-        <ImageUploadField label="Merchant logo" shape="square" fit="contain" preserveTransparency
+        <ImageUploadField label="Merchant logo" layout="compact" shape="square" fit="contain" preserveTransparency
           acceptedTypes={logoTypes} maxBytes={2 * 1024 * 1024} disabled={busy} onReadingChange={setBusy}
           error={fields.mediaId || fields.concurrencyToken}
           value={logoDraft?.preview ?? listing.logoUrl ?? ""}
@@ -161,33 +165,34 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
           onChange={preview => setLogoDraft(previous => !preview && !listing.logoMediaFileId && !listing.logoUrl ? null
             : { file: previous?.file, token: previous?.token ?? listing.concurrencyToken,
               originalMediaId: previous ? previous.originalMediaId : listing.logoMediaFileId ?? null, preview })}
-          helper="One logo shared by all branches. Changes apply when you save the logo. Maximum image dimensions: 4096 × 4096 pixels." />
-        <div className="flex flex-wrap gap-2">
+          helper="One logo shared by all store locations. PNG, JPG or WebP, up to 2 MB and 4096 × 4096 pixels. Save to apply changes.">
           <button type="submit" className={primaryButton} disabled={busy || !logoDraft}>{busy ? "Saving…" : "Save logo"}</button>
           {logoDraft && <button type="button" className={secondaryButton} disabled={busy} onClick={() => setLogoDraft(null)}>Discard logo changes</button>}
-        </div>
+        </ImageUploadField>
       </form> : <div className="flex items-center gap-3"><MerchantLogo name={merchantName} src={listing.logoUrl} /><span className="text-sm font-bold">Merchant logo</span></div>}
       <form className="grid gap-3" onSubmit={e => { e.preventDefault(); if (visible !== listing.showOnWebsite) setConfirmation("listing"); else void save("listing"); }}>
         <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={visible} disabled={!canManage || busy} onChange={e => setMerchantDraft(d => d && ({ ...d, visible: e.target.checked }))} />Show on Website</label>
-        <p className="text-sm text-slate-600">Allow this merchant and its selected branches to appear in the public MyPetLink Partner Directory. Enable only with the merchant’s permission. This does not affect its partnership or sales access.</p>
+        <p className="text-sm text-slate-600">Allow this merchant and its selected store locations to appear in the public MyPetLink Partner Directory. Enable only with the merchant’s permission. This does not affect its partnership or sales access.</p>
         <label className="grid gap-1 text-sm font-bold">Business description<textarea className={fieldClass} maxLength={2000} disabled={!canManage || busy} value={description} onChange={e => setMerchantDraft(d => d && ({ ...d, description: e.target.value }))} />{fields.businessDescription && <span className="text-red-700">{fields.businessDescription}</span>}</label>
         {canManage && merchantDraft && visible && !merchantDraft.savedVisible && <fieldset disabled={busy} className="grid gap-3">
           <PermissionFields value={merchantDraft.permission} onChange={permission => setMerchantDraft(d => d && ({ ...d, permission }))} errors={fields} />
-          <p className="text-sm text-slate-600">Selected branches covered by this permission: {listing.branches.filter(b => b.showOnWebsite).map(b => `${b.name}${b.isActive ? "" : " (inactive)"}`).join(", ") || "None. Permission must be recorded separately when branches are selected later."}</p>
-          <label className="flex items-start gap-2 text-sm font-bold"><input type="checkbox" required checked={merchantDraft.confirmedScope === scopeKey} onChange={e => setMerchantDraft(d => d && ({ ...d, confirmedScope: e.target.checked ? scopeKey : "" }))} />I confirm permission covers all selected branches and their public details.</label>
+          <p className="text-sm text-slate-600">Selected locations covered by this permission: {listing.branches.filter(b => b.showOnWebsite).map(b => `${b.name}${b.isActive ? "" : " (inactive)"}`).join(", ") || "None. Permission must be recorded separately when locations are selected later."}</p>
+          <label className="flex items-start gap-2 text-sm font-bold"><input type="checkbox" required checked={merchantDraft.confirmedScope === scopeKey} onChange={e => setMerchantDraft(d => d && ({ ...d, confirmedScope: e.target.checked ? scopeKey : "" }))} />I confirm permission covers all selected locations and their public details.</label>
           {fields["permission.branchIds"] && <span className="text-sm text-red-700">{fields["permission.branchIds"]}</span>}
         </fieldset>}
         {canManage && !visible && merchantDraft?.savedVisible && <label className="grid gap-1 text-sm font-bold">Withdrawal reason (optional)<textarea className={fieldClass} maxLength={500} disabled={busy} value={merchantDraft.withdrawalReason} onChange={e => setMerchantDraft(d => d && ({ ...d, withdrawalReason: e.target.value }))} />{fields.withdrawalReason && <span className="text-red-700">{fields.withdrawalReason}</span>}</label>}
-        {visible && !published && <p className="text-sm text-slate-600">An active merchant needs at least one active branch with Show on Website enabled to appear publicly.</p>}
+        {visible && !published && <p className="text-sm text-slate-600">An active merchant needs at least one active store location with Show on Website enabled to appear publicly.</p>}
         {canManage && <button type="submit" disabled={busy} className={`${primaryButton} justify-self-start`}>{busy ? "Saving…" : "Save listing settings"}</button>}
       </form>
-      <div className="flex items-center justify-between gap-3"><h4 className="font-bold">Branches ({listing.branches.length})</h4>{canManage && <button className={secondaryButton} type="button" disabled={busy || listing.branches.length >= 100} onClick={() => edit()}>Add branch</button>}</div>
-      {listing.branches.length === 0 && <p className="text-sm text-slate-600">No branches added. Add a physical store location to get started.</p>}
+      <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="font-bold">Store Locations ({listing.branches.length})</h4>{canManage && <button className={secondaryButton} type="button" disabled={busy || listing.branches.length >= 100} onClick={() => edit()}>Add location</button>}</div>
+      {listing.branches.length === 0 && <p className="text-sm text-slate-600">No store locations added. Add your shop’s physical address to get started.</p>}
       {listing.branches.map(branch => <article key={branch.id} className="rounded-xl border border-slate-200 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h5 className="font-bold">{branch.name}</h5><Badge tone={branch.isPublished && parentActive ? "teal" : "soft"}>{!branch.isActive ? "Inactive" : branch.isPublished && parentActive ? "Published" : "Hidden"}</Badge></div>
-        <p className="mt-1 text-sm text-slate-600">{[branch.address.addressLine1, branch.address.addressLine2, branch.address.postcode, branch.address.city, branch.address.state, branch.address.country].filter(Boolean).join(", ")}</p>
+        <div className="flex flex-wrap items-start justify-between gap-2"><h5 className="min-w-0 font-bold [overflow-wrap:anywhere]">{branch.name}</h5>
+          <div className="flex flex-wrap gap-2"><Badge tone={branch.isActive ? "mint" : "soft"}>{branch.isActive ? "Active" : "Inactive"}</Badge>
+            <Badge tone={branch.isPublished && parentActive ? "teal" : "soft"}>{branch.isPublished && parentActive ? "Published" : "Hidden"}</Badge></div></div>
+        <p className="mt-1 text-sm text-slate-600 [overflow-wrap:anywhere]">{[branch.address.addressLine1, branch.address.addressLine2, branch.address.postcode, branch.address.city, branch.address.state, branch.address.country].filter(Boolean).join(", ")}</p>
         {branch.showOnWebsite && (!listing.showOnWebsite || !parentActive) && <p className="mt-1 text-xs text-slate-500">Selected for public display; currently hidden by merchant settings or status.</p>}
-        {canManage && <button type="button" className={`${secondaryButton} mt-2`} disabled={busy} onClick={() => edit(branch)}>Edit / {branch.isActive ? "Disable" : "Enable"} branch</button>}
+        {canManage && <button type="button" className={`${secondaryButton} mt-2`} disabled={busy} onClick={() => edit(branch)}>Edit location</button>}
       </article>)}
       {draft && canManage && <form className="grid gap-4 rounded-xl bg-slate-50 p-4" onSubmit={e => {
         e.preventDefault(); const previous = listing.branches.find(b => b.id === branchId);
@@ -195,11 +200,11 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
         const after = Boolean(parentActive && listing.showOnWebsite && draft.isActive && draft.showOnWebsite);
         if (before !== after) setConfirmation("branch"); else void save("branch");
       }}>
-        <h4 className="font-bold">{branchId ? "Edit branch" : "Add branch"}</h4>
+        <h4 className="font-bold">{branchId ? "Edit location" : "Add location"}</h4>
         <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2">
-          {field("Branch name", "name", { maxLength: 160 })}
+          {field("Store name / Location name", "name", { maxLength: 160 })}
           {(["addressLine1", "addressLine2", "city", "state", "postcode", "country"] as const).map(key => <label className="grid gap-1 text-sm font-bold" key={key}>
-            {{addressLine1: "Street address", addressLine2: "Address line 2 (optional)", city: "City", state: "State", postcode: "Postcode", country: "Country"}[key]}
+            {{addressLine1: "Store address", addressLine2: "Address line 2 (optional)", city: "City", state: "State", postcode: "Postcode", country: "Country"}[key]}
             <input className={fieldClass} required={key !== "addressLine2"} maxLength={{addressLine1: 240, addressLine2: 240, city: 120, state: 120, postcode: 16, country: 80}[key]} value={draft.address[key] ?? ""} onChange={e => setDraft(d => d && ({ ...d, address: { ...d.address, [key]: e.target.value } }))} />
             {fields[`address.${key}`] && <span className="text-xs text-red-700">{fields[`address.${key}`]}</span>}
           </label>)}
@@ -207,17 +212,17 @@ export function MerchantListingPanel({ merchantId, merchantName = "Merchant", me
           {field("Waze link (optional)", "wazeUrl", { type: "url", maxLength: 2048 })}
           {field("Latitude (optional)", "latitude", { type: "number", min: -90, max: 90 })}
           {field("Longitude (optional)", "longitude", { type: "number", min: -180, max: 180 })}
-          <PhoneNumberInput label="Branch phone (optional)" value={draft.contactPhone ?? ""} onChange={v => setDraft(d => d && ({ ...d, contactPhone: v || null }))} error={fields.contactPhone} />
-          <PhoneNumberInput label="Branch WhatsApp (optional)" value={draft.whatsApp ?? ""} onChange={v => setDraft(d => d && ({ ...d, whatsApp: v || null }))} error={fields.whatsApp} />
+          <PhoneNumberInput label="Store phone (optional)" value={draft.contactPhone ?? ""} onChange={v => setDraft(d => d && ({ ...d, contactPhone: v || null }))} error={fields.contactPhone} />
+          <PhoneNumberInput label="Store WhatsApp (optional)" value={draft.whatsApp ?? ""} onChange={v => setDraft(d => d && ({ ...d, whatsApp: v || null }))} error={fields.whatsApp} />
           {field("Business hours (optional)", "businessHours", { maxLength: 500 })}
           {field("Display order", "displayOrder", { type: "number", min: 0, max: 10000 })}
-          <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={draft.isActive} onChange={e => setDraft(d => d && ({ ...d, isActive: e.target.checked }))} />Active branch</label>
-          <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={draft.showOnWebsite} onChange={e => setDraft(d => d && ({ ...d, showOnWebsite: e.target.checked }))} />Show branch on Website</label>
+          <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={draft.isActive} onChange={e => setDraft(d => d && ({ ...d, isActive: e.target.checked }))} />Active location</label>
+          <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={draft.showOnWebsite} onChange={e => setDraft(d => d && ({ ...d, showOnWebsite: e.target.checked }))} />Show this location on website</label>
         </fieldset>
         {needsBranchPermission && <fieldset disabled={busy}><PermissionFields value={draft.permission ?? emptyPermission()} onChange={permission => setDraft(d => d && ({ ...d, permission }))} errors={fields} /></fieldset>}
-        {previousBranch?.showOnWebsite && (!draft.isActive || !draft.showOnWebsite) && <label className="grid gap-1 text-sm font-bold">Branch withdrawal reason (optional)<textarea className={fieldClass} maxLength={500} disabled={busy} value={draft.withdrawalReason ?? ""} onChange={e => setDraft(d => d && ({ ...d, withdrawalReason: e.target.value }))} />{fields.withdrawalReason && <span className="text-red-700">{fields.withdrawalReason}</span>}</label>}
-        <p className="text-sm text-slate-600">Display this branch publicly when the parent merchant is also published. Add HTTPS Google Maps or Waze links independently, or enter both coordinates to offer both navigation options. Links do not verify a destination.</p>
-        <div className="flex gap-2"><button className={primaryButton} type="submit" disabled={busy}>{busy ? "Saving…" : "Save branch"}</button><button className={secondaryButton} type="button" disabled={busy} onClick={() => { const action = () => setDraft(null); if (branchDirty) setPendingDiscard(() => action); else action(); }}>Cancel</button></div>
+        {previousBranch?.showOnWebsite && (!draft.isActive || !draft.showOnWebsite) && <label className="grid gap-1 text-sm font-bold">Location withdrawal reason (optional)<textarea className={fieldClass} maxLength={500} disabled={busy} value={draft.withdrawalReason ?? ""} onChange={e => setDraft(d => d && ({ ...d, withdrawalReason: e.target.value }))} />{fields.withdrawalReason && <span className="text-red-700">{fields.withdrawalReason}</span>}</label>}
+        <p className="text-sm text-slate-600">Display this location publicly when the merchant is also published. Add HTTPS Google Maps or Waze links independently, or enter both coordinates to offer both navigation options. Links do not verify a destination.</p>
+        <div className="flex gap-2"><button className={primaryButton} type="submit" disabled={busy}>{busy ? "Saving…" : "Save location"}</button><button className={secondaryButton} type="button" disabled={busy} onClick={() => { const action = () => setDraft(null); if (branchDirty) setPendingDiscard(() => action); else action(); }}>Cancel</button></div>
       </form>}
     </>}
     <ConfirmDialog open={confirmation !== null} title="Change public availability?" message="Confirm that you have the merchant’s permission to publish the selected information. Hidden or inactive locations will be removed from the directory. Partnership and sales access are unaffected." confirmLabel="Save changes" onCancel={() => setConfirmation(null)} onConfirm={() => { const kind = confirmation; setConfirmation(null); if (kind) void save(kind); }} />

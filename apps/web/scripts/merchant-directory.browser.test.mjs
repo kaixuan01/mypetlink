@@ -3,7 +3,7 @@
 // isolated export with MYPETLINK_BROWSER_EXPORT_DIR. No real merchant data.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFile, access } from "node:fs/promises";
+import { readFile, access, mkdir } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { chromium } from "playwright-core";
@@ -66,39 +66,103 @@ async function openFirst(page) {
   await page.getByLabel("Business description").waitFor();
 }
 
-test("merchant logos stay contained and appear once above branches on phone, tablet and desktop", async () => {
+async function screenshot(locator, name) {
+  const directory = process.env.MYPETLINK_BROWSER_SCREENSHOT_DIR;
+  if (!directory) return;
+  await mkdir(directory, { recursive: true });
+  // Keep tall sections within the capture surface so the browser does not
+  // leave the final card unpainted when taking an element screenshot.
+  const page = locator.page(), viewport = page.viewportSize();
+  const bounds = await locator.boundingBox();
+  if (bounds && viewport && bounds.height + 120 > viewport.height)
+    await page.setViewportSize({ width: viewport.width, height: Math.ceil(bounds.height) + 120 });
+  try { await locator.screenshot({ path: path.join(directory, `${name}.png`) }); }
+  finally { if (viewport) await page.setViewportSize(viewport); }
+}
+
+test("single-store and multi-location cards stay contained on phone, tablet and desktop", async () => {
   const page = await browser.newPage();
   const logo = await sharp({ create: { width: 240, height: 80, channels: 4, background: { r: 0, g: 140, b: 130, alpha: 1 } } }).png().toBuffer();
-  const name = "HappyPets".repeat(12);
-  const branch = { name: "Main", address: { addressLine1: "1 Pet Street", postcode: "50000", city: "KL", state: "KL", country: "Malaysia" } };
+  let name = "Happy Pets & Friends";
+  const location = { name, address: { addressLine1: "12 Jalan Meranti, Taman Pet Lovers, Lot " + "1234567890".repeat(8), postcode: "50000", city: "Kuala Lumpur", state: "Kuala Lumpur", country: "Malaysia" },
+    googleMapsUrl: "https://www.google.com/maps/dir/?api=1&destination=3.1,101.6", wazeUrl: "https://www.waze.com/ul?ll=3.1,101.6&navigate=yes", contactPhone: "+60123456789", whatsApp: "+60123456789", businessHours: "Daily, 10am–7pm" };
+  let locations = [location];
   try {
     await page.route("**/api/v1/**", route => route.fulfill({ json: { data: [{ publicCode: "logo-store", name,
-      businessDescription: "A welcoming pet store. ".repeat(12), logoUrl: `${baseUrl}/logo-fixture.png`,
-      branches: [branch, { ...branch, name: "North" }] }], meta: { page: 1, pageSize: 20, total: 1 } } }));
+      businessDescription: "Your neighbourhood pet shop for happy, healthy companions.", logoUrl: `${baseUrl}/logo-fixture.png`,
+      branches: locations }], meta: { page: 1, pageSize: 20, total: 1 } } }));
     await page.route("**/logo-fixture.png", route => route.fulfill({ contentType: "image/png", body: logo }));
-    for (const width of [375, 768, 1280]) {
-      await page.setViewportSize({ width, height: 900 });
+    for (const width of [375, 768, 1440]) for (const count of [1, 3]) {
+      locations = count === 1 ? [location] : [location, { ...location, name: "Shah Alam" }, { ...location, name: "Petaling Jaya" }];
+      await page.setViewportSize({ width, height: 1000 });
       await page.goto(`${baseUrl}/where-to-buy`);
       const image = page.getByAltText(`${name} logo`);
       await image.waitFor(); await image.evaluate(img => img.decode());
       assert.equal(await image.count(), 1);
+      const card = page.getByRole("article").filter({ has: image });
       const layout = await image.evaluate(img => ({ fit: getComputedStyle(img).objectFit,
         width: img.parentElement.getBoundingClientRect().width, height: img.parentElement.getBoundingClientRect().height,
         imageCount: img.closest("article").querySelectorAll("img").length,
-        branchCount: img.closest("article").querySelectorAll("section").length,
+        locationCards: img.closest("article").querySelectorAll("section").length,
         headerBottom: img.parentElement.parentElement.getBoundingClientRect().bottom,
-        firstBranchTop: img.closest("article").querySelector("section").getBoundingClientRect().top,
-        overflow: document.documentElement.scrollWidth > innerWidth,
-        overflowElements: Array.from(document.querySelectorAll("main *")).filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map(el => ({ tag: el.tagName, classes: el.className })) }));
+        firstLocationTop: img.closest("article").querySelector("section")?.getBoundingClientRect().top,
+        overflow: document.documentElement.scrollWidth > innerWidth }));
       assert.equal(layout.fit, "contain"); assert.equal(layout.width, width < 640 ? 56 : 72);
-      assert.equal(layout.width, layout.height); assert.equal(layout.imageCount, 1); assert.equal(layout.branchCount, 2);
-      assert.ok(layout.firstBranchTop >= layout.headerBottom); assert.equal(layout.overflow, false, JSON.stringify({ width, ...layout }));
+      assert.equal(layout.width, layout.height); assert.equal(layout.imageCount, 1);
+      assert.equal(layout.locationCards, count === 1 ? 0 : 3);
+      if (count > 1) assert.ok(layout.firstLocationTop >= layout.headerBottom);
+      assert.equal(layout.overflow, false, JSON.stringify({ width, ...layout }));
+      assert.equal(await card.getByRole("heading", { name, exact: true }).count(), count === 1 ? 1 : 2);
+      assert.equal(await card.getByRole("heading", { name: "Our Locations (3)", exact: true }).count(), count === 1 ? 0 : 1);
+      for (const provider of ["Google Maps", "Waze", "Call store", "WhatsApp"]) {
+        const links = card.getByRole("link", { name: provider, exact: true });
+        assert.equal(await links.count(), count);
+        for (const link of await links.all()) assert.ok((await link.boundingBox()).height >= 44);
+      }
+      await screenshot(page.locator("#partner-stores"), `public-${count === 1 ? "single" : "multiple"}-${width}`);
     }
+    // Retain the original unbroken-name stress coverage alongside realistic previews.
+    name = "HappyPets".repeat(12);
+    await page.setViewportSize({ width: 375, height: 1000 }); await page.reload();
+    await page.getByAltText(`${name} logo`).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    assert.ok(await page.getByRole("heading", { name, exact: true }).isVisible());
     await page.route("**/logo-fixture.png", route => route.abort());
     await page.reload();
     await page.getByRole("img", { name: `${name} logo placeholder` }).waitFor();
     assert.equal(await page.getByAltText(`${name} logo`).count(), 0);
-    assert.ok(await page.getByRole("heading", { name: "North", exact: true }).isVisible());
+    assert.ok(await page.getByRole("heading", { name: "Shah Alam", exact: true }).isVisible());
+  } finally { await page.close(); }
+});
+
+test("Admin location labels, status badges and compact logo fit all screen sizes", async () => {
+  const page = await pageWithFixtures();
+  const logo = await sharp({ create: { width: 240, height: 80, channels: 4, background: { r: 0, g: 140, b: 130, alpha: 1 } } }).png().toBuffer();
+  const branch = { id: "location-1", name: "Happy Pets Kuala Lumpur " + "LongLocationName".repeat(8), address: { addressLine1: "12 Jalan Meranti " + "LongAddress".repeat(12), postcode: "50000", city: "Kuala Lumpur", state: "Kuala Lumpur", country: "Malaysia" },
+    isActive: true, showOnWebsite: true, isPublished: false, displayOrder: 0, concurrencyToken: "Ag==" };
+  try {
+    await page.route("**/listing", route => route.fulfill({ json: { data: { ...listing, logoMediaFileId: "logo-1", logoUrl: `${baseUrl}/logo-fixture.png`, branches: [branch, { ...branch, id: "location-2", name: "Shah Alam", isActive: false }] } } }));
+    await page.route("**/logo-fixture.png", route => route.fulfill({ contentType: "image/png", body: logo }));
+    for (const width of [375, 768, 1440]) {
+      await page.setViewportSize({ width, height: 1000 }); await openFirst(page);
+      const panel = page.getByRole("heading", { name: "Partner Directory & Store Locations" }).locator("..").locator("..");
+      const image = page.getByAltText("Merchant logo preview"); await image.evaluate(img => img.decode());
+      const layout = await image.evaluate(img => ({ fit: getComputedStyle(img).objectFit, width: img.parentElement.getBoundingClientRect().width,
+        height: img.parentElement.getBoundingClientRect().height, overflow: document.documentElement.scrollWidth > innerWidth }));
+      assert.equal(layout.fit, "contain"); assert.equal(layout.width, 80); assert.equal(layout.height, 80);
+      assert.equal(layout.overflow, false, JSON.stringify({ width, ...layout }));
+      assert.equal(await panel.getByText("Active", { exact: true }).count(), 1);
+      assert.equal(await panel.getByText("Inactive", { exact: true }).count(), 1);
+      assert.equal(await panel.getByText("Hidden", { exact: true }).count(), 3);
+      await screenshot(panel, `admin-locations-${width}`);
+      await panel.getByRole("button", { name: "Edit location", exact: true }).first().click();
+      assert.ok(await page.getByLabel("Store name / Location name").isVisible());
+      assert.ok(await page.getByLabel("Store address", { exact: true }).isVisible());
+      assert.equal(await page.getByLabel("Show this location on website").isChecked(), true);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      await screenshot(panel, `admin-location-editor-${width}`);
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    }
   } finally { await page.close(); }
 });
 
@@ -126,20 +190,20 @@ test("merchant logo upload, replacement and removal preserve independent drafts"
     });
     await openFirst(page);
     await page.getByLabel("Business description").fill("Unsaved merchant description");
-    await page.getByRole("button", { name: "Add branch", exact: true }).click();
-    await page.getByLabel("Branch name").fill("Unsaved branch name");
+    await page.getByRole("button", { name: "Add location", exact: true }).click();
+    await page.getByLabel("Store name / Location name").fill("Unsaved branch name");
     for (let i = 0; i < 2; i++) {
       await page.getByLabel("Merchant logo", { exact: true }).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: logo });
       await page.getByRole("button", { name: "Save logo", exact: true }).click();
       await page.getByText("Merchant logo saved.", { exact: true }).waitFor();
       assert.equal(await page.getByLabel("Business description").inputValue(), "Unsaved merchant description");
-      assert.equal(await page.getByLabel("Branch name").inputValue(), "Unsaved branch name");
+      assert.equal(await page.getByLabel("Store name / Location name").inputValue(), "Unsaved branch name");
     }
     await page.getByRole("button", { name: "Remove", exact: true }).click();
     await page.getByRole("button", { name: "Save logo", exact: true }).click();
     await page.getByText("Merchant logo removed.", { exact: true }).waitFor();
     assert.equal(savedListing.logoMediaFileId, null); assert.equal(saves, 3);
-    assert.equal(await page.getByLabel("Branch name").inputValue(), "Unsaved branch name");
+    assert.equal(await page.getByLabel("Store name / Location name").inputValue(), "Unsaved branch name");
   } finally { await page.close(); }
 });
 test("native Back retains the merchant draft until explicit discard and Forward still works", async () => {
@@ -200,12 +264,12 @@ test("native Forward protects the current merchant after an earlier Back", async
 test("native Back also protects a new branch draft", async () => {
   const page = await pageWithFixtures();
   try {
-    await openFirst(page); await page.getByRole("button", { name: "Add branch" }).click();
-    await page.getByLabel("Branch name").fill("Unsaved physical branch");
+    await openFirst(page); await page.getByRole("button", { name: "Add location" }).click();
+    await page.getByLabel("Store name / Location name").fill("Unsaved physical branch");
     await page.evaluate(() => history.back());
     const dialog = page.getByRole("dialog", { name: "Discard unsaved merchant changes?" }); await dialog.waitFor();
     await dialog.getByRole("button", { name: "Keep editing" }).click();
-    assert.equal(await page.getByLabel("Branch name").inputValue(), "Unsaved physical branch");
+    assert.equal(await page.getByLabel("Store name / Location name").inputValue(), "Unsaved physical branch");
   } finally { await page.close(); }
 });
 test("dirty tabs register the unload guard used for browser-controlled closing", async () => {

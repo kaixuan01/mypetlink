@@ -78,8 +78,8 @@ describe("Merchant detail draft continuity", () => {
     renderPanel({ openId: merchant().id }); await screen.findByText("Main store");
     let resolveRefresh!: (value: ReturnType<typeof paged>) => void;
     listMerchants.mockImplementation(() => new Promise(resolve => { resolveRefresh = resolve; }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit / Disable branch" }));
-    fireEvent.change(screen.getByLabelText("Branch name"), { target: { value: "Keep branch draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit location" }));
+    fireEvent.change(screen.getByLabelText("Store name / Location name"), { target: { value: "Keep branch draft" } });
     fireEvent.change(screen.getByLabelText("Business description"), { target: { value: "Save merchant description" } });
     fireEvent.click(screen.getByRole("button", { name: "Save listing settings" }));
     await waitFor(() => expect(listMerchants).toHaveBeenCalledTimes(2));
@@ -91,13 +91,13 @@ describe("Merchant detail draft continuity", () => {
   it("keeps an unsaved merchant draft when branch save refreshes the parent", async () => {
     renderPanel({ openId: merchant().id }); await screen.findByText("Main store");
     fireEvent.change(screen.getByLabelText("Business description"), { target: { value: "Keep merchant draft" } });
-    fireEvent.click(screen.getByRole("button", { name: "Edit / Disable branch" }));
-    fireEvent.change(screen.getByLabelText("Branch name"), { target: { value: "Save branch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit location" }));
+    fireEvent.change(screen.getByLabelText("Store name / Location name"), { target: { value: "Save location" } });
     listMerchants.mockResolvedValue(paged([merchant({ concurrencyToken: "Aw==" })]));
-    fireEvent.click(screen.getByRole("button", { name: "Save branch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save location" }));
     await waitFor(() => expect(directoryGet).toHaveBeenCalledTimes(2));
     expect(screen.getByDisplayValue("Keep merchant draft")).toBeTruthy();
-    expect(screen.getByText("Branch saved.")).toBeTruthy();
+    expect(screen.getByText("Store location saved.")).toBeTruthy();
   });
 });
 

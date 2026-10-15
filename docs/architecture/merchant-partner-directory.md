@@ -120,14 +120,29 @@ and contacts are published. Search is capped at 160 characters and page size at
 
 ## Admin and public experience
 
-The existing merchant detail view now contains Partner Directory & Branches:
-merchant consent, description, effective Published/Hidden/Inactive badges,
-public preview link, branch cards and add/edit forms. Branches support all
-structured address/navigation fields, separate active and public switches,
-shared phone controls, errors, loading, confirmation and reload after stale
-edits. Read-only administrators see records without mutation actions. Creating
-a new merchant continues through the existing commercial form; it starts
-hidden. Open its detail view to add branches and configure listing consent.
+The existing merchant detail view contains Partner Directory & Store Locations:
+merchant consent, description, effective publication badges, public preview link,
+and store location add/edit forms. UI copy uses "Store Location" for single shops
+and multi-location businesses; entity names, DTO fields and endpoint paths still
+use `Branch`. Each location shows Active/Inactive separately from Published/Hidden.
+The shared image upload control has an opt-in compact layout for the merchant's
+one logo, with an 80 px contained preview and wrapped upload/save actions. Other
+image upload forms retain their existing layout and behavior.
+
+Locations retain structured address/navigation fields, separate active and public
+switches, shared phone controls, validation, confirmation and reload after stale
+edits. Read-only administrators see records without mutation actions. New
+merchants remain hidden; add physical store locations explicitly in their detail
+view. Billing addresses never create a location automatically.
+
+The public layout uses only the eligible locations returned by the public API.
+One location displays its address directly inside the merchant card, without a
+nested location card. A near-identical location name (ignoring case, spacing and
+punctuation) is suppressed; a distinct name remains visible. Two or more locations
+use "Our Locations (n)" and compact cards. The logo appears once per merchant.
+Empty location lists render no merchant card. No internal count or hidden
+location is used to select a layout; server publication and permission rules
+remain authoritative and unchanged.
 
 Merchant and branch drafts are independent. Own branch saves refresh merchant
 tokens only when its fields still match the original baseline; external refresh
