@@ -22,7 +22,6 @@ import { generateMetadata as generatePublicProfileMetadata } from "@/app/p/[slug
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { socialEnabled } from "@/lib/features";
-import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes, samplePet, socialRoutes } from "@/lib/routes";
 import { seoIndexingFor, seoRouteRules } from "@/lib/seoRoutes";
 import {
@@ -137,10 +136,8 @@ describe("SEO route policy", () => {
     }
   });
 
-  it("indexes Where to Buy only while there is somewhere to buy", () => {
-    expect(robotsPolicy(whereToBuyMetadata).index).toBe(
-      publicCommerceAvailability.showWhereToBuy
-    );
+  it("indexes the generic directory independently of checkout", () => {
+    expect(robotsPolicy(whereToBuyMetadata).index).toBe(true);
     expect(robotsPolicy(whereToBuyMetadata).follow).toBe(true);
   });
 
@@ -426,9 +423,7 @@ describe("robots and sitemap", () => {
     expect(urls).toContain(canonicalUrl(marketingRoutes.home));
     expect(urls).toContain(canonicalUrl(samplePet.publicProfilePath));
     // Flag-dependent entries follow the same rule as the page's robots tag.
-    expect(urls.includes(canonicalUrl(marketingRoutes.whereToBuy))).toBe(
-      publicCommerceAvailability.showWhereToBuy
-    );
+    expect(urls.includes(canonicalUrl(marketingRoutes.whereToBuy))).toBe(true);
     expect(urls.includes(canonicalUrl(socialRoutes.explore))).toBe(socialEnabled);
     // Every listed path is one the route table indexes; the Topu sample is the
     // only listed record.

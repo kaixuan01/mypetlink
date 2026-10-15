@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { PRIMARY_CTA_LABEL } from "@/components/layouts/PublicNav";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
+import { PartnerStoresDirectory } from "@/components/marketing/PartnerStoresDirectory";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -11,28 +12,16 @@ import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
 import { createMarketingMetadata } from "@/lib/seo";
 
-// Indexed only while a purchase channel exists; the route table in
-// `seoRoutes.ts` applies the same availability rule as the navigation link.
+// The directory is indexable independently of checkout. Store content is read at
+// runtime and never embedded in metadata, static HTML or the sitemap.
 export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.whereToBuy,
-  title: "Where to Buy | MyPetLink Smart Tags Malaysia",
+  title: "Partner Stores & Smart Tags | MyPetLink Malaysia",
   description:
     "How to get a MyPetLink QR + NFC Smart Tag in Malaysia, and where the tag is available.",
 });
 
-/**
- * Where to Buy.
- *
- * Two channels are planned: buying online from MyPetLink, and picking one up
- * from an authorised retail partner. Only the first is a real channel today,
- * and whether it is open follows `publicCommerceAvailability` — so this page
- * states availability honestly instead of listing places that do not exist.
- *
- * The retail section renders only when the shared public-commerce model has
- * partners to show. There is no supported partner projection yet, so it stays
- * empty by construction; a future projection can supply that collection
- * without changing this page's visibility rule.
- */
+// The directory is resolved at runtime; static HTML never contains merchant data.
 
 const onlineBenefits: { icon: IconName; label: string }[] = [
   { icon: "shield", label: "Linked to your pet's Safety Profile before it ships" },
@@ -41,7 +30,7 @@ const onlineBenefits: { icon: IconName; label: string }[] = [
 ];
 
 export default function WhereToBuyPage() {
-  const { onlineOrderingAvailable, publicRetailPartners } =
+  const { onlineOrderingAvailable } =
     publicCommerceAvailability;
 
   return (
@@ -49,12 +38,12 @@ export default function WhereToBuyPage() {
       <section className="bg-pet-cream">
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
           <PageHeader
-            eyebrow="Where to buy"
-            title="Getting a MyPetLink Smart Tag."
+            eyebrow="Partner stores"
+            title="Find partner stores and get a Smart Tag."
             description={`The ${smartTagAddOn.shortName} is an optional ${smartTagAddOn.billingNote} add-on for your pet's collar.`}
           />
 
-          <div className="grid items-start gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-4">
             <article className="brand-card rounded-[1.5rem] p-5 sm:p-6">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
@@ -102,42 +91,10 @@ export default function WhereToBuyPage() {
               </div>
             </article>
 
-            <article className="brand-card rounded-[1.5rem] p-5 sm:p-6">
-              <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fdeada] text-pet-coral">
-                  <Icon aria-hidden="true" className="h-5 w-5" name="pets" />
-                </span>
-                <h2 className="text-lg font-black text-pet-ink">
-                  Authorised retail partners
-                </h2>
-              </div>
 
-              {publicRetailPartners.length > 0 ? (
-                <ul className="mt-4 grid gap-3">
-                  {publicRetailPartners.map((partner) => (
-                    <li
-                      className="border-b border-pet-border pb-3 last:border-b-0 last:pb-0"
-                      key={`${partner.name}-${partner.area}`}
-                    >
-                      <p className="text-sm font-black text-pet-ink">
-                        {partner.name}
-                        {partner.branch ? ` · ${partner.branch}` : ""}
-                      </p>
-                      <p className="mt-0.5 text-sm text-pet-muted">
-                        {partner.area}, {partner.state}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm leading-6 text-pet-muted">
-                  We are not in pet shops yet. When authorised partners carry
-                  MyPetLink Smart Tags, you will be able to find them here by
-                  state and area.
-                </p>
-              )}
-            </article>
           </div>
+
+          <PartnerStoresDirectory />
 
           <div className="mt-10 border-t border-pet-border pt-8">
             <h2 className="text-lg font-black text-pet-ink">

@@ -434,7 +434,9 @@ describe("Reply actions and anchors", () => {
     await waitFor(() => expect(screen.queryByText("Earlier reply")).toBeNull());
     expect(screen.getByText("Parent text")).toBeTruthy();
     expect(count).toHaveBeenLastCalledWith(2);
-    fireEvent.click(screen.getByRole("button", { name: "Hide replies to Amy's comment" }));
+    // The closed confirmation restores the page's accessibility (aria-hidden)
+    // in its unmount effect, which can land after the deleted row disappears.
+    fireEvent.click(await screen.findByRole("button", { name: "Hide replies to Amy's comment" }));
     expect(screen.getByRole("button", { name: "View 1 reply to Amy's comment" })).toHaveProperty("textContent", "View 1 reply");
     expect(mocks.remove).toHaveBeenCalledWith("moment-1", replyId);
   });

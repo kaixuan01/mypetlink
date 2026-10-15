@@ -2,7 +2,7 @@ name: MyPetLink CI
 
 # Builds and lints both apps on pull requests and on pushes to working
 # branches. No database, no secrets: the frontend build uses public
-# placeholder env values and the API job only restores + builds.
+# placeholder env values; API smoke tests use loopback and disposable records.
 on:
   pull_request:
   push:
@@ -18,8 +18,15 @@ concurrency:
 
 jobs:
   web:
-    name: Web (lint + build)
+    name: Web (${{ matrix.profile.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - { name: "all-off", tags: "false", orders: "false", checkout: "false", community: "false" }
+          - { name: "retail-checkout", tags: "true", orders: "true", checkout: "true", community: "false" }
+          - { name: "community-checkout", tags: "true", orders: "true", checkout: "true", community: "true" }
     steps:
       - uses: actions/checkout@v4
 
@@ -34,15 +41,22 @@ jobs:
         run: npm ci
 
       - name: Lint web
+        if: matrix.profile.name == 'all-off'
         run: npm run lint:web
 
       - name: Type-check web and Pages Functions
+        if: matrix.profile.name == 'all-off'
         run: npm run typecheck:web
 
       - name: Test web
+        if: matrix.profile.name == 'all-off'
         run: npm run test:web
 
       - name: Build web
+        id: web_build
+        # Keep artifact evidence even if an unrelated application suite is red;
+        # the failed test step still fails this job.
+        if: ${{ !cancelled() }}
         # Public, non-secret placeholders. The frontend is a static export,
         # so these only need to be present, not real. Never put a real
         # Google client id, JWT key, or connection string here.
@@ -53,13 +67,21 @@ jobs:
           NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED: "true"
           # Release flags. Production builds must state each one explicitly
           # (apps/web/src/lib/releaseFlags.ts fails the build otherwise).
-          # These match the production release: Smart Tags sold online,
-          # Community on.
-          NEXT_PUBLIC_SMART_TAGS_ENABLED: "true"
-          NEXT_PUBLIC_TAG_ORDERS_ENABLED: "true"
-          NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED: "true"
-          NEXT_PUBLIC_SOCIAL_ENABLED: "true"
-        run: npm run build:web
+          # Validation profiles only; these do not set deployment values.
+          NEXT_PUBLIC_SMART_TAGS_ENABLED: ${{ matrix.profile.tags }}
+          NEXT_PUBLIC_TAG_ORDERS_ENABLED: ${{ matrix.profile.orders }}
+          NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED: ${{ matrix.profile.checkout }}
+          NEXT_PUBLIC_SOCIAL_ENABLED: ${{ matrix.profile.community }}
+        run: npm run build:web-release
+
+      - name: Test explicit release selections and artifact checks
+        run: npm --workspace apps/web run test:release-flags
+
+      - name: Browser regression against this isolated export
+        if: ${{ !cancelled() && steps.web_build.outcome == 'success' }}
+        env:
+          MYPETLINK_BROWSER_EXPORT_DIR: ${{ github.workspace }}/apps/web/out
+        run: npm --workspace apps/web run test:merchant-browser
 
       - name: Compile Cloudflare Pages Functions
         run: npm run build:web-functions
@@ -69,6 +91,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # The directory smoke test executes the actual web API client against
+      # loopback Kestrel routes; all records and authentication are test-only.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "apps/web/.nvmrc"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4

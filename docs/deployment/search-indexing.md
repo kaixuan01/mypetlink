@@ -103,10 +103,12 @@ marketing page, `public/_headers` and the build verifier all follow it.
 `src/lib/seoRoutes.test.ts` fails when a new `page.tsx` is not classified, or
 when `_headers` disagrees with the table. See `docs/seo/phase-1-implementation.md`.
 
-Flag-dependent pages follow the same flags as their navigation link:
+Directory discovery and Community availability use separate policies:
 
-- `/where-to-buy` is indexed and listed only while a purchase channel exists
-  (`publicCommerceAvailability.showWhereToBuy`).
+- `/where-to-buy` is the generic public Partner Directory. It remains indexed
+  and listed when checkout is OFF or the directory is empty. Merchant records
+  are fetched at runtime through the privacy-filtered public endpoint; they are
+  never individual sitemap entries or static metadata.
 - `/explore` is indexed and listed only while `NEXT_PUBLIC_SOCIAL_ENABLED=true`.
 
 ## Sitemap maintenance

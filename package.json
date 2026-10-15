@@ -2,7 +2,7 @@
   "name": "mypetlink",
   "private": true,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.6.0"
   },
   "workspaces": [
     "apps/web"
@@ -10,6 +10,7 @@
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "build:web": "npm --workspace apps/web run build",
+    "build:web-release": "npm --workspace apps/web run build:release",
     "build:web-social-off": "npm --workspace apps/web run build:social-off",
     "build:web-social-on": "npm --workspace apps/web run build:social-on",
     "build:web-functions": "npm --workspace apps/web run build:functions",

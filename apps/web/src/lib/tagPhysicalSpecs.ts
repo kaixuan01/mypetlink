@@ -2,6 +2,12 @@ import type { TagProductVariant } from "@/services/tagCatalogService";
 
 type PhysicalVariant = Pick<TagProductVariant, "widthMm" | "heightMm" | "thicknessMm" | "weightGrams" | "material" | "shape">;
 
+// Catalogue values such as "-" or "N/A" mean "not set" and are never shown to customers.
+export function isCustomerPlaceholder(value: string | null | undefined) {
+  const normalized = value?.trim().toLocaleLowerCase() ?? "";
+  return !normalized || ["-", "—", "n/a", "na", "none", "not set"].includes(normalized);
+}
+
 function measurement(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(value)
@@ -25,7 +31,7 @@ export function formatTagPhysicalSpecs(variant: PhysicalVariant) {
           ? `Height ${height} mm`
           : null;
   const weightLabel = weight ? `Weight ${weight} g` : null;
-  const material = variant.material?.trim() || null;
+  const material = isCustomerPlaceholder(variant.material) ? null : variant.material!.trim();
 
   return {
     size,

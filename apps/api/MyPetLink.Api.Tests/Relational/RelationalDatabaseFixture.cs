@@ -42,7 +42,8 @@ public static class RelationalDatabase
     // </param>
     public static async Task<RelationalScope> CreateAsync(
         IInterceptor? interceptor = null,
-        bool enableRetryOnFailure = false)
+        bool enableRetryOnFailure = false,
+        bool createSchema = true)
     {
         var databaseName = $"MyPetLinkTest_{Guid.NewGuid():N}";
         var builder = new SqlConnectionStringBuilder(BaseConnectionString) { InitialCatalog = "master" };
@@ -82,7 +83,7 @@ public static class RelationalDatabase
 
         await using (var context = CreateContext())
         {
-            await context.Database.EnsureCreatedAsync();
+            if (createSchema) await context.Database.EnsureCreatedAsync();
         }
 
         return new RelationalScope(CreateContext, masterConnectionString, databaseName);

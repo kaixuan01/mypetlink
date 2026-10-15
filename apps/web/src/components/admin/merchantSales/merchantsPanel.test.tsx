@@ -11,6 +11,11 @@ const createMerchant = vi.fn();
 const updateMerchant = vi.fn();
 const setMerchantActive = vi.fn();
 const correctMerchantAcquisitionAttribution = vi.fn();
+const directoryGet = vi.fn(), directoryUpdate = vi.fn(), directoryBranch = vi.fn();
+const directoryListing = { showOnWebsite: false, businessDescription: null, isPublished: false, publicCode: null, concurrencyToken: "AQ==", branches: [
+  { id: "branch-1", name: "Main store", address: { addressLine1: "1 Street", addressLine2: null, city: "KL", state: "KL", postcode: "50000", country: "Malaysia" }, googleMapsUrl: null, wazeUrl: null, latitude: null, longitude: null, contactPhone: null, whatsApp: null, businessHours: null, isActive: true, showOnWebsite: false, isPublished: false, displayOrder: 0, concurrencyToken: "Ag==" }
+] };
+vi.mock("@/services/merchantDirectoryService", () => ({ getMerchantListing: (...args: unknown[]) => directoryGet(...args), updateMerchantListing: (...args: unknown[]) => directoryUpdate(...args), saveMerchantBranch: (...args: unknown[]) => directoryBranch(...args) }));
 
 vi.mock("@/services/adminMerchantSalesService", async () => {
   const actual = await vi.importActual<
@@ -53,11 +58,48 @@ const renderPanel = (props: Partial<Parameters<typeof MerchantsPanel>[0]> = {}) 
 beforeEach(() => {
   vi.clearAllMocks();
   listMerchants.mockResolvedValue(paged([merchant()]));
+  directoryGet.mockResolvedValue(directoryListing);
+  directoryUpdate.mockImplementation(async (_id, input) => {
+    const value = { ...directoryListing, businessDescription: input.businessDescription, concurrencyToken: "Aw==" };
+    directoryGet.mockResolvedValue(value); return value;
+  });
+  directoryBranch.mockImplementation(async () => {
+    const value = { ...directoryListing, concurrencyToken: "Aw==" };
+    directoryGet.mockResolvedValue(value); return value;
+  });
   listSalespersons.mockResolvedValue(
     paged([salesperson(), salesperson({ id: "rep-2", name: "Retired Rep", isActive: false })])
   );
 });
 afterEach(cleanup);
+
+describe("Merchant detail draft continuity", () => {
+  it("does not unmount an unsaved branch during and after merchant list refresh", async () => {
+    renderPanel({ openId: merchant().id }); await screen.findByText("Main store");
+    let resolveRefresh!: (value: ReturnType<typeof paged>) => void;
+    listMerchants.mockImplementation(() => new Promise(resolve => { resolveRefresh = resolve; }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit / Disable branch" }));
+    fireEvent.change(screen.getByLabelText("Branch name"), { target: { value: "Keep branch draft" } });
+    fireEvent.change(screen.getByLabelText("Business description"), { target: { value: "Save merchant description" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save listing settings" }));
+    await waitFor(() => expect(listMerchants).toHaveBeenCalledTimes(2));
+    expect(screen.getByDisplayValue("Keep branch draft")).toBeTruthy();
+    resolveRefresh(paged([merchant({ concurrencyToken: "Aw==" })]));
+    await waitFor(() => expect(directoryGet).toHaveBeenCalledTimes(2));
+    expect(screen.getByDisplayValue("Keep branch draft")).toBeTruthy();
+  });
+  it("keeps an unsaved merchant draft when branch save refreshes the parent", async () => {
+    renderPanel({ openId: merchant().id }); await screen.findByText("Main store");
+    fireEvent.change(screen.getByLabelText("Business description"), { target: { value: "Keep merchant draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit / Disable branch" }));
+    fireEvent.change(screen.getByLabelText("Branch name"), { target: { value: "Save branch" } });
+    listMerchants.mockResolvedValue(paged([merchant({ concurrencyToken: "Aw==" })]));
+    fireEvent.click(screen.getByRole("button", { name: "Save branch" }));
+    await waitFor(() => expect(directoryGet).toHaveBeenCalledTimes(2));
+    expect(screen.getByDisplayValue("Keep merchant draft")).toBeTruthy();
+    expect(screen.getByText("Branch saved.")).toBeTruthy();
+  });
+});
 
 describe("Merchants list", () => {
   it("shows each merchant by code, business name and status", async () => {
@@ -284,6 +326,18 @@ describe("Merchant editor", () => {
 });
 
 describe("Merchant activation", () => {
+  it("explains that commercial activation leaves the directory hidden", async () => {
+    listMerchants.mockResolvedValue(paged([merchant({ isActive: false })]));
+    setMerchantActive.mockResolvedValue(merchant());
+    renderPanel(); fireEvent.click(await screen.findByRole("button", { name: "Actions for MPL-MER-00001" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Activate" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Directory publication stays off/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Activate" }));
+    await screen.findByText(/Publish separately with current merchant permission/);
+    expect(setMerchantActive).toHaveBeenCalledWith("merchant-1", true, "token-merchant-1");
+    expect(directoryUpdate).not.toHaveBeenCalled();
+  });
   it("offers deactivation rather than deletion", async () => {
     renderPanel();
     fireEvent.click(

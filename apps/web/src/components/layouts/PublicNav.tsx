@@ -29,8 +29,8 @@ import { marketingRoutes, socialRoutes } from "@/lib/routes";
  * deliberately absent: it is a tool inside Explore, and a navbar link to an
  * empty search box is a dead end.
  *
- * Where to Buy appears only once the shared public-commerce model reports a
- * supported purchase channel.
+ * The directory is reachable regardless of online ordering availability; its
+ * partner content is always resolved from the public opt-in projection.
  */
 
 export type PublicNavItem = { href: string; label: string };
@@ -66,7 +66,7 @@ export const primaryPublicNav: PublicNavItem[] = [
   { href: marketingRoutes.pricing, label: "Pricing" },
   ...(publicCommerceAvailability.showWhereToBuy
     ? [{ href: marketingRoutes.whereToBuy, label: "Where to Buy" }]
-    : []),
+    : [{ href: marketingRoutes.whereToBuy, label: "Partner Stores" }]),
 ];
 
 // Re-exported so the many callers that already import it from here keep

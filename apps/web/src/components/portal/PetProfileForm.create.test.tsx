@@ -80,9 +80,10 @@ describe("PetProfileForm creation activation", () => {
 
     enterNameAndSave();
 
-    expect(
-      await screen.findByRole("heading", { name: "Milo is on MyPetLink" })
-    ).toBe(document.activeElement);
+    // Focus moves in the success view's mount effect, which can run after the
+    // heading first appears; wait for that move rather than assume one tick.
+    const heading = await screen.findByRole("heading", { name: "Milo is on MyPetLink" });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(screen.getByRole("link", { name: "Go to Milo's page" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "View Share Profile" })).toBeTruthy();
     expect(screen.queryByText(/First Moment/)).toBeNull();

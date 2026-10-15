@@ -445,6 +445,7 @@ builder.Services.AddScoped<IDeliveryService, DeliveryService>();
 builder.Services.AddScoped<IBusinessIdentityService, BusinessIdentityService>();
 builder.Services.AddScoped<IDocumentNumberService, DocumentNumberService>();
 builder.Services.AddScoped<IMerchantSalesService, MerchantSalesService>();
+builder.Services.AddScoped<MerchantDirectoryService>();
 builder.Services.AddScoped<IOwnerReferralAttributionService, OwnerReferralAttributionService>();
 builder.Services.AddScoped<ICommissionRuleService, CommissionRuleService>();
 builder.Services.AddScoped<IMerchantBillingService, MerchantBillingService>();

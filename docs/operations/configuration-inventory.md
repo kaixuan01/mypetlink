@@ -12,6 +12,29 @@ Categories: **A** secret · **B** infrastructure · **C** global emergency
 control · **D** database/Admin editable · **E** database/system managed ·
 **F** Admin read-only · **G** code constant · **H** remove/consolidate.
 
+### Merchant partner listing consent (2026-10-13)
+
+Publication permission references and agreed branch scope are private business
+records in the existing audit history, not deployment configuration. Sources
+are typed, references are limited to 500 characters, and permission/withdrawal
+notes are saved atomically with visibility changes. No new setting or table
+owns these records. Branch edits advance the parent rowversion to protect
+publication scope against concurrent changes.
+
+Category **D**: `Merchants.ShowOnWebsite` and `MerchantBranches.ShowOnWebsite`
+are typed, Admin-managed business-record consent, owned only by their SQL Server
+rows. Both default false; public eligibility also requires the existing
+merchant/branch active status. Changes use `sales.manage`, audit old/new values,
+UTC update timestamps and rowversion concurrency. They are never App Settings
+or frontend feature flags, and do not control commercial sales access.
+Descriptions, public physical addresses, contacts, navigation links/hours and
+display order are typed record fields under the same management flow.
+Category **G**: provider URL allowlists, field limits, coordinate validation and
+the 100-branch limit are validation invariants in `MerchantDirectoryService`,
+`MerchantDirectoryDtos` and `PartnerNavigationUrls`.
+See [architecture](../architecture/merchant-partner-directory.md) and
+[rollout/rollback](../deployment/merchant-partner-directory-rollout.md).
+
 Repository defaults and local `.env.local`/Development settings do **not** prove
 that a value exists in Cloudflare, Azure, Google, SQL Server, or R2. Host-side
 production values remain owner-verified operational state. See the executable

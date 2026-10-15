@@ -11073,3 +11073,117 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [BusinessDescription] nvarchar(2000) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [DirectoryPublicCode] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [ShowOnWebsite] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    CREATE TABLE [MerchantBranches] (
+        [Id] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [Name] nvarchar(160) NOT NULL,
+        [AddressLine1] nvarchar(240) NOT NULL,
+        [AddressLine2] nvarchar(240) NULL,
+        [City] nvarchar(120) NOT NULL,
+        [State] nvarchar(120) NOT NULL,
+        [Postcode] nvarchar(16) NOT NULL,
+        [Country] nvarchar(80) NOT NULL,
+        [GoogleMapsUrl] nvarchar(2048) NULL,
+        [WazeUrl] nvarchar(2048) NULL,
+        [Latitude] decimal(10,7) NULL,
+        [Longitude] decimal(10,7) NULL,
+        [ContactPhone] nvarchar(32) NULL,
+        [WhatsApp] nvarchar(32) NULL,
+        [BusinessHours] nvarchar(500) NULL,
+        [IsActive] bit NOT NULL,
+        [ShowOnWebsite] bit NOT NULL DEFAULT CAST(0 AS bit),
+        [DisplayOrder] int NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_MerchantBranches] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_MerchantBranches_Coordinates] CHECK (([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] IS NOT NULL AND [Longitude] IS NOT NULL AND [Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)),
+        CONSTRAINT [FK_MerchantBranches_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_Merchants_DirectoryPublicCode] ON [Merchants] ([DirectoryPublicCode]) WHERE [DirectoryPublicCode] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    CREATE INDEX [IX_Merchants_ShowOnWebsite_IsActive] ON [Merchants] ([ShowOnWebsite], [IsActive]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    CREATE INDEX [IX_MerchantBranches_MerchantId_IsActive_ShowOnWebsite_DisplayOrder] ON [MerchantBranches] ([MerchantId], [IsActive], [ShowOnWebsite], [DisplayOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    CREATE INDEX [IX_MerchantBranches_State_City] ON [MerchantBranches] ([State], [City]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261013081130_AddMerchantPartnerDirectory'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261013081130_AddMerchantPartnerDirectory', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

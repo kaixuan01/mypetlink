@@ -4,8 +4,8 @@
 // Each of these flags defaults to OFF in `features.ts`, which is the right
 // default for local work and the wrong one for a release: a production build
 // that simply forgot a variable would quietly relabel the Smart Tag "Coming
-// Soon", hide every "Get a Smart Tag" button, drop /where-to-buy from the
-// sitemap and noindex /explore — and nothing would fail. A release has to state
+// Soon", hide every "Get a Smart Tag" button and noindex /explore — and nothing
+// would fail. The directory stays indexable independently. A release must state
 // every one of them, "true" or "false", so an omission stops the build instead
 // of changing the product.
 

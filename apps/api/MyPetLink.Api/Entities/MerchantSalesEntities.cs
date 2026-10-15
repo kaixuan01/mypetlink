@@ -7,6 +7,10 @@ namespace MyPetLink.Api.Entities;
 /// </summary>
 public sealed class Merchant : AuditableEntity
 {
+    public bool ShowOnWebsite { get; set; }
+    public string? DirectoryPublicCode { get; set; }
+    public string? BusinessDescription { get; set; }
+    public ICollection<MerchantBranch> Branches { get; set; } = [];
     public string MerchantCode { get; set; } = "";
     public string LegalBusinessName { get; set; } = "";
     public string? TradingName { get; set; }

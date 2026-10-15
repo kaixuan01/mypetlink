@@ -15,6 +15,8 @@ import { PayoutsPanel } from "./PayoutsPanel";
 import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
 import { getAdminCapabilities } from "@/services/authService";
 import { AdminNoAccessNotice } from "@/components/admin/AdminNoAccessNotice";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useMerchantDraftGuard } from "./useMerchantDraftGuard";
 import {
   MERCHANT_SALES_LIST_KEYS,
   isMerchantSalesTab,
@@ -33,6 +35,7 @@ import {
  * were and Back walks the trail you actually followed.
  */
 export function AdminMerchantSalesWorkspace() {
+  const draftGuard = useMerchantDraftGuard();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const access = getAdminCapabilities();
@@ -54,9 +57,11 @@ export function AdminMerchantSalesWorkspace() {
 
   const push = (href: string) => {
     if (`${window.location.pathname}${window.location.search}` === href) return;
+    draftGuard.navigate(() => {
     window.history.pushState(null, "", href);
     // Next's router listens for popstate, not pushState, so nudge it.
     window.dispatchEvent(new PopStateEvent("popstate"));
+    });
   };
 
   const goToTab = (next: MerchantSalesTab, filters?: Record<string, string>) => {
@@ -110,6 +115,7 @@ export function AdminMerchantSalesWorkspace() {
 
   return (
     <div className="grid gap-4">
+      <ConfirmDialog open={draftGuard.pending !== null} title="Discard unsaved merchant changes?" message="Save your changes first, discard them to continue, or keep editing." confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={draftGuard.cancel} onConfirm={draftGuard.discard} />
       <WorkspaceNav
         activeId={tab}
         groups={workspaceGroups}
@@ -126,6 +132,7 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "merchants" ? (
         <MerchantsPanel
+          onDirtyChange={draftGuard.onDirtyChange}
           canManage={can(adminCapabilities.salesManage)}
           editing={can(adminCapabilities.salesManage) && editParam !== null}
           onCloseEditor={closeEditor}

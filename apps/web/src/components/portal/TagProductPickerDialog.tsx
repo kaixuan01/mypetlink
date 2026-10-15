@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useId, useRef } from "react";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
-import { formatTagPhysicalSpecs } from "@/lib/tagPhysicalSpecs";
+import { formatTagPhysicalSpecs, isCustomerPlaceholder } from "@/lib/tagPhysicalSpecs";
 import { formatCatalogPrice, type TagProduct, type TagProductMedia, type TagProductVariant } from "@/services/tagCatalogService";
 import { TagPhysicalFacts } from "@/components/portal/TagPhysicalFacts";
 
@@ -141,10 +141,7 @@ export function customerVariantLabel(value: string | null | undefined) {
   return isCustomerPlaceholder(normalized) ? "" : normalized;
 }
 
-export function isCustomerPlaceholder(value: string | null | undefined) {
-  const normalized = value?.trim().toLocaleLowerCase() ?? "";
-  return !normalized || ["-", "—", "n/a", "na", "none", "not set"].includes(normalized);
-}
+export { isCustomerPlaceholder };
 
 export function tagTechnology(variant: Pick<TagProductVariant, "supportsQr" | "supportsNfc">) {
   if (variant.supportsQr && variant.supportsNfc) {

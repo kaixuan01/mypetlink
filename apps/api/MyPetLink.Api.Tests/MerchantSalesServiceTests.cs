@@ -57,6 +57,53 @@ public class MerchantSalesServiceTests
     // ===================== Merchants =====================
 
     [Fact]
+    public async Task CommercialReactivationRequiresSeparateRepublicationAndKeepsBranchPreferencesAndEvidence()
+    {
+        using var h = Harness.Create(); var merchant = await h.CreateMerchantAsync();
+        var entity = await h.Db.Merchants.SingleAsync(); entity.RowVersion = [1]; await h.Db.SaveChangesAsync();
+        var directory = MerchantDirectoryTests.Service(h.Db);
+        var listing = await directory.UpsertBranchAsync(null, merchant.Id, null, MerchantDirectoryTests.Branch("Agreed", true), default);
+        listing = await directory.UpdateListingAsync(null, merchant.Id, new(true, null, listing.ConcurrencyToken,
+            MerchantDirectoryTests.Permission(listing.Branches.Select(b => b.Id).ToArray())), default);
+        Assert.True(listing.IsPublished);
+        await h.Service.SetMerchantActiveAsync(null, merchant.Id, false, "AQ==", default);
+        Assert.False(entity.ShowOnWebsite);
+        await h.Service.SetMerchantActiveAsync(null, merchant.Id, true, "AQ==", default);
+        Assert.True(entity.IsActive); Assert.False(entity.ShowOnWebsite); Assert.True(entity.Branches.Single().ShowOnWebsite);
+        Assert.Empty((await directory.ListPublicAsync(1, 20, null, null, default)).Items);
+        Assert.Contains(await h.Db.AuditLogs.ToListAsync(), a => a.Action == "merchant.listing.update" && a.NewValue!.Contains("PRIVATE PERMISSION"));
+        Assert.Contains(await h.Db.AuditLogs.ToListAsync(), a => a.Action == "merchant.listing.update" && a.NewValue!.Contains("Commercial status changed"));
+        await h.CreateQuotationAsync(merchant.Id); // Sales work without publication permission.
+        await Assert.ThrowsAsync<ApiException>(() => directory.UpdateListingAsync(null, merchant.Id, new(true, null, "AQ=="), default));
+        var republished = await directory.UpdateListingAsync(null, merchant.Id, new(true, null, "AQ==", MerchantDirectoryTests.Permission(entity.Branches.Select(b => b.Id).ToArray())), default);
+        Assert.True(republished.IsPublished);
+        // Old inactive rows may still carry a selected parent switch.
+        entity.IsActive = false; await h.Db.SaveChangesAsync();
+        await h.Service.SetMerchantActiveAsync(null, merchant.Id, true, "AQ==", default);
+        Assert.False(entity.ShowOnWebsite); Assert.True(entity.Branches.Single().ShowOnWebsite);
+    }
+
+    [Fact]
+    public async Task HiddenMerchantCanStillBeQuotedAndConvertedAfterListingChanges()
+    {
+        using var h = Harness.Create();
+        var merchant = await h.CreateMerchantAsync();
+        var entity = await h.Db.Merchants.SingleAsync();
+        entity.RowVersion = [1];
+        await h.Db.SaveChangesAsync();
+        var directory = new MerchantDirectoryService(h.Db, new AuditLogService(h.Db, new HttpContextAccessor()), TimeProvider.System);
+        await directory.UpdateListingAsync(null, merchant.Id, new(true, "Pet store", "AQ==", MerchantDirectoryTests.Permission()), default);
+        await directory.UpdateListingAsync(null, merchant.Id, new(false, "Pet store", "AQ=="), default);
+        var quotation = await h.CreateQuotationAsync(merchant.Id);
+        await h.Service.TransitionQuotationAsync(null, quotation.Id, MerchantQuotationStatus.Sent, null, default);
+        await h.Service.TransitionQuotationAsync(null, quotation.Id, MerchantQuotationStatus.Accepted, null, default);
+        var result = await h.Service.ConvertQuotationAsync(null, quotation.Id, null, default);
+        Assert.Equal(merchant.Id, result.Order.MerchantId);
+        Assert.False((await h.Db.Merchants.SingleAsync()).ShowOnWebsite);
+        Assert.True((await h.Db.Merchants.SingleAsync()).IsActive);
+    }
+
+    [Fact]
     public async Task CreatingAMerchantAllocatesACodeAndDefaultsToPrepaid()
     {
         using var h = Harness.Create();
@@ -66,6 +113,7 @@ public class MerchantSalesServiceTests
         Assert.Equal("MPL-MER-00001", merchant.MerchantCode);
         Assert.Equal(MerchantPaymentTerm.Prepaid, merchant.PaymentTerm);
         Assert.True(merchant.IsActive);
+        Assert.False((await h.Db.Merchants.SingleAsync()).ShowOnWebsite);
     }
 
     [Fact]

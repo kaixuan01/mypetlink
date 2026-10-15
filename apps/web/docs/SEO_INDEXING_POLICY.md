@@ -9,6 +9,7 @@ canonical links, the sitemap, and robots output must never use localhost,
 | Route family | Search policy | Reason |
 | --- | --- | --- |
 | Home, pricing, guides, privacy, terms, `/sample` | `index,follow` | Public marketing and legal content |
+| `/where-to-buy` | `index,follow` | Generic partner directory, independent of online checkout or listed-store count; no store records in static output |
 | Topu's intentional sample Public Share Profile | `index,follow` | Approved public sample |
 | Other `/p/*` Public Share Profiles | `noindex,follow` | Owner-created profiles are private-by-default for search discovery |
 | `/q/*`, `/t/*`, `/activate/*` | `noindex,follow` | Direct-access finder and tag flows |

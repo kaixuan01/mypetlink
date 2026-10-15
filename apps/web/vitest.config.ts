@@ -1,12 +1,12 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 /**
  * The flag values production is built with (verified from the live bundle and
  * enforced for releases by `src/lib/releaseFlags.ts`). Feature flags default to
  * OFF in code, so a suite that only ever runs on the defaults tests a site that
  * is not the one customers see: it would call the Smart Tag "Coming Soon",
- * leave /where-to-buy out of the sitemap, and never notice /explore.
+ * hide checkout, and never notice /explore. The directory remains indexable.
  */
 const productionReleaseFlags = {
   NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED: "true",
@@ -48,6 +48,8 @@ export default defineConfig({
     },
   },
   test: {
+    // These scripts use node:test and retain their separate runner.
+    exclude: [...configDefaults.exclude, "scripts/**/*.test.mjs"],
     projects: [
       {
         extends: true,

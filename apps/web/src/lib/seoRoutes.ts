@@ -1,5 +1,4 @@
 import { socialEnabled } from "@/lib/features";
-import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes, samplePet, socialRoutes } from "@/lib/routes";
 
 /**
@@ -65,13 +64,13 @@ export const seoRouteRules: readonly SeoRouteRule[] = [
   { route: marketingRoutes.sample, indexing: "index", servedBy: "static", lastModified: "2026-09-22" },
   { route: marketingRoutes.privacy, indexing: "index", servedBy: "static", lastModified: "2026-09-22" },
   { route: marketingRoutes.terms, indexing: "index", servedBy: "static", lastModified: "2026-09-22" },
-  // A buying guide is only worth a search result while there is somewhere to
-  // buy. The same rule decides the navigation link and the homepage teaser.
+  // The generic partner directory is always discoverable, including its empty
+  // state. Listing data is fetched privately at runtime, never embedded here.
   {
     route: marketingRoutes.whereToBuy,
-    indexing: conditionalIndexing(publicCommerceAvailability.showWhereToBuy),
+    indexing: "index",
     servedBy: "static",
-    lastModified: "2026-09-10",
+    lastModified: "2026-10-13",
   },
   // The Community doorway. Indexed only while Community is offered; the
   // profiles and Moments behind it never are (see app/explore/page.tsx).

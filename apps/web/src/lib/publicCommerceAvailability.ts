@@ -27,11 +27,8 @@ export function resolvePublicCommerceAvailability({
   });
 }
 
-// There is no supported public retail-partner source yet. This empty input is
-// deliberately colocated with the visibility rule rather than represented by
-// a second boolean that could drift from future partner data. When a real
-// public partner projection exists, pass that collection here; the visibility
-// rule and all of its consumers remain unchanged.
+// Build-time purchase availability only. PartnerStoresDirectory resolves opted-in
+// physical stores at runtime; no merchant content is embedded in the export.
 const publicRetailPartners: readonly PublicRetailPartner[] = [];
 
 export const publicCommerceAvailability =

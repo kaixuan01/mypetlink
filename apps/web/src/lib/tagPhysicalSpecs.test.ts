@@ -16,6 +16,13 @@ describe("formatTagPhysicalSpecs", () => {
     expect(formatTagPhysicalSpecs({ widthMm: 32, heightMm: 28, weightGrams: 8, shape: "Round" }).size).toBe("32 × 28 mm (W × H)");
   });
 
+  it("never shows a placeholder material to customers", () => {
+    for (const material of ["-", " — ", "N/A", "na", "None", "not set", "", null]) {
+      expect(formatTagPhysicalSpecs({ widthMm: null, heightMm: null, weightGrams: null, thicknessMm: 1.5, material }).secondary).toBe("Thickness 1.5 mm");
+    }
+    expect(formatTagPhysicalSpecs({ widthMm: null, heightMm: null, weightGrams: null, material: "  Aluminium " }).secondary).toBe("Aluminium");
+  });
+
   it("shows only supplied, valid measurements", () => {
     expect(formatTagPhysicalSpecs({ widthMm: 28, heightMm: null, weightGrams: null }).summary).toBe("Width 28 mm");
     expect(formatTagPhysicalSpecs({ widthMm: null, heightMm: 24, weightGrams: 6 }).summary).toBe("Height 24 mm · Weight 6 g");

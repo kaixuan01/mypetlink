@@ -1,6 +1,10 @@
 import { samplePet } from "@/data/samplePet";
 import type { Pet, PetTag } from "@/types";
 
+export function partnerStorePath(publicCode: string) {
+  return `${marketingRoutes.whereToBuy}?store=${encodeURIComponent(publicCode)}#partner-stores`;
+}
+
 // Central route map for MyPetLink so every page links consistently.
 //
 // Route rules:

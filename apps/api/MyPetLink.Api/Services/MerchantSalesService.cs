@@ -265,6 +265,16 @@ public sealed class MerchantSalesService : IMerchantSalesService
         ApplyConcurrency(merchant, concurrencyToken);
         var before = MerchantAuditSnapshot(merchant);
         merchant.IsActive = isActive;
+        // A commercial status change cannot renew public permission. Clear the
+        // parent switch on either transition, including legacy inactive rows.
+        if (merchant.ShowOnWebsite)
+        {
+            merchant.ShowOnWebsite = false;
+            _auditLogService.Append(actorId, ActorType.Admin, "merchant.listing.update", "Merchant", merchant.Id,
+                new { ShowOnWebsite = true, merchant.BusinessDescription },
+                new { ShowOnWebsite = false, merchant.BusinessDescription,
+                    WithdrawalReason = "Commercial status changed. Explicit republication with current permission is required." });
+        }
         merchant.UpdatedAt = _timeProvider.GetUtcNow();
 
         _auditLogService.Append(actorId, ActorType.Admin,

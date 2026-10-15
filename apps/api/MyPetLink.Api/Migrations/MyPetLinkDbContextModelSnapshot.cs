@@ -1908,6 +1908,10 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<string>("BusinessDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("BusinessRegistrationNumber")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
@@ -1969,6 +1973,10 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<string>("DirectoryPublicCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<Guid?>("FirstQualifyingMerchantOrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2023,6 +2031,11 @@ namespace MyPetLink.Api.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<bool>("ShowOnWebsite")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("SstRegistrationNumber")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
@@ -2044,6 +2057,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("AssignedSalespersonId");
 
+                    b.HasIndex("DirectoryPublicCode")
+                        .IsUnique()
+                        .HasFilter("[DirectoryPublicCode] IS NOT NULL");
+
                     b.HasIndex("FirstQualifyingMerchantOrderId")
                         .IsUnique()
                         .HasFilter("[FirstQualifyingMerchantOrderId] IS NOT NULL");
@@ -2059,6 +2076,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("AcquiredBySalespersonId", "RepeatCommissionEligibleUntil");
 
+                    b.HasIndex("ShowOnWebsite", "IsActive");
+
                     b.ToTable("Merchants", null, t =>
                         {
                             t.HasCheckConstraint("CK_Merchants_AcquisitionActivationShape", "([FirstQualifyingMerchantOrderId] IS NULL AND [FirstQualifyingPaidOrderAt] IS NULL AND [RepeatCommissionPercentageSnapshot] IS NULL AND [RepeatCommissionEligibilityMonthsSnapshot] IS NULL AND [RepeatCommissionEligibleUntil] IS NULL AND [RepeatCommissionRuleIdSnapshot] IS NULL AND [RepeatCommissionRuleEffectiveFromSnapshot] IS NULL AND [AcquiredBySalespersonCodeSnapshot] IS NULL AND [AcquiredBySalespersonNameSnapshot] IS NULL) OR ([FirstQualifyingMerchantOrderId] IS NOT NULL AND [FirstQualifyingPaidOrderAt] IS NOT NULL AND [AcquiredBySalespersonId] IS NOT NULL AND [RepeatCommissionPercentageSnapshot] IS NOT NULL AND [RepeatCommissionEligibilityMonthsSnapshot] > 0 AND [RepeatCommissionEligibleUntil] > [FirstQualifyingPaidOrderAt] AND [RepeatCommissionRuleIdSnapshot] IS NOT NULL AND [RepeatCommissionRuleEffectiveFromSnapshot] IS NOT NULL AND [AcquiredBySalespersonCodeSnapshot] IS NOT NULL AND [AcquiredBySalespersonNameSnapshot] IS NOT NULL)");
@@ -2066,6 +2085,112 @@ namespace MyPetLink.Api.Migrations
                             t.HasCheckConstraint("CK_Merchants_AcquisitionAttribution", "([AcquiredBySalespersonId] IS NULL AND [AcquisitionAttributedAt] IS NULL) OR ([AcquiredBySalespersonId] IS NOT NULL AND [AcquisitionAttributedAt] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_Merchants_CommissionPlanShape", "([CommissionPlan] = 'LegacyPercentage' AND [AcquiredBySalespersonId] IS NULL AND [FirstQualifyingMerchantOrderId] IS NULL) OR ([CommissionPlan] = 'AcquisitionAndRepeat')");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.MerchantBranch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AddressLine1")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<string>("AddressLine2")
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<string>("BusinessHours")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GoogleMapsUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Postcode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<bool>("ShowOnWebsite")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("WazeUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<string>("WhatsApp")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State", "City");
+
+                    b.HasIndex("MerchantId", "IsActive", "ShowOnWebsite", "DisplayOrder");
+
+                    b.ToTable("MerchantBranches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MerchantBranches_Coordinates", "([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] IS NOT NULL AND [Longitude] IS NOT NULL AND [Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)");
                         });
                 });
 
@@ -8000,6 +8125,17 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("RepeatCommissionRuleSnapshot");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.MerchantBranch", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", "Merchant")
+                        .WithMany("Branches")
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Merchant");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.MerchantDeliveryOrder", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.AdminUser", "IssuedByAdminUser")
@@ -9574,6 +9710,11 @@ namespace MyPetLink.Api.Migrations
             modelBuilder.Entity("MyPetLink.Api.Entities.MediaFile", b =>
                 {
                     b.Navigation("Links");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.Merchant", b =>
+                {
+                    b.Navigation("Branches");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.MerchantDeliveryOrder", b =>

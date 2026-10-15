@@ -15,13 +15,39 @@ namespace MyPetLink.Api.Tests.Relational;
 /// </summary>
 public sealed class MerchantShippedTagActivationRelationalTests
 {
+    [RelationalFact]
+    public async Task BranchWithdrawalDoesNotBlockAllocationShippingOrOwnerActivation()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        // Seed and run the same real allocation/shipping workflow as the other
+        // regressions, changing directory availability before stock is assigned.
+        await SeedAsync(db);
+        var directory = MerchantDirectoryTests.Service(db);
+        var listing = await directory.UpsertBranchAsync(AdminAccountId, MerchantId, null,
+            MerchantDirectoryTests.Branch("Retail", true), default);
+        listing = await directory.UpdateListingAsync(AdminAccountId, MerchantId, new(true, null, listing.ConcurrencyToken,
+            MerchantDirectoryTests.Permission(listing.Branches.Select(b => b.Id).ToArray())), default);
+        var branch = listing.Branches.Single();
+        await directory.UpsertBranchAsync(AdminAccountId, MerchantId, branch.Id,
+            MerchantDirectoryTests.Branch("Retail", false) with { IsActive = false, ConcurrencyToken = branch.ConcurrencyToken }, default);
+        Assert.True((await db.Merchants.SingleAsync(m => m.Id == MerchantId)).IsActive);
+        Assert.Empty((await directory.ListPublicAsync(1, 20, null, null, default)).Items);
+        var (_, nfcCode) = await ShipToMerchantAsync(db, seed: false);
+        var tags = new SmartTagService(db, new AuditLogService(db, new HttpContextAccessor()));
+        var activated = await tags.ActivateAsync(OwnerAccountId, nfcCode, new ActivateTagRequest(FinalOwnerPetId));
+        Assert.NotNull(activated);
+        var tag = await db.SmartTags.SingleAsync(t => t.TagCode == nfcCode);
+        Assert.Equal(SmartTagStatus.Active, tag.Status); Assert.Equal(OwnerAccountId, tag.OwnerUserId);
+        Assert.False((await db.MerchantBranches.SingleAsync()).IsActive);
+    }
     private static readonly Guid FinalOwnerPetId =
         Guid.Parse("f6000000-0000-0000-0000-000000000001");
 
     private static async Task<(string QrCode, string NfcCode)> ShipToMerchantAsync(
-        Data.MyPetLinkDbContext db)
+        Data.MyPetLinkDbContext db, bool seed = true)
     {
-        await SeedAsync(db);
+        if (seed) await SeedAsync(db);
         await IssueInvoiceAsync(db);
         var service = Service(db);
         await service.AutoAllocateAsync(

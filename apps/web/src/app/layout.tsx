@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Noto_Sans, Poppins } from "next/font/google";
 import { siteConfig } from "@/config/site";
 import { ServiceWakeUpState } from "@/components/ui/ServiceWakeUpState";
 import { AnalyticsProvider } from "@/components/analytics/AnalyticsProvider";
 import { ReferralCapture } from "@/components/auth/ReferralCapture";
+import { smartTagsEnabled, tagOrdersEnabled, smartTagOrderingEnabled, socialEnabled } from "@/lib/features";
+import { merchantDraftNavigationBootstrap } from "@/lib/merchantDraftNavigation";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -18,6 +21,8 @@ const notoSans = Noto_Sans({
 });
 
 export const metadata: Metadata = {
+  // Non-secret build markers let release tooling inspect the actual export.
+  other: { "mypetlink-release-smart-tags": String(smartTagsEnabled), "mypetlink-release-tag-orders": String(tagOrdersEnabled), "mypetlink-release-ordering": String(smartTagOrderingEnabled), "mypetlink-release-community": String(socialEnabled) },
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.productName,
   title: {
@@ -76,6 +81,7 @@ export default function RootLayout({
       className={`${poppins.variable} ${notoSans.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-pet-cream text-pet-ink">
+        <Script id="merchant-draft-navigation" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: merchantDraftNavigationBootstrap }} />
         <ReferralCapture />
         {children}
         <AnalyticsProvider />

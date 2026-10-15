@@ -161,7 +161,7 @@ export function PublicLayout({
                 { href: marketingRoutes.pricing, label: "Pricing" },
                 ...(publicCommerceAvailability.showWhereToBuy
                   ? [{ href: marketingRoutes.whereToBuy, label: "Where to Buy" }]
-                  : []),
+                  : [{ href: marketingRoutes.whereToBuy, label: "Partner Stores" }]),
               ]}
               title="Product"
             />

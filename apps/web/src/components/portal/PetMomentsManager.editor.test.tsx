@@ -377,9 +377,11 @@ describe("PetMomentsManager shared edit flow", () => {
       })
     );
 
+    // { hidden: true }: while the discard confirmation is open the editor is
+    // only aria-hidden; wait until it is actually removed, not just hidden.
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this Moment" })
+        screen.queryByRole("dialog", { name: "Update this Moment", hidden: true })
       ).toBeNull()
     );
     expect(new URL(window.location.href).searchParams.has("edit")).toBe(false);
@@ -435,8 +437,10 @@ describe("PetMomentsManager shared edit flow", () => {
         await screen.findByRole("dialog", { name: "Discard your changes?" })
       ).getByRole("button", { name: "Discard changes" })
     );
+    // { hidden: true }: while the discard confirmation is open the editor is
+    // only aria-hidden; wait until it is actually removed, not just hidden.
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: /add a moment/i })).toBeNull()
+      expect(screen.queryByRole("dialog", { name: /add a moment/i, hidden: true })).toBeNull()
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -534,9 +538,11 @@ describe("PetMomentsManager shared edit flow", () => {
       within(confirmation).getByRole("button", { name: "Discard changes" })
     );
 
+    // { hidden: true }: while the discard confirmation is open the editor is
+    // only aria-hidden; wait until it is actually removed, not just hidden.
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Update this Moment" })
+        screen.queryByRole("dialog", { name: "Update this Moment", hidden: true })
       ).toBeNull()
     );
     expect(new URL(window.location.href).searchParams.has("edit")).toBe(false);

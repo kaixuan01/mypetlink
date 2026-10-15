@@ -3,13 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.6.0"
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:social-off": "node scripts/build-release.mjs off",
-    "build:social-on": "node scripts/build-release.mjs on",
+    "build": "node --experimental-strip-types scripts/build-release.mjs",
+    "build:release": "node --experimental-strip-types scripts/build-release.mjs",
+    "build:social-off": "node --experimental-strip-types scripts/build-release.mjs off",
+    "build:social-on": "node --experimental-strip-types scripts/build-release.mjs on",
+    "verify:release-flags": "node --experimental-strip-types scripts/verify-release-flags.mjs",
+    "test:release-flags": "node --experimental-strip-types --test scripts/release-profile.test.mjs",
+    "test:merchant-browser": "node --test scripts/merchant-directory.browser.test.mjs",
     "verify:social-flag": "node scripts/verify-social-flag.mjs",
     "build:functions": "wrangler pages functions build functions --outdir .wrangler/functions-build --project-directory . --build-output-directory out --compatibility-date 2026-07-13",
     "verify:seo": "node scripts/verify-seo-output.mjs",

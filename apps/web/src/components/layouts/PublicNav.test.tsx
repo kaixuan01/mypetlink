@@ -98,7 +98,7 @@ describe("public navigation structure", () => {
       "Pricing",
       // Present in a build that sells the Smart Tag (production), absent while
       // there is nowhere to buy one.
-      ...(publicCommerceAvailability.showWhereToBuy ? ["Where to Buy"] : []),
+      ...(publicCommerceAvailability.showWhereToBuy ? ["Where to Buy"] : ["Partner Stores"]),
     ]);
   });
 

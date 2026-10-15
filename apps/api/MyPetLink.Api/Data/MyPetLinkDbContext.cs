@@ -34,6 +34,7 @@ public sealed class MyPetLinkDbContext : DbContext
     }
 
     public DbSet<User> Users => Set<User>();
+    public DbSet<MerchantBranch> MerchantBranches => Set<MerchantBranch>();
     public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<OwnerProfile> OwnerProfiles => Set<OwnerProfile>();
@@ -211,6 +212,12 @@ public sealed class MyPetLinkDbContext : DbContext
         // mean a column set where half is always null.
         modelBuilder.Entity<Merchant>(entity =>
         {
+            entity.Property(item => item.ShowOnWebsite).HasDefaultValue(false);
+            entity.Property(item => item.BusinessDescription).HasMaxLength(2000);
+            entity.Property(item => item.DirectoryPublicCode).HasMaxLength(32);
+            entity.HasIndex(item => item.DirectoryPublicCode).IsUnique()
+                .HasFilter("[DirectoryPublicCode] IS NOT NULL");
+            entity.HasIndex(item => new { item.ShowOnWebsite, item.IsActive });
             entity.ToTable("Merchants", table =>
             {
                 table.HasCheckConstraint(
@@ -291,6 +298,33 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.AcquiredBySalespersonId, item.RepeatCommissionEligibleUntil });
             entity.HasIndex(item => item.FirstQualifyingMerchantOrderId).IsUnique()
                 .HasFilter("[FirstQualifyingMerchantOrderId] IS NOT NULL");
+        });
+
+        modelBuilder.Entity<MerchantBranch>(entity =>
+        {
+            entity.ToTable("MerchantBranches", table => table.HasCheckConstraint(
+                "CK_MerchantBranches_Coordinates",
+                "([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] IS NOT NULL AND [Longitude] IS NOT NULL AND [Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)"));
+            entity.Property(item => item.Name).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.AddressLine1).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.AddressLine2).HasMaxLength(240);
+            entity.Property(item => item.City).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.Postcode).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Country).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.GoogleMapsUrl).HasMaxLength(2048);
+            entity.Property(item => item.WazeUrl).HasMaxLength(2048);
+            entity.Property(item => item.Latitude).HasPrecision(10, 7);
+            entity.Property(item => item.Longitude).HasPrecision(10, 7);
+            entity.Property(item => item.ContactPhone).HasMaxLength(32);
+            entity.Property(item => item.WhatsApp).HasMaxLength(32);
+            entity.Property(item => item.BusinessHours).HasMaxLength(500);
+            entity.Property(item => item.ShowOnWebsite).HasDefaultValue(false);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasOne(item => item.Merchant).WithMany(item => item.Branches)
+                .HasForeignKey(item => item.MerchantId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => new { item.MerchantId, item.IsActive, item.ShowOnWebsite, item.DisplayOrder });
+            entity.HasIndex(item => new { item.State, item.City });
         });
 
         modelBuilder.Entity<Salesperson>(entity =>

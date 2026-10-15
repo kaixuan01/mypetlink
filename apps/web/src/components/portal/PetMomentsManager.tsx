@@ -237,11 +237,13 @@ export function PetMomentsManager({
     [moments]
   );
 
+  // editorRef is owned by showEditor/clearEditor (the only setEditor callers).
+  // Syncing it here let a commit rendered from an older snapshot write a stale
+  // editor back over the one just opened.
   useEffect(() => {
     momentsRef.current = moments;
-    editorRef.current = editor;
     editorDirtyRef.current = editorDirty;
-  }, [editor, editorDirty, moments]);
+  }, [editorDirty, moments]);
 
   useEffect(() => {
     let active = true;
@@ -279,6 +281,9 @@ export function PetMomentsManager({
   const clearEditor = useCallback(() => {
     endSaveSession();
     activeInstanceRef.current = null;
+    // Synchronous, like the instance ref: the deep-link and popstate handlers
+    // must not see an editor that is already gone before React commits.
+    editorRef.current = null;
     setEditorInstance(null);
     setEditor(null);
     setEditorDirty(false);
@@ -290,6 +295,10 @@ export function PetMomentsManager({
     saveSessionRef.current = createMomentSaveSession();
     editorInstanceRef.current += 1;
     activeInstanceRef.current = editorInstanceRef.current;
+    // Known before its render commits: a commit that lands first (such as the
+    // initial list load) must not see the new ?edit= URL with no editor and
+    // reopen it as a new instance, orphaning a save in progress.
+    editorRef.current = nextEditor;
     setEditorInstance(editorInstanceRef.current);
     setEditor(nextEditor);
     setEditorDirty(false);

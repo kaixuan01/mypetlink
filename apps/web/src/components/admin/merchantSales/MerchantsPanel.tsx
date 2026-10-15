@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
 import {
   AdminDataTable,
@@ -17,6 +17,7 @@ import {
 } from "@/components/admin/table/AdminRowActionMenu";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
+import { MerchantListingPanel } from "./MerchantListingPanel";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isAbortError } from "@/services/apiClient";
 import {
@@ -101,6 +102,7 @@ export function MerchantsPanel({
   onEdit,
   onCloseEditor,
   canManage = true,
+  onDirtyChange,
 }: {
   openId: string | null;
   editing: boolean;
@@ -108,6 +110,7 @@ export function MerchantsPanel({
   onEdit: (id: string | "new" | null) => void;
   onCloseEditor: () => void;
   canManage?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -140,6 +143,7 @@ export function MerchantsPanel({
     total: number;
     error: string;
   } | null>(null);
+  const [merchantCache, setMerchantCache] = useState<Record<string, AdminMerchant>>({});
   const [salespersons, setSalespersons] = useState<AdminSalesperson[]>([]);
   const [message, setMessage] = useState("");
   const [actionError, setActionError] = useState("");
@@ -156,6 +160,7 @@ export function MerchantsPanel({
       .then((result) => {
         if (controller.signal.aborted) return;
         setListState({ key, items: result.items, total: result.total, error: "" });
+        setMerchantCache(previous => ({ ...(openId && previous[openId] ? { [openId]: previous[openId] } : {}), ...Object.fromEntries(result.items.map(item => [item.id, item])) }));
       })
       .catch((caught) => {
         if (controller.signal.aborted || isAbortError(caught)) return;
@@ -168,7 +173,7 @@ export function MerchantsPanel({
       });
 
     return () => controller.abort();
-  }, [paramsKey, reloadKey]);
+  }, [paramsKey, reloadKey, openId]);
 
   // One request for the salesperson options; list rows never fetch their own.
   useEffect(() => {
@@ -190,7 +195,7 @@ export function MerchantsPanel({
   const total = listState?.key === fetchKey ? listState.total : 0;
   const listError = listState?.key === fetchKey ? listState.error : "";
 
-  const open = items.find((item) => item.id === openId) ?? null;
+  const open = items.find((item) => item.id === openId) ?? (openId ? merchantCache[openId] : null) ?? null;
 
   const filterDefs: AdminFilterDef[] = [
     {
@@ -294,6 +299,7 @@ export function MerchantsPanel({
 
       {editing ? (
         <MerchantEditor
+          onDirtyChange={onDirtyChange}
           merchant={openId && openId !== "new" ? (open ?? undefined) : undefined}
           onCancel={onCloseEditor}
           onSaved={(saved, note) => {
@@ -309,6 +315,7 @@ export function MerchantsPanel({
 
       {open && !editing ? (
         <MerchantDetail
+          onDirtyChange={onDirtyChange}
           merchant={open}
           salespersons={salespersons}
           onClose={() => onOpen(null)}
@@ -375,8 +382,8 @@ export function MerchantsPanel({
         destructive={pendingActivation?.isActive ?? false}
         message={
           pendingActivation?.isActive
-            ? "An inactive merchant cannot be chosen for a new quotation. Their existing quotations and orders stay exactly as they are."
-            : "This merchant can be chosen for new quotations again."
+            ? "An inactive merchant cannot be chosen for a new quotation. Their existing quotations and orders stay exactly as they are. Directory publication will be turned off."
+            : "This merchant can be chosen for new quotations again. Directory publication stays off. Publish separately with current merchant permission."
         }
         onCancel={() => setPendingActivation(null)}
         onConfirm={() => {
@@ -388,7 +395,7 @@ export function MerchantsPanel({
             .then(() => {
               setActionError("");
               setMessage(
-                `${target.legalBusinessName} is now ${target.isActive ? "inactive" : "active"}.`
+                `${target.legalBusinessName} is now ${target.isActive ? "inactive" : "active"}. Directory publication remains off. Publish separately with current merchant permission.`
               );
               refresh();
             })
@@ -416,6 +423,7 @@ function MerchantDetail({
   onEdit,
   onSaved,
   canManage,
+  onDirtyChange,
 }: {
   merchant: AdminMerchant;
   salespersons: AdminSalesperson[];
@@ -423,6 +431,7 @@ function MerchantDetail({
   onEdit: () => void;
   onSaved: () => void;
   canManage: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   return (
     <AdminSection
@@ -440,6 +449,7 @@ function MerchantDetail({
       title={merchant.legalBusinessName}
     >
       <div className="grid gap-4 p-5">
+        <MerchantListingPanel key={merchant.id} merchantId={merchant.id} merchantActive={merchant.isActive} merchantToken={merchant.concurrencyToken} canManage={canManage} onMerchantChanged={onSaved} onDirtyChange={onDirtyChange} />
         <DetailGrid>
           <DetailRow label="Trading name">{orNotProvided(merchant.tradingName)}</DetailRow>
           <DetailRow label="Business registration">
@@ -613,16 +623,21 @@ function MerchantEditor({
   salespersons,
   onCancel,
   onSaved,
+  onDirtyChange,
 }: {
   merchant?: AdminMerchant;
   salespersons: AdminSalesperson[];
   onCancel: () => void;
   onSaved: (merchant: AdminMerchant, message: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const [originalMerchant] = useState(merchant);
   const [draft, setDraft] = useState<Draft>(() => toDraft(merchant));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(originalMerchant));
+  useLayoutEffect(() => { onDirtyChange?.(dirty || saving); }, [dirty, saving, onDirtyChange]);
 
   const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
 
@@ -652,13 +667,14 @@ function MerchantEditor({
       deliveryAddress: draft.deliverySame ? null : draft.delivery,
       assignedSalespersonId: draft.assignedSalespersonId || null,
       internalNotes: draft.internalNotes.trim() || null,
-      concurrencyToken: merchant?.concurrencyToken ?? null,
+      concurrencyToken: originalMerchant?.concurrencyToken ?? null,
     };
 
     try {
       const saved = merchant
         ? await updateMerchant(merchant.id, input)
         : await createMerchant(input);
+      onDirtyChange?.(false);
       onSaved(saved, `${saved.legalBusinessName} saved.`);
     } catch (caught) {
       setError(getMerchantSalesError(caught, "We couldn’t save this merchant. Please try again."));
