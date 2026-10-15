@@ -449,7 +449,7 @@ function MerchantDetail({
       title={merchant.legalBusinessName}
     >
       <div className="grid gap-4 p-5">
-        <MerchantListingPanel key={merchant.id} merchantId={merchant.id} merchantActive={merchant.isActive} merchantToken={merchant.concurrencyToken} canManage={canManage} onMerchantChanged={onSaved} onDirtyChange={onDirtyChange} />
+        <MerchantListingPanel key={merchant.id} merchantId={merchant.id} merchantName={merchant.tradingName ?? merchant.legalBusinessName} merchantActive={merchant.isActive} merchantToken={merchant.concurrencyToken} canManage={canManage} onMerchantChanged={onSaved} onDirtyChange={onDirtyChange} />
         <DetailGrid>
           <DetailRow label="Trading name">{orNotProvided(merchant.tradingName)}</DetailRow>
           <DetailRow label="Business registration">

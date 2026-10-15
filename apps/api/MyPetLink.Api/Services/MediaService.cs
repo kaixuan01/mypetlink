@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
+using MyPetLink.Api.Auth;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
@@ -21,6 +22,7 @@ public sealed class MediaService : SkeletonService, IMediaService
     private readonly SocialOptions _socialOptions;
     private readonly IImageDerivativeGenerator _derivativeGenerator;
     private readonly ILogger<MediaService> _logger;
+    private readonly IAdminAccessResolver? _adminAccess;
 
     public MediaService(
         MyPetLinkDbContext dbContext,
@@ -28,7 +30,8 @@ public sealed class MediaService : SkeletonService, IMediaService
         IOptions<CloudflareR2Options> r2Options,
         IOptions<SocialOptions> socialOptions,
         IImageDerivativeGenerator derivativeGenerator,
-        ILogger<MediaService> logger)
+        ILogger<MediaService> logger,
+        IAdminAccessResolver? adminAccess = null)
     {
         _dbContext = dbContext;
         _objectStorage = objectStorage;
@@ -36,6 +39,7 @@ public sealed class MediaService : SkeletonService, IMediaService
         _socialOptions = socialOptions.Value;
         _derivativeGenerator = derivativeGenerator;
         _logger = logger;
+        _adminAccess = adminAccess;
     }
 
     public async Task<MediaUploadResponse> InitializeUploadAsync(
@@ -183,6 +187,11 @@ public sealed class MediaService : SkeletonService, IMediaService
                 "The uploaded file could not be confirmed. Please try again.");
         }
 
+        // Logos are staged privately. Only a fresh server-encoded image becomes
+        // public, under a different key that the presigned PUT cannot overwrite.
+        var logoSource = media.Category == MediaUploadCategory.MerchantLogo
+            ? await PrepareMerchantLogoAsync(media, cancellationToken)
+            : null;
         var now = DateTimeOffset.UtcNow;
         var mediaToDelete = new List<MediaFile>();
 
@@ -193,7 +202,13 @@ public sealed class MediaService : SkeletonService, IMediaService
         await ApplyCompletedAssociationAsync(userId, media, mediaToDelete, cancellationToken);
         // One SaveChanges call is atomic and can be retried by the configured
         // SQL execution strategy without a user-managed transaction boundary.
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try { await _dbContext.SaveChangesAsync(cancellationToken); }
+        catch
+        {
+            if (logoSource is not null) await TryDeleteObjectAsync(media, CancellationToken.None);
+            throw;
+        }
+        if (logoSource is not null) await TryDeleteObjectAsync(logoSource, CancellationToken.None);
 
         foreach (var oldMedia in mediaToDelete)
         {
@@ -229,8 +244,16 @@ public sealed class MediaService : SkeletonService, IMediaService
         var userId = RequireUserId(currentUserId);
         var media = await LoadOwnedMediaAsync(userId, mediaId, trackChanges: true, cancellationToken);
 
+        if (media.Category == MediaUploadCategory.MerchantLogo
+            && await _dbContext.Merchants.AnyAsync(m => m.LogoMediaFileId == mediaId, cancellationToken))
+            throw new ApiException(422, "media_in_use", "Remove or replace this logo in Merchant Management first.");
+
         if (media.UploadStatus == MediaUploadStatus.Deleted || media.DeletedAt.HasValue)
         {
+            // Merchant replacement marks the old row deleted in the same save
+            // as the new reference, then reuses this path for object cleanup.
+            if (media.Category == MediaUploadCategory.MerchantLogo)
+                await TryDeleteObjectAsync(media, cancellationToken);
             return;
         }
 
@@ -466,6 +489,13 @@ public sealed class MediaService : SkeletonService, IMediaService
                 }
                 return new UploadTarget(null, null, null);
 
+            case MediaUploadCategory.MerchantLogo:
+                await RequireMerchantLogoAccessAsync(userId, cancellationToken);
+                var merchantId = RequireGuid(request.MerchantId, "merchantId", "Choose a merchant for this logo.");
+                if (!await _dbContext.Merchants.AnyAsync(m => m.Id == merchantId, cancellationToken))
+                    throw NotFound("Merchant was not found.");
+                return new UploadTarget(null, MediaOwnerType.Merchant, merchantId);
+
             default:
                 throw ValidationFailed("category", "Upload category is not supported.");
         }
@@ -659,7 +689,8 @@ public sealed class MediaService : SkeletonService, IMediaService
     {
         var query = _dbContext.MediaFiles
             .Include(media => media.Links)
-            .Where(media => media.Id == mediaId && media.OwnerUserId == userId);
+            .Where(media => media.Id == mediaId && (media.OwnerUserId == userId
+                || media.Category == MediaUploadCategory.MerchantLogo));
 
         if (!trackChanges)
         {
@@ -667,7 +698,45 @@ public sealed class MediaService : SkeletonService, IMediaService
         }
 
         var media = await query.SingleOrDefaultAsync(cancellationToken);
+        if (media?.Category == MediaUploadCategory.MerchantLogo)
+            await RequireMerchantLogoAccessAsync(userId, cancellationToken);
         return media ?? throw NotFound("File was not found.");
+    }
+
+    private async Task RequireMerchantLogoAccessAsync(Guid userId, CancellationToken ct)
+    {
+        var access = _adminAccess is null ? AdminAccessSnapshot.None : await _adminAccess.ResolveAsync(userId, ct);
+        if (!access.Has(AdminCapabilities.SalesManage))
+            throw new ApiException(403, "forbidden", "You do not have access to manage merchant logos.");
+    }
+
+    private async Task<MediaFile> PrepareMerchantLogoAsync(MediaFile media, CancellationToken ct)
+    {
+        if (media.IsPublic || media.BucketName != _r2Options.PrivateBucketName
+            || !media.ObjectKey.StartsWith("merchant-logos/pending/", StringComparison.Ordinal))
+            throw ValidationFailed("mediaId", "This logo upload is not available. Please choose the image again.");
+        var bytes = await _objectStorage.GetObjectBytesAsync(media.BucketName, media.ObjectKey, MerchantLogoImage.MaxBytes, ct);
+        if (bytes is null || bytes.LongLength != media.FileSize)
+            throw new ApiException(422, "uploaded_object_mismatch", "The uploaded logo could not be confirmed. Please try again.");
+        var image = MerchantLogoImage.Normalize(bytes, media.ContentType);
+        var source = new MediaFile { Id = media.Id, BucketName = media.BucketName, ObjectKey = media.ObjectKey };
+        var publicKey = $"merchant-logos/{Guid.NewGuid():N}.png";
+        try { await _objectStorage.PutObjectAsync(_r2Options.PublicBucketName, publicKey, image.Bytes, image.ContentType, ct); }
+        catch
+        {
+            await TryDeleteObjectAsync(new MediaFile { BucketName = _r2Options.PublicBucketName, ObjectKey = publicKey }, CancellationToken.None);
+            throw;
+        }
+        media.BucketName = _r2Options.PublicBucketName;
+        media.ObjectKey = media.StoragePath = publicKey;
+        media.StorageFileName = Path.GetFileName(publicKey);
+        media.ContentType = image.ContentType;
+        media.FileSize = image.Bytes.LongLength;
+        media.Width = image.Width;
+        media.Height = image.Height;
+        media.Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image.Bytes));
+        media.IsPublic = true;
+        return source;
     }
 
     private async Task EnsureUserExistsAsync(Guid userId, CancellationToken cancellationToken)
@@ -875,6 +944,7 @@ public sealed class MediaService : SkeletonService, IMediaService
             MediaUploadCategory.VaccinationDocument or MediaUploadCategory.MedicalDocument => $"pet-documents/{randomName}",
             MediaUploadCategory.OrderReceipt => $"order-receipts/{randomName}",
             MediaUploadCategory.TagProductImage => $"tag-products/{randomName}",
+            MediaUploadCategory.MerchantLogo => $"merchant-logos/pending/{randomName}",
             _ => throw ValidationFailed("category", "Upload category is not supported.")
         };
     }
@@ -924,6 +994,8 @@ public sealed class MediaService : SkeletonService, IMediaService
     {
         return category switch
         {
+            MediaUploadCategory.MerchantLogo => new UploadRules(UploadRules.Images.ContentTypes,
+                MerchantLogoImage.MaxBytes, "Merchant logos must be 2 MB or smaller."),
             MediaUploadCategory.PetProfilePhoto
                 or MediaUploadCategory.PetCoverPhoto
                 or MediaUploadCategory.MomentImage
@@ -957,6 +1029,7 @@ public sealed class MediaService : SkeletonService, IMediaService
             or MediaUploadCategory.MomentImage
             or MediaUploadCategory.OwnerAvatar
             or MediaUploadCategory.TagProductImage
+            or MediaUploadCategory.MerchantLogo
                 ? MediaFileType.Image
                 : MediaFileType.Document;
     }

@@ -212,6 +212,8 @@ public sealed class MyPetLinkDbContext : DbContext
         // mean a column set where half is always null.
         modelBuilder.Entity<Merchant>(entity =>
         {
+            entity.HasOne(item => item.LogoMediaFile).WithMany()
+                .HasForeignKey(item => item.LogoMediaFileId).OnDelete(DeleteBehavior.Restrict);
             entity.Property(item => item.ShowOnWebsite).HasDefaultValue(false);
             entity.Property(item => item.BusinessDescription).HasMaxLength(2000);
             entity.Property(item => item.DirectoryPublicCode).HasMaxLength(32);

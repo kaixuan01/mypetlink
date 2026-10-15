@@ -36,6 +36,7 @@ export type MediaUploadInput = {
   momentId?: string;
   careRecordId?: string;
   orderId?: string;
+  merchantId?: string;
   width?: number;
   height?: number;
   durationSeconds?: number;
@@ -64,6 +65,7 @@ export async function initializeMediaUpload(input: MediaUploadInput) {
         momentId: input.momentId,
         careRecordId: input.careRecordId,
         orderId: input.orderId,
+        merchantId: input.merchantId,
         category: input.category,
         originalFileName: file.name,
         contentType: normalizeContentType(file),
@@ -172,6 +174,14 @@ async function prepareFileForUpload(
 
 function validateUploadFile(category: BackendMediaUploadCategory, file: File) {
   const contentType = normalizeContentType(file);
+
+  if (category === "MerchantLogo") {
+    if (!IMAGE_TYPES.has(contentType) || !/\.(png|jpe?g|webp)$/i.test(file.name))
+      throw new Error("Please choose a PNG, JPG, or WebP logo.");
+    if (file.size === 0 || file.size > 2 * 1024 * 1024)
+      throw new Error("Choose a logo up to 2 MB.");
+    return;
+  }
 
   if (IMAGE_CATEGORIES.has(category)) {
     if (!IMAGE_TYPES.has(contentType)) {

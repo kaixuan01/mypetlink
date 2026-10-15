@@ -11187,3 +11187,46 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261015032111_AddMerchantMainLogo'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [LogoMediaFileId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261015032111_AddMerchantMainLogo'
+)
+BEGIN
+    CREATE INDEX [IX_Merchants_LogoMediaFileId] ON [Merchants] ([LogoMediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261015032111_AddMerchantMainLogo'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD CONSTRAINT [FK_Merchants_MediaFiles_LogoMediaFileId] FOREIGN KEY ([LogoMediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261015032111_AddMerchantMainLogo'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261015032111_AddMerchantMainLogo', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

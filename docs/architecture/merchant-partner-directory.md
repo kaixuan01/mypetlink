@@ -16,9 +16,10 @@ store route. The app is a static Next.js export backed by the live .NET API and
 SQL Server. Older root README/planning descriptions of a placeholder API are
 historical; they are not the architecture used for this implementation.
 
-No merchant logo/upload field exists. This phase reuses legal/trading names and
-private business contacts, adds a business description, and publishes only
-explicitly entered branch contacts. It does not introduce a logo upload system.
+The initial directory reused legal/trading names and added a description and
+explicitly entered branch contacts. The merchant-logo follow-up adds one
+optional `Merchants.LogoMediaFileId` reference using the existing media pipeline;
+branches have no logo field. See the [logo implementation and rollout record](../deployment/merchant-logo-implementation-2026-10-15.md).
 
 ## Database and visibility
 

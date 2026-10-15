@@ -14,9 +14,9 @@ export function isImageFile(file: File) {
   return file.type.startsWith("image/");
 }
 
-export async function readImageAsDataUrl(file: File): Promise<string> {
+export async function readImageAsDataUrl(file: File, type: "image/jpeg" | "image/png" = "image/jpeg"): Promise<string> {
   const canvas = await drawImageToCanvas(file, MAX_IMAGE_DIMENSION);
-  return canvas.toDataURL("image/jpeg", OUTPUT_QUALITY);
+  return canvas.toDataURL(type, OUTPUT_QUALITY);
 }
 
 export async function prepareImageFileForUpload(file: File): Promise<File> {

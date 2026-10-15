@@ -198,7 +198,7 @@ public sealed class ImageDerivativeGenerator : IImageDerivativeGenerator
     /// True for the EXIF origins that rotate by 90 degrees, where the stored
     /// buffer's width becomes the displayed height.
     /// </summary>
-    private static bool SwapsAxes(SKEncodedOrigin origin)
+    internal static bool SwapsAxes(SKEncodedOrigin origin)
     {
         return origin is SKEncodedOrigin.LeftTop
             or SKEncodedOrigin.RightTop
@@ -211,7 +211,7 @@ public sealed class ImageDerivativeGenerator : IImageDerivativeGenerator
     /// saw, for the given EXIF origin. <paramref name="width"/> and
     /// <paramref name="height"/> are the FINAL displayed dimensions.
     /// </summary>
-    private static SKMatrix OrientationMatrix(SKEncodedOrigin origin, float width, float height)
+    internal static SKMatrix OrientationMatrix(SKEncodedOrigin origin, float width, float height)
     {
         return origin switch
         {

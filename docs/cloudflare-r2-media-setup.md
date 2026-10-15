@@ -11,8 +11,8 @@ Create two R2 buckets:
 
 | Bucket | Access | Used for |
 | --- | --- | --- |
-| `mypetlink-public-media` | Public through custom domain | Pet profile photos, pet cover photos, public memory images/videos |
-| `mypetlink-private-files` | Private only | Vaccination documents, medical documents, order receipts |
+| `mypetlink-public-media` | Public through custom domain | Pet profile photos, pet cover photos, public memory images/videos, validated merchant logos |
+| `mypetlink-private-files` | Private only | Vaccination documents, medical documents, order receipts, pending merchant-logo originals |
 
 Do not expose the private bucket through the public media domain.
 
@@ -122,11 +122,32 @@ responses.
 | Category | MIME types | Max size |
 | --- | --- | --- |
 | Images | `image/jpeg`, `image/png`, `image/webp` | 10 MB |
+| Merchant logos | `image/jpeg`, `image/png`, `image/webp`; non-animated, at most 4096 × 4096 pixels | 2 MB |
 | Videos | `video/mp4` | 50 MB |
 | Documents/receipts | `application/pdf`, `image/jpeg`, `image/png` | 10 MB |
 
 SVG, HTML, scripts, executables, unknown MIME types, empty files, oversized
 files, and mismatched extensions are rejected by the API.
+
+### Merchant logo flow
+
+Use category `MerchantLogo` and `merchantId` on the existing media upload route.
+Initialization, completion and deletion require current `sales.manage` access.
+The signed PUT writes only to private `merchant-logos/pending/` storage. On
+completion the API verifies length/type, fully decodes a bounded raster, applies
+orientation and encodes a metadata-free PNG (at most 512 px, preserving alpha)
+to a fresh public `merchant-logos/` key. The signed PUT cannot overwrite that
+public copy. No new bucket, credential, setting or upload endpoint is needed.
+
+Completion prepares the image; it does not publish a merchant or change the
+merchant reference. Save it through the capability-protected merchant `/logo`
+endpoint with the merchant rowversion token. Only ready merchant-logo media
+bound to that merchant can be attached. Removing/replacing an attached logo
+must use that endpoint; generic media deletion refuses attached logos.
+Private staging originals and retired public objects are deleted best effort;
+storage failures are logged. As with existing media, CDN copies may persist
+until their cache lifetime expires. Publication filters apply to directory
+responses; public asset URLs are not authenticated media downloads.
 
 ## Database Migration
 

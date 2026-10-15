@@ -4,6 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ImageUploadField } from "@/components/portal/ImageUploadField";
+import { MerchantLogo } from "@/components/ui/MerchantLogo";
+import { uploadMediaFile, deleteMedia } from "@/services/mediaService";
+import { updateMerchantLogo } from "@/services/merchantDirectoryService";
 import { partnerStorePath } from "@/lib/routes";
 import { getMerchantSalesError, getMerchantSalesFieldErrors } from "@/services/adminMerchantSalesService";
 import { getMerchantListing, saveMerchantBranch, updateMerchantListing, type MerchantListing, type BranchInput, type AdminBranch, type PublicationPermission } from "@/services/merchantDirectoryService";
@@ -12,6 +16,8 @@ import { fieldClass, primaryButton, secondaryButton, InlineError } from "./share
 const freshBranch = (): BranchInput => ({ name: "", address: { addressLine1: "", addressLine2: null, city: "", state: "", postcode: "", country: "Malaysia" }, googleMapsUrl: null, wazeUrl: null, latitude: null, longitude: null, contactPhone: null, whatsApp: null, businessHours: null, isActive: true, showOnWebsite: false, displayOrder: 0 });
 const emptyPermission = (): PublicationPermission => ({ source: "WhatsApp", reference: "" });
 type MerchantDraft = { description: string; visible: boolean; savedDescription: string; savedVisible: boolean; token: string; permission: PublicationPermission; withdrawalReason: string; confirmedScope: string };
+type LogoDraft = { file?: File; preview: string; token: string; originalMediaId: string | null };
+const logoTypes = ["image/png", "image/jpeg", "image/webp"];
 const merchantDirty = (d: MerchantDraft | null) => Boolean(d && (d.description !== d.savedDescription || d.visible !== d.savedVisible || d.permission.reference || d.permission.source !== "WhatsApp" || d.withdrawalReason));
 
 function PermissionFields({ value, onChange, errors }: { value: PublicationPermission; onChange: (value: PublicationPermission) => void; errors: Record<string, string> }) {
@@ -23,11 +29,12 @@ function PermissionFields({ value, onChange, errors }: { value: PublicationPermi
   </fieldset>;
 }
 
-export function MerchantListingPanel({ merchantId, merchantActive, merchantToken, canManage, onMerchantChanged, onDirtyChange }: {
-  merchantId: string; merchantActive: boolean; merchantToken: string; canManage: boolean; onMerchantChanged?: () => void; onDirtyChange?: (dirty: boolean) => void;
+export function MerchantListingPanel({ merchantId, merchantName = "Merchant", merchantActive, merchantToken, canManage, onMerchantChanged, onDirtyChange }: {
+  merchantId: string; merchantName?: string; merchantActive: boolean; merchantToken: string; canManage: boolean; onMerchantChanged?: () => void; onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [listing, setListing] = useState<MerchantListing | null>(null);
   const [merchantDraft, setMerchantDraft] = useState<MerchantDraft | null>(null);
+  const [logoDraft, setLogoDraft] = useState<LogoDraft | null>(null);
   const [draft, setDraft] = useState<BranchInput | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -38,17 +45,19 @@ export function MerchantListingPanel({ merchantId, merchantActive, merchantToken
   const [branchBaseline, setBranchBaseline] = useState("");
   const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null);
   const branchDirty = Boolean(draft && JSON.stringify(draft) !== branchBaseline);
-  const dirty = merchantDirty(merchantDraft) || branchDirty;
+  const dirty = merchantDirty(merchantDraft) || branchDirty || logoDraft !== null;
   const description = merchantDraft?.description ?? "";
   const visible = merchantDraft?.visible ?? false;
-  const accept = useCallback((value: MerchantListing, mode: "refresh" | "listing" | "branch" = "refresh") => {
+  const accept = useCallback((value: MerchantListing, mode: "refresh" | "listing" | "branch" | "logo" = "refresh") => {
     setListing(value);
+    if (mode !== "refresh") setLogoDraft(previous => previous && previous.originalMediaId === (value.logoMediaFileId ?? null)
+      ? { ...previous, token: value.concurrencyToken } : previous);
     setMerchantDraft(previous => {
       if (!previous || mode === "listing" || !merchantDirty(previous)) return { description: value.businessDescription ?? "", visible: value.showOnWebsite,
         savedDescription: value.businessDescription ?? "", savedVisible: value.showOnWebsite, token: value.concurrencyToken, permission: emptyPermission(), withdrawalReason: "", confirmedScope: "" };
       // Only our own branch operation may advance a dirty merchant token,
       // and only if the merchant fields still match its original baseline.
-      if (mode === "branch" && previous.savedVisible === value.showOnWebsite && previous.savedDescription === (value.businessDescription ?? "")) return { ...previous, token: value.concurrencyToken };
+      if ((mode === "branch" || mode === "logo") && previous.savedVisible === value.showOnWebsite && previous.savedDescription === (value.businessDescription ?? "")) return { ...previous, token: value.concurrencyToken };
       return previous;
     });
   }, []);
@@ -96,9 +105,26 @@ export function MerchantListingPanel({ merchantId, merchantActive, merchantToken
   }
   async function reloadListing() {
     setBusy(true); setError(""); setFields({});
-    try { accept(await getMerchantListing(merchantId), "listing"); setDraft(null); setMessage("Listing reloaded."); }
+    try { accept(await getMerchantListing(merchantId), "listing"); setDraft(null); setLogoDraft(null); setMessage("Listing reloaded."); }
     catch (caught) { setError(getMerchantSalesError(caught, "We couldn’t load the branches. Please try again.")); }
     finally { setBusy(false); }
+  }
+  async function saveLogo() {
+    if (!listing || !logoDraft || busy || !canManage) return;
+    setBusy(true); setError(""); setFields({}); setMessage("");
+    let uploadedId: string | null = null;
+    try {
+      if (logoDraft.file) uploadedId = (await uploadMediaFile({ file: logoDraft.file,
+        category: "MerchantLogo", merchantId, cleanupOnFailure: true })).mediaId;
+      const value = await updateMerchantLogo(merchantId, uploadedId, logoDraft.token);
+      accept(value, "logo"); setLogoDraft(null);
+      setMessage(uploadedId ? "Merchant logo saved." : "Merchant logo removed.");
+      onMerchantChanged?.();
+    } catch (caught) {
+      if (uploadedId) await deleteMedia(uploadedId).catch(() => undefined);
+      setError(getMerchantSalesError(caught, caught instanceof Error ? caught.message : "We couldn’t save the logo. Please try again."));
+      setFields(getMerchantSalesFieldErrors(caught));
+    } finally { setBusy(false); }
   }
   const parentActive = listing?.merchantIsActive ?? merchantActive;
   const published = parentActive && listing?.isPublished;
@@ -125,6 +151,22 @@ export function MerchantListingPanel({ merchantId, merchantActive, merchantToken
     <InlineError message={error} />
     {message && <p role="status" className="text-sm text-teal-700">{message}</p>}
     {!listing ? <div><p role="status">{error ? "Branches are unavailable." : "Loading branches…"}</p>{error && <button className={secondaryButton} type="button" onClick={() => { setError(""); void getMerchantListing(merchantId).then(accept).catch(() => setError("We couldn’t load the branches. Please try again.")); }}>Retry</button>}</div> : <>
+      {canManage ? <form className="grid gap-3 rounded-xl border border-slate-200 p-4" onSubmit={e => { e.preventDefault(); void saveLogo(); }}>
+        <ImageUploadField label="Merchant logo" shape="square" fit="contain" preserveTransparency
+          acceptedTypes={logoTypes} maxBytes={2 * 1024 * 1024} disabled={busy} onReadingChange={setBusy}
+          error={fields.mediaId || fields.concurrencyToken}
+          value={logoDraft?.preview ?? listing.logoUrl ?? ""}
+          onFileSelected={file => setLogoDraft(previous => ({ file, preview: previous?.preview ?? listing.logoUrl ?? "",
+            token: previous?.token ?? listing.concurrencyToken, originalMediaId: previous ? previous.originalMediaId : listing.logoMediaFileId ?? null }))}
+          onChange={preview => setLogoDraft(previous => !preview && !listing.logoMediaFileId && !listing.logoUrl ? null
+            : { file: previous?.file, token: previous?.token ?? listing.concurrencyToken,
+              originalMediaId: previous ? previous.originalMediaId : listing.logoMediaFileId ?? null, preview })}
+          helper="One logo shared by all branches. Changes apply when you save the logo. Maximum image dimensions: 4096 × 4096 pixels." />
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={primaryButton} disabled={busy || !logoDraft}>{busy ? "Saving…" : "Save logo"}</button>
+          {logoDraft && <button type="button" className={secondaryButton} disabled={busy} onClick={() => setLogoDraft(null)}>Discard logo changes</button>}
+        </div>
+      </form> : <div className="flex items-center gap-3"><MerchantLogo name={merchantName} src={listing.logoUrl} /><span className="text-sm font-bold">Merchant logo</span></div>}
       <form className="grid gap-3" onSubmit={e => { e.preventDefault(); if (visible !== listing.showOnWebsite) setConfirmation("listing"); else void save("listing"); }}>
         <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={visible} disabled={!canManage || busy} onChange={e => setMerchantDraft(d => d && ({ ...d, visible: e.target.checked }))} />Show on Website</label>
         <p className="text-sm text-slate-600">Allow this merchant and its selected branches to appear in the public MyPetLink Partner Directory. Enable only with the merchant’s permission. This does not affect its partnership or sales access.</p>

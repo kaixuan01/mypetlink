@@ -214,7 +214,8 @@ public enum MediaOwnerType
     Invoice,
     OwnerProfile,
     AppSetting,
-    Other
+    Other,
+    Merchant
 }
 
 public enum MediaFileType
@@ -235,7 +236,8 @@ public enum MediaUploadCategory
     VaccinationDocument,
     MedicalDocument,
     OrderReceipt,
-    TagProductImage
+    TagProductImage,
+    MerchantLogo
 }
 
 public enum MediaUploadStatus

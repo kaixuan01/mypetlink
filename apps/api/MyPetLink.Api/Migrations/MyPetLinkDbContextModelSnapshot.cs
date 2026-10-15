@@ -1995,6 +1995,9 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid?>("LogoMediaFileId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("MerchantCode")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -2066,6 +2069,8 @@ namespace MyPetLink.Api.Migrations
                         .HasFilter("[FirstQualifyingMerchantOrderId] IS NOT NULL");
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("LogoMediaFileId");
 
                     b.HasIndex("MerchantCode")
                         .IsUnique();
@@ -8111,6 +8116,11 @@ namespace MyPetLink.Api.Migrations
                         .HasForeignKey("FirstQualifyingMerchantOrderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MyPetLink.Api.Entities.MediaFile", "LogoMediaFile")
+                        .WithMany()
+                        .HasForeignKey("LogoMediaFileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MyPetLink.Api.Entities.CommissionRule", "RepeatCommissionRuleSnapshot")
                         .WithMany()
                         .HasForeignKey("RepeatCommissionRuleIdSnapshot")
@@ -8121,6 +8131,8 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("AssignedSalesperson");
 
                     b.Navigation("FirstQualifyingMerchantOrder");
+
+                    b.Navigation("LogoMediaFile");
 
                     b.Navigation("RepeatCommissionRuleSnapshot");
                 });

@@ -43,7 +43,13 @@ public sealed record AdminMerchantListingResponse(
     bool ShowOnWebsite, string? BusinessDescription, bool IsPublished,
     string? PublicCode, string ConcurrencyToken,
     IReadOnlyCollection<AdminMerchantBranchResponse> Branches,
-    bool MerchantIsActive = false);
+    bool MerchantIsActive = false,
+    Guid? LogoMediaFileId = null,
+    string? LogoUrl = null);
+
+public sealed record UpdateMerchantLogoRequest(
+    Guid? MediaId,
+    [Required] string ConcurrencyToken);
 
 // These contracts intentionally contain no internal IDs, billing contacts,
 // registration numbers, sales assignments, consent flags or commercial terms.
@@ -54,4 +60,5 @@ public sealed record PublicPartnerBranchResponse(
 
 public sealed record PublicPartnerStoreResponse(
     string PublicCode, string Name, string? BusinessDescription,
-    IReadOnlyCollection<PublicPartnerBranchResponse> Branches);
+    IReadOnlyCollection<PublicPartnerBranchResponse> Branches,
+    string? LogoUrl = null);

@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { chromium } from "playwright-core";
 import ts from "typescript";
+import sharp from "sharp";
 
 let browser, server, baseUrl = process.env.MYPETLINK_BROWSER_BASE_URL;
 const source = await readFile(new URL("../src/components/admin/merchantSales/merchantSalesFixtures.ts", import.meta.url), "utf8");
@@ -64,6 +65,83 @@ async function openFirst(page) {
   await (await refreshedRows).finished();
   await page.getByLabel("Business description").waitFor();
 }
+
+test("merchant logos stay contained and appear once above branches on phone, tablet and desktop", async () => {
+  const page = await browser.newPage();
+  const logo = await sharp({ create: { width: 240, height: 80, channels: 4, background: { r: 0, g: 140, b: 130, alpha: 1 } } }).png().toBuffer();
+  const name = "HappyPets".repeat(12);
+  const branch = { name: "Main", address: { addressLine1: "1 Pet Street", postcode: "50000", city: "KL", state: "KL", country: "Malaysia" } };
+  try {
+    await page.route("**/api/v1/**", route => route.fulfill({ json: { data: [{ publicCode: "logo-store", name,
+      businessDescription: "A welcoming pet store. ".repeat(12), logoUrl: `${baseUrl}/logo-fixture.png`,
+      branches: [branch, { ...branch, name: "North" }] }], meta: { page: 1, pageSize: 20, total: 1 } } }));
+    await page.route("**/logo-fixture.png", route => route.fulfill({ contentType: "image/png", body: logo }));
+    for (const width of [375, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${baseUrl}/where-to-buy`);
+      const image = page.getByAltText(`${name} logo`);
+      await image.waitFor(); await image.evaluate(img => img.decode());
+      assert.equal(await image.count(), 1);
+      const layout = await image.evaluate(img => ({ fit: getComputedStyle(img).objectFit,
+        width: img.parentElement.getBoundingClientRect().width, height: img.parentElement.getBoundingClientRect().height,
+        imageCount: img.closest("article").querySelectorAll("img").length,
+        branchCount: img.closest("article").querySelectorAll("section").length,
+        headerBottom: img.parentElement.parentElement.getBoundingClientRect().bottom,
+        firstBranchTop: img.closest("article").querySelector("section").getBoundingClientRect().top,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        overflowElements: Array.from(document.querySelectorAll("main *")).filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map(el => ({ tag: el.tagName, classes: el.className })) }));
+      assert.equal(layout.fit, "contain"); assert.equal(layout.width, width < 640 ? 56 : 72);
+      assert.equal(layout.width, layout.height); assert.equal(layout.imageCount, 1); assert.equal(layout.branchCount, 2);
+      assert.ok(layout.firstBranchTop >= layout.headerBottom); assert.equal(layout.overflow, false, JSON.stringify({ width, ...layout }));
+    }
+    await page.route("**/logo-fixture.png", route => route.abort());
+    await page.reload();
+    await page.getByRole("img", { name: `${name} logo placeholder` }).waitFor();
+    assert.equal(await page.getByAltText(`${name} logo`).count(), 0);
+    assert.ok(await page.getByRole("heading", { name: "North", exact: true }).isVisible());
+  } finally { await page.close(); }
+});
+
+test("merchant logo upload, replacement and removal preserve independent drafts", async () => {
+  const page = await pageWithFixtures();
+  const logo = await sharp({ create: { width: 120, height: 60, channels: 4, background: { r: 0, g: 140, b: 130, alpha: 1 } } }).png().toBuffer();
+  const mediaId = "e6000000-0000-0000-0000-000000000001";
+  let savedListing = { ...listing, logoMediaFileId: null, logoUrl: null };
+  let saves = 0;
+  try {
+    await page.route("**/listing", route => route.fulfill({ json: { data: savedListing } }));
+    await page.route("**/api/v1/media/**", route => {
+      if (route.request().url().endsWith("/uploads")) return route.fulfill({ json: { data: { mediaId, isPublic: false,
+        status: "Pending", uploadUrl: `${baseUrl}/logo-upload-fixture`, method: "PUT", requiredHeaders: { "Content-Type": "image/png" } } } });
+      return route.fulfill({ json: { data: { mediaId, status: "Ready", isPublic: true, publicUrl: `${baseUrl}/logo-fixture.png` } } });
+    });
+    await page.route("**/logo-upload-fixture", route => route.fulfill({ status: 200, body: "" }));
+    await page.route("**/logo-fixture.png", route => route.fulfill({ contentType: "image/png", body: logo }));
+    await page.route("**/logo", route => {
+      const body = route.request().postDataJSON();
+      assert.equal(body.concurrencyToken, savedListing.concurrencyToken);
+      savedListing = { ...savedListing, logoMediaFileId: body.mediaId,
+        logoUrl: body.mediaId ? `${baseUrl}/logo-fixture.png` : null, concurrencyToken: Buffer.from(`logo-${++saves}`).toString("base64") };
+      return route.fulfill({ json: { data: savedListing } });
+    });
+    await openFirst(page);
+    await page.getByLabel("Business description").fill("Unsaved merchant description");
+    await page.getByRole("button", { name: "Add branch", exact: true }).click();
+    await page.getByLabel("Branch name").fill("Unsaved branch name");
+    for (let i = 0; i < 2; i++) {
+      await page.getByLabel("Merchant logo", { exact: true }).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: logo });
+      await page.getByRole("button", { name: "Save logo", exact: true }).click();
+      await page.getByText("Merchant logo saved.", { exact: true }).waitFor();
+      assert.equal(await page.getByLabel("Business description").inputValue(), "Unsaved merchant description");
+      assert.equal(await page.getByLabel("Branch name").inputValue(), "Unsaved branch name");
+    }
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+    await page.getByRole("button", { name: "Save logo", exact: true }).click();
+    await page.getByText("Merchant logo removed.", { exact: true }).waitFor();
+    assert.equal(savedListing.logoMediaFileId, null); assert.equal(saves, 3);
+    assert.equal(await page.getByLabel("Branch name").inputValue(), "Unsaved branch name");
+  } finally { await page.close(); }
+});
 test("native Back retains the merchant draft until explicit discard and Forward still works", async () => {
   const page = await pageWithFixtures();
   try {

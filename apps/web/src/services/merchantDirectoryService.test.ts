@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { writeStoredAuthSession } from "./authStorage";
-import { getMerchantListing, updateMerchantListing, saveMerchantBranch, listPartnerStores, type BranchInput } from "./merchantDirectoryService";
+import { getMerchantListing, updateMerchantListing, updateMerchantLogo, saveMerchantBranch, listPartnerStores, type BranchInput } from "./merchantDirectoryService";
 
 const fetchRequest = vi.fn();
 beforeEach(() => {
@@ -12,6 +12,16 @@ beforeEach(() => {
 });
 afterEach(() => { window.localStorage.clear(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 const branch = { name: "Main", address: { addressLine1: "1 Street", city: "KL", state: "KL", postcode: "50000", country: "Malaysia" } } as BranchInput;
+it("saves and removes logos on the authorized versioned merchant route with concurrency", async () => {
+  await updateMerchantLogo("merchant/id", "logo-1", "AQ==");
+  await updateMerchantLogo("merchant/id", null, "Ag==");
+  for (const [url, options] of fetchRequest.mock.calls) {
+    expect(url).toBe("https://api.mypetlink.test/api/v1/admin/merchant-sales/merchants/merchant%2Fid/logo");
+    expect(options.method).toBe("PUT"); expect(options.headers.get("Authorization")).toBe("Bearer test-admin");
+  }
+  expect(JSON.parse(fetchRequest.mock.calls[0][1].body)).toEqual({ mediaId: "logo-1", concurrencyToken: "AQ==" });
+  expect(JSON.parse(fetchRequest.mock.calls[1][1].body)).toEqual({ mediaId: null, concurrencyToken: "Ag==" });
+});
 it("generates all six versioned requests through the real API client", async () => {
   await getMerchantListing("merchant/id");
   await updateMerchantListing("merchant/id", { showOnWebsite: false, businessDescription: null, concurrencyToken: "AQ==" });

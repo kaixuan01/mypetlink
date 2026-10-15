@@ -2,16 +2,72 @@ using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using MyPetLink.Api.Auth;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
 public sealed class MerchantDirectoryService(
-    MyPetLinkDbContext db, IAuditLogService audit, TimeProvider time)
+    MyPetLinkDbContext db, IAuditLogService audit, TimeProvider time,
+    IOptions<CloudflareR2Options>? r2 = null, IMediaService? mediaService = null,
+    IAdminAccessResolver? adminAccess = null, ILogger<MerchantDirectoryService>? logger = null)
 {
+    private CloudflareR2Options R2 => r2?.Value ?? new CloudflareR2Options();
+
+    public async Task<AdminMerchantListingResponse> UpdateLogoAsync(
+        Guid? actor, Guid merchantId, UpdateMerchantLogoRequest request, CancellationToken ct)
+    {
+        var access = adminAccess is null ? AdminAccessSnapshot.None : await adminAccess.ResolveAsync(actor, ct);
+        if (!access.Has(AdminCapabilities.SalesManage))
+            throw new ApiException(403, "forbidden", "You do not have access to manage merchant logos.");
+        Validate(request);
+        var merchant = await RequireMerchant(merchantId, ct);
+        Concurrency(merchant, merchant.RowVersion, request.ConcurrencyToken);
+        MediaFile? logo = null;
+        if (request.MediaId is { } id)
+        {
+            logo = await db.MediaFiles.Include(m => m.Links).SingleOrDefaultAsync(m => m.Id == id, ct);
+            if (!EligibleLogo(logo, merchantId))
+                throw Invalid("mediaId", "Choose a completed logo uploaded for this merchant.");
+        }
+        var old = merchant.LogoMediaFile;
+        var retireOld = old?.Category == MediaUploadCategory.MerchantLogo
+            && old.Links.Any(l => l.OwnerType == MediaOwnerType.Merchant && l.OwnerId == merchantId);
+        if (merchant.LogoMediaFileId == request.MediaId) return Listing(merchant);
+        merchant.LogoMediaFileId = logo?.Id;
+        merchant.LogoMediaFile = logo;
+        merchant.UpdatedAt = time.GetUtcNow();
+        if (retireOld && old is not null)
+        {
+            old.UploadStatus = MediaUploadStatus.Deleted;
+            old.DeletedAt = time.GetUtcNow();
+            foreach (var link in old.Links) link.ArchivedAt ??= time.GetUtcNow();
+        }
+        audit.Append(actor, ActorType.Admin, "merchant.logo.update", "Merchant", merchantId,
+            new { LogoMediaFileId = old?.Id }, new { merchant.LogoMediaFileId });
+        // Reference, old-file retirement, audit and merchant rowversion change
+        // commit atomically. Publication and branch settings are untouched.
+        await Save(ct);
+        if (retireOld && old is not null && mediaService is not null)
+        {
+            try { await mediaService.DeleteAsync(actor, old.Id, CancellationToken.None); }
+            catch (Exception e) { logger?.LogWarning(e, "Could not clean up replaced merchant logo {MediaId}.", old.Id); }
+        }
+        return Listing(merchant);
+    }
+
+    private bool EligibleLogo(MediaFile? media, Guid merchantId) => media is
+        { Category: MediaUploadCategory.MerchantLogo, MediaType: MediaFileType.Image,
+          UploadStatus: MediaUploadStatus.Ready, IsPublic: true, DeletedAt: null }
+        && media.BucketName == R2.PublicBucketName
+        && media.ObjectKey.StartsWith("merchant-logos/", StringComparison.Ordinal)
+        && !media.ObjectKey.StartsWith("merchant-logos/pending/", StringComparison.Ordinal)
+        && media.Links.Any(l => l.OwnerType == MediaOwnerType.Merchant && l.OwnerId == merchantId && l.ArchivedAt == null);
     public async Task<AdminMerchantListingResponse> GetListingAsync(Guid merchantId, CancellationToken ct)
     {
         var merchant = await RequireMerchant(merchantId, ct);
@@ -137,6 +193,8 @@ public sealed class MerchantDirectoryService(
                         || b.Postcode.Contains(term) || b.AddressLine1.Contains(term))));
         }
         var total = await query.CountAsync(ct);
+        var publicBucket = R2.PublicBucketName;
+        var publicBase = R2.PublicBaseUrl;
         var merchants = await query.OrderBy(m => m.TradingName ?? m.LegalBusinessName).ThenBy(m => m.Id)
             .Skip((int)Math.Min((long)(page - 1) * pageSize, int.MaxValue)).Take(pageSize)
             .Select(m => new PublicPartnerStoreResponse(m.DirectoryPublicCode!, m.TradingName ?? m.LegalBusinessName,
@@ -144,7 +202,15 @@ public sealed class MerchantDirectoryService(
                     .OrderBy(b => b.DisplayOrder).ThenBy(b => b.Name).ThenBy(b => b.Id)
                     .Select(b => new PublicPartnerBranchResponse(b.Name,
                         new MerchantAddressDto(b.AddressLine1, b.AddressLine2, b.Postcode, b.City, b.State, b.Country),
-                        b.GoogleMapsUrl, b.WazeUrl, b.Latitude, b.Longitude, b.ContactPhone, b.WhatsApp, b.BusinessHours)).ToArray()))
+                        b.GoogleMapsUrl, b.WazeUrl, b.Latitude, b.Longitude, b.ContactPhone, b.WhatsApp, b.BusinessHours)).ToArray(),
+                m.LogoMediaFile != null && m.LogoMediaFile.Category == MediaUploadCategory.MerchantLogo
+                    && m.LogoMediaFile.MediaType == MediaFileType.Image && m.LogoMediaFile.IsPublic
+                    && m.LogoMediaFile.UploadStatus == MediaUploadStatus.Ready && m.LogoMediaFile.DeletedAt == null
+                    && m.LogoMediaFile.BucketName == publicBucket
+                    && m.LogoMediaFile.ObjectKey.StartsWith("merchant-logos/")
+                    && !m.LogoMediaFile.ObjectKey.StartsWith("merchant-logos/pending/")
+                    && m.LogoMediaFile.Links.Any(l => l.OwnerType == MediaOwnerType.Merchant && l.OwnerId == m.Id && l.ArchivedAt == null)
+                    ? MediaUrlBuilder.BuildPublicUrl(publicBase, m.LogoMediaFile.ObjectKey) : null))
             .ToArrayAsync(ct);
         return (merchants.Select(m => m with { Branches = m.Branches.Select(b => b with {
             GoogleMapsUrl = b.GoogleMapsUrl ?? (b.Latitude.HasValue && b.Longitude.HasValue ? PartnerNavigationUrls.Google(b.Latitude.Value, b.Longitude.Value) : null),
@@ -153,12 +219,15 @@ public sealed class MerchantDirectoryService(
     }
 
     private async Task<Merchant> RequireMerchant(Guid id, CancellationToken ct) =>
-        await db.Merchants.Include(m => m.Branches).SingleOrDefaultAsync(m => m.Id == id, ct)
+        await db.Merchants.Include(m => m.Branches).Include(m => m.LogoMediaFile).ThenInclude(m => m!.Links)
+            .SingleOrDefaultAsync(m => m.Id == id, ct)
         ?? throw new ApiException(404, "merchant_not_found", "That merchant could not be found.");
-    private static AdminMerchantListingResponse Listing(Merchant m) => new(
+    private AdminMerchantListingResponse Listing(Merchant m) => new(
         m.ShowOnWebsite, m.BusinessDescription, m.IsActive && m.ShowOnWebsite && m.Branches.Any(b => b.IsActive && b.ShowOnWebsite),
         m.DirectoryPublicCode, Convert.ToBase64String(m.RowVersion),
-        m.Branches.OrderBy(b => b.DisplayOrder).ThenBy(b => b.Name).Select(b => Branch(b, m)).ToArray(), m.IsActive);
+        m.Branches.OrderBy(b => b.DisplayOrder).ThenBy(b => b.Name).Select(b => Branch(b, m)).ToArray(), m.IsActive,
+        EligibleLogo(m.LogoMediaFile, m.Id) ? m.LogoMediaFileId : null,
+        EligibleLogo(m.LogoMediaFile, m.Id) ? MediaUrlBuilder.BuildPublicUrl(R2.PublicBaseUrl, m.LogoMediaFile!.ObjectKey) : null);
     private static AdminMerchantBranchResponse Branch(MerchantBranch b, Merchant m) => new(
         b.Id, b.Name, new(b.AddressLine1, b.AddressLine2, b.Postcode, b.City, b.State, b.Country),
         b.GoogleMapsUrl, b.WazeUrl, b.Latitude, b.Longitude, b.ContactPhone, b.WhatsApp, b.BusinessHours,

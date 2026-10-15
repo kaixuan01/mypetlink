@@ -26,6 +26,11 @@ public sealed class AdminMerchantListingController(MerchantDirectoryService serv
         StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(
             await service.UpsertBranchAsync(currentUser.Current.UserId, merchantId, null, request, ct), HttpContext));
 
+    [HttpPut("logo")]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
+    public async Task<IActionResult> UpdateLogo(Guid merchantId, UpdateMerchantLogoRequest request, CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.UpdateLogoAsync(currentUser.Current.UserId, merchantId, request, ct), HttpContext));
+
     [HttpPut("branches/{branchId:guid}")]
     [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> UpdateBranch(Guid merchantId, Guid branchId, UpsertMerchantBranchRequest request, CancellationToken ct) =>

@@ -24,6 +24,8 @@ export type PublicationPermission = { source: "WhatsApp" | "Email" | "WrittenAgr
 export type ListingInput = Pick<MerchantListing, "showOnWebsite" | "businessDescription" | "concurrencyToken"> & { permission?: PublicationPermission; withdrawalReason?: string };
 export type AdminBranch = BranchInput & { id: string; isPublished: boolean; concurrencyToken: string };
 export type MerchantListing = {
+  logoMediaFileId?: string | null;
+  logoUrl?: string | null;
   merchantIsActive?: boolean;
   showOnWebsite: boolean;
   businessDescription: string | null;
@@ -35,6 +37,7 @@ export type MerchantListing = {
 export type PublicPartnerBranch = Pick<BranchInput,
   "name" | "address" | "googleMapsUrl" | "wazeUrl" | "latitude" | "longitude" | "contactPhone" | "whatsApp" | "businessHours">;
 export type PublicPartnerStore = {
+  logoUrl?: string | null;
   publicCode: string;
   name: string;
   businessDescription: string | null;
@@ -49,6 +52,13 @@ export async function getMerchantListing(id: string, signal?: AbortSignal) {
 export async function updateMerchantListing(id: string, input: ListingInput) {
   const response = await apiRequest<MerchantListing>(`${base(id)}/listing`, { method: "PUT", body: input });
   if (!response.data) throw new Error("Listing was not returned.");
+  return response.data;
+}
+export async function updateMerchantLogo(id: string, mediaId: string | null, concurrencyToken: string) {
+  const response = await apiRequest<MerchantListing>(`${base(id)}/logo`, {
+    method: "PUT", body: { mediaId, concurrencyToken },
+  });
+  if (!response.data) throw new Error("The saved logo could not be loaded. Please reload the merchant.");
   return response.data;
 }
 export async function saveMerchantBranch(id: string, branchId: string | null, input: BranchInput) {

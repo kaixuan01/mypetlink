@@ -1,4 +1,5 @@
 "use client";
+import { MerchantLogo } from "@/components/ui/MerchantLogo";
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -71,9 +72,14 @@ function PartnerStoresContent() {
     {current && current.revision !== reload && <p role="status" className="text-sm text-pet-muted">Refreshing partner stores…</p>}
     {current?.error && <div role="alert" className="brand-card rounded-2xl p-5"><p>{current.error}</p><div className="mt-3 flex flex-wrap gap-2"><button className={button} type="button" onClick={() => setReload(n => n + 1)}>Try again</button><a className={button} href={`${marketingRoutes.whereToBuy}#partner-stores`}>View all partner stores</a></div></div>}
     {!current ? <p role="status" className="text-sm text-pet-muted">Loading partner stores…</p> : current.items.length === 0 ? current.error ? null : <p role="status" className="brand-card rounded-2xl p-5 text-sm text-pet-muted">{term ? "No partner stores match this search. Try another city or merchant name." : "No partner stores are listed yet. Please check back soon."}</p>
-      : <div className="grid gap-5">{current.items.map(store => <article key={store.publicCode} className="brand-card rounded-2xl p-5 sm:p-6">
-        <h3 className="text-xl font-black text-pet-ink">{store.name}</h3>
-        {store.businessDescription && <p className="mt-2 whitespace-pre-line break-words text-sm text-pet-muted">{store.businessDescription}</p>}
+      : <div className="grid gap-5">{current.items.map(store => <article key={store.publicCode} className="brand-card min-w-0 rounded-2xl p-5 sm:p-6">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <MerchantLogo name={store.name} src={store.logoUrl} />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xl font-black text-pet-ink [overflow-wrap:anywhere]">{store.name}</h3>
+            {store.businessDescription && <p className="mt-2 whitespace-pre-line text-sm text-pet-muted [overflow-wrap:anywhere]">{store.businessDescription}</p>}
+          </div>
+        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">{store.branches.map((branch, index) => <section key={index} className="grid content-start gap-3 rounded-xl border border-pet-border p-4">
           <h4 className="font-black text-pet-ink">{branch.name}</h4>
           <address className="break-words text-sm not-italic text-pet-muted">{[branch.address.addressLine1, branch.address.addressLine2, branch.address.postcode, branch.address.city, branch.address.state, branch.address.country].filter(Boolean).join(", ")}</address>

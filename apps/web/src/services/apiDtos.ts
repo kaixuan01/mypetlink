@@ -585,7 +585,8 @@ export type BackendMediaUploadCategory =
   | "VaccinationDocument"
   | "MedicalDocument"
   | "OrderReceipt"
-  | "TagProductImage";
+  | "TagProductImage"
+  | "MerchantLogo";
 
 export type BackendMediaFileType = "Image" | "Video" | "Document";
 

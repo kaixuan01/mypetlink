@@ -18,6 +18,21 @@ beforeEach(() => { list.mockReset(); window.history.replaceState(null, "", "/whe
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("PartnerStoresDirectory", () => {
+  it("displays one merchant logo above multiple branches with contained, stable sizing", async () => {
+    list.mockResolvedValue({ items: [{ ...store, logoUrl: "https://media.example.test/logo.png" }], total: 1 });
+    render(<PartnerStoresDirectory />);
+    const logo = await screen.findByAltText("Happy Pets logo");
+    expect(screen.getAllByAltText("Happy Pets logo")).toHaveLength(1);
+    expect(logo.className).toContain("object-contain");
+    expect(logo.closest("article")?.querySelectorAll("section")).toHaveLength(2);
+    fireEvent.error(logo);
+    expect(screen.getByRole("img", { name: "Happy Pets logo placeholder" })).toBeTruthy();
+    expect(screen.getByText("Main")).toBeTruthy(); expect(screen.getByText("North")).toBeTruthy();
+  });
+  it("uses a merchant initial when older responses contain no logo", async () => {
+    list.mockResolvedValue({ items: [store], total: 1 }); render(<PartnerStoresDirectory />);
+    expect((await screen.findByRole("img", { name: "Happy Pets logo placeholder" })).textContent).toBe("H");
+  });
   it.each([false, true])("keeps directory metadata indexable with published stores=%s without embedding records", async published => {
     list.mockResolvedValue({ items: published ? [store] : [], total: published ? 1 : 0 });
     const html = renderToString(<PartnerStoresDirectory />);

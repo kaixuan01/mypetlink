@@ -14,7 +14,8 @@ public sealed record InitializeMediaUploadRequest(
     [Range(1, long.MaxValue)] long FileSizeBytes,
     int? Width,
     int? Height,
-    int? DurationSeconds);
+    int? DurationSeconds,
+    Guid? MerchantId = null);
 
 public sealed record MediaUploadResponse(
     Guid MediaId,

@@ -7,6 +7,8 @@ namespace MyPetLink.Api.Entities;
 /// </summary>
 public sealed class Merchant : AuditableEntity
 {
+    public Guid? LogoMediaFileId { get; set; }
+    public MediaFile? LogoMediaFile { get; set; }
     public bool ShowOnWebsite { get; set; }
     public string? DirectoryPublicCode { get; set; }
     public string? BusinessDescription { get; set; }
