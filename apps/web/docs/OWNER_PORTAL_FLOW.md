@@ -269,22 +269,38 @@ and manager re-fetches on `petId` change.
 ## 5. Tags & orders in the portal
 
 - **`/tags`** lists tags across the owner's pets via `TagManagementPanel`.
-  Each card shows the **TagCode prominently** (labelled `TAG CODE`), the linked
-  pet, product name (`QR` vs `QR + NFC`, derived from `hasNfc`), shape, and
-  status. The default view focuses current tags (`Active`, `Pending`,
-  `Preparing`, `Delivered`) and hides archived tags. Filter tabs expose
-  **Active**, **Pending**, **Lost / Disabled**, **Archived**, and **All**.
-  Actions depend on status: unassigned or assigned-but-not-active tags offer
-  **View Tag Scan Page**, **Copy Tag Link**, and **View Order** where applicable.
+  Each compact card starts collapsed and shows the linked pet, **TagCode**,
+  product (`QR` vs `QR + NFC`, derived from `hasNfc`), tag variant, status,
+  last-scan information, and supported 30-day counts. The default filter is
+  **Active**. Tabs retain **Pending**, **Inactive** (including lost, disabled,
+  replaced, and tags on inactive pets), **Archived**, and **All**; the shared
+  tab overflow menu preserves every filter on small screens.
+  **Manage Tag & Details** expands each card independently. Expansion survives
+  filtering while the panel stays mounted. Purchase dates appear only for a
+  matching owner order. QR/NFC tools, plan-gated history, and lifecycle controls
+  live in the expanded details; Free owners see a short Premium-coming-soon
+  message instead of a disabled history button.
+  An active tag with an available linked Safety Profile offers **View Safety
+  Profile** via `getQrSafetyPath(pet)`, in a new tab. It does not resolve a
+  physical tag or record a scan. A switched-off Safety Profile instead offers
+  **Manage Safety Profile**; pending tags with an order offer the applicable
+  order/payment action. Inactive and archived tags have no Safety Profile CTA.
+  Physical **View Tag Scan Page**, **Copy QR Link**, **Open NFC Link**, and
+  **Copy NFC Link** remain in details where supported. QR and NFC keep their
+  distinct `/q/{tagCode}` and `/n/{tagCode}` destinations. Deliberately opening
+  either physical link retains scan recording; expanding, filtering, copying,
+  viewing a QR image, and opening the pet-level Safety Profile do not.
   Owner Portal pages do **not** show a direct **Activate Tag** button; owners
   activate only after scanning the physical tag's printed QR at `/q/{tagCode}`
   (legacy printed tags at `/t/{tagCode}` still work; NFC never offers
   first-time activation).
   Active tags can be disabled or marked **Report Tag Lost**; inactive tags offer
   **Request Replacement** and **Archive Tag**; archived tags offer **Restore to
-  List** and **View Status**. "View Tag" / "View Status" (`tagPath`) is always
-  available. The internal `id` is never shown. Reporting a tag lost affects only
-  that physical tag; it does not enable pet Lost Mode.
+  List** and **View Status**. Existing confirmation dialogs remain in place.
+  Archived tags stay inactive while archived. Restoring removes the archive
+  marker and preserves the stored status, except the legacy `Archived` status
+  becomes `Disabled`. The internal `id` is never shown. Reporting a tag lost affects only that
+  physical tag; it does not enable pet Lost Mode.
 - **`/orders`** lists `TagOrder` history using customer-facing order numbers
   from `formatOrderNumber(order)` (new backend orders use, for example,
   `MPL-ORD-260727123029-9916`), never the internal `id`. Confirmed orders also

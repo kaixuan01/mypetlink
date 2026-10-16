@@ -35,7 +35,8 @@ export default async function TagsPage() {
       <PageHeader
         eyebrow="Smart tags"
         title="MyPetLink Smart Tags"
-        description="Manage current tags, pending orders, replacements, inactive tags, and archived tag history."
+        description="Your tags, scan activity, and safety connections in one place."
+        compactOnMobile
       />
 
       <TagManagementPanel

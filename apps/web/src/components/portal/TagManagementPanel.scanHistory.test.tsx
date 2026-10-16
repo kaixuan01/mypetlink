@@ -102,15 +102,13 @@ describe("owner Smart Tag activity", () => {
   it("keeps Free activity useful and compact without fetching full history", async () => {
     await renderPanel(0);
 
-    expect(screen.getByRole("heading", { name: "Tag activity" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Tag activity" })).toBeNull();
     expect(screen.getByText("11 Sep 2026, 10:34 · NFC")).toBeTruthy();
     expect(screen.getByText("14 QR · 16 NFC")).toBeTruthy();
+    expect(screen.queryByText(/Premium is coming soon/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Manage Tag & Details" }));
     expect(screen.getByText(/Premium is coming soon/)).toBeTruthy();
-    expect(
-      screen
-        .getByRole("button", { name: "View Scan History — Premium coming soon" })
-        .hasAttribute("disabled")
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: /View Scan History/ })).toBeNull();
     expect(screen.queryByText("NFC tap")).toBeNull();
     expect(screen.queryByText(/Legacy/)).toBeNull();
     expect(mocks.getTagScanHistory).not.toHaveBeenCalled();
@@ -154,6 +152,7 @@ describe("owner Smart Tag activity", () => {
       ])
     );
     await renderPanel(365);
+    fireEvent.click(screen.getByRole("button", { name: "Manage Tag & Details" }));
 
     expect(screen.queryByText("NFC tap")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View Scan History" }));
@@ -178,6 +177,7 @@ describe("owner Smart Tag activity", () => {
       ])
     );
     await renderPanel(365);
+    fireEvent.click(screen.getByRole("button", { name: "Manage Tag & Details" }));
     fireEvent.click(screen.getByRole("button", { name: "View Scan History" }));
 
     expect(await screen.findByText("Showing 1 of 1 scans")).toBeTruthy();
@@ -209,6 +209,7 @@ describe("owner Smart Tag activity", () => {
         )
       );
     await renderPanel(365);
+    fireEvent.click(screen.getByRole("button", { name: "Manage Tag & Details" }));
     fireEvent.click(screen.getByRole("button", { name: "View Scan History" }));
     expect(await screen.findByRole("heading", { name: "No scans yet" })).toBeTruthy();
 

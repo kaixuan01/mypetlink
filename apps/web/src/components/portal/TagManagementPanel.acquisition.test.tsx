@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import type { PetTag, TagOrder } from "@/types";
@@ -92,6 +92,7 @@ async function renderPanel(tags: PetTag[], orders: TagOrder[]) {
     <TagManagementPanel initialOrders={orders} initialTags={tags} pets={mockPets} />
   );
   await screen.findByText("MPL-ACQ-0001");
+  fireEvent.click(screen.getByRole("button", { name: "Manage Tag & Details" }));
 }
 
 beforeEach(() => {
@@ -137,10 +138,10 @@ describe("Smart Tag card by acquisition route", () => {
     expect(screen.queryByText("27 Jul 2026")).toBeNull();
 
     // What the owner does get is what actually happened to them.
-    expect(screen.getByText("Linked pet")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: pet.name })).toBeTruthy();
     expect(screen.getByText("Activated date")).toBeTruthy();
     expect(screen.getByText("10 Sep 2026")).toBeTruthy();
-    expect(screen.getByText("Last scanned")).toBeTruthy();
+    expect(screen.getByText("Last scanned:")).toBeTruthy();
     expect(screen.getByText("10 Sep 2026, 22:14")).toBeTruthy();
   });
 
@@ -195,7 +196,7 @@ describe("Smart Tag card by acquisition route", () => {
     expect(screen.queryByText("Ordered date")).toBeNull();
     expect(screen.queryByText("Delivered date")).toBeNull();
     // Scan state still has something true to say.
-    expect(screen.getByText("Last scanned")).toBeTruthy();
+    expect(screen.getByText("Last scanned:")).toBeTruthy();
     expect(screen.getByText("No scans yet")).toBeTruthy();
   });
 });

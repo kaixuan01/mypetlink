@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
@@ -20,7 +20,7 @@ import {
   isArchivedPet,
   isMemorialPet,
 } from "@/lib/petLifecycle";
-import { ownerRoutes, tagNfcPath, tagQrPath } from "@/lib/routes";
+import { getQrSafetyPath, ownerRoutes, tagNfcPath, tagQrPath } from "@/lib/routes";
 import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import {
   compareTagsForDisplay,
@@ -79,7 +79,7 @@ const statusTone: Record<TagStatus, "warm" | "mint" | "teal" | "soft" | "danger"
 const filterTabs: (SegmentedTab & { id: TagFilter })[] = [
   { id: "active", label: "Active" },
   { id: "pending", label: "Pending" },
-  { id: "inactive", label: "Lost / Disabled" },
+  { id: "inactive", label: "Inactive" },
   { id: "archived", label: "Archived" },
   { id: "all", label: "All" },
 ];
@@ -114,6 +114,17 @@ export function TagManagementPanel({
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
   const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const [archiveTagTarget, setArchiveTagTarget] = useState<PetTag | null>(null);
+  // Keep each tag's disclosure state across filtering and lifecycle updates.
+  const [expandedTagIds, setExpandedTagIds] = useState<Set<string>>(() => new Set());
+
+  function toggleTagDetails(tagId: string) {
+    setExpandedTagIds((current) => {
+      const next = new Set(current);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (viewTrackedRef.current) return;
@@ -365,14 +376,14 @@ export function TagManagementPanel({
         </div>
       ) : null}
 
-      <div className="mb-4 flex flex-col gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="mb-4 min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:p-4">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {pets.length > 1 ? (
-            <label className="flex items-center gap-2 text-sm font-bold text-pet-ink">
+            <label className="flex min-w-0 items-center gap-3 text-sm font-bold text-pet-ink">
               <span className="shrink-0">Pet</span>
               <select
                 aria-label="Filter Smart Tags by pet"
-                className="brand-input h-11 min-h-11 w-auto min-w-0"
+                className="brand-input h-12 min-h-12 min-w-0 flex-1 sm:w-48 sm:flex-none"
                 onChange={(event) => handleSelectPet(event.target.value)}
                 value={selectedPetId}
               >
@@ -385,48 +396,43 @@ export function TagManagementPanel({
               </select>
             </label>
           ) : null}
-          <p className="text-xs font-semibold leading-5 text-pet-muted">
-            {selectedPet
-              ? `Physical tags linked to ${selectedPet.name}.`
-              : "Showing physical tags across all pets."}
-          </p>
+          {showOrderButton ? (
+            <CTAButton className="shrink-0" href={orderHref} icon="tag">
+              Order Physical Tag
+            </CTAButton>
+          ) : null}
         </div>
-        {showOrderButton ? (
-          <CTAButton className="shrink-0" href={orderHref} icon="tag">
-            {selectedPet
-              ? `Order a tag for ${selectedPet.name}`
-              : "Order Physical Tag"}
-          </CTAButton>
-        ) : null}
-      </div>
-
-      <div className="mb-4 grid min-w-0 gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <SegmentedTabs
+          className="mt-3"
           ariaLabel="Filter smart tags"
           activeId={filter}
           onChange={(id) => setFilter(id as TagFilter)}
           sticky={false}
           tabs={filterTabs}
         />
-        <p className="px-1 text-xs font-bold text-pet-muted sm:text-right">
-          Archived tags stay inactive and remain available for history.
-        </p>
+        {filter === "archived" ? (
+          <p className="mt-3 px-1 text-xs font-semibold text-pet-muted">
+            Archived tags stay inactive and remain available for history.
+          </p>
+        ) : null}
       </div>
 
       {visibleTags.length ? (
         <div
-          className={`grid gap-4 ${
+          className={`grid items-start gap-4 ${
             visibleTags.length === 1 ? "" : "lg:grid-cols-2"
           }`}
         >
           {visibleTags.map((tag) => (
             <TagCard
               key={tag.id}
+              expanded={expandedTagIds.has(tag.id)}
               linkedPet={tag.petId ? petMap.get(tag.petId) : undefined}
               onArchive={() => setArchiveTagTarget(tag)}
               onDisable={() => setDisableTagTarget(tag)}
               onReportLost={() => setLostTag(tag)}
               onRestore={() => handleRestore(tag)}
+              onToggleDetails={() => toggleTagDetails(tag.id)}
               order={getTagOrder(tag, orders)}
               scanHistoryDays={scanHistoryDays}
               tag={tag}
@@ -455,7 +461,7 @@ export function TagManagementPanel({
           cancelLabel="Cancel"
           confirmLabel="Report Tag Lost"
           destructive
-          message="This will deactivate this physical tag so anyone scanning it will no longer see your pet's safety contact page. Your pet profile and other active tags will not be affected."
+          message="This deactivates the lost physical tag so it no longer shows your contact details. It does not turn on Lost Mode for your pet. Your pet's Safety Profile and other active tags are not affected."
           onCancel={() => setLostTag(null)}
           onConfirm={handleReportLost}
           open={Boolean(lostTag)}
@@ -496,30 +502,35 @@ export function TagManagementPanel({
 }
 
 function TagCard({
+  expanded,
   linkedPet,
   onArchive,
   onDisable,
   onReportLost,
   onRestore,
+  onToggleDetails,
   order,
   scanHistoryDays,
   tag,
 }: {
+  expanded: boolean;
   linkedPet?: PetListItem;
   onArchive: () => void;
   onDisable: () => void;
   onReportLost: () => void;
   onRestore: () => void;
+  onToggleDetails: () => void;
   order?: TagOrder;
   scanHistoryDays: number;
   tag: PetTag;
 }) {
+  const detailsId = useId();
+  const toggleId = useId();
   const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const [copyStatus, setCopyStatus] = useState("");
+  const [copyFallback, setCopyFallback] = useState("");
   const [showScanHistory, setShowScanHistory] = useState(false);
-  const productName = tag.hasNfc
-    ? "MyPetLink QR + NFC Smart Tag"
-    : "MyPetLink QR Pet Tag";
+  const productName = tag.hasNfc ? "QR + NFC Smart Tag" : "QR Pet Tag";
   const actions = getTagAvailableActions(tag, order, linkedPet);
   const displayStatus = getTagDisplayStatus(tag, order, linkedPet);
   const scanDisplay = getTagScanDisplay(tag, order, linkedPet);
@@ -528,360 +539,201 @@ function TagCard({
   const isInactive = isInactivePhysicalTag(tag) || linkedToInactivePet;
   const isPending = isPendingPhysicalTag(tag, order);
   const isArchived = Boolean(tag.isArchived);
+  const canViewSafetyProfile = isActive && Boolean(linkedPet?.safetyCode) && linkedPet?.qrSafetyEnabled !== false;
   const orderHref = order ? ownerRoutes.orderDetail(formatOrderNumber(order)) : "";
   const replacementHref = tag.petId
     ? ownerRoutes.petTagOrder(tag.petId, { replacementFor: tag.id })
     : "";
   const scanPath = tagQrPath(tag.tagCode);
   const nfcPath = tagNfcPath(tag.tagCode);
-  const scanUrl = toAbsoluteUrl(scanPath, base);
-  const codeLabel =
-    isPending || tag.status === "Unassigned" ? "Reserved tag code" : "Tag code";
-  // Commerce rows belong to the owner's own MyPetLink order and nothing else.
-  // `order` is matched against the orders this owner can see, so it is present
-  // only for a tag they actually bought here. A tag that arrived through a
-  // reseller, an admin assignment or an operational replacement has no such
-  // order, and showing it a generation date as "Ordered date" or an empty
-  // delivery as "Not delivered yet" would describe events that never happened
-  // to this owner.
+  // Only a matching customer order supplies purchase and delivery dates.
+  // Retail purchases and operational replacements must not invent those events.
   const detailItems = [
-    ["Linked pet", linkedPet?.name ?? "Not linked yet"],
     order ? ["Order", formatOrderNumber(order)] : null,
     order ? ["Ordered date", order.orderedDate] : null,
     order ? ["Delivered date", tag.deliveredDate ?? "Not delivered yet"] : null,
     tag.activatedAt ? ["Activated date", tag.activatedAt] : null,
   ].filter((item): item is [string, string] => Boolean(item));
   const hasFullScanHistory = scanHistoryDays > 0;
-  const recentQrScans = tag.qrScansLast30Days ?? 0;
-  const recentNfcTaps = tag.nfcTapsLast30Days ?? 0;
+  const hasActivityCounts = tag.qrScansLast30Days !== undefined || (tag.hasNfc && tag.nfcTapsLast30Days !== undefined);
+  const activityCounts = tag.hasNfc
+    ? `${tag.qrScansLast30Days ?? 0} QR · ${tag.nfcTapsLast30Days ?? 0} NFC`
+    : `${tag.qrScansLast30Days ?? 0} QR`;
+  const orderPrimaryLabel = actions.includes("pay-by-qr") ? "Pay by QR"
+    : actions.includes("view-payment-status") ? "View Payment Status"
+    : actions.includes("view-preparation-status") ? "View Preparation Status"
+    : actions.includes("view-order") ? "View Order" : "";
+  const canDisable = actions.includes("disable-tag") && tag.status === "Active";
+  const hasManagementActions = canDisable || actions.some((action) =>
+    ["restore-to-list", "request-replacement", "report-tag-lost", "archive-tag"].includes(action)
+  ) || (actions.includes("view-order") && orderPrimaryLabel !== "View Order");
+  const secondaryButtonClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal";
+  const destructiveButtonClass = "inline-flex min-h-12 items-center justify-center rounded-full border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e] transition hover:bg-[#ffe8e3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-coral";
+
+  async function handleCopy(path: string, label: string) {
+    const url = toAbsoluteUrl(path, base);
+    const copied = await copyText(url);
+    setCopyStatus(copied ? `${label} link copied.` : "Copy unavailable. Select and copy the link below.");
+    setCopyFallback(copied ? "" : url);
+  }
 
   return (
-    <article className="brand-card rounded-[1.75rem] p-5" key={tag.id}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap gap-2">
-            <Badge tone={getStatusTone(tag, order, linkedPet)}>
-              {displayStatus}
-            </Badge>
-            {isArchived ? <Badge tone="soft">Archived</Badge> : null}
-          </div>
-          <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
-            {codeLabel}
-          </p>
-          <h2 className="break-words text-2xl font-black tracking-wide text-pet-ink">
-            {tag.tagCode}
-          </h2>
-          <p className="mt-1 text-sm text-pet-muted">
-            {productName} - {tag.variant} Tag
-          </p>
-          {isActive || isInactive ? (
-            <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
-              <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical Tag QR
-              </p>
-              <p className="mt-1 text-sm font-bold text-pet-ink">
-                This is the QR link printed on the physical tag.
-              </p>
-              <QrCodeButton
-                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-                fileNameBase={`${tag.tagCode}-physical-tag-qr`}
-                helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
-                label="Show Physical Tag QR"
-                targetPath={scanPath}
-                title="Physical Tag QR"
-                viewLabel={isActive ? "Open QR Scan Page" : "Open Inactive QR Page"}
-                warning={
-                  isActive
-                    ? undefined
-                    : "This tag is inactive. Scanning it shows an inactive tag page and never reveals owner contact details."
-                }
-              />
-            </div>
-          ) : isPending || tag.status === "Unassigned" ? (
-            <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
-              <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical Tag QR
-              </p>
-              <p className="mt-1 text-sm font-bold text-pet-ink">
-                {tag.status === "Unassigned"
-                  ? "Scan or open the physical QR to activate this tag for a pet."
-                  : tag.petId
-                    ? "Awaiting activation. Scan or tap the physical tag when you receive it."
-                    : "Physical tag QR will appear after an inventory tag is assigned."}
-              </p>
-            </div>
-          ) : null}
-        </div>
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
-          <Icon name="tag" className="h-5 w-5" />
-        </span>
+    <article aria-label={`${tag.tagCode} · ${linkedPet?.name ?? "Not linked yet"}`} className="brand-card min-w-0 rounded-[1.75rem] p-4 sm:p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={getStatusTone(tag, order, linkedPet)}>{displayStatus}</Badge>
+        {isArchived && displayStatus !== "Archived" ? <Badge tone="soft">Archived</Badge> : null}
       </div>
-
-      <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-        {detailItems.map(([label, value]) => (
-          <div className="rounded-[1.25rem] bg-pet-cream p-4" key={label}>
-            <dt className="text-xs font-bold uppercase text-pet-muted">
-              {label}
-            </dt>
-            <dd className="mt-1 font-bold text-pet-ink">{value}</dd>
+      <h2 className="mt-3 break-words text-xl font-black leading-tight text-pet-ink">
+        {linkedPet?.name ?? "Not linked yet"}
+      </h2>
+      <p className="mt-1 select-all font-mono text-lg font-extrabold tracking-wide text-pet-ink [overflow-wrap:anywhere]">
+        {tag.tagCode}
+      </p>
+      <p className="mt-1 text-sm leading-5 text-pet-muted">{productName} · {tag.variant}</p>
+      <dl className="mt-3 space-y-1 text-xs font-semibold leading-5 text-pet-muted">
+        <div>
+          <dt className="inline">{scanDisplay.label}: </dt>
+          <dd className="inline text-pet-ink">
+            {scanDisplay.value}
+            {scanDisplay.label.startsWith("Last scanned") && tag.lastScannedAt
+              ? tag.lastScanSource === "Qr" ? " · QR" : tag.lastScanSource === "Nfc" ? " · NFC" : ""
+              : ""}
+          </dd>
+        </div>
+        {hasActivityCounts ? (
+          <div>
+            <dt className="inline">30-day scans: </dt>
+            <dd className="inline text-pet-ink">{activityCounts}</dd>
           </div>
-        ))}
+        ) : null}
       </dl>
 
-      {tag.hasNfc ? (
-        <div className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
-          <p className="text-xs font-bold uppercase text-pet-muted">NFC link</p>
-          <p className="mt-1 text-sm font-semibold text-pet-muted">
-            NFC taps use a separate contactless link and open the same Safety
-            Profile after activation.
-          </p>
-          <CTAButton
-            className="mt-3"
-            href={nfcPath}
-            icon="tag"
-            variant="outline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open NFC Tap Page
-          </CTAButton>
-        </div>
+      {canViewSafetyProfile && linkedPet ? (
+        <CTAButton className="mt-4" href={getQrSafetyPath(linkedPet)} icon="shield" target="_blank" rel="noopener noreferrer" fullWidth>
+          View Safety Profile
+        </CTAButton>
+      ) : isActive && linkedPet?.qrSafetyEnabled === false ? (
+        <CTAButton className="mt-4" href={ownerRoutes.petEdit(linkedPet.id, { tab: "contact" })} variant="outline" fullWidth>
+          Manage Safety Profile
+        </CTAButton>
+      ) : orderPrimaryLabel && orderHref ? (
+        <CTAButton className="mt-4" href={orderHref} icon="record" fullWidth>{orderPrimaryLabel}</CTAButton>
       ) : null}
 
-      <section
-        aria-labelledby={`tag-activity-${tag.id}`}
-        className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4"
+      <button
+        aria-controls={detailsId}
+        aria-expanded={expanded}
+        className="mt-2 flex min-h-12 w-full items-center justify-between gap-2 rounded-xl px-2 text-left text-sm font-extrabold text-pet-teal transition hover:bg-pet-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+        id={toggleId}
+        onClick={onToggleDetails}
+        type="button"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3
-              className="font-black text-pet-ink"
-              id={`tag-activity-${tag.id}`}
-            >
-              Tag activity
-            </h3>
-            <p className="text-xs font-semibold text-pet-muted">
-              Basic scan status stays available on every plan.
-            </p>
-          </div>
-        </div>
-        <dl className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-[1rem] bg-pet-cream px-4 py-3">
-            <dt className="text-xs font-bold uppercase text-pet-muted">
-              Last scanned
-            </dt>
-            <dd className="mt-1 text-sm font-black text-pet-ink">
-              {scanDisplay.value}
-              {tag.lastScanSource === "Qr"
-                ? " · QR"
-                : tag.lastScanSource === "Nfc"
-                  ? " · NFC"
-                  : ""}
-            </dd>
-          </div>
-          <div className="rounded-[1rem] bg-pet-cream px-4 py-3">
-            <dt className="text-xs font-bold uppercase text-pet-muted">
-              30-day activity
-            </dt>
-            <dd className="mt-1 text-sm font-black text-pet-ink">
-              {tag.hasNfc
-                ? `${recentQrScans} QR · ${recentNfcTaps} NFC`
-                : `${recentQrScans} QR`}
-            </dd>
-          </div>
-        </dl>
-        {hasFullScanHistory ? (
-          <button
-            className="mt-4 min-h-11 rounded-full border border-pet-border px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            onClick={() => setShowScanHistory(true)}
-            type="button"
-          >
-            View Scan History
-          </button>
-        ) : (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="max-w-md text-xs font-semibold leading-5 text-pet-muted">
-              Full scan history and activity insights are available with
-              MyPetLink Premium. Premium is coming soon.
-            </p>
-            <button
-              aria-label="View Scan History — Premium coming soon"
-              className="min-h-11 cursor-not-allowed rounded-full border border-pet-border bg-pet-cream px-4 text-sm font-bold text-pet-muted"
-              disabled
-              type="button"
-            >
-              View Scan History · Premium
-            </button>
-          </div>
-        )}
-      </section>
+        Manage Tag &amp; Details
+        <Icon name="chevron" className={`h-4 w-4 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
 
-      {hasFullScanHistory ? (
-        <TagScanHistoryDialog
-          hasNfc={tag.hasNfc}
-          onRequestClose={() => setShowScanHistory(false)}
-          open={showScanHistory}
-          tagCode={tag.tagCode}
-          tagId={tag.id}
-        />
-      ) : null}
+      <div aria-labelledby={toggleId} hidden={!expanded} id={detailsId}>
+        {expanded ? (
+          <div className="mt-3 space-y-5 border-t border-pet-border pt-5">
+            <section aria-label="Tag information">
+              <h3 className="text-sm font-black text-pet-ink">Tag Information</h3>
+              {detailItems.length ? (
+                <dl className="mt-3 space-y-2 text-sm">
+                  {detailItems.map(([label, value]) => (
+                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1" key={label}>
+                      <dt className="text-pet-muted">{label}</dt>
+                      <dd className="min-w-0 break-words font-bold text-pet-ink">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {linkedPet ? (
+                <a className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-pet-teal underline" href={ownerRoutes.petProfile(linkedPet.id)}>
+                  View My Pet
+                </a>
+              ) : null}
+              <p className="mt-2 text-xs font-semibold leading-5 text-pet-muted">
+                {isArchived ? "Archived tags do not show owner contact details. Restore this tag to bring it back to your main list."
+                  : linkedToInactivePet && isMemorialPet(linkedPet) ? `${linkedPet?.name} is in Memorial Mode. This tag does not show owner contact details.`
+                  : linkedToInactivePet && isArchivedPet(linkedPet) ? `${linkedPet?.name}'s profile is archived. This tag does not show owner contact details.`
+                  : isInactive ? "This tag no longer shows your contact details. Your pet's Safety Profile is managed separately."
+                  : isPending || tag.status === "Unassigned" ? `To activate this tag, scan the QR code on the physical tag.${tag.hasNfc ? " NFC works after activation." : ""}`
+                  : linkedPet?.qrSafetyEnabled === false ? "Your pet's Safety Profile is off. You can change this in Contact & Safety."
+                  : "This tag is linked to your pet's Safety Profile."}
+              </p>
+            </section>
 
-      {linkedToInactivePet && isMemorialPet(linkedPet) ? (
-        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          {linkedPet?.name} is in Memorial Mode. Scanning this physical tag
-          shows an inactive memorial tag page and does not expose owner contact
-          details.
-        </p>
-      ) : linkedToInactivePet && isArchivedPet(linkedPet) ? (
-        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          {linkedPet?.name}&apos;s profile is archived. Scanning this physical
-          tag shows an inactive tag page and does not expose owner contact
-          details.
-        </p>
-      ) : isInactive ? (
-        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          Scanning this physical tag shows an inactive tag page and does not
-          expose owner contact details. The pet&apos;s Safety Profile still works.
-        </p>
-      ) : isPending ? (
-        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          Awaiting activation. Scan or tap the physical tag when you receive
-          it to activate it. It will not show owner contact details before
-          activation.
-        </p>
-      ) : null}
+            <section aria-label="QR and NFC">
+              <h3 className="text-sm font-black text-pet-ink">QR &amp; NFC</h3>
+              <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
+                Opening a physical tag link records a visit in tag activity.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {isActive || isInactive ? (
+                  <QrCodeButton
+                    className={secondaryButtonClass}
+                    fileNameBase={`${tag.tagCode}-physical-tag-qr`}
+                    helperText="The QR code printed on this physical tag."
+                    label="View QR Code"
+                    targetPath={scanPath}
+                    title="Physical Tag QR"
+                    viewLabel={isActive ? "Open QR Scan Page" : "Open Inactive QR Page"}
+                    warning={isActive ? undefined : "This tag is inactive and does not reveal owner contact details."}
+                  />
+                ) : null}
+                {actions.includes("view-tag-scan-page") || actions.includes("view-inactive-tag-page") || actions.includes("view-status") ? (
+                  <CTAButton href={scanPath} icon="qr" variant="outline" target="_blank" rel="noopener noreferrer" fullWidth>
+                    {actions.includes("view-inactive-tag-page") ? "View Inactive Tag Page" : actions.includes("view-status") ? "View Status" : "View Tag Scan Page"}
+                  </CTAButton>
+                ) : null}
+                {actions.includes("copy-tag-scan-link") ? (
+                  <button className={secondaryButtonClass} onClick={() => void handleCopy(scanPath, "QR")} type="button">Copy QR Link</button>
+                ) : null}
+                {tag.hasNfc ? (
+                  <>
+                    <CTAButton href={nfcPath} icon="tag" variant="outline" target="_blank" rel="noopener noreferrer" fullWidth>Open NFC Link</CTAButton>
+                    <button className={secondaryButtonClass} onClick={() => void handleCopy(nfcPath, "NFC")} type="button">Copy NFC Link</button>
+                  </>
+                ) : null}
+              </div>
+              {copyStatus ? <p className="mt-2 text-xs font-bold text-pet-sage" role="status">{copyStatus}</p> : null}
+              {copyFallback ? <p className="mt-2 select-all break-all text-xs text-pet-muted">{copyFallback}</p> : null}
+            </section>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        {actions.includes("view-tag-scan-page") ? (
-          <CTAButton
-            href={scanPath}
-            icon="qr"
-            variant="secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-            fullWidth
-          >
-            View Tag Scan Page
-          </CTAButton>
-        ) : null}
-        {actions.includes("view-inactive-tag-page") ? (
-          <CTAButton
-            href={scanPath}
-            icon="qr"
-            variant="secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-            fullWidth
-          >
-            View Inactive Tag Page
-          </CTAButton>
-        ) : null}
-        {actions.includes("view-status") ? (
-          <CTAButton
-            href={scanPath}
-            icon="qr"
-            variant="secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-            fullWidth
-          >
-            View Status
-          </CTAButton>
-        ) : null}
-        {actions.includes("copy-tag-scan-link") ? (
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            onClick={() => {
-              void copyText(scanUrl).then((copied) => {
-                setCopyStatus(
-                  copied
-                    ? "Tag Scan Page link copied."
-                    : "Copy unavailable. Select and copy the link."
-                );
-                window.setTimeout(() => setCopyStatus(""), 2500);
-              });
-            }}
-            type="button"
-          >
-            Copy Tag Link
-          </button>
-        ) : null}
-        {actions.includes("pay-by-qr") && orderHref ? (
-          <CTAButton href={orderHref} icon="record" variant="coral" fullWidth>
-            Pay by QR
-          </CTAButton>
-        ) : null}
-        {actions.includes("view-payment-status") && orderHref ? (
-          <CTAButton href={orderHref} icon="record" variant="secondary" fullWidth>
-            View Payment Status
-          </CTAButton>
-        ) : null}
-        {actions.includes("view-order") && orderHref ? (
-          <CTAButton href={orderHref} icon="record" variant="outline" fullWidth>
-            View Order
-          </CTAButton>
-        ) : null}
-        {actions.includes("view-preparation-status") && orderHref ? (
-          <CTAButton href={orderHref} icon="record" variant="secondary" fullWidth>
-            View Preparation Status
-          </CTAButton>
-        ) : null}
-        {actions.includes("restore-to-list") ? (
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            onClick={onRestore}
-            type="button"
-          >
-            Restore to List
-          </button>
-        ) : null}
-        {actions.includes("request-replacement") && replacementHref ? (
-          <CTAButton
-            href={replacementHref}
-            icon="tag"
-            variant={isInactive ? "secondary" : "outline"}
-            fullWidth
-          >
-            Request Replacement
-          </CTAButton>
-        ) : null}
-        {actions.includes("report-tag-lost") ? (
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#ffd2c9] bg-[#fff4f1] px-5 py-3 text-sm font-bold text-[#a63c2e] transition hover:bg-[#ffe8e3]"
-            onClick={onReportLost}
-            type="button"
-          >
-            Report Tag Lost
-          </button>
-        ) : null}
-        {actions.includes("disable-tag") ? (
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-transparent px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            onClick={onDisable}
-            type="button"
-          >
-            Disable Tag
-          </button>
-        ) : null}
-        {actions.includes("archive-tag") ? (
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-muted transition hover:bg-pet-cream"
-            onClick={onArchive}
-            type="button"
-          >
-            Archive Tag
-          </button>
+            <section aria-label="Tag activity">
+              <h3 className="text-sm font-black text-pet-ink">Tag activity</h3>
+              {hasFullScanHistory ? (
+                <button className={`${secondaryButtonClass} mt-3 w-full`} onClick={() => setShowScanHistory(true)} type="button">View Scan History</button>
+              ) : (
+                <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">Full scan history is part of MyPetLink Premium. Premium is coming soon.</p>
+              )}
+            </section>
+
+            {hasManagementActions ? <section aria-label="Tag management">
+              <h3 className="text-sm font-black text-pet-ink">Tag Management</h3>
+              {actions.includes("report-tag-lost") ? (
+                <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">Lost the physical tag? Reporting it stops it showing your contact details. This does not turn on Lost Mode for your pet.</p>
+              ) : null}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {actions.includes("view-order") && orderHref && orderPrimaryLabel !== "View Order" ? (
+                  <CTAButton href={orderHref} icon="record" variant="outline" fullWidth>View Order</CTAButton>
+                ) : null}
+                {actions.includes("restore-to-list") ? <button className={secondaryButtonClass} onClick={onRestore} type="button">Restore to List</button> : null}
+                {actions.includes("request-replacement") && replacementHref ? <CTAButton href={replacementHref} icon="tag" variant="outline" fullWidth>Request Replacement</CTAButton> : null}
+                {actions.includes("report-tag-lost") ? <button className={destructiveButtonClass} onClick={onReportLost} type="button">Report Tag Lost</button> : null}
+                {canDisable ? <button className={destructiveButtonClass} onClick={onDisable} type="button">Disable Tag</button> : null}
+                {actions.includes("archive-tag") ? <button className={secondaryButtonClass} onClick={onArchive} type="button">Archive Tag</button> : null}
+              </div>
+            </section> : null}
+          </div>
         ) : null}
       </div>
-      {copyStatus ? (
-        <p className="mt-3 text-xs font-bold text-pet-sage" role="status">
-          {copyStatus}
-        </p>
+      {hasFullScanHistory ? (
+        <TagScanHistoryDialog hasNfc={tag.hasNfc} onRequestClose={() => setShowScanHistory(false)} open={showScanHistory} tagCode={tag.tagCode} tagId={tag.id} />
       ) : null}
     </article>
   );
 }
-
 function subscribeNoop() {
   return () => {};
 }
