@@ -9,7 +9,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets } from "@/lib/petLifecycle";
-import { ownerRoutes, tagEntryPath } from "@/lib/routes";
+import { getQrSafetyPath, ownerRoutes, tagEntryPath } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { isOwnerAuthenticated, loginMockOwner } from "@/services/authService";
 import { getPets } from "@/services/petService";
@@ -149,33 +149,34 @@ export function TagActivationFlow({
     return (
       <ActivationShell>
         <ActivationCard
-          description={`${activatedPet.name}'s MyPetLink tag is now active. If they are ever found, the finder can open their Safety Profile instantly.`}
+          description={`${activatedPet.name}'s Smart Tag is now active! Anyone who scans it can view ${activatedPet.name}'s Safety Profile and contact you if needed.`}
           icon="shield"
           tagCode={tagCode}
-          title="Tag activated"
+          title="Smart Tag Activated!"
           tone="teal"
         >
           <div className="grid gap-3">
             <CTAButton
               className="min-h-14 text-base"
-              href={activatedPet.publicProfilePath}
-              icon="qr"
+              href={getQrSafetyPath(activatedPet)}
+              icon="shield"
+              target="_blank"
+              rel="noopener noreferrer"
               fullWidth
             >
-              Preview Share Profile
+              View Safety Profile
             </CTAButton>
             <CTAButton
-              href={tagEntryPath(tagCode, source)}
-              icon="tag"
-              variant="secondary"
+              href={ownerRoutes.petProfile(activatedPet.id)}
+              variant="outline"
               fullWidth
             >
-              View Tag Scan Page
-            </CTAButton>
-            <CTAButton href={ownerRoutes.dashboard} variant="outline" fullWidth>
-              Go to Dashboard
+              Back to My Pet
             </CTAButton>
           </div>
+          <p className="mt-4 text-sm font-semibold text-pet-muted">
+            Your Smart Tag is ready to use.
+          </p>
         </ActivationCard>
       </ActivationShell>
     );

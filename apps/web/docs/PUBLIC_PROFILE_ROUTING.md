@@ -102,8 +102,10 @@ Physical Tag Scan Page the whole time and never forces a re-scan or an early
 dashboard redirect. `src/app/activate/[tagCode]/page.tsx` exists only as a
 compatibility redirect to `/q/{tagCode}`. Render precedence:
 
-1. **Success** (just activated) â†’ "Activated" screen with: View Share Profile,
-   View Tag Scan Page, Go to Dashboard.
+1. **Success** (just activated) → "Smart Tag Activated!" screen with **View
+   Safety Profile** (the pet-level Safety Profile, opened in a new tab without
+   recording a physical tag scan) and **Back to My Pet** (the activated pet's
+   owner detail page).
 2. **Already active** â†’ cannot re-activate; offer to view the profile.
 3. **Inactive** (Disabled/Lost/Replaced/Archived) â†’ safe "cannot activate" message.
 4. **Not found** â†’ branded not-found.
