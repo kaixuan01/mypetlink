@@ -82,7 +82,8 @@ public static class SellableInventoryRules
             && tag.OrderId == null
             && tag.OrderItemId == null
             && !dbContext.MerchantOrderAllocatedTags.Any(allocation =>
-                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null);
+                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null)
+            && !dbContext.ConsignmentUnits.Any(unit => unit.SmartTagId == tag.Id && unit.ReleasedAt == null);
 
     /// <summary>
     /// The unit an assignment, merchant allocation or outbound shipment may
@@ -214,6 +215,11 @@ public static class SellableInventoryRules
         SmartTag tag,
         CancellationToken cancellationToken)
     {
+        var custody = await dbContext.ConsignmentUnits.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.SmartTagId == tag.Id && u.ReleasedAt == null, cancellationToken);
+        if (custody is not null && (custody.Status is ConsignmentUnitStatus.Reserved or ConsignmentUnitStatus.ReturnedQuarantine or ConsignmentUnitStatus.WrittenOff
+            || custody.ReceivingState is ConsignmentReceivingState.Missing or ConsignmentReceivingState.Damaged or ConsignmentReceivingState.ReviewRequired))
+            return false;
         if (IsPassed(tag)) return true;
         if (tag.QaStatus is not null) return false;
 

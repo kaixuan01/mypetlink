@@ -17,6 +17,7 @@ export const merchantSalesTabs = [
   { id: "quotations", label: "Quotations", capability: adminCapabilities.merchantOrdersView },
   { id: "orders", label: "Orders", capability: adminCapabilities.merchantOrdersView },
   { id: "invoices", label: "Invoices & Receipts", capability: adminCapabilities.merchantInvoicesView },
+  { id: "consignment", label: "Consignment", capability: adminCapabilities.consignmentView },
   { id: "merchants", label: "Merchants", capability: adminCapabilities.salesView },
   { id: "salespersons", label: "Salespersons", capability: adminCapabilities.salesView },
   { id: "referrals", label: "Owner Referrals", capability: adminCapabilities.salesView },
@@ -37,7 +38,7 @@ export const merchantSalesWorkspaceGroups: {
 }[] = [
   { id: "primary", label: null, tabIds: ["overview", "reports"] },
   { id: "sales", label: "Sales", tabIds: ["quotations", "orders", "invoices"] },
-  { id: "partners", label: "Partners", tabIds: ["merchants", "salespersons", "referrals"] },
+  { id: "partners", label: "Partners", tabIds: ["merchants", "salespersons", "referrals", "consignment"] },
   { id: "finance", label: "Finance", tabIds: ["commissions", "payouts"] },
 ];
 

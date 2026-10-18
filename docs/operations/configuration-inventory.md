@@ -264,3 +264,44 @@ These require an owner's approval before any implementation:
 | R5 | `SmartTagBatches.BatchNo` has no unique database index | Application-level 12-attempt check only |
 | R6 | `PublicSite:BaseUrl` empty | Manufacturer export and physical QA fail loudly — correct, but blocks tag production and inspection |
 | R7 | Data Protection key ring not shared (slot swap, new host) | Open physical QA reader results are refused; inspectors read the tag again. Never releases a tag |
+
+
+### Consignment agreements and custody (2026-10-17)
+
+Category D: ConsignmentAgreements owns partner-specific rates and versioned commercial
+terms. Pending values are nullable; approval requires explicit confirmation and freezes
+terms. No deployment setting or global commission fallback is added.
+Category E: ConsignmentDispatches, ConsignmentUnits and append-only movements own custody
+history, snapshots and external-tracker references. Tokens, UTC actors and atomic audit
+records protect changes. DocumentNumberCounters owns the separate consignment number
+series. No financial ledger is introduced. See ../architecture/consignment-mvp.md and
+../deployment/consignment-mvp-rollout.md.
+
+The independent QA remediation retains that ownership: immutable issued PDF bytes/hash,
+independent approval/receipt evidence, discrepancy movements, write-off history and
+ConsignmentHandoverRecords are category E. External sale reports are explicitly unverified;
+correction/reversal chains retain originals and never create authoritative financial
+postings. Separation-of-duties, required evidence, duplicate protection and destructive
+rollback guards are category G invariants. No new App Settings or financial defaults.
+
+Final consignment remediation (2026-10-18): version contributor attribution, per-unit receiving
+findings and discrepancy review operators are category E evidence. The independent-contributor
+and issue-review rules are category G invariants. The reported amount validation ceiling uses
+the existing B2B numeric-input envelope, not a new commercial price or commission setting.
+No configuration ownership moves and no new App Setting are introduced.
+
+### Consignment approval policy (2026-10-18)
+
+Category **D**, single owner: `ConsignmentApprovalPolicies` singleton typed Mode and
+SelfReviewerAdminUserId. Default/seed Team with no nomination. Admin uses
+`consignment.approval_policy.manage`, explicit confirmation and reason; changes have
+UTC UpdatedAt/UpdatedBy, RowVersion and before/after audit. No App Setting or client
+flag duplicates it. Category **G**: the sensitive `consignment.self_review` capability,
+three permitted exception points and evidence validation rules. Self-review is AND
+with Solo policy, explicit founder nomination, active capability and attestation.
+Super Admin grant-all alone is insufficient. Category **E**: append-only
+`ConsignmentReviewEvents`, agreement ApprovalReviewMode and movement ReviewMode;
+these preserve historical facts and are never editable configuration. Policy and
+review decisions serialize in the existing consignment transaction lock; no cache
+survives a request. A missing policy disables self-review. Switching Team clears the
+nomination without rewriting prior reviews. See the consignment rollout runbook.

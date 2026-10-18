@@ -263,9 +263,11 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
             await ThrowForIneligibleAsync(missing, item, cancellationToken);
         }
 
+        await InventoryCustodyRules.ProtectRetailReservationsAsync(_dbContext, eligible, cancellationToken);
         var now = _timeProvider.GetUtcNow();
         foreach (var tag in eligible)
         {
+            tag.AssignmentVersion++;
             _dbContext.MerchantOrderAllocatedTags.Add(
                 NewAllocation(order, item, tag, admin.Id, now, automatic: false));
         }
@@ -332,9 +334,11 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
                 + $"{request.Quantity} were requested.");
         }
 
+        await InventoryCustodyRules.ProtectRetailReservationsAsync(_dbContext, picked, cancellationToken);
         var now = _timeProvider.GetUtcNow();
         foreach (var tag in picked)
         {
+            tag.AssignmentVersion++;
             _dbContext.MerchantOrderAllocatedTags.Add(
                 NewAllocation(order, item, tag, admin.Id, now, automatic: true));
         }
@@ -411,6 +415,8 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
             allocation.ReleasedReason = request.Reason.Trim();
             allocation.ReleasedByAdminUserId = admin.Id;
         }
+
+        await VoidDeliveryOrderAsync(order.Id, admin.Id, cancellationToken);
 
         // Releasing below the required quantity invalidates readiness.
         if (order.FulfilmentStatus == MerchantOrderFulfilmentStatus.ReadyToShip)
@@ -509,10 +515,14 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         }
 
         var now = _timeProvider.GetUtcNow();
-        // Fulfilment hold: only inspected tags leave the warehouse.
-        SellableInventoryRules.RequirePassedForFulfilment(await _dbContext.MerchantOrderAllocatedTags
+        // Fulfilment hold: only inspected, valid tags leave the warehouse.
+        var readyVariants = order.Items.Select(i => i.ProductVariantId).Distinct().ToArray();
+        await using var stockLock = _dbContext.Database.IsSqlServer()
+            ? await SqlServerInventoryReservationLock.AcquireAsync(_dbContext,readyVariants,cancellationToken) : null;
+        var readyTags = await _dbContext.MerchantOrderAllocatedTags
             .Where(a => a.MerchantOrderId == order.Id && a.ReleasedAt == null)
-            .Select(a => a.SmartTag!).ToListAsync(cancellationToken));
+            .Select(a => a.SmartTag!).AsNoTracking().ToListAsync(cancellationToken);
+        InventoryCustodyRules.RequireMerchantDispatchable(readyTags);
         order.FulfilmentStatus = MerchantOrderFulfilmentStatus.ReadyToShip;
         order.ReadyToShipAt = now;
         order.PreparingAt ??= now;
@@ -539,140 +549,153 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         MarkMerchantOrderShippedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var admin = await RequireAdminAsync(actorUserId, cancellationToken);
-        var order = await LoadOrderAsync(merchantOrderId, cancellationToken, track: true);
-        RequirePaymentConfirmed(order);
-        RequireToken(order, request.ConcurrencyToken);
-
-        if (order.FulfilmentStatus is MerchantOrderFulfilmentStatus.Shipped
-            or MerchantOrderFulfilmentStatus.Delivered)
+        return await _dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            // Repeating the step must not ship a second time.
-            return await BuildFulfilmentAsync(order, cancellationToken);
-        }
+            _dbContext.ChangeTracker.Clear();
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+            var admin = await RequireAdminAsync(actorUserId, cancellationToken);
+            var order = await LoadOrderAsync(merchantOrderId, cancellationToken, track: true);
+            RequirePaymentConfirmed(order);
+            RequireToken(order, request.ConcurrencyToken);
 
-        if (order.FulfilmentStatus != MerchantOrderFulfilmentStatus.ReadyToShip)
-        {
-            throw InvalidTransition(order.FulfilmentStatus, "shipped");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.TrackingNumber))
-        {
-            throw new ApiException(
-                StatusCodes.Status400BadRequest,
-                "tracking_required",
-                "Enter the tracking number before marking this order shipped.");
-        }
-
-        // Couriers use letters, digits, spaces and punctuation, so the rule is
-        // not a narrow alphanumeric pattern. What a tracking number may never
-        // contain is a control character: this value is snapshotted, written
-        // into the customer's shipped email and interpolated into a tracking
-        // URL, and a newline in any of those is a header- or display-injection
-        // waiting to happen. Surrounding whitespace is trimmed as before.
-        var trackingNumber = request.TrackingNumber.Trim();
-        if (trackingNumber.Any(char.IsControl))
-        {
-            throw new ApiException(
-                StatusCodes.Status400BadRequest,
-                "tracking_invalid",
-                "The tracking number contains characters that are not allowed. "
-                    + "Enter it exactly as the courier shows it.");
-        }
-
-        var progress = await LoadProgressAsync(order, cancellationToken);
-        if (progress.Any(row => row.Allocated != row.Required))
-        {
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "allocation_incomplete",
-                "Every line must be fully allocated before the order ships.");
-        }
-
-        var courier = await ResolveCourierAsync(request, cancellationToken);
-        var now = _timeProvider.GetUtcNow();
-
-        order.CourierProviderCode = courier.Code;
-        order.CourierProvider = courier.DisplayName;
-        order.CourierService = Trim(request.CourierService);
-        order.TrackingNumber = trackingNumber;
-        order.TrackingUrlSnapshot = courier.TrackingUrlTemplate is { Length: > 0 } template
-            ? template.Replace("{trackingNumber}", Uri.EscapeDataString(order.TrackingNumber))
-            : null;
-        order.InternalCourierCost = request.InternalCourierCost;
-        order.InternalShippingNotes = Trim(request.InternalShippingNotes);
-        order.FulfilmentStatus = MerchantOrderFulfilmentStatus.Shipped;
-        order.ShippedAt = now;
-        order.FulfilmentUpdatedByAdminUserId = admin.Id;
-        order.UpdatedAt = now;
-
-        // The tags leave the building. They become the merchant's stock, stay
-        // unassigned to any pet, and are no longer available to retail or to
-        // another merchant order.
-        var allocations = await _dbContext.MerchantOrderAllocatedTags
-            .Where(allocation =>
-                allocation.MerchantOrderId == order.Id && allocation.ReleasedAt == null)
-            .Include(allocation => allocation.SmartTag)
-            .ToListAsync(cancellationToken);
-
-        await _inventoryCosting.SnapshotMerchantShipmentAsync(
-            order, allocations, now, cancellationToken);
-
-        SellableInventoryRules.RequirePassedForFulfilment(allocations.Select(a => a.SmartTag!));
-        foreach (var allocation in allocations)
-        {
-            allocation.Status = MerchantAllocationStatus.SentToMerchant;
-            allocation.SentToMerchantAt = now;
-
-            var tag = allocation.SmartTag!;
-            tag.FulfilmentStatus = TagFulfilmentStatus.SentToReseller;
-            tag.SentToResellerAt ??= now;
-            tag.UpdatedAt = now;
-            // Status stays Unclaimed on purpose: the final pet owner still has
-            // to scan and activate the tag themselves.
-        }
-
-        // The shipment notice carries the delivery order, so the document must
-        // exist before the order can ship. Issuing it here rather than trusting
-        // that Ready to Ship succeeded means an email is never queued against
-        // an attachment that cannot resolve.
-        var deliveryOrder = await _dbContext.MerchantDeliveryOrders
-            .Include(item => item.Items)
-            .FirstOrDefaultAsync(
-                item => item.MerchantOrderId == order.Id && item.CancelledAt == null,
-                cancellationToken);
-
-        deliveryOrder ??= await BuildDeliveryOrderAsync(
-            order, admin.Id, progress, now, cancellationToken);
-
-        if (_merchantEmails is not null)
-        {
-            await _merchantEmails.EnqueueOrderShippedAsync(
-                order,
-                deliveryOrder,
-                [.. progress.OrderBy(row => row.SortOrder)
-                    .Select(row => new MerchantShippedItemLine(
-                        row.ProductName, row.Sku, row.Allocated))],
-                await SellerSupportEmailAsync(order, cancellationToken),
-                cancellationToken);
-        }
-
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, "merchant-order.shipped",
-            "MerchantOrder", order.Id, null,
-            new
+            if (order.FulfilmentStatus is MerchantOrderFulfilmentStatus.Shipped
+                or MerchantOrderFulfilmentStatus.Delivered)
             {
-                order.MerchantOrderNumber,
-                courier = order.CourierProvider,
-                trackingNumber = order.TrackingNumber,
-                tags = allocations.Count,
-                shippedAt = now,
-            });
+                // Repeating the step must not ship a second time.
+                return await BuildFulfilmentAsync(order, cancellationToken);
+            }
 
-        await SaveAsync(cancellationToken);
+            if (order.FulfilmentStatus != MerchantOrderFulfilmentStatus.ReadyToShip)
+            {
+                throw InvalidTransition(order.FulfilmentStatus, "shipped");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.TrackingNumber))
+            {
+                throw new ApiException(
+                    StatusCodes.Status400BadRequest,
+                    "tracking_required",
+                    "Enter the tracking number before marking this order shipped.");
+            }
+
+            // Couriers use letters, digits, spaces and punctuation, so the rule is
+            // not a narrow alphanumeric pattern. What a tracking number may never
+            // contain is a control character: this value is snapshotted, written
+            // into the customer's shipped email and interpolated into a tracking
+            // URL, and a newline in any of those is a header- or display-injection
+            // waiting to happen. Surrounding whitespace is trimmed as before.
+            var trackingNumber = request.TrackingNumber.Trim();
+            if (trackingNumber.Any(char.IsControl))
+            {
+                throw new ApiException(
+                    StatusCodes.Status400BadRequest,
+                    "tracking_invalid",
+                    "The tracking number contains characters that are not allowed. "
+                        + "Enter it exactly as the courier shows it.");
+            }
+
+            var progress = await LoadProgressAsync(order, cancellationToken);
+            if (progress.Any(row => row.Allocated != row.Required))
+            {
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "allocation_incomplete",
+                    "Every line must be fully allocated before the order ships.");
+            }
+
+            var courier = await ResolveCourierAsync(request, cancellationToken);
+            var now = _timeProvider.GetUtcNow();
+
+            order.CourierProviderCode = courier.Code;
+            order.CourierProvider = courier.DisplayName;
+            order.CourierService = Trim(request.CourierService);
+            order.TrackingNumber = trackingNumber;
+            order.TrackingUrlSnapshot = courier.TrackingUrlTemplate is { Length: > 0 } template
+                ? template.Replace("{trackingNumber}", Uri.EscapeDataString(order.TrackingNumber))
+                : null;
+            order.InternalCourierCost = request.InternalCourierCost;
+            order.InternalShippingNotes = Trim(request.InternalShippingNotes);
+            order.FulfilmentStatus = MerchantOrderFulfilmentStatus.Shipped;
+            order.ShippedAt = now;
+            order.FulfilmentUpdatedByAdminUserId = admin.Id;
+            order.UpdatedAt = now;
+
+            // The tags leave the building. They become the merchant's stock, stay
+            // unassigned to any pet, and are no longer available to retail or to
+            // another merchant order.
+            var shipmentVariants = order.Items.Select(i => i.ProductVariantId).Distinct().ToArray();
+            if (_dbContext.Database.IsSqlServer()) await SqlServerInventoryReservationLock.AcquireForTransactionAsync(_dbContext,
+                SqlServerInventoryReservationLock.InventoryResources(shipmentVariants),cancellationToken);
+            var allocations = await _dbContext.MerchantOrderAllocatedTags
+                .Where(allocation =>
+                    allocation.MerchantOrderId == order.Id && allocation.ReleasedAt == null)
+                .Include(allocation => allocation.SmartTag)
+                .ToListAsync(cancellationToken);
 
 
-        return await BuildFulfilmentAsync(order, cancellationToken);
+            await _inventoryCosting.SnapshotMerchantShipmentAsync(
+                order, allocations, now, cancellationToken);
+
+            InventoryCustodyRules.RequireMerchantDispatchable(allocations.Select(a => a.SmartTag!));
+            foreach (var allocation in allocations)
+            {
+                allocation.Status = MerchantAllocationStatus.SentToMerchant;
+                allocation.SentToMerchantAt = now;
+
+                var tag = allocation.SmartTag!;
+                tag.FulfilmentStatus = TagFulfilmentStatus.SentToReseller;
+                tag.SentToResellerAt ??= now;
+                tag.UpdatedAt = now;
+                // Status stays Unclaimed on purpose: the final pet owner still has
+                // to scan and activate the tag themselves.
+            }
+
+            // The shipment notice carries the delivery order, so the document must
+            // exist before the order can ship. Issuing it here rather than trusting
+            // that Ready to Ship succeeded means an email is never queued against
+            // an attachment that cannot resolve.
+            var deliveryOrder = await _dbContext.MerchantDeliveryOrders
+                .Include(item => item.Items)
+                .FirstOrDefaultAsync(
+                    item => item.MerchantOrderId == order.Id && item.CancelledAt == null,
+                    cancellationToken);
+
+            // The issued paper document remains valid when allocations did not
+            // change. Actual courier details belong to the shipment and email;
+            // downloading or shipping must not revise an already issued copy.
+            deliveryOrder ??= await BuildDeliveryOrderAsync(
+                order, admin.Id, progress, now, cancellationToken);
+
+            if (_merchantEmails is not null)
+            {
+                await _merchantEmails.EnqueueOrderShippedAsync(
+                    order,
+                    deliveryOrder,
+                    [.. progress.OrderBy(row => row.SortOrder)
+                        .Select(row => new MerchantShippedItemLine(
+                            row.ProductName, row.Sku, row.Allocated))],
+                    await SellerSupportEmailAsync(order, cancellationToken),
+                    cancellationToken);
+            }
+
+            _auditLogService.Append(
+                admin.Id, ActorType.Admin, "merchant-order.shipped",
+                "MerchantOrder", order.Id, null,
+                new
+                {
+                    order.MerchantOrderNumber,
+                    courier = order.CourierProvider,
+                    trackingNumber = order.TrackingNumber,
+                    tags = allocations.Count,
+                    shippedAt = now,
+                });
+
+            await SaveAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+
+            return await BuildFulfilmentAsync(order, cancellationToken);
+        });
     }
 
     public async Task<MerchantOrderFulfilmentResponse> MarkDeliveredAsync(
@@ -769,7 +792,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         // travelled with a parcel.
         var invoiceSeller = await _dbContext.MerchantInvoices
             .AsNoTracking()
-            .Where(invoice => invoice.MerchantOrderId == order.Id)
+            .Where(invoice => invoice.MerchantOrderId == order.Id && invoice.Status != MerchantInvoiceStatus.Cancelled)
             .OrderBy(invoice => invoice.IssuedAt)
             .Select(invoice => invoice.Seller)
             .FirstOrDefaultAsync(cancellationToken);
@@ -865,7 +888,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
     {
         var email = await _dbContext.MerchantInvoices
             .AsNoTracking()
-            .Where(invoice => invoice.MerchantOrderId == order.Id)
+            .Where(invoice => invoice.MerchantOrderId == order.Id && invoice.Status != MerchantInvoiceStatus.Cancelled)
             .OrderBy(invoice => invoice.IssuedAt)
             .Select(invoice => invoice.Seller.SupportEmail)
             .FirstOrDefaultAsync(cancellationToken);
@@ -878,6 +901,18 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
     /// Issuing it and shipping the order both need the same document, but
     /// only the caller knows which transaction it belongs to.
     /// </summary>
+    private async Task VoidDeliveryOrderAsync(Guid orderId, Guid adminId, CancellationToken ct)
+    {
+        var documents = await _dbContext.MerchantDeliveryOrders
+            .Where(d => d.MerchantOrderId == orderId && d.CancelledAt == null).ToListAsync(ct);
+        foreach (var document in documents)
+        {
+            document.CancelledAt = _timeProvider.GetUtcNow();
+            _auditLogService.Append(adminId, ActorType.Admin, "merchant-delivery-order.voided",
+                "MerchantDeliveryOrder", document.Id, null, new { reason = "Allocation changed before dispatch" });
+        }
+    }
+
     private async Task<MerchantDeliveryOrder> BuildDeliveryOrderAsync(
         MerchantOrder order,
         Guid adminUserId,
@@ -890,7 +925,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         // years later without consulting the settings table or the invoice.
         var invoiceSeller = await _dbContext.MerchantInvoices
             .AsNoTracking()
-            .Where(invoice => invoice.MerchantOrderId == order.Id)
+            .Where(invoice => invoice.MerchantOrderId == order.Id && invoice.Status != MerchantInvoiceStatus.Cancelled)
             .OrderBy(invoice => invoice.IssuedAt)
             .Select(invoice => invoice.Seller)
             .FirstOrDefaultAsync(cancellationToken);

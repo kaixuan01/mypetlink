@@ -112,7 +112,8 @@ describe("AdminMerchantSalesWorkspace navigation", () => {
     expect(within(desktop).getByText("Sales")).toBeTruthy();
     expect(within(desktop).getByText("Partners")).toBeTruthy();
     expect(within(desktop).getByText("Finance")).toBeTruthy();
-    expect(within(desktop).getAllByRole("link")).toHaveLength(10);
+    expect(within(desktop).getAllByRole("link")).toHaveLength(11);
+    expect(within(desktop).getByRole("link", { name: "Consignment" })).toBeTruthy();
   });
 
   it("shows an operations operator Reports, Sales and Partners without Finance", () => {

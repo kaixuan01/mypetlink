@@ -390,6 +390,10 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         var inScope = filters is null ? null : (await BuildFilteredQuery(filters)
             .Where(tag => ids.Contains(tag.Id)).Select(tag => tag.Id)
             .ToArrayAsync(cancellationToken)).ToHashSet();
+        var variantIds = await _dbContext.SmartTags.Where(t => ids.Contains(t.Id) && t.ProductVariantId != null)
+            .Select(t => t.ProductVariantId!.Value).Distinct().ToArrayAsync(cancellationToken);
+        await using var stockLock = _dbContext.Database.IsSqlServer()
+            ? await SqlServerInventoryReservationLock.AcquireAsync(_dbContext, variantIds, cancellationToken) : null;
         var tagsById = (await _dbContext.SmartTags
             .Where(tag => tag.DeletedAt == null && ids.Contains(tag.Id))
             .ToListAsync(cancellationToken)).ToDictionary(tag => tag.Id);
@@ -398,6 +402,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         var skipped = 0;
         var now = _timeProvider.GetUtcNow();
 
+        var outboundThisChunk = new List<SmartTag>();
         foreach (var tagId in ids)
         {
             if (!tagsById.TryGetValue(tagId, out var tag))
@@ -456,6 +461,18 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                     : "Only commercial stock can be sent onward. This tag has not been classified as commercial stock."));
                 continue;
             }
+            try
+            {
+                await InventoryCustodyRules.RequireNoCustodyMutationAsync(_dbContext, tag.Id, cancellationToken);
+                if (transition.To is TagFulfilmentStatus.SentToOwner or TagFulfilmentStatus.SentToReseller)
+                    await InventoryCustodyRules.ProtectRetailReservationsAsync(_dbContext, outboundThisChunk.Append(tag).ToArray(), cancellationToken);
+            }
+            catch (ApiException error)
+            {
+                failures.Add(new AdminTagInventoryBulkFailure(tagId, tag.TagCode, error.Message));
+                continue;
+            }
+            if (transition.To is TagFulfilmentStatus.SentToOwner or TagFulfilmentStatus.SentToReseller) outboundThisChunk.Add(tag);
             ApplyFulfilment(tag, transition.To, now);
             updated++;
 

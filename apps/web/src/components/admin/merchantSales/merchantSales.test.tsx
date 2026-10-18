@@ -38,6 +38,7 @@ describe("Merchant Sales navigation", () => {
       "quotations",
       "orders",
       "invoices",
+      "consignment",
       "merchants",
       "salespersons",
       "referrals",

@@ -61,7 +61,7 @@ public sealed class PhysicalQaHttpTests
         using (var scope = factory.Services.CreateScope()) Assert.Empty(await scope.ServiceProvider.GetRequiredService<MyPetLinkDbContext>().TagScans.ToListAsync());
     }
 
-    private sealed class Factory : WebApplicationFactory<Program>
+    internal sealed class Factory : WebApplicationFactory<Program>
     {
         private readonly string _database = "physical-qa-http-" + Guid.NewGuid();
         protected override void ConfigureWebHost(IWebHostBuilder builder)

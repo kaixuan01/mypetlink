@@ -962,6 +962,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
             "merchant-order.preparing" => "Preparation started.",
             "merchant-order.ready-to-ship" => "Marked ready to ship.",
             "merchant-delivery-order.issued" => "Delivery order issued.",
+            "merchant-delivery-order.voided" => "Delivery order voided after its allocation changed.",
             "merchant-order.shipped" => $"Shipped via {courier}.",
             "merchant-order.delivered" => "Delivered.",
             _ => "",
@@ -1159,6 +1160,9 @@ public sealed class MerchantSalesService : IMerchantSalesService
                 throw Validation($"items[{sortOrder}].quantity", "Quantity must be at least 1.");
             }
 
+            RequireMoneyScale(line.WholesaleUnitPrice, $"items[{sortOrder}].wholesaleUnitPrice");
+            RequireMoneyScale(line.LineDiscount, $"items[{sortOrder}].lineDiscount");
+
             if (line.WholesaleUnitPrice < 0)
             {
                 throw Validation($"items[{sortOrder}].wholesaleUnitPrice",
@@ -1207,6 +1211,9 @@ public sealed class MerchantSalesService : IMerchantSalesService
             throw Validation("discountTotal", "An order discount cannot be negative.");
         }
 
+        RequireMoneyScale(request.DiscountTotal, "discountTotal");
+        RequireMoneyScale(request.DeliveryFee, "deliveryFee");
+
         if (request.DeliveryFee < 0)
         {
             throw Validation("deliveryFee", "A delivery fee cannot be negative.");
@@ -1247,6 +1254,12 @@ public sealed class MerchantSalesService : IMerchantSalesService
         quotation.GrandTotal = totals.GrandTotal;
         quotation.CustomerNotes = Trimmed(request.CustomerNotes);
         quotation.InternalNotes = Trimmed(request.InternalNotes);
+    }
+
+    private static void RequireMoneyScale(decimal amount, string field)
+    {
+        if (decimal.Round(amount, 2) != amount)
+            throw Validation(field, "Enter an amount with at most two decimal places.");
     }
 
     private async Task RevalidateVariantsAsync(

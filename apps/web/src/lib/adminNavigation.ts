@@ -68,6 +68,7 @@ export const adminNavGroups: AdminNavGroup[] = [
         icon: "users",
         requiredAnyCapabilities: [
           adminCapabilities.salesView,
+          adminCapabilities.consignmentView,
           adminCapabilities.merchantOrdersView,
           adminCapabilities.merchantInvoicesView,
           adminCapabilities.salesCommissionsView,

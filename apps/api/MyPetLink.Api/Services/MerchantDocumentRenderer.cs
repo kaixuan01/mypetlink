@@ -79,7 +79,8 @@ internal sealed record MerchantDocumentModel(
     /// A place for a person to sign when the parcel changes hands. Paper
     /// convenience only: nothing in the system waits on it.
     /// </summary>
-    bool ShowReceivingBlock = false);
+    bool ShowReceivingBlock = false,
+    string? ElectronicNotice = null);
 
 internal static class MerchantDocumentRenderer
 {
@@ -513,7 +514,7 @@ internal static class MerchantDocumentRenderer
             column.Item().PaddingTop(6).Row(row =>
             {
                 row.RelativeItem().Text(
-                    "This document is generated electronically and does not require a signature.")
+                    model.ElectronicNotice ?? "This document is generated electronically and does not require a signature.")
                     .FontSize(8).FontColor(DocumentTheme.Muted);
 
                 // Only meaningful once there is more than one page, and

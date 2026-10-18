@@ -117,6 +117,19 @@ public static class AdminCapabilities
     public const string MerchantOrdersFulfil = "merchant_orders.fulfil";
     public const string MerchantDocumentsSend = "merchant_documents.send";
 
+    public const string ConsignmentSelfReview = "consignment.self_review";
+    public const string ConsignmentPolicyManage = "consignment.approval_policy.manage";
+    public const string ConsignmentView = "consignment.view";
+    public const string ConsignmentAgreementsManage = "consignment.agreements.manage";
+    public const string ConsignmentAgreementsApprove = "consignment.agreements.approve";
+    public const string ConsignmentWriteOff = "consignment.write_off";
+    public const string ConsignmentAllocate = "consignment.allocate";
+    public const string ConsignmentDispatch = "consignment.dispatch";
+    public const string ConsignmentReconcile = "consignment.reconcile";
+    public const string ConsignmentReturn = "consignment.return";
+    public const string ConsignmentRelease = "consignment.release";
+    public const string ConsignmentManifestExport = "consignment.manifest.export";
+
     // --- Finance --------------------------------------------------------------
     public const string MerchantInvoicesView = "merchant_invoices.view";
     public const string MerchantInvoicesManage = "merchant_invoices.manage";

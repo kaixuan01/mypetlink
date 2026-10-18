@@ -229,3 +229,15 @@ for the deployment steps.
 
 `AdminCapabilityCoverageTests` fails if an endpoint has no capability, or if a
 catalogue entry grants nothing.
+
+## Consignment Solo policy constraint
+
+`consignment.self_review` and `consignment.approval_policy.manage` are sensitive
+catalogued capabilities, added to no ordinary built-in template. The existing role
+union and Super Admin catalogue expansion stay unchanged. In addition to capability,
+self-review requires the organisation's Solo policy to explicitly name that active
+administrator and each operation's confirmed external-evidence attestation. This
+nomination is a domain constraint, not a general per-user permission override; it
+grants no role or other capability. Policy changes are separately confirmed, reasoned,
+rowversion-protected and audited. Only the three consignment independence checks
+admit the exception. No financial/security/other stock permission is bypassed.

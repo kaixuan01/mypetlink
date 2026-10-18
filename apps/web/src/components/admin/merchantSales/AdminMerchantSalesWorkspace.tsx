@@ -2,6 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { WorkspaceNav, type WorkspaceNavGroup } from "@/components/admin/WorkspaceNav";
+import { ConsignmentPanel } from "./ConsignmentPanel";
 import { InvoicesPanel } from "./InvoicesPanel";
 import { MerchantsPanel } from "./MerchantsPanel";
 import { MerchantSalesOverview } from "./MerchantSalesOverview";
@@ -129,6 +130,8 @@ export function AdminMerchantSalesWorkspace() {
           onNewQuotation={() => goToTab("quotations", { edit: "new" })}
         />
       ) : null}
+
+      {tab === "consignment" ? <ConsignmentPanel /> : null}
 
       {tab === "merchants" ? (
         <MerchantsPanel

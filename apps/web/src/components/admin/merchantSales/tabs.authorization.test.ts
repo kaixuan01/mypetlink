@@ -14,7 +14,7 @@ function accessWith(...capabilities: AdminCapabilityKey[]): AdminAccessCapabilit
 
 describe("Merchant Sales sections", () => {
   it("shows every section to somebody with every permission", () => {
-    expect(merchantSalesTabsFor(allAdminCapabilities())).toHaveLength(10);
+    expect(merchantSalesTabsFor(allAdminCapabilities())).toHaveLength(11);
   });
 
   it("shows nothing to somebody with no merchant sales permissions", () => {
@@ -49,6 +49,10 @@ describe("Merchant Sales sections", () => {
     expect(ids).toContain("payouts");
     expect(ids).not.toContain("merchants");
     expect(ids).not.toContain("quotations");
+  });
+
+  it("allows the consignment section without unrelated sales or finance access", () => {
+    expect(merchantSalesTabsFor(accessWith(adminCapabilities.consignmentView)).map(tab => tab.id)).toEqual(["consignment"]);
   });
 
   it("names a permission for every section, so none is reachable by default", () => {

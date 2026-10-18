@@ -167,6 +167,12 @@ public sealed class MerchantDocumentService : IMerchantDocumentService
             paymentRows.Add(("How to pay", invoice.Seller.PaymentInstructions!));
         }
 
+        if (invoice.Status == MerchantInvoiceStatus.Cancelled)
+        {
+            paymentRows.Clear();
+            paymentRows.Add(("Status", "Cancelled — do not pay"));
+        }
+
         var model = new MerchantDocumentModel(
             Kind: MerchantDocumentKind.Invoice,
             BrandLogo: LoadBrandLogo(),
@@ -199,7 +205,7 @@ public sealed class MerchantDocumentService : IMerchantDocumentService
                 string.IsNullOrWhiteSpace(invoice.SourceQuotationNumberSnapshot)
                     ? ("", "")
                     : ("Quotation No.", invoice.SourceQuotationNumberSnapshot!),
-                ("Status", invoice.Status == MerchantInvoiceStatus.Paid ? "Paid" : "Awaiting payment"),
+                ("Status", invoice.Status == MerchantInvoiceStatus.Cancelled ? "Cancelled" : invoice.Status == MerchantInvoiceStatus.Paid ? "Paid" : "Awaiting payment"),
             ],
             PaymentRows: paymentRows,
             DeliveryAddressLines: null,
@@ -215,12 +221,14 @@ public sealed class MerchantDocumentService : IMerchantDocumentService
                 ? $"− {Money(currency, invoice.DiscountTotal)}"
                 : null,
             DeliveryFee: invoice.DeliveryFee <= 0m ? "Free" : Money(currency, invoice.DeliveryFee),
-            TotalLabel: "Amount due",
+            TotalLabel: invoice.Status == MerchantInvoiceStatus.Cancelled ? "Cancelled invoice total" : "Amount due",
             TotalAmount: Money(currency, invoice.GrandTotal),
             Currency: currency,
             PaymentInstructions: null,
             CustomerNotes: null,
-            ClosingNotice: invoice.Status == MerchantInvoiceStatus.Paid
+            ClosingNotice: invoice.Status == MerchantInvoiceStatus.Cancelled
+                ? "This invoice has been cancelled. Do not make payment against it."
+                : invoice.Status == MerchantInvoiceStatus.Paid
                 ? "This invoice has been settled in full. An official receipt has been issued separately."
                 : "Payment is due on receipt. Your order is prepared once payment is confirmed.",
             ShowPaidBadge: false);
@@ -429,11 +437,11 @@ public sealed class MerchantDocumentService : IMerchantDocumentService
             Currency: MerchantSalesConstants.Currency,
             PaymentInstructions: null,
             CustomerNotes: null,
-            ClosingNotice:
+            ClosingNotice: document.CancelledAt != null ? "VOID — this Delivery Order has been superseded. Do not use it for dispatch." :
                 "This Delivery Order records the goods prepared for delivery and is not an "
                 + "invoice or proof of payment.",
             ShowPaidBadge: false,
-            ShowReceivingBlock: true);
+            ShowReceivingBlock: document.CancelledAt == null);
 
         return new OrderDocumentResult(
             MerchantDocumentRenderer.Render(model),

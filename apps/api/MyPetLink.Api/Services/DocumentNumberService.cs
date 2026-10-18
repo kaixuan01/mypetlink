@@ -25,6 +25,7 @@ public interface IDocumentNumberService
     Task<string> NextMerchantInvoiceNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextMerchantReceiptNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextMerchantDeliveryOrderNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
+    Task<string> NextConsignmentDispatchNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextCommissionPayoutNumberAsync(DateTimeOffset preparedAtUtc, CancellationToken cancellationToken);
 }
 
@@ -102,6 +103,13 @@ public sealed class DocumentNumberService : IDocumentNumberService
         var day = DayKey(issuedAtUtc);
         var value = await NextAsync($"merchant-delivery-order:{day}", cancellationToken);
         return $"MPL-DO-{day}-{value:0000}";
+    }
+
+    public async Task<string> NextConsignmentDispatchNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken)
+    {
+        var day = DayKey(issuedAtUtc);
+        var value = await NextAsync($"consignment-dispatch:{day}", cancellationToken);
+        return $"MPL-CS-{day}-{value:0000}";
     }
 
     public async Task<string> NextCommissionPayoutNumberAsync(

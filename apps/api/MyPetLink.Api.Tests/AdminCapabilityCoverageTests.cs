@@ -83,6 +83,9 @@ public sealed class AdminCapabilityCoverageTests
             // Filters the detail sections of the shared dashboard rather than
             // guarding a route of its own.
             AdminCapabilities.AuditLogView,
+            // Conditional, additional authorization inside the three consignment
+            // independence checks. Ordinary action capabilities still guard each route.
+            AdminCapabilities.ConsignmentSelfReview,
         };
 
         var used = AdminControllers()

@@ -6,7 +6,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Data;
 
-public sealed class MyPetLinkDbContext : DbContext
+public sealed partial class MyPetLinkDbContext : DbContext
 {
     private readonly TimeProvider _timeProvider;
     private static readonly Guid FreePlanId = Guid.Parse("4e5e2a13-34c0-4a36-b1b3-30830ca642e9");
@@ -128,6 +128,7 @@ public sealed class MyPetLinkDbContext : DbContext
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        EnforceConsignmentReviewHistory();
         StampAuditableEntities();
         AdvanceSmartTagAssignmentVersions();
         DeriveMemoryVisibilityCompatibilityFlag();
@@ -136,6 +137,7 @@ public sealed class MyPetLinkDbContext : DbContext
 
     public override int SaveChanges()
     {
+        EnforceConsignmentReviewHistory();
         StampAuditableEntities();
         AdvanceSmartTagAssignmentVersions();
         DeriveMemoryVisibilityCompatibilityFlag();
@@ -144,6 +146,7 @@ public sealed class MyPetLinkDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureConsignment(modelBuilder);
         ConfigureAccounts(modelBuilder);
         ConfigurePlans(modelBuilder);
         ConfigurePets(modelBuilder);

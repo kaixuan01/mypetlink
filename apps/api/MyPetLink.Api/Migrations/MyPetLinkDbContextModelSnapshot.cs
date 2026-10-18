@@ -1131,6 +1131,649 @@ namespace MyPetLink.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentAgreement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ApprovalReviewMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DiscountTerms")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("DraftContributorHistoryComplete")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("DurationTerms")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTimeOffset?>("EffectiveFrom")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("EffectiveTo")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ExternalTrackerReference")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("LossTerms")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PartnerCommissionPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int?>("PaymentDeadlineDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ReturnTerms")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SettlementFrequency")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("SignedAgreementReference")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("SupersedesAgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByAdminUserId");
+
+                    b.HasIndex("SupersedesAgreementId");
+
+                    b.HasIndex("UpdatedByAdminUserId");
+
+                    b.HasIndex("MerchantId", "Reference")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Active'");
+
+                    b.HasIndex("MerchantId", "Reference", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("MerchantId", "Status", "EffectiveFrom");
+
+                    b.ToTable("ConsignmentAgreements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentAgreement_Dates", "[EffectiveTo] IS NULL OR [EffectiveTo] > [EffectiveFrom]");
+
+                            t.HasCheckConstraint("CK_ConsignmentAgreement_Deadline", "[PaymentDeadlineDays] IS NULL OR [PaymentDeadlineDays] BETWEEN 0 AND 365");
+
+                            t.HasCheckConstraint("CK_ConsignmentAgreement_Rate", "[PartnerCommissionPercentage] BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("CK_ConsignmentAgreement_Status", "[Status] IN ('Draft','Active','Closed') AND [Version] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentApprovalPolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid?>("SelfReviewerAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SelfReviewerAdminUserId");
+
+                    b.HasIndex("UpdatedByAdminUserId");
+
+                    b.ToTable("ConsignmentApprovalPolicies", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentApprovalPolicy", "[Id] = 1 AND [Mode] IN ('Team','Solo') AND ([Mode] = 'Team' OR [SelfReviewerAdminUserId] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDispatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AgreementReferenceSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("AgreementVersionSnapshot")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CommissionPercentageSnapshot")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DestinationSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("DispatchNumber")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTimeOffset?>("DispatchedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("DispatchedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("DocumentIssuedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ExternalTrackerReference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("HasOpenDiscrepancy")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<byte[]>("IssuedDocumentContent")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("IssuedDocumentSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MerchantNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("PartnerReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReceiptAcknowledgment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ReceivedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("ReceivedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RecipientName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("ShipmentReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DispatchNumber")
+                        .IsUnique();
+
+                    b.HasIndex("DispatchedByAdminUserId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("MerchantBranchId");
+
+                    b.HasIndex("ReceivedByAdminUserId");
+
+                    b.HasIndex("RequestFingerprint")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Reserved'");
+
+                    b.HasIndex("UpdatedByAdminUserId");
+
+                    b.HasIndex("AgreementId", "Status", "CreatedAt");
+
+                    b.ToTable("ConsignmentDispatches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentDispatch_Rate", "[CommissionPercentageSnapshot] BETWEEN 0 AND 100 AND [AgreementVersionSnapshot] > 0");
+
+                            t.HasCheckConstraint("CK_ConsignmentDispatch_Status", "[Status] IN ('Reserved','Dispatched','Received','Cancelled')");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDraftContributor", b =>
+                {
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("FirstContributedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsCreator")
+                        .HasColumnType("bit");
+
+                    b.HasKey("AgreementId", "AdminUserId");
+
+                    b.HasIndex("AdminUserId");
+
+                    b.ToTable("ConsignmentDraftContributors");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentHandoverRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("DiscountDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EventAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EventReference")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsReportedSale")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal?>("SellingPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("SupersedesRecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorAdminUserId");
+
+                    b.HasIndex("AgreementId");
+
+                    b.HasIndex("DispatchId");
+
+                    b.HasIndex("SupersedesRecordId")
+                        .IsUnique()
+                        .HasFilter("[SupersedesRecordId] IS NOT NULL");
+
+                    b.HasIndex("MerchantId", "EventAt");
+
+                    b.HasIndex("MerchantId", "EventReference")
+                        .IsUnique();
+
+                    b.HasIndex("UnitId", "DispatchId");
+
+                    b.ToTable("ConsignmentHandoverRecords", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentHandover_Amounts", "([IsReportedSale] = 0 AND [SellingPrice] IS NULL AND [DiscountAmount] IS NULL) OR ([IsReportedSale] = 1 AND [SellingPrice] >= 0 AND [DiscountAmount] >= 0)");
+
+                            t.HasCheckConstraint("CK_ConsignmentHandover_Kind", "[Kind] IN ('Handover','Correction','Reversal')");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("ActorAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EvidenceJson")
+                        .HasMaxLength(6000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReviewMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorAdminUserId");
+
+                    b.HasIndex("DispatchId", "OccurredAt");
+
+                    b.HasIndex("UnitId", "DispatchId");
+
+                    b.ToTable("ConsignmentMovements", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentReviewEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("ActorAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DispatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ExternalEvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PolicyMode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PreviousPolicyMode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<Guid?>("PreviousSelfReviewerAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RequestReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReviewMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("SelfReviewerAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorAdminUserId");
+
+                    b.HasIndex("AgreementId");
+
+                    b.HasIndex("PreviousSelfReviewerAdminUserId");
+
+                    b.HasIndex("SelfReviewerAdminUserId");
+
+                    b.HasIndex("RecordedAt", "ReviewMode");
+
+                    b.HasIndex("DispatchId", "Action", "RequestReference");
+
+                    b.ToTable("ConsignmentReviewEvents", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BatchNumberSnapshot")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CurrentHandoverRecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DiscrepancyRecordedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ProductNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReceivingState")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("ReturnQaVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("ReturnedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("SmartTagId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("TagCodeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("VariantSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscrepancyRecordedByAdminUserId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("SmartTagId")
+                        .IsUnique()
+                        .HasFilter("[ReleasedAt] IS NULL");
+
+                    b.HasIndex("DispatchId", "Status");
+
+                    b.ToTable("ConsignmentUnits", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentUnit_Release", "([Status] = 'Released' AND [ReleasedAt] IS NOT NULL) OR ([Status] IN ('Reserved','Dispatched','Received','ReturnedQuarantine','ExternalHandover','WrittenOff') AND [ReleasedAt] IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.DeliveryRate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7930,6 +8573,317 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("SnapshotAvatarMediaFile");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentAgreement", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", "Merchant")
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", null)
+                        .WithMany()
+                        .HasForeignKey("SupersedesAgreementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Merchant");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentApprovalPolicy", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("SelfReviewerAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDispatch", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", "Agreement")
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("DispatchedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.MerchantBranch", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantBranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReceivedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.OwnsOne("MyPetLink.Api.Entities.SellerIdentitySnapshot", "Seller", b1 =>
+                        {
+                            b1.Property<Guid>("ConsignmentDispatchId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AddressLine1")
+                                .IsRequired()
+                                .HasMaxLength(240)
+                                .HasColumnType("nvarchar(240)");
+
+                            b1.Property<string>("AddressLine2")
+                                .HasMaxLength(240)
+                                .HasColumnType("nvarchar(240)");
+
+                            b1.Property<string>("BankAccountName")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("BankAccountNumber")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("BankName")
+                                .HasMaxLength(120)
+                                .HasColumnType("nvarchar(120)");
+
+                            b1.Property<string>("BrandName")
+                                .IsRequired()
+                                .HasMaxLength(120)
+                                .HasColumnType("nvarchar(120)");
+
+                            b1.Property<string>("BusinessPhone")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("BusinessRegistrationNumber")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("BusinessWebsite")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("City")
+                                .IsRequired()
+                                .HasMaxLength(120)
+                                .HasColumnType("nvarchar(120)");
+
+                            b1.Property<string>("Country")
+                                .IsRequired()
+                                .HasMaxLength(80)
+                                .HasColumnType("nvarchar(80)");
+
+                            b1.Property<string>("DuitNowDisplayName")
+                                .HasMaxLength(120)
+                                .HasColumnType("nvarchar(120)");
+
+                            b1.Property<string>("LegalBusinessName")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("PaymentInstructions")
+                                .HasMaxLength(2000)
+                                .HasColumnType("nvarchar(2000)");
+
+                            b1.Property<string>("Postcode")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("SstRegistrationNumber")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("State")
+                                .IsRequired()
+                                .HasMaxLength(120)
+                                .HasColumnType("nvarchar(120)");
+
+                            b1.Property<string>("SupportEmail")
+                                .IsRequired()
+                                .HasMaxLength(254)
+                                .HasColumnType("nvarchar(254)");
+
+                            b1.Property<string>("TaxIdentificationNumber")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.HasKey("ConsignmentDispatchId");
+
+                            b1.ToTable("ConsignmentDispatches");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ConsignmentDispatchId");
+                        });
+
+                    b.Navigation("Agreement");
+
+                    b.Navigation("Seller")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDraftContributor", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", null)
+                        .WithMany("DraftContributors")
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentHandoverRecord", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", null)
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentDispatch", null)
+                        .WithMany("HandoverRecords")
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentHandoverRecord", null)
+                        .WithMany()
+                        .HasForeignKey("SupersedesRecordId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentUnit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId", "DispatchId")
+                        .HasPrincipalKey("Id", "DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentMovement", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "ActorAdminUser")
+                        .WithMany()
+                        .HasForeignKey("ActorAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentDispatch", "Dispatch")
+                        .WithMany("Movements")
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentUnit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId", "DispatchId")
+                        .HasPrincipalKey("Id", "DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ActorAdminUser");
+
+                    b.Navigation("Dispatch");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentReviewEvent", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", null)
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentDispatch", null)
+                        .WithMany("ReviewEvents")
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousSelfReviewerAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("SelfReviewerAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentUnit", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("DiscrepancyRecordedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentDispatch", "Dispatch")
+                        .WithMany("Units")
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.TagProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.SmartTag", "SmartTag")
+                        .WithMany()
+                        .HasForeignKey("SmartTagId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Dispatch");
+
+                    b.Navigation("SmartTag");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.DeliveryStateRateOverride", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.AdminUser", "UpdatedByAdminUser")
@@ -9712,6 +10666,22 @@ namespace MyPetLink.Api.Migrations
             modelBuilder.Entity("MyPetLink.Api.Entities.CommissionPayout", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentAgreement", b =>
+                {
+                    b.Navigation("DraftContributors");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDispatch", b =>
+                {
+                    b.Navigation("HandoverRecords");
+
+                    b.Navigation("Movements");
+
+                    b.Navigation("ReviewEvents");
+
+                    b.Navigation("Units");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.InventoryReceipt", b =>

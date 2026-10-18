@@ -1985,6 +1985,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         // A tag held for a merchant order looks untouched on the tag row itself:
         // the claim lives in the allocation table. Without this check the same
         // physical tag could be promised to a merchant and to a pet owner.
+        await InventoryCustodyRules.RequireNotConsignedAsync(_dbContext, tag.Id, cancellationToken);
         var heldForMerchant = await _dbContext.MerchantOrderAllocatedTags
             .AsNoTracking()
             .AnyAsync(

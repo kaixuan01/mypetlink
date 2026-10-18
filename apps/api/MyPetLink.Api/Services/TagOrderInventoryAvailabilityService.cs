@@ -84,7 +84,8 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
     public static async Task<IReadOnlyDictionary<Guid, int>> GetOutstandingReservationsAsync(
         MyPetLinkDbContext dbContext,
         IReadOnlyCollection<Guid> productVariantIds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requirePassedAssignments = false)
     {
         var ids = productVariantIds.Distinct().ToArray();
         var reservations = await dbContext.TagOrderItems
@@ -97,6 +98,7 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
                 Assigned = item.AssignedTags.Count(tag =>
                     tag.ArchivedAt == null
                     && tag.DeletedAt == null
+                    && (!requirePassedAssignments || tag.QaStatus == PhysicalQaStatus.Passed)
                     && (tag.Status == SmartTagStatus.Pending
                         || tag.Status == SmartTagStatus.Preparing
                         || tag.Status == SmartTagStatus.Delivered

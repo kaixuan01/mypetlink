@@ -68,6 +68,19 @@ export const adminCapabilities = {
   merchantOrdersFulfil: "merchant_orders.fulfil",
   merchantDocumentsSend: "merchant_documents.send",
 
+  consignmentSelfReview: "consignment.self_review",
+  consignmentPolicyManage: "consignment.approval_policy.manage",
+  consignmentView: "consignment.view",
+  consignmentAgreementsManage: "consignment.agreements.manage",
+  consignmentAgreementsApprove: "consignment.agreements.approve",
+  consignmentWriteOff: "consignment.write_off",
+  consignmentAllocate: "consignment.allocate",
+  consignmentDispatch: "consignment.dispatch",
+  consignmentReconcile: "consignment.reconcile",
+  consignmentReturn: "consignment.return",
+  consignmentRelease: "consignment.release",
+  consignmentManifestExport: "consignment.manifest.export",
+
   // Finance
   merchantInvoicesView: "merchant_invoices.view",
   merchantInvoicesManage: "merchant_invoices.manage",

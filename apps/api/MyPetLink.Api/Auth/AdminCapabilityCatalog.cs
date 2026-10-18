@@ -224,6 +224,22 @@ public static class AdminCapabilityCatalog
                     "Send a quotation or invoice to the merchant by email."),
             ]),
 
+        new AdminCapabilityModule("consignment", "Consignment", "Partner agreements and physical stock custody.",
+            [
+                Sensitive(C.ConsignmentSelfReview, "consignment", "Consignment", "Self-review in Solo Mode", "Review your own consignment terms or receiving findings only when explicitly named in Solo Mode, with genuine partner evidence."),
+                Sensitive(C.ConsignmentPolicyManage, "consignment", "Consignment", "Manage approval policy", "Switch Team or Solo Mode and explicitly authorize one founder. Every change is confirmed and audited."),
+                Read(C.ConsignmentView, "consignment", "Consignment", "View consignment", "See agreements and custody counts without private customer details or tag manifests."),
+                Write(C.ConsignmentAgreementsManage, "consignment", "Consignment", "Manage agreements", "Create and edit draft partner terms."),
+                Sensitive(C.ConsignmentAgreementsApprove, "consignment", "Consignment", "Approve agreements", "Approve another administrator's terms or close reconciled agreements."),
+                Sensitive(C.ConsignmentWriteOff, "consignment", "Consignment", "Write off damaged returns", "Retain failed returned stock as unavailable with supporting evidence. No financial posting is created."),
+                Write(C.ConsignmentAllocate, "consignment", "Consignment", "Reserve consignment stock", "Reserve individual inspected tags or cancel an unshipped allocation."),
+                Sensitive(C.ConsignmentDispatch, "consignment", "Consignment", "Dispatch consignment stock", "Confirm physical handover of reserved stock."),
+                Write(C.ConsignmentReconcile, "consignment", "Consignment", "Reconcile custody", "Record receipt and references to externally tracked customer handovers."),
+                Write(C.ConsignmentReturn, "consignment", "Consignment", "Receive returns", "Receive unsold units into inspection quarantine."),
+                Sensitive(C.ConsignmentRelease, "consignment", "Consignment", "Release returned stock", "Return freshly inspected units to available stock."),
+                Sensitive(C.ConsignmentManifestExport, "consignment", "Consignment", "Download consignment documents", "Download dispatch notes and controlled Tag Code manifests."),
+            ]),
+
         new AdminCapabilityModule("finance", "Finance",
             "Invoices, commission accounting and payouts.",
             [

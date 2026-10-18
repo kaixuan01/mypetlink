@@ -168,6 +168,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             item => item.Id == tagId && item.DeletedAt == null, cancellationToken)
             ?? throw NotFound();
 
+        await InventoryCustodyRules.RequireNoCustodyMutationAsync(_dbContext, tag.Id, cancellationToken);
         var returnedToUnclaimed = ApplyAction(tag, action, reason, admin.Id);
         if (returnedToUnclaimed)
         {
@@ -252,6 +253,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 throw Conflict();
             }
 
+            await InventoryCustodyRules.RequireNoCustodyMutationAsync(_dbContext, tag.Id, cancellationToken);
             EnsureAssignmentLifecycle(tag, operation);
             // A claim hands an unowned tag to an owner for the first time: Passed,
             // or a legacy tag that was already issued. Pet reassignment and
@@ -353,7 +355,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 var affected = await _dbContext.SmartTags
                     .Where(item => item.Id == tag.Id && item.DeletedAt == null
                         && item.AssignmentVersion == expectedAssignmentVersion
-                        && item.QaVersion == tag.QaVersion)
+                        && item.QaVersion == tag.QaVersion && item.RowVersion == tag.RowVersion)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(item => item.OwnerUserId, tag.OwnerUserId)
                         .SetProperty(item => item.PetId, tag.PetId)
@@ -409,6 +411,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
             try
             {
+                await InventoryCustodyRules.RequireNoCustodyMutationAsync(_dbContext, tag.Id, cancellationToken);
                 if (ApplyAction(tag, action, request.Reason, admin.Id))
                 {
                     returnedToUnclaimed.Add(tag.Id);

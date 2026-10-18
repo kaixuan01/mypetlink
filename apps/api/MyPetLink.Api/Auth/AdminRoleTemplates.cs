@@ -80,7 +80,9 @@ public static class AdminRoleTemplates
     private static AdminRoleTemplate[] BuildAll()
     {
         // Legacy Operations additionally held the sales-performance policy.
-        var operations = Combine(LegacySharedAdminAccess, [C.SalesView, C.InventoryQaManage]);
+        var operations = Combine(LegacySharedAdminAccess, [C.SalesView, C.InventoryQaManage,
+            C.ConsignmentView, C.ConsignmentAllocate, C.ConsignmentDispatch, C.ConsignmentReconcile,
+            C.ConsignmentReturn, C.ConsignmentRelease, C.ConsignmentManifestExport]);
 
         // Legacy Admin additionally held sales administration, commission
         // accounting, invoice payment recording and payout preparation — but
@@ -88,7 +90,7 @@ public static class AdminRoleTemplates
         var administrator = Combine(
             operations,
             [
-                C.SalesManage,
+                C.SalesManage, C.ConsignmentAgreementsManage, C.ConsignmentAgreementsApprove, C.ConsignmentWriteOff,
                 C.MerchantInvoicesRecordPayment,
                 C.SalesCommissionsView,
                 C.SalesCommissionsExport,
