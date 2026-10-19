@@ -228,3 +228,154 @@ The latest 20 policy changes are shown; the controlled date-range review-log CSV
 all journal events, bounded at 366 days/10,000 rows. Manifest and reconciliation CSVs
 include agreement and receiving review modes; the separate review log provides each
 actor/reason/evidence rather than misrepresenting a self-review as independent approval.
+
+## Sales reports and SKU stock ledger (Phase 1A, 18 October 2026)
+
+Design: `artifacts/consignment-stocktake-audit/mvp-design-final.md`. Partners report sales by
+SKU for fixed half-month periods (1st–15th, 16th–month end, Malaysia time). No Tag Code is ever
+attributed to an aggregate sale, and nothing here creates an invoice, payment, commission or
+settlement.
+
+- **Approved prices** (`ConsignmentPriceTerms`): Standard prices and Promotions per agreement
+  version and SKU. Draft → Approved through `Review()` with the partner's acceptance reference
+  (`consignment.agreements.approve`); approved prices are immutable and can only be ended from a
+  date onward. A renewed version receives the previous approved prices as drafts, never approved.
+- **Sales reports** (`ConsignmentSalesReports` + lines): Draft → Recorded (unverified, values
+  frozen) → Verified or Disputed; a correction is a new version that supersedes the original.
+  A line references an approved price; a price no term matches can be recorded as reported but
+  never verified. Discounts are derived (list − net), never entered. Evidence level is Documented
+  or Summary.
+- **Agreement versions meet at the successor's start.** Reporting under a version ends at its own
+  end or where a later approved version of the same agreement starts, whichever comes first, so
+  an open-ended version superseded mid-month splits that period exactly there. Signed terms are
+  not rewritten. A revision can't be approved to start inside a period already reported under an
+  earlier version; it must start after those reports, or they must be corrected first.
+- **Refunds** name the report period their sale was verified in — the start of a real report at
+  the branch, which is mid-month when an agreement version starts mid-month — and the price the
+  sale was made at, which may belong to an earlier version of the partner's agreement. A refund
+  may never exceed the verified sales of that SKU, at that price, in that period. Restocking needs
+  a persisted confirmation that the packages came back sealed and unopened, with how that was
+  checked; anything opened or activated becomes unsellable stock.
+- **Stock ledger** (`ConsignmentStockLedgerEntries`, append-only): quantities move between
+  External, Sellable, Unsellable, Investigation, SoldUnidentified and LostUnidentified per branch
+  and SKU. Each source posts once (unique source key) inside the same transaction as the status
+  change that causes it; corrections post reversals. No posting may take a bucket below zero.
+  Existing per-unit actions post too: a unit counted good at the partner, a return of a counted
+  unit, and an identified handover (which now needs an attribution — aggregate sale or non-sale
+  withdrawal — and carries no price for a tracked unit). Tracking is decided per unit: one delivery
+  can hold units received before tracking began and units counted since.
+- **One handover, one movement.** The ledger knows a handover by the record that began it.
+  Evidence corrections chain back to that record, so a correction never posts again, "Bring into
+  stock tracking" recognises a handover already posted, and a reversal undoes exactly that one
+  movement.
+- **Custody tie-out**: units in partner custody (Received/Good) must equal the sum of the five
+  partner buckets per branch and SKU; the stock position shows it per SKU.
+- **Verification** refuses unapproved or mismatched prices, periods outside the agreement's
+  dates, periods that haven't reached their exclusive end in Malaysia time, negative stock and
+  uncovered refunds; activations exceeding sales and late reports are warnings that must be
+  acknowledged. Solo self-review must cite the report's own evidence reference.
+- **A correction is one movement.** Verifying it reverses the version it replaces and posts its
+  own sales and returns together; only the final position must be valid, and any negative final
+  bucket refuses the whole transaction. It also rechecks every refund the replaced sales covered,
+  so a correction can never leave more verified refunds than verified sales. A correction of a
+  disputed correction replaces the last verified version, which is reversed exactly once.
+- **Independence.** `ConsignmentRecordContributors` keeps one immutable row per admin who created,
+  substantively edited or recorded a price term or sales report (no-op saves contribute nothing).
+  Whether a save changed anything is decided field by field on the stored values (amounts as
+  numbers, dates as instants, text exactly), never on joined text, so no name or evidence wording
+  can disguise a price change. Contributor rows are append-only in SQL Server too (trigger,
+  THROW 51046), like the ledger and the review journal. Records that existed before contributor
+  history was kept are marked `ContributorHistoryComplete = false`: unknown editors are never
+  treated as proof of independence, so in Team Mode nobody may approve or verify them, and in Solo
+  Mode only the named founder may self-review them. Recovery keeps history intact: a draft price is
+  withdrawn and added again (its new maker is known); a report is disputed if only recorded, then
+  re-entered from the partner's evidence as a new, empty version whose contributor history starts
+  afresh, and is verified by someone who didn't re-enter or record it.
+  In Team Mode nobody listed for a price term — or for a report or any version it corrects — can
+  approve or verify it, whatever their role, and disabling or re-enabling the account changes
+  nothing. Solo Mode keeps its scoped self-review exception, labelled `Self-reviewed (Solo)`.
+  Starting a correction copies figures and contributes none; it reopens reviewed figures, so it
+  needs `consignment.sales_reports.verify` and a reason, audited on both versions.
+- **Retries.** A sales report submission carries a submission reference. Retrying it returns the
+  saved report only when every value matches; a changed retry updates the draft only while its
+  sender is its only contributor, and is otherwise refused with `submission_changed`. Earlier
+  values are never returned or recorded in silence.
+
+Monthly stocktake, period close and carry forward are Phase 1B.
+
+## Monthly stocktake, period close and carry forward (Phase 1B, 19 October 2026)
+
+Design: `artifacts/consignment-stocktake-audit/mvp-design-final.md` §2, §3.5–3.8, §6–8. Built on the
+Phase 1A SKU ledger; there is no second ledger. Counts are by SKU: shop staff never scan Tag Codes,
+open sealed packages or return unsold stock for a routine count, and no count changes a
+`ConsignmentUnit`, assigns a Tag Code to an aggregate figure or creates a financial record.
+
+- **Two layers.** Shelf counts confirm what is physically at the shop (Sellable and Unsellable). Sold,
+  lost and investigated quantities stay the partner's responsibility under the original per-unit
+  custody records until identified. The custody tie-out (units in custody = all five partner buckets)
+  must balance before a month can close.
+- **Counting** (`ConsignmentStocktakes`, `ConsignmentStocktakeLines`). One open count per branch, on the
+  15th or the last day of a month: its cutoff (the next midnight, Malaysia time) is always a sales
+  period boundary, so no report can straddle a close. Expected figures are the ledger balances before
+  the cutoff, computed by the server; "expected on the shelf" adds open surplus notes, which are never
+  verified stock (shown as verified + extra noted).
+- **When the shelf was counted** (`CountedAt`, separate from the cutoff and from when it was typed in).
+  A count on the count day is accepted; one before 6 pm is closed with a warning that later sales may
+  show as extra. A count after midnight (within a day, before the shop reopens) needs a documented
+  confirmation that nothing moved (`CountedAfterCutoffNote`), and is refused if any stock movement is
+  recorded between the cutoff and the count. Anything else is counted again on the next count date:
+  a count is never entered as if taken at a cutoff it didn't see.
+- **Closing a month** (`consignment.periods.close`, reviewed through `ReviewCore`). Refused while a
+  draft or recorded sales report in the month is unverified, while a count date hasn't ended, while any
+  SKU in the books is uncounted, while received units aren't in SKU stock, or while the tie-out doesn't
+  balance. In one transaction, per SKU (design §6.2):
+  - damaged stock found moves Sellable → Unsellable and opens an *UnsellableFound* discrepancy;
+  - unsellable stock missing moves Unsellable → Investigation (*UnsellableShortage*);
+  - a sellable shortage first uses up open surplus notes, then moves Sellable → Investigation
+    (*Shortage*);
+  - a surplus opens a *Surplus* note and posts nothing.
+  Every posting is keyed to its stocktake line, so it can happen only once, and the final balances must
+  be non-negative or the whole close is refused. Lines are then frozen. Acknowledged findings must
+  come with the `ReviewFingerprint` the reviewer was shown: any receipt, return, report or resolution
+  that changes the books or findings since the preview refuses the close (`review_outdated`). The closing position is the next
+  month's opening: nothing is re-dispatched, reserved or rescanned. Summary-evidence sales lines in the
+  month are marked corroborated for SKUs with no difference.
+- **A closed month never changes.** Approved stocktakes, frozen lines and discrepancy resolutions are
+  immutable in EF and in SQL Server (triggers 51050, 51049, 51048). Lines can be added, re-counted,
+  moved or removed only while their stocktake is a draft, a recorded count keeps its details, and a
+  discarded one never changes (51052). Any ledger posting dated before the
+  branch's last close (a late receipt, return, handover or report) is dated now and flagged
+  `IsPriorPeriodCorrection`.
+- **Late reports.** A report for a closed month posts to the current month. Nothing it found is
+  settled automatically. Only the first count after the report's period can have been affected, so
+  only that count's open discrepancies of the same SKU and branch are candidates: shortages for sales,
+  surplus notes for restocked returns or fewer sales. The reviewer may link the report to them, each
+  with its own evidence (never the count sheet) and explanation, up to the shelf change the count
+  couldn't see; a linked shortage moves Investigation → Sellable (offsetting the sale) and is resolved
+  *ExplainedByLateReport*. Unlinked, the finding stays open. Linking settles the count's finding, so
+  its contributors aren't independent of it, and each linked discrepancy is journaled as a review
+  subject. Verifying a correction first withdraws every link of the versions it replaces: an
+  append-only *AllocationWithdrawn* row reopens the quantity and the movement is reversed, then the
+  correction's own links are applied, all in one transaction. Corrections of corrections, removed
+  lines and refunds follow the same rule; a correction the shelf can't support is refused with a
+  business error.
+- **Discrepancies** (`ConsignmentStockDiscrepancies`, append-only `ConsignmentDiscrepancyResolutions`,
+  `consignment.discrepancies.resolve`). Each outcome is limited by the open quantity and its source
+  bucket, recorded with evidence and a reason, reviewed, and audited; partial resolution is supported.
+  Shortages: found, found damaged, approved loss (only after a later count of that SKU confirms it is
+  still missing, with no unexplained extra units found since). Unsellable found: confirmed damaged,
+  recount sellable; damaged stock leaves the shop only through a per-unit dispatch return, never by a
+  resolution. Unsellable missing: found, found sellable, approved loss. Surplus: recount error, an earlier shortage found (settles both), an earlier
+  approved loss found. Nothing is ever treated as sold, returned or written off automatically, and the
+  Investigation bucket always equals the open shortage quantities.
+- **Independence.** The counter, editors and recorder of a stocktake are its contributors: in Team Mode
+  none of them may close it or resolve what it found, including through a related discrepancy (an
+  earlier shortage found settles both, so both counts' contributors are checked and both subjects are
+  journaled). In Solo Mode only the named founder may: a close cites the count's own evidence, and a
+  resolution needs new evidence, different from the count's and from its close review.
+- **Agreement renewal** posts nothing: the ledger is per branch and SKU, so stock carries forward.
+
+Rollback of the stocktake migration is refused once any stocktake, discrepancy or resolution exists
+(51051); rollback of the hardening migration is refused once any count time or withdrawn late-report
+link exists (51053). Migrations roll back one at a time: a refused multi-step downgrade may already have rolled
+back later, empty migrations, so never assume it left the schema unchanged; reapply Up to recover.

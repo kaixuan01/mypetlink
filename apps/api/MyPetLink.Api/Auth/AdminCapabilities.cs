@@ -129,6 +129,12 @@ public static class AdminCapabilities
     public const string ConsignmentReturn = "consignment.return";
     public const string ConsignmentRelease = "consignment.release";
     public const string ConsignmentManifestExport = "consignment.manifest.export";
+    public const string ConsignmentPriceTermsManage = "consignment.price_terms.manage";
+    public const string ConsignmentSalesReportsRecord = "consignment.sales_reports.record";
+    public const string ConsignmentSalesReportsVerify = "consignment.sales_reports.verify";
+    public const string ConsignmentStocktakeRecord = "consignment.stocktake.record";
+    public const string ConsignmentPeriodsClose = "consignment.periods.close";
+    public const string ConsignmentDiscrepanciesResolve = "consignment.discrepancies.resolve";
 
     // --- Finance --------------------------------------------------------------
     public const string MerchantInvoicesView = "merchant_invoices.view";

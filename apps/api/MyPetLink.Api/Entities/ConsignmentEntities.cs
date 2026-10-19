@@ -138,4 +138,7 @@ public sealed class ConsignmentHandoverRecord : Entity
     public decimal? DiscountAmount { get; set; }
     public string? DiscountDescription { get; set; }
     public string EvidenceReference { get; set; } = "";
+    // Set on branches with SKU stock tracking: whether this identified unit is one of the
+    // aggregate reported sales or a non-sale withdrawal. Legacy rows stay null.
+    public ConsignmentHandoverAttribution? Attribution { get; set; }
 }

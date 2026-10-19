@@ -26,6 +26,87 @@ recorded issue operator where available. Review those units independently using 
 partner/return evidence; an unknown recorder fails closed and needs a separately reviewed
 recovery plan. No migration fabricates a missing/good count, signed evidence or contributor.
 
+Migration 20261018125029_AddConsignmentSalesReportingLedger (sales reports, Phase 1A) adds
+four tables — ConsignmentStockLedgerEntries (append-only, with a trigger), ConsignmentPriceTerms,
+ConsignmentSalesReports and ConsignmentSalesReportLines — and three nullable columns:
+ConsignmentReviewEvents.SubjectType/SubjectId and ConsignmentHandoverRecords.Attribution. It also
+rebuilds IX_ConsignmentReviewEvents_DispatchId_Action_RequestReference as (DispatchId, Action)
+INCLUDE (RequestReference): the old key could reach 2,096 bytes, past SQL Server's 1,700-byte
+limit. Nothing is seeded. Its Down step refuses (THROW 51044) once any sales report, price,
+ledger entry, subject review or handover attribution exists. Deliveries received before this
+migration are not in SKU stock until an operator with consignment.sales_reports.verify runs
+"Bring into stock tracking" for that branch; it is idempotent. New capabilities
+consignment.price_terms.manage, consignment.sales_reports.record and
+consignment.sales_reports.verify are added to no ordinary built-in role template (Operations,
+Administrator, Sales and the others); grant them explicitly through Access Management. Super Admin
+holds them already, as it resolves every catalogue capability. That does not make a Super Admin
+independent of their own work: Team Mode still refuses approval or verification by any
+contributor, Super Admin included, and self-review still needs Solo Mode's explicit nomination.
+Approving a price reuses consignment.agreements.approve. Starting a sales report correction needs
+consignment.sales_reports.verify; editing and recording the correction needs
+consignment.sales_reports.record.
+
+Migration 20261018164233_HardenConsignmentSalesReporting (Phase 1A remediation) is additive and
+follows the Phase 1A migration; it does not rewrite it. It adds ConsignmentRecordContributors
+(creators, substantive editors and recorders of price terms and sales reports; append-only in EF),
+ConsignmentSalesReportLines.SealedReturnConfirmed/SealedReturnEvidence with the check constraint
+CK_ConsignmentSalesLine_SealedReturn, and widens UX_ConsignmentSalesReportLines_Line to include
+RefundOfPeriodStart (filter [PriceTermId] IS NOT NULL), so one report can refund sales from two
+periods at the same price. It backfills creators and recorders already on record; editors before
+this migration were never stored and are not invented. Restocked refund lines entered before
+sealed confirmation existed are labelled "Entered before sealed-return confirmation was required"
+with SealedReturnConfirmed = 0, never marked confirmed; an unverified one must be corrected before
+it can be verified. Its Down step refuses (THROW 51045) once any contributor row or sealed-return
+value exists. Deploy it with the Phase 1A migration, API and web together: the web now sends
+sealed-return fields and a correction reason, and reads per-unit tracking.
+
+Migration 20261019010452_ProtectConsignmentContributorHistory (final Phase 1A remediation) is
+additive. It adds the append-only trigger TR_ConsignmentRecordContributors_AppendOnly
+(THROW 51046 on UPDATE or DELETE), ConsignmentPriceTerms.ContributorHistoryComplete and
+ConsignmentSalesReports.ContributorHistoryComplete/StartsFreshContributorHistory. The column
+default (0) marks every price term and report that already exists as having unknown contributor
+history, because its editors were never recorded; the application writes 1 for every new record.
+A clean installation or an upgrade from the Solo schema has no such records, so nothing is
+restricted. Where earlier Phase 1A records exist, in Team Mode nobody can approve or verify them:
+withdraw a draft price and add it again, or dispute a recorded report and use "Re-enter from
+evidence" (consignment.sales_reports.verify, with a reason; audited on both versions). In Solo Mode
+the named founder may self-review them with the record's own evidence. Its Down step refuses
+(THROW 51047) once any price, report or contributor row exists.
+
+Migration 20261019025050_AddConsignmentStocktakeAndCarryForward (Phase 1B) is additive. It adds four
+tables — ConsignmentStocktakes, ConsignmentStocktakeLines, ConsignmentStockDiscrepancies and
+ConsignmentDiscrepancyResolutions — one nullable column, ConsignmentSalesReportLines.CorroboratedByStocktakeId,
+and allows 'ConsignmentStocktake' as a contributor subject. Three SQL triggers keep closed months
+immutable: TR_ConsignmentStocktakes_Closed (51050), TR_ConsignmentStocktakeLines_Frozen (51049) and
+TR_ConsignmentDiscrepancyResolutions_AppendOnly (51048). Nothing is seeded or backfilled. Its Down step
+refuses (THROW 51051) once any stocktake, discrepancy, resolution or stocktake contributor exists.
+Migrations roll back one at a time: if an earlier guard refuses, later empty migrations may already be
+rolled back, so check __EFMigrationsHistory and reapply Up rather than assume nothing changed.
+
+Migration 20261019060824_HardenConsignmentStocktakeReconciliation (Phase 1B remediation) is additive.
+It adds ConsignmentStocktakes.CountedAt and CountedAfterCutoffNote (nullable: only counts entered
+before it lack them, and those can't close a month), ConsignmentDiscrepancyResolutions.ReversesResolutionId
+with a self-reference, unique filtered indexes for one link per report version and discrepancy and one
+withdrawal per link, and a check that only withdrawals reverse a link. It replaces the two stocktake
+triggers with versions that also refuse adding, moving, re-counting or removing lines outside a draft
+and changing a recorded or discarded count (51052); 51049 and 51050 are unchanged. Nothing is seeded
+or backfilled. Its Down step refuses (THROW 51053) once any count time or withdrawn link exists, then
+restores the earlier triggers exactly.
+
+New capabilities consignment.stocktake.record, consignment.periods.close and
+consignment.discrepancies.resolve are added to no ordinary built-in role template; Super Admin resolves
+them like every catalogue capability. Grant them explicitly. In Team Mode the person who counted,
+edited or recorded a stocktake can't close it or resolve what it found.
+
+Monthly routine: verify the month's sales reports, then on the 15th or last day of the month record the
+shop's count by SKU (Stocktake & reconciliation → Record stocktake) with its evidence and the actual
+time it was counted, then close the month. If the shop can only count the next morning, record that
+real time and how you know nothing was sold, delivered or returned since midnight; otherwise count
+again on the next count date. Never enter a later count as if it were taken on the count date.
+Investigate each discrepancy until it is resolved with new evidence. When a late report arrives for a
+closed month, link it to what that count found only where the partner's records show it accounts for
+it. Ship the API, web and both Phase 1B migrations together with the three Phase 1A migrations.
+
 Use sqlcmd -I (QUOTED_IDENTIFIER ON) for deployment and manual support scripts;
 filtered indexes require the correct SQL session settings. Never use a script that
 changes production data without separately approved scope.

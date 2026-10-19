@@ -20,6 +20,12 @@ public sealed partial class ConsignmentRelationalTests
     private static ConsignmentReceiptEvidence Receipt(ConsignmentDispatchResponse d) => new("Synthetic shop recipient",Now,d.Units.Count,0,0,"SIGNED-TEST-RECEIPT");
     private static ConsignmentHandoverEvidence Handover(string reference="SALE-TEST-1",Guid? original=null,bool sale=false) =>
         new(reference,Now,sale,sale?34.90m:null,sale?5m:null,sale?"External approved promotion":null,original);
+    /// <summary>
+    /// Simulates a delivery received before SKU stock tracking existed: its units keep the
+    /// legacy per-unit handover path, including unverified per-unit sale prices.
+    /// </summary>
+    private static Task ForgetStockTracking(MyPetLinkDbContext db) =>
+        db.Database.ExecuteSqlRawAsync("DELETE FROM ConsignmentStockLedgerEntries");
     private static ConsignmentDocumentService Documents(MyPetLinkDbContext db) => new(db,Custody(db),new AuditLogService(db,new HttpContextAccessor()));
     private static async Task InspectReturn(MyPetLinkDbContext db,SmartTag tag,bool pass=true)
     {
@@ -101,6 +107,7 @@ public sealed partial class ConsignmentRelationalTests
         await using var scope=await Database(4);await using var db=scope.NewContext();var a=await Agreement(db);var s=Custody(db);
         var d=await s.ReserveAsync(AdminAccountId,Reserve(a.Id,4),default);d=await s.ActionAsync(AdminAccountId,d.Id,"dispatch",Action(d),default);
         d=await s.ActionAsync(OwnerAccountId,d.Id,"receive",Action(d,"SIGNED-RX") with {Receipt=Receipt(d)},default);
+        await ForgetStockTracking(db);
         var unit=d.Units[0].Id;
         d=await s.ActionAsync(AdminAccountId,d.Id,"external-handover",Action(d,"EXTERNAL-TEST-EVIDENCE",[unit]) with {Handover=Handover(sale:true)},default);
         var original=Assert.Single(d.Reconciliation);Assert.Equal(34.90m,original.SellingPrice);Assert.Equal("Unverified external report",original.VerificationStatus);

@@ -104,6 +104,10 @@ public sealed class MerchantDirectoryRelationalTests
         Assert.StartsWith("MyPetLinkTest_",db.Database.GetDbConnection().Database);
         await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE [ConsignmentDispatches] DROP CONSTRAINT [FK_ConsignmentDispatches_MerchantBranches_MerchantBranchId];
+            ALTER TABLE [ConsignmentStockLedgerEntries] DROP CONSTRAINT [FK_ConsignmentStockLedgerEntries_MerchantBranches_MerchantBranchId];
+            ALTER TABLE [ConsignmentSalesReports] DROP CONSTRAINT [FK_ConsignmentSalesReports_MerchantBranches_MerchantBranchId];
+            ALTER TABLE [ConsignmentStocktakes] DROP CONSTRAINT [FK_ConsignmentStocktakes_MerchantBranches_MerchantBranchId];
+            ALTER TABLE [ConsignmentStockDiscrepancies] DROP CONSTRAINT [FK_ConsignmentStockDiscrepancies_MerchantBranches_MerchantBranchId];
             DROP TABLE [MerchantBranches];
             DROP INDEX [IX_Merchants_DirectoryPublicCode] ON [Merchants];
             DROP INDEX [IX_Merchants_ShowOnWebsite_IsActive] ON [Merchants];
@@ -119,6 +123,14 @@ public sealed class MerchantDirectoryRelationalTests
         foreach (var command in sql) await db.Database.ExecuteSqlRawAsync(command.CommandText);
         await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE [ConsignmentDispatches] ADD CONSTRAINT [FK_ConsignmentDispatches_MerchantBranches_MerchantBranchId]
+                FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
+            ALTER TABLE [ConsignmentStockLedgerEntries] ADD CONSTRAINT [FK_ConsignmentStockLedgerEntries_MerchantBranches_MerchantBranchId]
+                FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
+            ALTER TABLE [ConsignmentSalesReports] ADD CONSTRAINT [FK_ConsignmentSalesReports_MerchantBranches_MerchantBranchId]
+                FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
+            ALTER TABLE [ConsignmentStocktakes] ADD CONSTRAINT [FK_ConsignmentStocktakes_MerchantBranches_MerchantBranchId]
+                FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
+            ALTER TABLE [ConsignmentStockDiscrepancies] ADD CONSTRAINT [FK_ConsignmentStockDiscrepancies_MerchantBranches_MerchantBranchId]
                 FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
             """);
         db.ChangeTracker.Clear();

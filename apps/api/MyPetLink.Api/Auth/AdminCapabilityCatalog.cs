@@ -238,6 +238,12 @@ public static class AdminCapabilityCatalog
                 Write(C.ConsignmentReturn, "consignment", "Consignment", "Receive returns", "Receive unsold units into inspection quarantine."),
                 Sensitive(C.ConsignmentRelease, "consignment", "Consignment", "Release returned stock", "Return freshly inspected units to available stock."),
                 Sensitive(C.ConsignmentManifestExport, "consignment", "Consignment", "Download consignment documents", "Download dispatch notes and controlled Tag Code manifests."),
+                Write(C.ConsignmentPriceTermsManage, "consignment", "Consignment", "Manage selling prices", "Prepare the selling prices and promotions a partner may use. Approval is separate."),
+                Write(C.ConsignmentSalesReportsRecord, "consignment", "Consignment", "Record sales reports", "Enter a partner's reported sales by SKU exactly as reported. Recorded reports stay unverified."),
+                Sensitive(C.ConsignmentSalesReportsVerify, "consignment", "Consignment", "Verify sales reports", "Check reported sales against evidence and move sold quantities out of partner stock. Never creates invoices, payments or commission."),
+                Write(C.ConsignmentStocktakeRecord, "consignment", "Consignment", "Record stocktakes", "Enter a partner's monthly stock count by SKU with its evidence. A recorded count changes no stock until the month is closed."),
+                Sensitive(C.ConsignmentPeriodsClose, "consignment", "Consignment", "Close stocktake months", "Approve a monthly stocktake: freeze the count, send shortages to investigation and carry stock forward to the next month."),
+                Sensitive(C.ConsignmentDiscrepanciesResolve, "consignment", "Consignment", "Resolve stock discrepancies", "Settle a counted shortage, surplus or damaged stock with evidence, such as found, damaged, an approved loss or a recount error. Never creates financial records."),
             ]),
 
         new AdminCapabilityModule("finance", "Finance",

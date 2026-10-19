@@ -147,7 +147,7 @@ public sealed partial class ConsignmentRelationalTests
         Assert.Equal(originalPdf,(await db.ConsignmentDispatches.AsNoTracking().SingleAsync()).IssuedDocumentContent);
         Assert.All(d.Units,u=>Assert.Null(u.TagCode));Assert.Empty(db.TagOrders);Assert.Empty(db.MerchantInvoices);Assert.Empty(db.MerchantReceipts);Assert.Empty(db.MerchantPayments);Assert.Empty(db.SalesCommissions);
         d=await s.ActionAsync(AdminAccountId,d.Id,"external-handover",Action(d,"SYN-HANDOVER-EVIDENCE",[ids[0]]) with {
-            Handover=new("SYN-EXTERNAL-ENTRY",Now,false,null,null,null) },default);
+            Handover=new("SYN-EXTERNAL-ENTRY",Now,false,null,null,null,Attribution:"NonSaleWithdrawal") },default);
         var docs=new ConsignmentDocumentService(db,s,new AuditLogService(db,new HttpContextAccessor()));
         Assert.Contains("Self-reviewed (Solo)",Encoding.UTF8.GetString(await docs.CsvAsync(AdminAccountId,d.Id,default)));
         Assert.Contains("Self-reviewed (Solo)",Encoding.UTF8.GetString(await docs.ReconciliationCsvAsync(AdminAccountId,Now.AddDays(-1),Now.AddDays(1),default)));

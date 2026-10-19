@@ -120,6 +120,8 @@ public sealed partial class ConsignmentService
             if (next == ConsignmentReceivingState.Good) u.Status = ConsignmentUnitStatus.Received;
             u.SmartTag.AssignmentVersion++;
             Movement(d,u,"receiving-unit",r.Reference.Trim(),admin,JsonSerializer.Serialize(new {ReceivingState=next.ToString()}),review.ReviewMode);
+            // A unit counted good at the partner enters the SKU stock ledger exactly once.
+            if (next == ConsignmentReceivingState.Good) await PostUnitCountedAsync(d,u,e.ReceivedAt,admin,ct);
         }
         var legacyUnclassifiedHold = d.HasOpenDiscrepancy && d.Units.Any(u => u.ReceivingState == ConsignmentReceivingState.Unconfirmed);
         d.HasOpenDiscrepancy = legacyUnclassifiedHold || d.Units.Any(u => u.ReceivingState is ConsignmentReceivingState.Damaged or ConsignmentReceivingState.Missing or ConsignmentReceivingState.ReviewRequired);

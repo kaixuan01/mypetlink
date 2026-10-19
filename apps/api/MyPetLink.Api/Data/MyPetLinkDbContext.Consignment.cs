@@ -19,6 +19,7 @@ public sealed partial class MyPetLinkDbContext
     {
         if(ChangeTracker.Entries<ConsignmentReviewEvent>().Any(e=>e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Consignment review history is append-only.");
+        EnforceConsignmentStockLedger();
     }
     private static void ConfigureConsignment(ModelBuilder model)
     {
@@ -45,8 +46,12 @@ public sealed partial class MyPetLinkDbContext
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x=>x.PreviousSelfReviewerAdminUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ConsignmentAgreement>().WithMany().HasForeignKey(x=>x.AgreementId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ConsignmentDispatch>().WithMany(x=>x.ReviewEvents).HasForeignKey(x=>x.DispatchId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x=>x.SubjectType).HasMaxLength(32);
             e.HasIndex(x=>new {x.RecordedAt,x.ReviewMode});
-            e.HasIndex(x=>new {x.DispatchId,x.Action,x.RequestReference});
+            // RequestReference (up to 2,000 bytes) is carried, not keyed: keying it pushed
+            // this index past SQL Server's 1,700-byte limit, failing long references at insert.
+            e.HasIndex(x=>new {x.DispatchId,x.Action}).IncludeProperties(x=>x.RequestReference);
+            e.HasIndex(x=>new {x.SubjectType,x.SubjectId});
         });
         model.Entity<ConsignmentDraftContributor>(e => {
             e.HasKey(x => new { x.AgreementId, x.AdminUserId });
@@ -152,6 +157,7 @@ public sealed partial class MyPetLinkDbContext
             e.Property(x => x.DiscountDescription).HasMaxLength(1000);
             e.Property(x => x.SellingPrice).HasPrecision(18,2);
             e.Property(x => x.DiscountAmount).HasPrecision(18,2);
+            e.Property(x => x.Attribution).HasConversion<string>().HasMaxLength(24);
             e.HasIndex(x => new { x.MerchantId, x.EventReference }).IsUnique();
             e.HasIndex(x => x.SupersedesRecordId).IsUnique().HasFilter("[SupersedesRecordId] IS NOT NULL");
             e.HasIndex(x => new { x.MerchantId, x.EventAt });
@@ -163,5 +169,7 @@ public sealed partial class MyPetLinkDbContext
             e.HasOne<ConsignmentDispatch>().WithMany(x => x.HandoverRecords).HasForeignKey(x => x.DispatchId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ConsignmentHandoverRecord>().WithMany().HasForeignKey(x => x.SupersedesRecordId).OnDelete(DeleteBehavior.Restrict);
         });
+        ConfigureConsignmentStocktake(model);
+        ConfigureConsignmentSales(model);
     }
 }

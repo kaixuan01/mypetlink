@@ -110,6 +110,142 @@ public sealed class AdminConsignmentController(ConsignmentService service, Consi
     [Authorize(Policy = AdminCapabilities.ConsignmentManifestExport)]
     public async Task<IActionResult> Reconciliation([FromQuery] DateTimeOffset from,[FromQuery] DateTimeOffset to,CancellationToken ct) =>
         File(await documents.ReconciliationCsvAsync(current.Current.UserId,from,to,ct),"text/csv; charset=utf-8","Consignment-reconciliation.csv");
+    // --- Approved selling prices ------------------------------------------------
+    [HttpGet("price-terms")]
+    public async Task<IActionResult> PriceTerms([FromQuery] Guid agreementId,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.PriceTermsAsync(agreementId,ct),HttpContext));
+    [HttpPost("price-terms")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentPriceTermsManage)]
+    public async Task<IActionResult> CreatePriceTerm(SaveConsignmentPriceTermRequest r,CancellationToken ct) =>
+        StatusCode(201,ApiEnvelope.Ok(await service.SavePriceTermAsync(current.Current.UserId,null,r,null,ct),HttpContext));
+    [HttpPut("price-terms/{id:guid}")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentPriceTermsManage)]
+    public async Task<IActionResult> UpdatePriceTerm(Guid id,SaveConsignmentPriceTermRequest r,[FromQuery] string concurrencyToken,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.SavePriceTermAsync(current.Current.UserId,id,r,concurrencyToken,ct),HttpContext));
+    [HttpPost("price-terms/{id:guid}/approve")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsApprove)]
+    public async Task<IActionResult> ApprovePriceTerm(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.ApprovePriceTermAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("price-terms/{id:guid}/end")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsApprove)]
+    public async Task<IActionResult> EndPriceTerm(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.EndPriceTermAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("price-terms/{id:guid}/withdraw")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentPriceTermsManage)]
+    public async Task<IActionResult> WithdrawPriceTerm(Guid id,ConsignmentTokenRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.WithdrawPriceTermAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("price-terms/copy")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentPriceTermsManage)]
+    public async Task<IActionResult> CopyPriceTerms(CopyConsignmentPriceTermsRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.CopyPriceTermsAsync(current.Current.UserId,r,ct),HttpContext));
+
+    // --- Partner sales reports --------------------------------------------------
+    [HttpGet("sales-reports")]
+    public async Task<IActionResult> SalesReports([FromQuery] PagedQuery q,Guid? merchantId,Guid? branchId,string? status,CancellationToken ct) {
+        var (items,total) = await service.SalesReportsAsync(q.Page,q.PageSize,merchantId,branchId,status,ct);
+        return Ok(ApiEnvelope.Ok(items,HttpContext,q.Page,q.PageSize,total));
+    }
+    [HttpGet("sales-reports/{id:guid}")]
+    public async Task<IActionResult> SalesReport(Guid id,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.GetSalesReportAsync(id,ct),HttpContext));
+    [HttpPost("sales-reports")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsRecord)]
+    public async Task<IActionResult> CreateSalesReport(SaveConsignmentSalesReportRequest r,CancellationToken ct) =>
+        StatusCode(201,ApiEnvelope.Ok(await service.CreateSalesReportAsync(current.Current.UserId,r,ct),HttpContext));
+    [HttpPut("sales-reports/{id:guid}")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsRecord)]
+    public async Task<IActionResult> UpdateSalesReport(Guid id,SaveConsignmentSalesReportRequest r,[FromQuery] string concurrencyToken,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.UpdateSalesReportAsync(current.Current.UserId,id,concurrencyToken,r,ct),HttpContext));
+    [HttpPost("sales-reports/{id:guid}/record")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsRecord)]
+    public async Task<IActionResult> RecordSalesReport(Guid id,ConsignmentTokenRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.RecordSalesReportAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("sales-reports/{id:guid}/void")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsRecord)]
+    public async Task<IActionResult> VoidSalesReport(Guid id,ConsignmentTokenRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.VoidSalesReportAsync(current.Current.UserId,id,r,ct),HttpContext));
+    // Reopening reviewed figures is a review decision (the approved design's API matrix); the
+    // correction draft is then edited and recorded under the record permission as usual.
+    [HttpPost("sales-reports/{id:guid}/correct")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsVerify)]
+    public async Task<IActionResult> CorrectSalesReport(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        StatusCode(201,ApiEnvelope.Ok(await service.CorrectSalesReportAsync(current.Current.UserId,id,r,ct),HttpContext));
+    // Recovery when a report's contributor history is unknown: a new version entered afresh from evidence.
+    [HttpPost("sales-reports/{id:guid}/re-enter")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsVerify)]
+    public async Task<IActionResult> ReenterSalesReport(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        StatusCode(201,ApiEnvelope.Ok(await service.ReenterSalesReportAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("sales-reports/{id:guid}/verify")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsVerify)]
+    public async Task<IActionResult> VerifySalesReport(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.VerifySalesReportAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("sales-reports/{id:guid}/dispute")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsVerify)]
+    public async Task<IActionResult> DisputeSalesReport(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.DisputeSalesReportAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpGet("sales-reports.csv")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentManifestExport)]
+    public async Task<IActionResult> SalesReportsCsv([FromQuery] DateTimeOffset from,[FromQuery] DateTimeOffset to,CancellationToken ct) =>
+        File(await service.SalesReportsCsvAsync(current.Current.UserId,from,to,ct),"text/csv; charset=utf-8","Consignment-sales-reports.csv");
+
+    // --- SKU stock position ------------------------------------------------------
+    [HttpGet("stock-positions")]
+    public async Task<IActionResult> StockPositions([FromQuery] Guid? merchantId,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.StockPositionsAsync(merchantId,ct),HttpContext));
+    [HttpPost("stock-tracking/start")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentSalesReportsVerify)]
+    public async Task<IActionResult> StartStockTracking(StartConsignmentStockTrackingRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.StartStockTrackingAsync(current.Current.UserId,r,ct),HttpContext));
+    [HttpGet("stock-ledger.csv")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentManifestExport)]
+    public async Task<IActionResult> StockLedgerCsv([FromQuery] DateTimeOffset from,[FromQuery] DateTimeOffset to,CancellationToken ct) =>
+        File(await service.StockLedgerCsvAsync(current.Current.UserId,from,to,ct),"text/csv; charset=utf-8","Consignment-stock-ledger.csv");
+
+    // --- Monthly stocktake, period close and discrepancies (Phase 1B) ------------
+    [HttpGet("stocktakes/expected")]
+    public async Task<IActionResult> StocktakeExpectation([FromQuery] Guid branchId,[FromQuery] string countDate,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.StocktakeExpectationAsync(branchId,countDate,ct),HttpContext));
+    [HttpGet("stocktakes")]
+    public async Task<IActionResult> Stocktakes([FromQuery] PagedQuery q,Guid? branchId,string? status,CancellationToken ct) {
+        var (items,total) = await service.StocktakesAsync(q.Page,q.PageSize,branchId,status,ct);
+        return Ok(ApiEnvelope.Ok(items,HttpContext,q.Page,q.PageSize,total));
+    }
+    [HttpGet("stocktakes/{id:guid}")]
+    public async Task<IActionResult> Stocktake(Guid id,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.GetStocktakeAsync(id,ct),HttpContext));
+    [HttpPost("stocktakes")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentStocktakeRecord)]
+    public async Task<IActionResult> CreateStocktake(SaveConsignmentStocktakeRequest r,CancellationToken ct) =>
+        StatusCode(201,ApiEnvelope.Ok(await service.CreateStocktakeAsync(current.Current.UserId,r,ct),HttpContext));
+    [HttpPut("stocktakes/{id:guid}")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentStocktakeRecord)]
+    public async Task<IActionResult> UpdateStocktake(Guid id,SaveConsignmentStocktakeRequest r,[FromQuery] string concurrencyToken,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.UpdateStocktakeAsync(current.Current.UserId,id,concurrencyToken,r,ct),HttpContext));
+    [HttpPost("stocktakes/{id:guid}/record")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentStocktakeRecord)]
+    public async Task<IActionResult> RecordStocktake(Guid id,ConsignmentTokenRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.RecordStocktakeAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpPost("stocktakes/{id:guid}/void")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentStocktakeRecord)]
+    public async Task<IActionResult> VoidStocktake(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.VoidStocktakeAsync(current.Current.UserId,id,r,ct),HttpContext));
+    // Approving a count closes the month and carries stock forward.
+    [HttpPost("stocktakes/{id:guid}/approve")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentPeriodsClose)]
+    public async Task<IActionResult> ApproveStocktake(Guid id,ConsignmentReviewRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.ApproveStocktakeAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpGet("stocktakes.csv")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentManifestExport)]
+    public async Task<IActionResult> StocktakesCsv([FromQuery] DateTimeOffset from,[FromQuery] DateTimeOffset to,CancellationToken ct) =>
+        File(await service.StocktakesCsvAsync(current.Current.UserId,from,to,ct),"text/csv; charset=utf-8","Consignment-stocktakes.csv");
+    [HttpGet("discrepancies")]
+    public async Task<IActionResult> Discrepancies([FromQuery] Guid? branchId,[FromQuery] string? status,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.DiscrepanciesAsync(branchId,status,ct),HttpContext));
+    [HttpPost("discrepancies/{id:guid}/resolve")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentDiscrepanciesResolve)]
+    public async Task<IActionResult> ResolveDiscrepancy(Guid id,ResolveConsignmentDiscrepancyRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.ResolveDiscrepancyAsync(current.Current.UserId,id,r,ct),HttpContext));
+
     private async Task<IActionResult> Act(Guid id,string action,ConsignmentActionRequest r,CancellationToken ct) =>
         Ok(ApiEnvelope.Ok(await service.ActionAsync(current.Current.UserId,id,action,r,ct),HttpContext));
 }

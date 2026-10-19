@@ -44,6 +44,29 @@ public sealed partial class ConsignmentService
         }
         else if (u.Status != ConsignmentUnitStatus.ExternalHandover || u.CurrentHandoverRecordId != h.SupersedesRecordId)
             throw Conflict("Select the current handover record for correction or reversal. Original evidence is retained.");
+        // On a branch with SKU stock tracking, sales arrive through sales reports. An identified
+        // handover only says which bucket this known unit leaves, so it can never count a sale twice.
+        var tracked = await UnitTrackedAsync(u.Id,ct);
+        ConsignmentHandoverAttribution? attribution = null;
+        if (tracked && !reversal)
+        {
+            if (h.IsReportedSale)
+                throw Bad("This partner reports sales by SKU. Record sale prices in a sales report; an identified handover carries no price.");
+            if (action == "external-handover")
+                attribution = h.Attribution switch {
+                    nameof(ConsignmentHandoverAttribution.AggregateSale) => ConsignmentHandoverAttribution.AggregateSale,
+                    nameof(ConsignmentHandoverAttribution.NonSaleWithdrawal) => ConsignmentHandoverAttribution.NonSaleWithdrawal,
+                    _ => throw Bad("Say whether this identified tag is one of the partner's reported sales or a non-sale withdrawal."),
+                };
+            else
+            {
+                attribution = d.HandoverRecords.SingleOrDefault(x => x.Id == u.CurrentHandoverRecordId)?.Attribution;
+                if (h.Attribution is not null && h.Attribution != attribution?.ToString())
+                    throw Bad("A correction keeps the original attribution. Reverse the handover and record it again to change it.");
+            }
+        }
+        else if (!tracked && h.Attribution is not null)
+            throw Bad("Start stock tracking for this partner branch before attributing an identified handover.");
         if (h.IsReportedSale && !reversal)
         {
             if (h.SellingPrice is null or < 0 or > 999999.99m || h.DiscountAmount is null or < 0 or > 999999.99m
@@ -61,8 +84,10 @@ public sealed partial class ConsignmentService
             EventReference=reference,Kind=reversal ? "Reversal" : action == "correct-handover" ? "Correction" : "Handover",
             SupersedesRecordId=h.SupersedesRecordId,EventAt=h.EventAt.ToUniversalTime(),RecordedAt=time.GetUtcNow(),
             IsReportedSale=h.IsReportedSale,SellingPrice=h.SellingPrice,DiscountAmount=h.DiscountAmount,
-            DiscountDescription=Trim(h.DiscountDescription),EvidenceReference=r.Reference.Trim() };
+            DiscountDescription=Trim(h.DiscountDescription),EvidenceReference=r.Reference.Trim(),Attribution=attribution };
         d.HandoverRecords.Add(row);db.ConsignmentHandoverRecords.Add(row);
+        if (tracked && action == "external-handover") await PostIdentifiedHandoverAsync(d,u,row,attribution!.Value,admin,ct);
+        else if (tracked && reversal) await ReverseIdentifiedHandoverAsync(d,u,admin,ct);
         u.CurrentHandoverRecordId = reversal ? null : row.Id;
         u.Status = reversal ? ConsignmentUnitStatus.Received
             : ConsignmentUnitStatus.ExternalHandover;
@@ -70,5 +95,5 @@ public sealed partial class ConsignmentService
 
     private static ConsignmentHandoverResponse MapHandover(ConsignmentHandoverRecord h) => new(h.Id,h.UnitId,h.ActorAdminUserId,
         h.EventReference,h.Kind,h.EventAt,h.RecordedAt,h.IsReportedSale,h.SellingPrice,h.DiscountAmount,h.DiscountDescription,
-        h.EvidenceReference,h.SupersedesRecordId);
+        h.EvidenceReference,h.SupersedesRecordId,Attribution:h.Attribution?.ToString());
 }

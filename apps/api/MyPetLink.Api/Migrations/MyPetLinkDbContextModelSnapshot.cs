@@ -1291,6 +1291,90 @@ namespace MyPetLink.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDiscrepancyResolution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DiscrepancyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("LinkedSalesReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RelatedDiscrepancyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ReversesResolutionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ReviewEventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReviewMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorAdminUserId");
+
+                    b.HasIndex("DiscrepancyId")
+                        .HasDatabaseName("IX_ConsignmentDiscrepancyResolutions_Discrepancy");
+
+                    b.HasIndex("LinkedSalesReportId");
+
+                    b.HasIndex("RelatedDiscrepancyId");
+
+                    b.HasIndex("ReversesResolutionId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentDiscrepancyResolutions_Reverses")
+                        .HasFilter("[ReversesResolutionId] IS NOT NULL");
+
+                    b.HasIndex("ReviewEventId");
+
+                    b.HasIndex("DiscrepancyId", "LinkedSalesReportId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentDiscrepancyResolutions_LateReport")
+                        .HasFilter("[Outcome] = 'ExplainedByLateReport' AND [LinkedSalesReportId] IS NOT NULL");
+
+                    b.ToTable("ConsignmentDiscrepancyResolutions", null, t =>
+                        {
+                            t.HasTrigger("TR_ConsignmentDiscrepancyResolutions_AppendOnly");
+
+                            t.HasCheckConstraint("CK_ConsignmentDiscrepancyResolution_Quantity", "[Quantity] > 0");
+
+                            t.HasCheckConstraint("CK_ConsignmentDiscrepancyResolution_Withdrawal", "([Outcome] = 'AllocationWithdrawn' AND [ReversesResolutionId] IS NOT NULL) OR ([Outcome] <> 'AllocationWithdrawn' AND [ReversesResolutionId] IS NULL)");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDispatch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1471,6 +1555,10 @@ namespace MyPetLink.Api.Migrations
                     b.Property<Guid>("AgreementId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Attribution")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
                     b.Property<decimal?>("DiscountAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1593,6 +1681,131 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("ConsignmentMovements", (string)null);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentPriceTerm", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ApprovalEvidenceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ContributorHistoryComplete")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReviewMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("UnitNetPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ValidFrom")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ValidToExclusive")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByAdminUserId");
+
+                    b.HasIndex("CreatedByAdminUserId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("AgreementId", "ProductVariantId", "Kind", "ValidFrom")
+                        .HasDatabaseName("IX_ConsignmentPriceTerms_Lookup");
+
+                    b.ToTable("ConsignmentPriceTerms", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentPriceTerm_Promotion", "[Kind] = 'Standard' OR [ValidToExclusive] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_ConsignmentPriceTerm_Values", "[UnitNetPrice] > 0 AND ([ValidToExclusive] IS NULL OR [ValidToExclusive] > [ValidFrom])");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentRecordContributor", b =>
+                {
+                    b.Property<string>("SubjectType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("FirstContributedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("SubjectType", "SubjectId", "AdminUserId");
+
+                    b.HasIndex("AdminUserId");
+
+                    b.ToTable("ConsignmentRecordContributors", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentRecordContributor_Role", "[Role] IN ('Created','Edited','Recorded')");
+
+                            t.HasCheckConstraint("CK_ConsignmentRecordContributor_Subject", "[SubjectType] IN ('ConsignmentSalesReport','ConsignmentPriceTerm','ConsignmentStocktake')");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentReviewEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1656,6 +1869,13 @@ namespace MyPetLink.Api.Migrations
                     b.Property<Guid?>("SelfReviewerAdminUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SubjectType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ActorAdminUserId");
@@ -1666,11 +1886,650 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("SelfReviewerAdminUserId");
 
+                    b.HasIndex("DispatchId", "Action");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("DispatchId", "Action"), new[] { "RequestReference" });
+
                     b.HasIndex("RecordedAt", "ReviewMode");
 
-                    b.HasIndex("DispatchId", "Action", "RequestReference");
+                    b.HasIndex("SubjectType", "SubjectId");
 
                     b.ToTable("ConsignmentReviewEvents", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSalesReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ContributorHistoryComplete")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DisputeReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("DisputedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("DisputedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EvidenceKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("EvidenceLevel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PartnerReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("PeriodEndExclusive")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RecordedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ReportReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReviewMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<bool>("StartsFreshContributorHistory")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid?>("SupersedesReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("VerifiedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgreementId");
+
+                    b.HasIndex("CreatedByAdminUserId");
+
+                    b.HasIndex("DisputedByAdminUserId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentSalesReports_Idempotency");
+
+                    b.HasIndex("RecordedByAdminUserId");
+
+                    b.HasIndex("SupersedesReportId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentSalesReports_Supersedes")
+                        .HasFilter("[SupersedesReportId] IS NOT NULL AND [Status] <> 'Voided'");
+
+                    b.HasIndex("VerifiedByAdminUserId");
+
+                    b.HasIndex("MerchantBranchId", "PeriodStart", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentSalesReports_Period")
+                        .HasFilter("[Status] <> 'Voided'");
+
+                    b.HasIndex("MerchantBranchId", "Status", "PeriodStart")
+                        .HasDatabaseName("IX_ConsignmentSalesReports_Status");
+
+                    b.HasIndex("MerchantId", "PartnerReference", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentSalesReports_Reference");
+
+                    b.ToTable("ConsignmentSalesReports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentSalesReport_Period", "[PeriodEndExclusive] > [PeriodStart] AND [Version] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSalesReportLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CorroboratedByStocktakeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ExplainsDiscrepancyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LineType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("PriceTermId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProductNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuantityExplainingDiscrepancy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("RefundOfPeriodStart")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("RestockableQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SalesReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("SealedReturnConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SealedReturnEvidence")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<decimal?>("UnitListPriceSnapshot")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitNetPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("UnsellableReturnedQuantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorroboratedByStocktakeId");
+
+                    b.HasIndex("PriceTermId");
+
+                    b.HasIndex("ProductVariantId", "PriceTermId", "LineType")
+                        .HasDatabaseName("IX_ConsignmentSalesReportLines_Capacity");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ProductVariantId", "PriceTermId", "LineType"), new[] { "Quantity", "RefundOfPeriodStart" });
+
+                    b.HasIndex("SalesReportId", "LineType", "ProductVariantId", "PriceTermId", "RefundOfPeriodStart")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentSalesReportLines_Line")
+                        .HasFilter("[PriceTermId] IS NOT NULL");
+
+                    b.ToTable("ConsignmentSalesReportLines", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentSalesLine_Quantities", "[Quantity] > 0 AND [UnitNetPrice] >= 0 AND [RestockableQuantity] >= 0 AND [UnsellableReturnedQuantity] >= 0 AND [RestockableQuantity] + [UnsellableReturnedQuantity] <= [Quantity] AND [QuantityExplainingDiscrepancy] >= 0 AND [QuantityExplainingDiscrepancy] <= [Quantity]");
+
+                            t.HasCheckConstraint("CK_ConsignmentSalesLine_SealedReturn", "[RestockableQuantity] = 0 OR ([SealedReturnEvidence] IS NOT NULL AND LEN([SealedReturnEvidence]) >= 5)");
+
+                            t.HasCheckConstraint("CK_ConsignmentSalesLine_Type", "([LineType] = 'Sale' AND [RestockableQuantity] = 0 AND [UnsellableReturnedQuantity] = 0 AND [RefundOfPeriodStart] IS NULL) OR ([LineType] = 'Refund' AND [RefundOfPeriodStart] IS NOT NULL AND [QuantityExplainingDiscrepancy] = 0)");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStockDiscrepancy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("OpenQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("OriginStocktakeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OriginStocktakeLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MerchantId");
+
+                    b.HasIndex("OriginStocktakeId")
+                        .HasDatabaseName("IX_ConsignmentDiscrepancies_Origin");
+
+                    b.HasIndex("OriginStocktakeLineId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("MerchantBranchId", "ProductVariantId", "Status")
+                        .HasDatabaseName("IX_ConsignmentDiscrepancies_Open");
+
+                    b.ToTable("ConsignmentStockDiscrepancies", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentDiscrepancy_Quantities", "[Quantity] > 0 AND [OpenQuantity] >= 0 AND [OpenQuantity] <= [Quantity] AND (([Status] = 'Open' AND [OpenQuantity] > 0) OR ([Status] = 'Resolved' AND [OpenQuantity] = 0))");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStockLedgerEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EffectiveAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EntryType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FromBucket")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<bool>("IsPriorPeriodCorrection")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ReversesEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("SourceLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ToBucket")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorAdminUserId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("ReversesEntryId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentLedger_Reverses")
+                        .HasFilter("[ReversesEntryId] IS NOT NULL");
+
+                    b.HasIndex("MerchantId", "EffectiveAt")
+                        .HasDatabaseName("IX_ConsignmentLedger_Merchant");
+
+                    b.HasIndex("MerchantBranchId", "ProductVariantId", "EffectiveAt")
+                        .HasDatabaseName("IX_ConsignmentLedger_Position");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("MerchantBranchId", "ProductVariantId", "EffectiveAt"), new[] { "FromBucket", "ToBucket", "Quantity" });
+
+                    b.HasIndex("SourceType", "SourceLineId", "EntryType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentLedger_Source")
+                        .HasFilter("[ReversesEntryId] IS NULL");
+
+                    b.ToTable("ConsignmentStockLedgerEntries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentLedger_Quantity", "[Quantity] > 0 AND [FromBucket] <> [ToBucket]");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStocktake", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ContributorHistoryComplete")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CountedAfterCutoffNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("CountedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CountedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CutoffAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EvidenceKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("PreviousStocktakeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RecordedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReviewMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByAdminUserId");
+
+                    b.HasIndex("CreatedByAdminUserId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentStocktakes_Idempotency");
+
+                    b.HasIndex("MerchantBranchId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentStocktakes_Open")
+                        .HasFilter("[Status] IN ('Draft','Recorded')");
+
+                    b.HasIndex("MerchantId");
+
+                    b.HasIndex("PreviousStocktakeId");
+
+                    b.HasIndex("RecordedByAdminUserId");
+
+                    b.HasIndex("MerchantBranchId", "CutoffAt")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentStocktakes_Cutoff")
+                        .HasFilter("[Status] = 'Approved'");
+
+                    b.HasIndex("MerchantBranchId", "Status", "CutoffAt")
+                        .HasDatabaseName("IX_ConsignmentStocktakes_Branch");
+
+                    b.ToTable("ConsignmentStocktakes", null, t =>
+                        {
+                            t.HasTrigger("TR_ConsignmentStocktakes_Closed");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStocktakeLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("BookInvestigation")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BookLost")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BookSellable")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BookSold")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BookUnsellable")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClosingInvestigation")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClosingLost")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClosingSellable")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClosingSold")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClosingUnsellable")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CountedSellable")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CountedUnsellable")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("FrozenAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("OpenSurplusAfter")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OpenSurplusBefore")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("Shortage")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("StocktakeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("Surplus")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SurplusNoLongerPresent")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UnsellableFound")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UnsellableShortage")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("StocktakeId", "ProductVariantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsignmentStocktakeLines_Sku");
+
+                    b.ToTable("ConsignmentStocktakeLines", null, t =>
+                        {
+                            t.HasTrigger("TR_ConsignmentStocktakeLines_Frozen");
+
+                            t.HasCheckConstraint("CK_ConsignmentStocktakeLine_Counts", "[CountedSellable] >= 0 AND [CountedUnsellable] >= 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentUnit", b =>
@@ -8613,6 +9472,43 @@ namespace MyPetLink.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDiscrepancyResolution", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStockDiscrepancy", "Discrepancy")
+                        .WithMany("Resolutions")
+                        .HasForeignKey("DiscrepancyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReport", null)
+                        .WithMany()
+                        .HasForeignKey("LinkedSalesReportId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStockDiscrepancy", null)
+                        .WithMany()
+                        .HasForeignKey("RelatedDiscrepancyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentDiscrepancyResolution", null)
+                        .WithMany()
+                        .HasForeignKey("ReversesResolutionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentReviewEvent", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewEventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Discrepancy");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDispatch", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", "Agreement")
@@ -8825,6 +9721,43 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("Dispatch");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentPriceTerm", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", "Agreement")
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.TagProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Agreement");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentRecordContributor", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentReviewEvent", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
@@ -8852,6 +9785,200 @@ namespace MyPetLink.Api.Migrations
                         .WithMany()
                         .HasForeignKey("SelfReviewerAdminUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSalesReport", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", "Agreement")
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("DisputedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.MerchantBranch", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantBranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReport", null)
+                        .WithMany()
+                        .HasForeignKey("SupersedesReportId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("VerifiedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Agreement");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSalesReportLine", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStocktake", null)
+                        .WithMany()
+                        .HasForeignKey("CorroboratedByStocktakeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentPriceTerm", null)
+                        .WithMany()
+                        .HasForeignKey("PriceTermId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.TagProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReport", "SalesReport")
+                        .WithMany("Lines")
+                        .HasForeignKey("SalesReportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SalesReport");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStockDiscrepancy", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.MerchantBranch", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantBranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStocktake", null)
+                        .WithMany()
+                        .HasForeignKey("OriginStocktakeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStocktakeLine", null)
+                        .WithMany()
+                        .HasForeignKey("OriginStocktakeLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.TagProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStockLedgerEntry", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.MerchantBranch", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantBranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.TagProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStockLedgerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ReversesEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStocktake", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.MerchantBranch", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantBranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStocktake", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousStocktakeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStocktakeLine", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.TagProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentStocktake", "Stocktake")
+                        .WithMany("Lines")
+                        .HasForeignKey("StocktakeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Stocktake");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentUnit", b =>
@@ -10682,6 +11809,21 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("ReviewEvents");
 
                     b.Navigation("Units");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSalesReport", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStockDiscrepancy", b =>
+                {
+                    b.Navigation("Resolutions");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentStocktake", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.InventoryReceipt", b =>

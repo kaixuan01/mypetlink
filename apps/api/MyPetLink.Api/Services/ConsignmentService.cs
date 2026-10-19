@@ -112,6 +112,21 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
                         && x.Reference == a.Reference && x.Id != a.Id && x.Status == ConsignmentAgreementStatus.Active).ToListAsync(ct);
                     if (priorVersions.Any(x => x.Version >= a.Version)) throw Conflict("A newer version is already approved. Create a revision of that agreement.");
                     var priorIds = priorVersions.Select(x => x.Id).ToArray();
+                    // Reporting under earlier versions ends where this one starts. Reports already covering
+                    // later dates are never shortened or reassigned: the revision must start after them.
+                    if (a.EffectiveFrom is { } successorStart)
+                    {
+                        var earlierVersions = db.ConsignmentAgreements.Where(x => x.MerchantId == a.MerchantId && x.Reference == a.Reference
+                            && x.Version < a.Version).Select(x => x.Id);
+                        var reportedTo = await db.ConsignmentSalesReports.Where(r => earlierVersions.Contains(r.AgreementId)
+                            && r.Status != ConsignmentSalesReportStatus.Voided && r.Status != ConsignmentSalesReportStatus.Superseded
+                            && r.PeriodEndExclusive > successorStart).MaxAsync(r => (DateTimeOffset?)r.PeriodEndExclusive, ct);
+                        if (reportedTo is { } covered)
+                        {
+                            var day = covered.ToOffset(TimeSpan.FromHours(8)).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                            throw Conflict($"Sales reports under an earlier version already cover dates before {day}. Start this version on or after {day}, or correct those reports first.");
+                        }
+                    }
                     if (await db.ConsignmentDispatches.AnyAsync(x => priorIds.Contains(x.AgreementId) && x.Status == ConsignmentDispatchStatus.Reserved,ct))
                         throw Conflict("Dispatch or cancel the existing reservations before approving revised terms. Their signed terms will not change automatically.");
                     foreach (var prior in priorVersions)
@@ -153,8 +168,15 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
         var rows = await q.OrderByDescending(d => d.CreatedAt).ThenBy(d => d.Id).Skip((page-1)*pageSize).Take(pageSize).ToListAsync(ct);
         return (rows.Select(d => Map(d, false)).ToArray(), count);
     }
-    public async Task<ConsignmentDispatchResponse> GetAsync(Guid id, bool includeCodes, CancellationToken ct) =>
-        Map(await Graph().SingleOrDefaultAsync(d => d.Id == id, ct) ?? throw Missing(), includeCodes);
+    public async Task<ConsignmentDispatchResponse> GetAsync(Guid id, bool includeCodes, CancellationToken ct)
+    {
+        var d = Map(await Graph().SingleOrDefaultAsync(d => d.Id == id, ct) ?? throw Missing(), includeCodes);
+        var unitIds = d.Units.Select(u => u.Id).ToArray();
+        var tracked = (await db.ConsignmentStockLedgerEntries.Where(e => e.SourceType == ConsignmentLedgerSources.Unit
+            && e.EntryType == ConsignmentLedgerEntryTypes.UnitCountedAtPartner && e.ReversesEntryId == null && unitIds.Contains(e.SourceLineId))
+            .Select(e => e.SourceLineId).ToListAsync(ct)).ToHashSet();
+        return d with { StockTracked = tracked.Count > 0, Units = d.Units.Select(u => u with { StockTracked = tracked.Contains(u.Id) }).ToArray() };
+    }
 
     public async Task<ConsignmentDispatchResponse> ReserveAsync(Guid? actor, ReserveConsignmentRequest r, CancellationToken ct)
     {
@@ -291,6 +313,7 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
                     if (action == "return")
                     {
                         if (u.Status is not (ConsignmentUnitStatus.Dispatched or ConsignmentUnitStatus.Received)) throw Conflict("Only partner-held unsold tags can be returned.");
+                        var countedAtPartner = u.Status == ConsignmentUnitStatus.Received && u.ReceivingState == ConsignmentReceivingState.Good;
                         if (u.ReceivingState == ConsignmentReceivingState.Missing && r.Reference.Trim().Length < 5)
                             throw Bad("Record the actual physical return evidence for this located unit. A missing count alone is not a return.");
                         RequireUnowned(u.SmartTag);
@@ -301,6 +324,7 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
                         t.QaQrUrl = null; t.QaNfcUrl = null; t.QaInspectedAt = null;
                         t.QaPhysicalCondition = PhysicalTagCondition.Unchecked;
                         t.FulfilmentStatus = TagFulfilmentStatus.Printed;
+                        if (countedAtPartner) await PostUnitReturnedAsync(d,u,r.ReturnFromBucket,admin,ct);
                     }
                     else if (action == "release")
                     {

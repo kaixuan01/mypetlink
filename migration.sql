@@ -12162,3 +12162,1208 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    DROP INDEX [IX_ConsignmentReviewEvents_DispatchId_Action_RequestReference] ON [ConsignmentReviewEvents];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    ALTER TABLE [ConsignmentReviewEvents] ADD [SubjectId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    ALTER TABLE [ConsignmentReviewEvents] ADD [SubjectType] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    ALTER TABLE [ConsignmentHandoverRecords] ADD [Attribution] nvarchar(24) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE TABLE [ConsignmentPriceTerms] (
+        [Id] uniqueidentifier NOT NULL,
+        [AgreementId] uniqueidentifier NOT NULL,
+        [ProductVariantId] uniqueidentifier NOT NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [Kind] nvarchar(16) NOT NULL,
+        [Name] nvarchar(100) NOT NULL,
+        [UnitNetPrice] decimal(18,2) NOT NULL,
+        [ValidFrom] datetimeoffset NOT NULL,
+        [ValidToExclusive] datetimeoffset NULL,
+        [ApprovalEvidenceReference] nvarchar(1000) NULL,
+        [Status] nvarchar(16) NOT NULL,
+        [CreatedByAdminUserId] uniqueidentifier NOT NULL,
+        [ApprovedByAdminUserId] uniqueidentifier NULL,
+        [ApprovedAt] datetimeoffset NULL,
+        [ReviewMode] nvarchar(32) NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentPriceTerms] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentPriceTerm_Promotion] CHECK ([Kind] = 'Standard' OR [ValidToExclusive] IS NOT NULL),
+        CONSTRAINT [CK_ConsignmentPriceTerm_Values] CHECK ([UnitNetPrice] > 0 AND ([ValidToExclusive] IS NULL OR [ValidToExclusive] > [ValidFrom])),
+        CONSTRAINT [FK_ConsignmentPriceTerms_AdminUsers_ApprovedByAdminUserId] FOREIGN KEY ([ApprovedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentPriceTerms_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentPriceTerms_ConsignmentAgreements_AgreementId] FOREIGN KEY ([AgreementId]) REFERENCES [ConsignmentAgreements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentPriceTerms_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSalesReports] (
+        [Id] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [MerchantBranchId] uniqueidentifier NOT NULL,
+        [AgreementId] uniqueidentifier NOT NULL,
+        [PeriodStart] datetimeoffset NOT NULL,
+        [PeriodEndExclusive] datetimeoffset NOT NULL,
+        [PartnerReference] nvarchar(100) NOT NULL,
+        [Version] int NOT NULL,
+        [SupersedesReportId] uniqueidentifier NULL,
+        [ReportReceivedAt] datetimeoffset NOT NULL,
+        [EvidenceLevel] nvarchar(16) NOT NULL,
+        [EvidenceKind] nvarchar(24) NOT NULL,
+        [EvidenceReference] nvarchar(1000) NOT NULL,
+        [Notes] nvarchar(2000) NULL,
+        [Status] nvarchar(16) NOT NULL,
+        [CreatedByAdminUserId] uniqueidentifier NOT NULL,
+        [RecordedByAdminUserId] uniqueidentifier NULL,
+        [RecordedAt] datetimeoffset NULL,
+        [VerifiedByAdminUserId] uniqueidentifier NULL,
+        [VerifiedAt] datetimeoffset NULL,
+        [DisputedByAdminUserId] uniqueidentifier NULL,
+        [DisputedAt] datetimeoffset NULL,
+        [DisputeReason] nvarchar(1000) NULL,
+        [ReviewMode] nvarchar(32) NULL,
+        [IdempotencyKey] nvarchar(80) NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentSalesReports] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSalesReport_Period] CHECK ([PeriodEndExclusive] > [PeriodStart] AND [Version] >= 1),
+        CONSTRAINT [FK_ConsignmentSalesReports_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_AdminUsers_DisputedByAdminUserId] FOREIGN KEY ([DisputedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_AdminUsers_RecordedByAdminUserId] FOREIGN KEY ([RecordedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_AdminUsers_VerifiedByAdminUserId] FOREIGN KEY ([VerifiedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_ConsignmentAgreements_AgreementId] FOREIGN KEY ([AgreementId]) REFERENCES [ConsignmentAgreements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_ConsignmentSalesReports_SupersedesReportId] FOREIGN KEY ([SupersedesReportId]) REFERENCES [ConsignmentSalesReports] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_MerchantBranches_MerchantBranchId] FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReports_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE TABLE [ConsignmentStockLedgerEntries] (
+        [Id] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [MerchantBranchId] uniqueidentifier NOT NULL,
+        [ProductVariantId] uniqueidentifier NOT NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [FromBucket] nvarchar(24) NOT NULL,
+        [ToBucket] nvarchar(24) NOT NULL,
+        [Quantity] int NOT NULL,
+        [EntryType] nvarchar(40) NOT NULL,
+        [SourceType] nvarchar(32) NOT NULL,
+        [SourceLineId] uniqueidentifier NOT NULL,
+        [ReversesEntryId] uniqueidentifier NULL,
+        [EffectiveAt] datetimeoffset NOT NULL,
+        [PostedAt] datetimeoffset NOT NULL,
+        [IsPriorPeriodCorrection] bit NOT NULL,
+        [ActorAdminUserId] uniqueidentifier NOT NULL,
+        CONSTRAINT [PK_ConsignmentStockLedgerEntries] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentLedger_Quantity] CHECK ([Quantity] > 0 AND [FromBucket] <> [ToBucket]),
+        CONSTRAINT [FK_ConsignmentStockLedgerEntries_AdminUsers_ActorAdminUserId] FOREIGN KEY ([ActorAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockLedgerEntries_ConsignmentStockLedgerEntries_ReversesEntryId] FOREIGN KEY ([ReversesEntryId]) REFERENCES [ConsignmentStockLedgerEntries] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockLedgerEntries_MerchantBranches_MerchantBranchId] FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockLedgerEntries_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockLedgerEntries_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSalesReportLines] (
+        [Id] uniqueidentifier NOT NULL,
+        [SalesReportId] uniqueidentifier NOT NULL,
+        [ProductVariantId] uniqueidentifier NOT NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [ProductNameSnapshot] nvarchar(200) NOT NULL,
+        [LineType] nvarchar(16) NOT NULL,
+        [PriceTermId] uniqueidentifier NULL,
+        [UnitListPriceSnapshot] decimal(18,2) NULL,
+        [UnitNetPrice] decimal(18,2) NOT NULL,
+        [Quantity] int NOT NULL,
+        [RefundOfPeriodStart] datetimeoffset NULL,
+        [RestockableQuantity] int NOT NULL,
+        [UnsellableReturnedQuantity] int NOT NULL,
+        [ExplainsDiscrepancyId] uniqueidentifier NULL,
+        [QuantityExplainingDiscrepancy] int NOT NULL,
+        [Notes] nvarchar(1000) NULL,
+        CONSTRAINT [PK_ConsignmentSalesReportLines] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSalesLine_Quantities] CHECK ([Quantity] > 0 AND [UnitNetPrice] >= 0 AND [RestockableQuantity] >= 0 AND [UnsellableReturnedQuantity] >= 0 AND [RestockableQuantity] + [UnsellableReturnedQuantity] <= [Quantity] AND [QuantityExplainingDiscrepancy] >= 0 AND [QuantityExplainingDiscrepancy] <= [Quantity]),
+        CONSTRAINT [CK_ConsignmentSalesLine_Type] CHECK (([LineType] = 'Sale' AND [RestockableQuantity] = 0 AND [UnsellableReturnedQuantity] = 0 AND [RefundOfPeriodStart] IS NULL) OR ([LineType] = 'Refund' AND [RefundOfPeriodStart] IS NOT NULL AND [QuantityExplainingDiscrepancy] = 0)),
+        CONSTRAINT [FK_ConsignmentSalesReportLines_ConsignmentPriceTerms_PriceTermId] FOREIGN KEY ([PriceTermId]) REFERENCES [ConsignmentPriceTerms] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReportLines_ConsignmentSalesReports_SalesReportId] FOREIGN KEY ([SalesReportId]) REFERENCES [ConsignmentSalesReports] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSalesReportLines_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentReviewEvents_DispatchId_Action] ON [ConsignmentReviewEvents] ([DispatchId], [Action]) INCLUDE ([RequestReference]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentReviewEvents_SubjectType_SubjectId] ON [ConsignmentReviewEvents] ([SubjectType], [SubjectId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentPriceTerms_ApprovedByAdminUserId] ON [ConsignmentPriceTerms] ([ApprovedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentPriceTerms_CreatedByAdminUserId] ON [ConsignmentPriceTerms] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentPriceTerms_Lookup] ON [ConsignmentPriceTerms] ([AgreementId], [ProductVariantId], [Kind], [ValidFrom]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentPriceTerms_ProductVariantId] ON [ConsignmentPriceTerms] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReportLines_PriceTermId] ON [ConsignmentSalesReportLines] ([PriceTermId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReportLines_ProductVariantId] ON [ConsignmentSalesReportLines] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentSalesReportLines_Line] ON [ConsignmentSalesReportLines] ([SalesReportId], [LineType], [ProductVariantId], [PriceTermId]) WHERE [PriceTermId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReports_AgreementId] ON [ConsignmentSalesReports] ([AgreementId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReports_CreatedByAdminUserId] ON [ConsignmentSalesReports] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReports_DisputedByAdminUserId] ON [ConsignmentSalesReports] ([DisputedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReports_RecordedByAdminUserId] ON [ConsignmentSalesReports] ([RecordedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReports_Status] ON [ConsignmentSalesReports] ([MerchantBranchId], [Status], [PeriodStart]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReports_VerifiedByAdminUserId] ON [ConsignmentSalesReports] ([VerifiedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_ConsignmentSalesReports_Idempotency] ON [ConsignmentSalesReports] ([IdempotencyKey]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentSalesReports_Period] ON [ConsignmentSalesReports] ([MerchantBranchId], [PeriodStart], [Version]) WHERE [Status] <> ''Voided''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_ConsignmentSalesReports_Reference] ON [ConsignmentSalesReports] ([MerchantId], [PartnerReference], [Version]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentSalesReports_Supersedes] ON [ConsignmentSalesReports] ([SupersedesReportId]) WHERE [SupersedesReportId] IS NOT NULL AND [Status] <> ''Voided''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentLedger_Merchant] ON [ConsignmentStockLedgerEntries] ([MerchantId], [EffectiveAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentLedger_Position] ON [ConsignmentStockLedgerEntries] ([MerchantBranchId], [ProductVariantId], [EffectiveAt]) INCLUDE ([FromBucket], [ToBucket], [Quantity]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStockLedgerEntries_ActorAdminUserId] ON [ConsignmentStockLedgerEntries] ([ActorAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStockLedgerEntries_ProductVariantId] ON [ConsignmentStockLedgerEntries] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentLedger_Reverses] ON [ConsignmentStockLedgerEntries] ([ReversesEntryId]) WHERE [ReversesEntryId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentLedger_Source] ON [ConsignmentStockLedgerEntries] ([SourceType], [SourceLineId], [EntryType]) WHERE [ReversesEntryId] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentStockLedgerEntries_AppendOnly ON ConsignmentStockLedgerEntries
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51043, ''The consignment stock ledger is append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018125029_AddConsignmentSalesReportingLedger'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261018125029_AddConsignmentSalesReportingLedger', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    DROP INDEX [IX_ConsignmentSalesReportLines_ProductVariantId] ON [ConsignmentSalesReportLines];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    DROP INDEX [UX_ConsignmentSalesReportLines_Line] ON [ConsignmentSalesReportLines];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    ALTER TABLE [ConsignmentSalesReportLines] ADD [SealedReturnConfirmed] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    ALTER TABLE [ConsignmentSalesReportLines] ADD [SealedReturnEvidence] nvarchar(300) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    CREATE TABLE [ConsignmentRecordContributors] (
+        [SubjectType] nvarchar(32) NOT NULL,
+        [SubjectId] uniqueidentifier NOT NULL,
+        [AdminUserId] uniqueidentifier NOT NULL,
+        [Role] nvarchar(16) NOT NULL,
+        [FirstContributedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentRecordContributors] PRIMARY KEY ([SubjectType], [SubjectId], [AdminUserId]),
+        CONSTRAINT [CK_ConsignmentRecordContributor_Role] CHECK ([Role] IN ('Created','Edited','Recorded')),
+        CONSTRAINT [CK_ConsignmentRecordContributor_Subject] CHECK ([SubjectType] IN ('ConsignmentSalesReport','ConsignmentPriceTerm')),
+        CONSTRAINT [FK_ConsignmentRecordContributors_AdminUsers_AdminUserId] FOREIGN KEY ([AdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    INSERT INTO ConsignmentRecordContributors (SubjectType, SubjectId, AdminUserId, Role, FirstContributedAt)
+    SELECT 'ConsignmentPriceTerm', t.Id, t.CreatedByAdminUserId, 'Created', t.CreatedAt
+    FROM ConsignmentPriceTerms t
+    WHERE NOT EXISTS (SELECT 1 FROM ConsignmentRecordContributors c
+        WHERE c.SubjectType = 'ConsignmentPriceTerm' AND c.SubjectId = t.Id AND c.AdminUserId = t.CreatedByAdminUserId);
+    INSERT INTO ConsignmentRecordContributors (SubjectType, SubjectId, AdminUserId, Role, FirstContributedAt)
+    SELECT 'ConsignmentSalesReport', r.Id, r.CreatedByAdminUserId, 'Created', r.CreatedAt
+    FROM ConsignmentSalesReports r
+    WHERE NOT EXISTS (SELECT 1 FROM ConsignmentRecordContributors c
+        WHERE c.SubjectType = 'ConsignmentSalesReport' AND c.SubjectId = r.Id AND c.AdminUserId = r.CreatedByAdminUserId);
+    INSERT INTO ConsignmentRecordContributors (SubjectType, SubjectId, AdminUserId, Role, FirstContributedAt)
+    SELECT 'ConsignmentSalesReport', r.Id, r.RecordedByAdminUserId, 'Recorded', COALESCE(r.RecordedAt, r.UpdatedAt)
+    FROM ConsignmentSalesReports r
+    WHERE r.RecordedByAdminUserId IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM ConsignmentRecordContributors c
+        WHERE c.SubjectType = 'ConsignmentSalesReport' AND c.SubjectId = r.Id AND c.AdminUserId = r.RecordedByAdminUserId);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    UPDATE ConsignmentSalesReportLines
+    SET SealedReturnEvidence = N'Entered before sealed-return confirmation was required'
+    WHERE RestockableQuantity > 0 AND SealedReturnEvidence IS NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReportLines_Capacity] ON [ConsignmentSalesReportLines] ([ProductVariantId], [PriceTermId], [LineType]) INCLUDE ([Quantity], [RefundOfPeriodStart]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentSalesReportLines_Line] ON [ConsignmentSalesReportLines] ([SalesReportId], [LineType], [ProductVariantId], [PriceTermId], [RefundOfPeriodStart]) WHERE [PriceTermId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [ConsignmentSalesReportLines] ADD CONSTRAINT [CK_ConsignmentSalesLine_SealedReturn] CHECK ([RestockableQuantity] = 0 OR ([SealedReturnEvidence] IS NOT NULL AND LEN([SealedReturnEvidence]) >= 5))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentRecordContributors_AdminUserId] ON [ConsignmentRecordContributors] ([AdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261018164233_HardenConsignmentSalesReporting'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261018164233_HardenConsignmentSalesReporting', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019010452_ProtectConsignmentContributorHistory'
+)
+BEGIN
+    ALTER TABLE [ConsignmentSalesReports] ADD [ContributorHistoryComplete] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019010452_ProtectConsignmentContributorHistory'
+)
+BEGIN
+    ALTER TABLE [ConsignmentSalesReports] ADD [StartsFreshContributorHistory] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019010452_ProtectConsignmentContributorHistory'
+)
+BEGIN
+    ALTER TABLE [ConsignmentPriceTerms] ADD [ContributorHistoryComplete] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019010452_ProtectConsignmentContributorHistory'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentRecordContributors_AppendOnly ON ConsignmentRecordContributors
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51046, ''Consignment contributor history is append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019010452_ProtectConsignmentContributorHistory'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261019010452_ProtectConsignmentContributorHistory', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    ALTER TABLE [ConsignmentRecordContributors] DROP CONSTRAINT [CK_ConsignmentRecordContributor_Subject];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    ALTER TABLE [ConsignmentSalesReportLines] ADD [CorroboratedByStocktakeId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE TABLE [ConsignmentStocktakes] (
+        [Id] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [MerchantBranchId] uniqueidentifier NOT NULL,
+        [CutoffAt] datetimeoffset NOT NULL,
+        [CountedBy] nvarchar(200) NOT NULL,
+        [EvidenceKind] nvarchar(24) NOT NULL,
+        [EvidenceReference] nvarchar(1000) NOT NULL,
+        [Notes] nvarchar(2000) NULL,
+        [Status] nvarchar(16) NOT NULL,
+        [PreviousStocktakeId] uniqueidentifier NULL,
+        [CreatedByAdminUserId] uniqueidentifier NOT NULL,
+        [RecordedByAdminUserId] uniqueidentifier NULL,
+        [RecordedAt] datetimeoffset NULL,
+        [ApprovedByAdminUserId] uniqueidentifier NULL,
+        [ApprovedAt] datetimeoffset NULL,
+        [ReviewMode] nvarchar(32) NULL,
+        [IdempotencyKey] nvarchar(80) NOT NULL,
+        [ContributorHistoryComplete] bit NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentStocktakes] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_ConsignmentStocktakes_AdminUsers_ApprovedByAdminUserId] FOREIGN KEY ([ApprovedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStocktakes_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStocktakes_AdminUsers_RecordedByAdminUserId] FOREIGN KEY ([RecordedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStocktakes_ConsignmentStocktakes_PreviousStocktakeId] FOREIGN KEY ([PreviousStocktakeId]) REFERENCES [ConsignmentStocktakes] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStocktakes_MerchantBranches_MerchantBranchId] FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStocktakes_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE TABLE [ConsignmentStocktakeLines] (
+        [Id] uniqueidentifier NOT NULL,
+        [StocktakeId] uniqueidentifier NOT NULL,
+        [ProductVariantId] uniqueidentifier NOT NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [CountedSellable] int NOT NULL,
+        [CountedUnsellable] int NOT NULL,
+        [Notes] nvarchar(1000) NULL,
+        [FrozenAt] datetimeoffset NULL,
+        [BookSellable] int NULL,
+        [BookUnsellable] int NULL,
+        [BookInvestigation] int NULL,
+        [BookSold] int NULL,
+        [BookLost] int NULL,
+        [OpenSurplusBefore] int NULL,
+        [UnsellableFound] int NULL,
+        [UnsellableShortage] int NULL,
+        [Shortage] int NULL,
+        [Surplus] int NULL,
+        [SurplusNoLongerPresent] int NULL,
+        [ClosingSellable] int NULL,
+        [ClosingUnsellable] int NULL,
+        [ClosingInvestigation] int NULL,
+        [ClosingSold] int NULL,
+        [ClosingLost] int NULL,
+        [OpenSurplusAfter] int NULL,
+        CONSTRAINT [PK_ConsignmentStocktakeLines] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentStocktakeLine_Counts] CHECK ([CountedSellable] >= 0 AND [CountedUnsellable] >= 0),
+        CONSTRAINT [FK_ConsignmentStocktakeLines_ConsignmentStocktakes_StocktakeId] FOREIGN KEY ([StocktakeId]) REFERENCES [ConsignmentStocktakes] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStocktakeLines_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE TABLE [ConsignmentStockDiscrepancies] (
+        [Id] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [MerchantBranchId] uniqueidentifier NOT NULL,
+        [ProductVariantId] uniqueidentifier NOT NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [OriginStocktakeId] uniqueidentifier NOT NULL,
+        [OriginStocktakeLineId] uniqueidentifier NOT NULL,
+        [Kind] nvarchar(24) NOT NULL,
+        [Quantity] int NOT NULL,
+        [OpenQuantity] int NOT NULL,
+        [Status] nvarchar(16) NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentStockDiscrepancies] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentDiscrepancy_Quantities] CHECK ([Quantity] > 0 AND [OpenQuantity] >= 0 AND [OpenQuantity] <= [Quantity] AND (([Status] = 'Open' AND [OpenQuantity] > 0) OR ([Status] = 'Resolved' AND [OpenQuantity] = 0))),
+        CONSTRAINT [FK_ConsignmentStockDiscrepancies_ConsignmentStocktakeLines_OriginStocktakeLineId] FOREIGN KEY ([OriginStocktakeLineId]) REFERENCES [ConsignmentStocktakeLines] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockDiscrepancies_ConsignmentStocktakes_OriginStocktakeId] FOREIGN KEY ([OriginStocktakeId]) REFERENCES [ConsignmentStocktakes] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockDiscrepancies_MerchantBranches_MerchantBranchId] FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockDiscrepancies_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentStockDiscrepancies_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE TABLE [ConsignmentDiscrepancyResolutions] (
+        [Id] uniqueidentifier NOT NULL,
+        [DiscrepancyId] uniqueidentifier NOT NULL,
+        [Outcome] nvarchar(32) NOT NULL,
+        [Quantity] int NOT NULL,
+        [EvidenceReference] nvarchar(1000) NOT NULL,
+        [Reason] nvarchar(1000) NOT NULL,
+        [LinkedSalesReportId] uniqueidentifier NULL,
+        [RelatedDiscrepancyId] uniqueidentifier NULL,
+        [ReviewEventId] uniqueidentifier NULL,
+        [ReviewMode] nvarchar(32) NULL,
+        [ActorAdminUserId] uniqueidentifier NOT NULL,
+        [RecordedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentDiscrepancyResolutions] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentDiscrepancyResolution_Quantity] CHECK ([Quantity] > 0),
+        CONSTRAINT [FK_ConsignmentDiscrepancyResolutions_AdminUsers_ActorAdminUserId] FOREIGN KEY ([ActorAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentDiscrepancyResolutions_ConsignmentReviewEvents_ReviewEventId] FOREIGN KEY ([ReviewEventId]) REFERENCES [ConsignmentReviewEvents] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentDiscrepancyResolutions_ConsignmentSalesReports_LinkedSalesReportId] FOREIGN KEY ([LinkedSalesReportId]) REFERENCES [ConsignmentSalesReports] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentDiscrepancyResolutions_ConsignmentStockDiscrepancies_DiscrepancyId] FOREIGN KEY ([DiscrepancyId]) REFERENCES [ConsignmentStockDiscrepancies] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentDiscrepancyResolutions_ConsignmentStockDiscrepancies_RelatedDiscrepancyId] FOREIGN KEY ([RelatedDiscrepancyId]) REFERENCES [ConsignmentStockDiscrepancies] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSalesReportLines_CorroboratedByStocktakeId] ON [ConsignmentSalesReportLines] ([CorroboratedByStocktakeId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [ConsignmentRecordContributors] ADD CONSTRAINT [CK_ConsignmentRecordContributor_Subject] CHECK ([SubjectType] IN (''ConsignmentSalesReport'',''ConsignmentPriceTerm'',''ConsignmentStocktake''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancyResolutions_ActorAdminUserId] ON [ConsignmentDiscrepancyResolutions] ([ActorAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancyResolutions_Discrepancy] ON [ConsignmentDiscrepancyResolutions] ([DiscrepancyId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancyResolutions_LinkedSalesReportId] ON [ConsignmentDiscrepancyResolutions] ([LinkedSalesReportId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancyResolutions_RelatedDiscrepancyId] ON [ConsignmentDiscrepancyResolutions] ([RelatedDiscrepancyId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancyResolutions_ReviewEventId] ON [ConsignmentDiscrepancyResolutions] ([ReviewEventId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancies_Open] ON [ConsignmentStockDiscrepancies] ([MerchantBranchId], [ProductVariantId], [Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDiscrepancies_Origin] ON [ConsignmentStockDiscrepancies] ([OriginStocktakeId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStockDiscrepancies_MerchantId] ON [ConsignmentStockDiscrepancies] ([MerchantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStockDiscrepancies_OriginStocktakeLineId] ON [ConsignmentStockDiscrepancies] ([OriginStocktakeLineId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStockDiscrepancies_ProductVariantId] ON [ConsignmentStockDiscrepancies] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakeLines_ProductVariantId] ON [ConsignmentStocktakeLines] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_ConsignmentStocktakeLines_Sku] ON [ConsignmentStocktakeLines] ([StocktakeId], [ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakes_ApprovedByAdminUserId] ON [ConsignmentStocktakes] ([ApprovedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakes_Branch] ON [ConsignmentStocktakes] ([MerchantBranchId], [Status], [CutoffAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakes_CreatedByAdminUserId] ON [ConsignmentStocktakes] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakes_MerchantId] ON [ConsignmentStocktakes] ([MerchantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakes_PreviousStocktakeId] ON [ConsignmentStocktakes] ([PreviousStocktakeId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentStocktakes_RecordedByAdminUserId] ON [ConsignmentStocktakes] ([RecordedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentStocktakes_Cutoff] ON [ConsignmentStocktakes] ([MerchantBranchId], [CutoffAt]) WHERE [Status] = ''Approved''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_ConsignmentStocktakes_Idempotency] ON [ConsignmentStocktakes] ([IdempotencyKey]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentStocktakes_Open] ON [ConsignmentStocktakes] ([MerchantBranchId]) WHERE [Status] IN (''Draft'',''Recorded'')');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    ALTER TABLE [ConsignmentSalesReportLines] ADD CONSTRAINT [FK_ConsignmentSalesReportLines_ConsignmentStocktakes_CorroboratedByStocktakeId] FOREIGN KEY ([CorroboratedByStocktakeId]) REFERENCES [ConsignmentStocktakes] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentDiscrepancyResolutions_AppendOnly ON ConsignmentDiscrepancyResolutions
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51048, ''Consignment discrepancy resolutions are append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentStocktakeLines_Frozen ON ConsignmentStocktakeLines
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF EXISTS (SELECT 1 FROM deleted WHERE FrozenAt IS NOT NULL)
+            THROW 51049, ''An approved stocktake line is frozen.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentStocktakes_Closed ON ConsignmentStocktakes
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF EXISTS (SELECT 1 FROM deleted WHERE Status = ''Approved'')
+            THROW 51050, ''An approved stocktake is a closed month and cannot change.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019025050_AddConsignmentStocktakeAndCarryForward'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261019025050_AddConsignmentStocktakeAndCarryForward', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    ALTER TABLE [ConsignmentStocktakes] ADD [CountedAfterCutoffNote] nvarchar(1000) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    ALTER TABLE [ConsignmentStocktakes] ADD [CountedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDiscrepancyResolutions] ADD [ReversesResolutionId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentDiscrepancyResolutions_LateReport] ON [ConsignmentDiscrepancyResolutions] ([DiscrepancyId], [LinkedSalesReportId]) WHERE [Outcome] = ''ExplainedByLateReport'' AND [LinkedSalesReportId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_ConsignmentDiscrepancyResolutions_Reverses] ON [ConsignmentDiscrepancyResolutions] ([ReversesResolutionId]) WHERE [ReversesResolutionId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [ConsignmentDiscrepancyResolutions] ADD CONSTRAINT [CK_ConsignmentDiscrepancyResolution_Withdrawal] CHECK (([Outcome] = ''AllocationWithdrawn'' AND [ReversesResolutionId] IS NOT NULL) OR ([Outcome] <> ''AllocationWithdrawn'' AND [ReversesResolutionId] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDiscrepancyResolutions] ADD CONSTRAINT [FK_ConsignmentDiscrepancyResolutions_ConsignmentDiscrepancyResolutions_ReversesResolutionId] FOREIGN KEY ([ReversesResolutionId]) REFERENCES [ConsignmentDiscrepancyResolutions] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    EXEC(N'CREATE OR ALTER TRIGGER TR_ConsignmentStocktakeLines_Frozen ON ConsignmentStocktakeLines
+    AFTER INSERT, UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF EXISTS (SELECT 1 FROM deleted WHERE FrozenAt IS NOT NULL)
+            THROW 51049, ''An approved stocktake line is frozen.'', 1;
+        IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id WHERE i.StocktakeId <> d.StocktakeId)
+            THROW 51052, ''A stocktake line cannot move to another stocktake.'', 1;
+        IF EXISTS (SELECT 1 FROM inserted i JOIN ConsignmentStocktakes s ON s.Id = i.StocktakeId
+                   WHERE NOT EXISTS (SELECT 1 FROM deleted d WHERE d.Id = i.Id) AND (s.Status <> ''Draft'' OR i.FrozenAt IS NOT NULL))
+            THROW 51052, ''Lines can be added only to a draft stocktake.'', 1;
+        IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id JOIN ConsignmentStocktakes s ON s.Id = i.StocktakeId
+                   WHERE s.Status <> ''Draft'' AND EXISTS (
+                       SELECT i.ProductVariantId, i.SkuSnapshot, i.CountedSellable, i.CountedUnsellable, i.Notes
+                       EXCEPT SELECT d.ProductVariantId, d.SkuSnapshot, d.CountedSellable, d.CountedUnsellable, d.Notes))
+            THROW 51052, ''Only a draft stocktake can be re-counted.'', 1;
+        IF EXISTS (SELECT 1 FROM inserted i JOIN ConsignmentStocktakes s ON s.Id = i.StocktakeId
+                   WHERE i.FrozenAt IS NOT NULL AND s.Status NOT IN (''Recorded'', ''Approved''))
+            THROW 51052, ''A stocktake line is frozen only when its stocktake closes the month.'', 1;
+        IF EXISTS (SELECT 1 FROM deleted d JOIN ConsignmentStocktakes s ON s.Id = d.StocktakeId
+                   WHERE s.Status <> ''Draft'' AND NOT EXISTS (SELECT 1 FROM inserted i WHERE i.Id = d.Id))
+            THROW 51052, ''Lines can be removed only from a draft stocktake.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    EXEC(N'CREATE OR ALTER TRIGGER TR_ConsignmentStocktakes_Closed ON ConsignmentStocktakes
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF EXISTS (SELECT 1 FROM deleted WHERE Status = ''Approved'')
+            THROW 51050, ''An approved stocktake is a closed month and cannot change.'', 1;
+        IF EXISTS (SELECT 1 FROM deleted WHERE Status = ''Voided'')
+            THROW 51052, ''A discarded stocktake cannot change.'', 1;
+        IF EXISTS (SELECT 1 FROM deleted WHERE Status = ''Recorded'' AND Id NOT IN (SELECT Id FROM inserted))
+            THROW 51052, ''A recorded stocktake cannot be removed. Discard it instead.'', 1;
+        IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id
+                   WHERE d.Status <> ''Draft'' AND (i.Status = ''Draft'' OR EXISTS (
+                       SELECT i.MerchantId, i.MerchantBranchId, i.CutoffAt, i.CountedAt, i.CountedAfterCutoffNote, i.CountedBy, i.EvidenceKind, i.EvidenceReference
+                       EXCEPT SELECT d.MerchantId, d.MerchantBranchId, d.CutoffAt, d.CountedAt, d.CountedAfterCutoffNote, d.CountedBy, d.EvidenceKind, d.EvidenceReference)))
+            THROW 51052, ''A recorded stocktake keeps its count details. Discard it and count again.'', 1;
+        IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id WHERE i.Status = ''Approved'' AND d.Status <> ''Recorded'')
+            THROW 51052, ''Only a recorded stocktake can close its month.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019060824_HardenConsignmentStocktakeReconciliation'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261019060824_HardenConsignmentStocktakeReconciliation', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

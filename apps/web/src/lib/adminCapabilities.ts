@@ -80,6 +80,12 @@ export const adminCapabilities = {
   consignmentReturn: "consignment.return",
   consignmentRelease: "consignment.release",
   consignmentManifestExport: "consignment.manifest.export",
+  consignmentPriceTermsManage: "consignment.price_terms.manage",
+  consignmentSalesReportsRecord: "consignment.sales_reports.record",
+  consignmentSalesReportsVerify: "consignment.sales_reports.verify",
+  consignmentStocktakeRecord: "consignment.stocktake.record",
+  consignmentPeriodsClose: "consignment.periods.close",
+  consignmentDiscrepanciesResolve: "consignment.discrepancies.resolve",
 
   // Finance
   merchantInvoicesView: "merchant_invoices.view",

@@ -65,8 +65,17 @@ public sealed partial class ConsignmentService
     }
 
     // Called only from the three approved independence checks, inside RunAsync's existing SQL application lock.
-    private async Task<ConsignmentReviewEvent> Review(Guid admin,bool self,string action,ConsignmentActionRequest r,
-        Guid? agreement,Guid? dispatch,CancellationToken ct)
+    private Task<ConsignmentReviewEvent> Review(Guid admin,bool self,string action,ConsignmentActionRequest r,
+        Guid? agreement,Guid? dispatch,CancellationToken ct) =>
+        ReviewCore(admin,self,action,r.Reference.Trim(),r.SelfReview,r.Reference.Trim(),
+            r.Receipt?.SignedEvidenceReference.Trim() ?? r.Reference.Trim(),agreement,dispatch,null,null,ct);
+
+    // Shared by every reviewed consignment decision, inside RunAsync's SQL application lock.
+    // A subject (sales report, price term) is recorded when the decision is about neither
+    // an agreement version nor a dispatch.
+    private async Task<ConsignmentReviewEvent> ReviewCore(Guid admin,bool self,string action,string requestReference,
+        ConsignmentSelfReview? selfReview,string reason,string evidence,Guid? agreement,Guid? dispatch,
+        string? subjectType,Guid? subjectId,CancellationToken ct)
     {
         var p=await db.ConsignmentApprovalPolicies.AsNoTracking().SingleOrDefaultAsync(ct);
         var mode=p?.Mode ?? ConsignmentApprovalMode.Team;
@@ -75,26 +84,32 @@ public sealed partial class ConsignmentService
             var actor=await db.AdminUsers.Where(a=>a.Id==admin).Select(a=>a.UserId).SingleAsync(ct);
             if(mode!=ConsignmentApprovalMode.Solo || p?.SelfReviewerAdminUserId!=admin || access is null
                 || !(await access.ResolveAsync(actor,ct)).Has(AdminCapabilities.ConsignmentSelfReview))
-                throw new ApiException(403,action=="approve"?"independent_approval_required":action=="resolve-discrepancy"?"independent_discrepancy_review_required":"independent_receipt_required","Independent review is required unless Solo Mode explicitly authorizes you to self-review.");
-            if(r.SelfReview is not {Confirmed:true} e || string.IsNullOrWhiteSpace(e.Reason) || e.Reason.Trim().Length<10
+                throw new ApiException(403,action switch {
+                    "approve" => "independent_approval_required",
+                    "resolve-discrepancy" => "independent_discrepancy_review_required",
+                    "receive" or "record-discrepancy" => "independent_receipt_required",
+                    _ => "independent_review_required" },
+                    "Independent review is required unless Solo Mode explicitly authorizes you to self-review.");
+            if(selfReview is not {Confirmed:true} e || string.IsNullOrWhiteSpace(e.Reason) || e.Reason.Trim().Length<10
                 || e.Reason.Length>1000 || string.IsNullOrWhiteSpace(e.ExternalEvidenceReference)
                 || e.ExternalEvidenceReference.Trim().Length<5 || e.ExternalEvidenceReference.Length>1000)
                 throw Bad("Confirm self-review, give a reason of 10 to 1,000 characters and reference genuine external evidence.");
         }
         var row=new ConsignmentReviewEvent { AgreementId=agreement,DispatchId=dispatch,Action=action,
             ReviewMode=self ? "Self-reviewed (Solo)" : mode==ConsignmentApprovalMode.Solo ? "Independent (Solo)" : "Independent (Team)",
-            RequestReference=r.Reference.Trim(),PolicyMode=mode.ToString(),PolicyVersion=Convert.ToBase64String(p?.RowVersion??[]),SelfReviewerAdminUserId=p?.SelfReviewerAdminUserId,
-            ActorAdminUserId=admin,RecordedAt=time.GetUtcNow(),Reason=self ? r.SelfReview!.Reason.Trim() : r.Reference.Trim(),
-            ExternalEvidenceReference=self ? r.SelfReview!.ExternalEvidenceReference.Trim() : r.Receipt?.SignedEvidenceReference.Trim() ?? r.Reference.Trim() };
+            RequestReference=requestReference,PolicyMode=mode.ToString(),PolicyVersion=Convert.ToBase64String(p?.RowVersion??[]),SelfReviewerAdminUserId=p?.SelfReviewerAdminUserId,
+            ActorAdminUserId=admin,RecordedAt=time.GetUtcNow(),Reason=self ? selfReview!.Reason.Trim() : reason,
+            ExternalEvidenceReference=self ? selfReview!.ExternalEvidenceReference.Trim() : evidence,
+            SubjectType=subjectType,SubjectId=subjectId };
         db.ConsignmentReviewEvents.Add(row);
         audit.Append(admin,ActorType.Admin,self ? "consignment.solo-self-review" : "consignment.independent-review",
-            dispatch is null ? "ConsignmentAgreement" : "ConsignmentDispatch",dispatch??agreement,null,MapReview(row));
+            subjectType ?? (dispatch is null ? "ConsignmentAgreement" : "ConsignmentDispatch"),subjectId ?? dispatch ?? agreement,null,MapReview(row));
         return row;
     }
 
     private static ConsignmentReviewResponse MapReview(ConsignmentReviewEvent e)=>new(e.Id,e.Action,e.ReviewMode,e.ActorAdminUserId,
         e.RecordedAt,e.Reason,e.ExternalEvidenceReference,e.PolicyMode,e.PreviousPolicyMode,e.SelfReviewerAdminUserId,
-        e.PreviousSelfReviewerAdminUserId,e.AgreementId,e.DispatchId,e.RequestReference);
+        e.PreviousSelfReviewerAdminUserId,e.AgreementId,e.DispatchId,e.RequestReference) { SubjectType=e.SubjectType,SubjectId=e.SubjectId };
 
     public async Task<byte[]> ReviewLogCsvAsync(Guid? actor,DateTimeOffset from,DateTimeOffset to,CancellationToken ct)
     {
@@ -103,8 +118,8 @@ public sealed partial class ConsignmentService
             .OrderBy(e=>e.RecordedAt).ThenBy(e=>e.Id).Take(10001).ToListAsync(ct);
         if(rows.Count>10000)throw Bad("Choose a shorter review period (maximum 10,000 events).");
         var s=new StringBuilder();
-        s.AppendLine(string.Join(',',new[]{"Event ID","Action","Review mode","Actor admin ID","Recorded UTC","Agreement ID","Dispatch ID","Reason","External evidence","Policy mode","Previous policy mode","Authorized founder admin ID","Previous founder admin ID","Policy version","Request reference","Self-review confirmed"}.Select(AdminExportSanitizer.Csv)));
-        foreach(var e in rows)s.AppendLine(string.Join(',',new[]{e.Id.ToString(),e.Action,e.ReviewMode,e.ActorAdminUserId.ToString(),e.RecordedAt.ToString("O"),e.AgreementId?.ToString()??"",e.DispatchId?.ToString()??"",e.Reason,e.ExternalEvidenceReference,e.PolicyMode,e.PreviousPolicyMode??"",e.SelfReviewerAdminUserId?.ToString()??"",e.PreviousSelfReviewerAdminUserId?.ToString()??"",e.PolicyVersion,e.RequestReference,e.ReviewMode=="Self-reviewed (Solo)"?"Yes":"No"}.Select(AdminExportSanitizer.Csv)));
+        s.AppendLine(string.Join(',',new[]{"Event ID","Action","Review mode","Actor admin ID","Recorded UTC","Agreement ID","Dispatch ID","Reason","External evidence","Policy mode","Previous policy mode","Authorized founder admin ID","Previous founder admin ID","Policy version","Request reference","Self-review confirmed","Subject type","Subject ID"}.Select(AdminExportSanitizer.Csv)));
+        foreach(var e in rows)s.AppendLine(string.Join(',',new[]{e.Id.ToString(),e.Action,e.ReviewMode,e.ActorAdminUserId.ToString(),e.RecordedAt.ToString("O"),e.AgreementId?.ToString()??"",e.DispatchId?.ToString()??"",e.Reason,e.ExternalEvidenceReference,e.PolicyMode,e.PreviousPolicyMode??"",e.SelfReviewerAdminUserId?.ToString()??"",e.PreviousSelfReviewerAdminUserId?.ToString()??"",e.PolicyVersion,e.RequestReference,e.ReviewMode=="Self-reviewed (Solo)"?"Yes":"No",e.SubjectType??"",e.SubjectId?.ToString()??""}.Select(AdminExportSanitizer.Csv)));
         await RunAsync(actor,admin=>{audit.Append(admin,ActorType.Admin,"consignment.review-log-exported","ConsignmentReviewEvent",null,null,new {from,to,Count=rows.Count});return Task.CompletedTask;},ct);
         return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(s.ToString())).ToArray();
     }

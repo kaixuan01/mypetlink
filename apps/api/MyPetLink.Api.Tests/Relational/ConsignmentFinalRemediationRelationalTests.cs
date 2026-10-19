@@ -85,7 +85,7 @@ public sealed partial class ConsignmentRelationalTests
         Assert.True(d.HasOpenDiscrepancy);Assert.Equal(99,d.ReceivedQuantity);Assert.Equal(98,d.Units.Count(u=>u.Status=="Received"));
         var events=await db.ConsignmentMovements.CountAsync();var replay=await s.ActionAsync(OwnerAccountId,d.Id,"receive",request,default);
         Assert.Equal(d.ConcurrencyToken,replay.ConcurrencyToken);Assert.Equal(events,await db.ConsignmentMovements.CountAsync());
-        d=await s.ActionAsync(OwnerAccountId,d.Id,"external-handover",Action(d,"SYN-GOOD-SALE",[good[0]]) with {Handover=Handover("PARTIAL-GOOD")},default);
+        d=await s.ActionAsync(OwnerAccountId,d.Id,"external-handover",Action(d,"SYN-GOOD-SALE",[good[0]]) with {Handover=Handover("PARTIAL-GOOD") with {Attribution="NonSaleWithdrawal"}},default);
         await Assert.ThrowsAsync<ApiException>(()=>s.ActionAsync(OwnerAccountId,d.Id,"external-handover",Action(d,"SYN-MISSING-SALE",[missing]) with {Handover=Handover("PARTIAL-MISSING")},default));
         d=await s.ActionAsync(AdminAccountId,d.Id,"return",Action(d,"SYN-ACTUAL-DAMAGED-RETURN",[damaged]),default);
         var t=await db.ConsignmentUnits.Where(u=>u.Id==damaged).Select(u=>u.SmartTag).SingleAsync();await InspectReturn(db,t,pass:false);
@@ -111,7 +111,7 @@ public sealed partial class ConsignmentRelationalTests
         d=await s.ActionAsync(AdminAccountId,d.Id,"return",Action(d,"SYN-PHYSICAL-RETURN",[damaged]),default);
         d=await s.ActionAsync(ReviewerUser,d.Id,"resolve-discrepancy",Action(d,"SYN-LOCATED-AND-RETURN-REVIEW") with {Receipt=Findings([missing],returned:[damaged])},default);
         Assert.False(d.HasOpenDiscrepancy);Assert.Equal("Received",d.Status);Assert.Equal(1,d.ReceivedQuantity);Assert.Equal(3,d.Units.Count(u=>u.ReceivingState=="Good"));Assert.Equal(1,d.ReturnedQuarantine);
-        d=await s.ActionAsync(OwnerAccountId,d.Id,"external-handover",Action(d,"SYN-LOCATED-HANDOVER",[missing]) with {Handover=Handover("LOCATED-GOOD")},default);
+        d=await s.ActionAsync(OwnerAccountId,d.Id,"external-handover",Action(d,"SYN-LOCATED-HANDOVER",[missing]) with {Handover=Handover("LOCATED-GOOD") with {Attribution="NonSaleWithdrawal"}},default);
         Assert.Equal(1,d.ExternalHandovers);Assert.Equal("Returned",d.Units.Single(u=>u.Id==damaged).ReceivingState);
     }
     [Fact]
@@ -165,6 +165,7 @@ public sealed partial class ConsignmentRelationalTests
     {
         await using var scope=await Database(1);await using var db=scope.NewContext();var s=Custody(db);var d=await ShippedConsignment(db,1);
         d=await s.ActionAsync(OwnerAccountId,d.Id,"receive",Action(d,"SYN-RX") with {Receipt=Receipt(d)},default);
+        await ForgetStockTracking(db);
         var request=Action(d,"SYN-PRICE",[d.Units[0].Id]) with {Handover=Handover(sale:true) with {SellingPrice=decimal.Parse(price,System.Globalization.CultureInfo.InvariantCulture)}};
         if(allowed) Assert.Equal(1,(await s.ActionAsync(OwnerAccountId,d.Id,"external-handover",request,default)).ExternalHandovers);
         else Assert.Equal(400,(await Assert.ThrowsAsync<ApiException>(()=>s.ActionAsync(OwnerAccountId,d.Id,"external-handover",request,default))).StatusCode);

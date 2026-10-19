@@ -23,7 +23,8 @@ public sealed record ReserveConsignmentRequest(Guid AgreementId,
     Guid? MerchantBranchId = null);
 public sealed record ConsignmentActionRequest([Required] string ConcurrencyToken,
     [Required, MaxLength(1000)] string Reference, IReadOnlyList<Guid>? UnitIds = null,
-    ConsignmentReceiptEvidence? Receipt = null, ConsignmentHandoverEvidence? Handover = null, ConsignmentSelfReview? SelfReview = null);
+    ConsignmentReceiptEvidence? Receipt = null, ConsignmentHandoverEvidence? Handover = null, ConsignmentSelfReview? SelfReview = null,
+    [MaxLength(16)] string? ReturnFromBucket = null);
 public sealed record ConsignmentReceiptEvidence([Required, MaxLength(200)] string Recipient,
     DateTimeOffset ReceivedAt, int Quantity, int DamagedQuantity, int MissingQuantity,
     [Required, MaxLength(1000)] string SignedEvidenceReference,
@@ -33,7 +34,8 @@ public sealed record ConsignmentHandoverEvidence([Required, MaxLength(150)] stri
     DateTimeOffset EventAt, bool IsReportedSale,
     [Range(typeof(decimal), "0", "999999.99")] decimal? SellingPrice,
     [Range(typeof(decimal), "0", "999999.99")] decimal? DiscountAmount,
-    [MaxLength(1000)] string? DiscountDescription, Guid? SupersedesRecordId = null);
+    [MaxLength(1000)] string? DiscountDescription, Guid? SupersedesRecordId = null,
+    [MaxLength(24)] string? Attribution = null);
 public sealed record ConsignmentDispatchResponse(Guid Id, Guid AgreementId, string DispatchNumber,
     string MerchantName, string AgreementReference, int AgreementVersion, decimal CommissionPercentage,
     string Destination, string Status, string ExternalTrackerReference, DateTimeOffset? DispatchedAt,
@@ -48,6 +50,11 @@ public sealed record ConsignmentDispatchResponse(Guid Id, Guid AgreementId, stri
     public IReadOnlyList<ConsignmentReviewResponse> Reviews { get; init; } = [];
     public int WrittenOff => Units.Count(u => u.Status == "WrittenOff");
     public bool ReservationReused { get; init; }
+    /// <summary>
+    /// Whether any of this delivery's units is in the partner's SKU stock ledger. Kept for older
+    /// clients; decisions about a handover use each unit's own <see cref="ConsignmentUnitResponse.StockTracked"/>.
+    /// </summary>
+    public bool StockTracked { get; init; }
 }
 // No account, pet or finder-contact data crosses this projection.
 public sealed record ConsignmentUnitResponse(Guid Id, string? TagCode, string Sku, string ProductName,
@@ -55,10 +62,16 @@ public sealed record ConsignmentUnitResponse(Guid Id, string? TagCode, string Sk
     string? ExternalReference,Guid? CurrentHandoverRecordId, string ReceivingState = "Unconfirmed")
 {
     public string UnitReference => "CU-" + Id.ToString("N").ToUpperInvariant();
+    /// <summary>
+    /// Whether this unit's arrival is in the partner's SKU stock ledger. Decided per unit:
+    /// one delivery can hold both units received before tracking began and units counted since.
+    /// </summary>
+    public bool StockTracked { get; init; }
 }
 public sealed record ConsignmentMovementResponse(string Action, string Reference, DateTimeOffset OccurredAt,
     Guid? UnitId, Guid ActorAdminUserId, string? EvidenceJson,string? ActorName, string? ReviewMode = null);
 public sealed record ConsignmentHandoverResponse(Guid Id, Guid UnitId, Guid ActorAdminUserId,
     string EventReference, string Kind, DateTimeOffset EventAt, DateTimeOffset RecordedAt,
     bool IsReportedSale, decimal? SellingPrice, decimal? DiscountAmount, string? DiscountDescription,
-    string EvidenceReference, Guid? SupersedesRecordId, string VerificationStatus = "Unverified external report");
+    string EvidenceReference, Guid? SupersedesRecordId, string VerificationStatus = "Unverified external report",
+    string? Attribution = null);

@@ -30,4 +30,7 @@ public sealed class ConsignmentReviewEvent : Entity
     public DateTimeOffset RecordedAt { get; set; }
     public string Reason { get; set; } = "";
     public string ExternalEvidenceReference { get; set; } = "";
+    // Reviews of records that are neither an agreement nor a dispatch (sales reports, price terms).
+    public string? SubjectType { get; set; }
+    public Guid? SubjectId { get; set; }
 }

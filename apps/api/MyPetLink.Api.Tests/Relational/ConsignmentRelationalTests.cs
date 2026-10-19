@@ -13,11 +13,21 @@ namespace MyPetLink.Api.Tests.Relational;
 [Collection("PDF document rendering")]
 public sealed partial class ConsignmentRelationalTests
 {
+    // Set by a migrated-schema test to run the same scenarios on a database built by the real
+    // migration chain (with its SQL triggers) instead of EnsureCreated.
+    private static readonly AsyncLocal<bool> MigratedSchema=new();
     private static async Task<RelationalScope> Database(int stock=100)
     {
         Assert.True(RelationalDatabase.IsAvailable,"SQL Server must run for the consignment release gate; skipping is not acceptable.");
-        var scope=await RelationalDatabase.CreateAsync(enableRetryOnFailure:true);
+        var scope=await RelationalDatabase.CreateAsync(enableRetryOnFailure:true,createSchema:!MigratedSchema.Value);
         await using var db=scope.NewContext();
+        if(MigratedSchema.Value) await db.Database.MigrateAsync();
+        await SeedConsignment(db,stock);
+        return scope;
+    }
+    /// <summary>The consignment fixture's data, for a schema created any way (EnsureCreated or a migration target).</summary>
+    private static async Task SeedConsignment(MyPetLinkDbContext db,int stock)
+    {
         await SeedAsync(db,qrStock:0,nfcStock:stock);
         await ReceivedStockFixture.ReceiveAllAsync(db,NfcVariantId);
         db.AdminUsers.Add(new AdminUser { Id=CheckerAdminId,UserId=OwnerAccountId,IsActive=true });
@@ -30,7 +40,6 @@ public sealed partial class ConsignmentRelationalTests
         identity.RegisteredAddressLine1="Test address";identity.RegisteredPostcode="50000";identity.RegisteredCity="Kuala Lumpur";
         identity.RegisteredState="Kuala Lumpur";identity.RegisteredCountry="Malaysia";identity.SupportEmail="test@example.com";
         await db.SaveChangesAsync();
-        return scope;
     }
     private static ConsignmentService Custody(MyPetLinkDbContext db) {
         var audit=new AuditLogService(db,new HttpContextAccessor());

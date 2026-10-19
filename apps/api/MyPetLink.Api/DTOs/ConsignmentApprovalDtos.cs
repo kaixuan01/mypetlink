@@ -17,4 +17,8 @@ public sealed record ConsignmentReviewResponse(Guid Id, string Action, string Re
     Guid? PreviousSelfReviewerAdminUserId, Guid? AgreementId, Guid? DispatchId, string RequestReference = "")
 {
     public bool SelfReviewConfirmed => ReviewMode == "Self-reviewed (Solo)";
+    // The price term or sales report a decision was about, when it was about neither
+    // an agreement version nor a dispatch.
+    public string? SubjectType { get; init; }
+    public Guid? SubjectId { get; init; }
 }
