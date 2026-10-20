@@ -1,0 +1,34 @@
+[
+  {
+    "File": "20261018125029_AddConsignmentSalesReportingLedger.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261018125029_AddConsignmentSalesReportingLedger.Designer.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261018164233_HardenConsignmentSalesReporting.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261018164233_HardenConsignmentSalesReporting.Designer.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261019010452_ProtectConsignmentContributorHistory.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261019010452_ProtectConsignmentContributorHistory.Designer.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261019025050_AddConsignmentStocktakeAndCarryForward.cs",
+    "Unchanged": true
+  },
+  {
+    "File": "20261019025050_AddConsignmentStocktakeAndCarryForward.Designer.cs",
+    "Unchanged": true
+  }
+]

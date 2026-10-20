@@ -725,6 +725,68 @@ Response:
 
 - care record list with `id`, `petId`, `type`, `title`, `date`, `dueDate`, `provider`, `notes`, `publicVisibility`, `derivedStatus`, timestamps, and pagination metadata.
 
+### GET `/api/v1/care-records/upcoming`
+
+Purpose: the signed-in owner's pending due items across their active pets. Backs the Dashboard's Care coming up and the Log as done eligibility check.
+
+Auth: owner. The actor is always the signed-in owner; no user id is accepted.
+
+Query:
+
+- `page`, `pageSize` (1-100)
+- `petId`: optional filter to one owned pet. Another owner's pet returns `404`.
+
+Rules:
+
+- Pending means: an active (not archived, not deleted) record with a `dueDate`, on a pet that is Active (not Memorial, Archived or deleted), with no active record fulfilling it.
+- Every rule is applied in the query before paging; `meta.total` is the filtered pending count.
+- Ordered by `dueDate`, then creation time, then id.
+- `derivedStatus` uses the Malaysia calendar day (`overdue`, `due-soon` within 30 days, `upcoming`).
+- The per-pet history list above is unchanged.
+
+Response `data`:
+
+- `asOfDate`: the Malaysia calendar day statuses were derived for.
+- `petIdsWithCareRecords`: in-scope active pets holding at least one active care record of any kind, so "no care logged" and "nothing waiting" can be told apart.
+- `items`: `id`, `petId`, `petName`, `type`, `title`, `careName`, `dueDate`, `derivedStatus`. Notes, provider and documents are never included.
+
+Errors:
+
+- `400` invalid paging
+- `401` not signed in
+- `404` `petId` not found or not owned
+
+### GET `/api/v1/care-records/upcoming/summary`
+
+Purpose: the Dashboard's pending-care summary, from one consistent read.
+
+Auth: owner. The actor is always the signed-in owner.
+
+Rules:
+
+- Same pending rules as `/upcoming`. All reads run in one SERIALIZABLE read-only transaction on SQL Server, so counts and items describe one committed state.
+- One scope with `petId: null` (all active pets) plus one per active pet: `hasCareRecords`, `pendingCount`, `dueWithinHorizonCount`, `overdueCount` (exact) and at most three `items` (most recently missed, then nearest coming).
+- `asOfDate` is Malaysia's day; `horizonDate` is `asOfDate` + 30.
+- `complete` is false only when more than 1000 items are pending: counts stay exact, the items shown may not be the most urgent.
+- Clients validate the summary as a whole before showing it: each item's status against its due date, `asOfDate` and `horizonDate`; visible rows within their counts (exactly, for a complete scope of three or fewer); unique items; all-pets items belonging to a listed pet, identical in every scope; pet counts adding up to the all-pets counts.
+
+### GET `/api/v1/care-records/{recordId}/completion`
+
+Purpose: whether one due item has been completed, and by which record. Used by Log as done to open the form and to settle a save whose outcome is unknown.
+
+Auth: owner. Another owner's or a deleted record returns `404`.
+
+Response `data`: `state` (`pending`, `completed`, `archived`, `no-due-date`, `pet-archived`), `asOfDate`, `petName`, `target`, `completion`. Read in one SERIALIZABLE read transaction on SQL Server, documents included.
+
+Rules:
+
+- `state` precedence: `archived` (the target was deleted), then `pet-archived`, then `no-due-date` (its due date was removed), then `completed`, then `pending`. A changed target is reported before any completion, so a deleted or undated item is never reported as completed.
+- `completion` is the earliest active record (not archived or deleted) on the **same pet** of the **same owner** whose `fulfillsCareRecordId` is the target. It is present whenever one exists — including on `archived`, `pet-archived` and `no-due-date`, where it is a save validated before the item changed that landed afterwards — and absent on `pending`.
+- Both records always carry a `documents` array (possibly empty). Clients reject a record without one: an omitted collection is not proof of no attachments.
+- Both records carry their attached documents by stored media id. A client settling a lost save compares those ids, as a set, with the ids its request carried; matching text alone never proves the attachments were saved.
+- Disappearing from pending care is never reported as `completed`.
+- There is no request idempotency key. Two saves for one unchanged item cannot both be active (one active completing record per item); a save validated before the item changed can still land afterwards, which the precedence above reports.
+
 ### POST `/api/v1/pets/{petId}/care-records`
 
 Purpose: create care record.

@@ -41,6 +41,12 @@ vi.mock("@/services/momentService", () => ({
 }));
 vi.mock("@/services/recordService", () => ({
   getPetRecords: (...args: unknown[]) => mocks.getPetRecords(...args),
+  getUpcomingCareSummary: async () => ({
+    asOfDate: "2026-08-17",
+    horizonDate: "2026-09-16",
+    complete: true,
+    scopes: [{ petId: null, hasCareRecords: false, pendingCount: 0, dueWithinHorizonCount: 0, overdueCount: 0, items: [] }],
+  }),
 }));
 vi.mock("@/components/portal/PlanSummaryCard", () => ({
   PlanSummaryCard: () => <div data-testid="plan-summary-card" />,
@@ -101,11 +107,7 @@ describe("Share Pet Card availability", () => {
     mocks.getPets.mockResolvedValue({ data: [pet] });
 
     render(
-      <DashboardClient
-        initialMoments={[]}
-        initialPets={[pet]}
-        initialRecords={[]}
-      />
+      <DashboardClient initialPets={[pet]} />
     );
 
     const share = await screen.findAllByRole("button", {
@@ -174,11 +176,7 @@ describe("Share Pet Card availability", () => {
     mocks.getPets.mockResolvedValue({ data: [pet] });
 
     render(
-      <DashboardClient
-        initialMoments={[]}
-        initialPets={[pet]}
-        initialRecords={[]}
-      />
+      <DashboardClient initialPets={[pet]} />
     );
 
     await screen.findByText(pet.name);

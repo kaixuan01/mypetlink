@@ -317,6 +317,47 @@ export type BackendCareRecord = {
   documents?: BackendCareRecordDocument[] | null;
 };
 
+export type BackendUpcomingCareRecord = {
+  id: string;
+  petId: string;
+  petName: string;
+  type: BackendCareRecordType | string;
+  title: string;
+  careName?: string | null;
+  dueDate: string;
+  derivedStatus: "overdue" | "due-soon" | "upcoming" | string;
+};
+
+export type BackendUpcomingCareRecords = {
+  asOfDate: string;
+  petIdsWithCareRecords: string[];
+  items: BackendUpcomingCareRecord[];
+};
+
+export type BackendUpcomingCareScope = {
+  petId: string | null;
+  hasCareRecords: boolean;
+  pendingCount: number;
+  dueWithinHorizonCount: number;
+  overdueCount: number;
+  items: BackendUpcomingCareRecord[];
+};
+
+export type BackendUpcomingCareSummary = {
+  asOfDate: string;
+  horizonDate: string;
+  complete: boolean;
+  scopes: BackendUpcomingCareScope[];
+};
+
+export type BackendCareCompletionStatus = {
+  state: string;
+  asOfDate: string;
+  petName: string;
+  target: BackendCareRecord;
+  completion: BackendCareRecord | null;
+};
+
 export type BackendCareRecordDocument = {
   id: string;
   originalFileName: string;

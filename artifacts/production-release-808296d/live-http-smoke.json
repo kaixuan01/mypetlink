@@ -1,0 +1,24 @@
+{
+ "flags": {
+  "smart-tags": "true",
+  "tag-orders": "true",
+  "ordering": "true",
+  "community": "true"
+ },
+ "routes": {
+  "/admin": 200,
+  "/admin/login": 200,
+  "/admin/merchant-sales": 200,
+  "/admin/merchant-sales?tab=consignment": 200,
+  "/dashboard": 200,
+  "/pets": 200,
+  "/tags": 200,
+  "/orders": 200,
+  "/where-to-buy": 200,
+  "/q/ZZZZTEST0": 200,
+  "/n/ZZZZTEST0": 200,
+  "/t/ZZZZTEST0": 200,
+  "/robots.txt": 200,
+  "/p/topu-pnpr4ipnr6ppelnsn": 200
+ }
+}

@@ -1,0 +1,45 @@
+{
+  "api-regression": {
+    "total": 973,
+    "passed": 973,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "api-final-consignment": {
+    "total": 148,
+    "passed": 148,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "api-release-guard": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "api-final-receiving-audit": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "consignment-focused-initial": {
+    "total": 55,
+    "passed": 53,
+    "failed": 2,
+    "notExecuted": 0
+  },
+  "frontend-full": {
+    "passed": 4337,
+    "failed": 0,
+    "skipped": 7,
+    "total": 4344
+  },
+  "frontend-final-panel": {
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "total": 15
+  },
+  "note": "Overlapping runs, not additive; timing and final-source qualifications are in remediation-report.md."
+}

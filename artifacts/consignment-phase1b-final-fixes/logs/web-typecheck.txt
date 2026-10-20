@@ -1,0 +1,4 @@
+
+> mypetlink@0.1.0 typecheck
+> tsc --noEmit && tsc --noEmit --project tsconfig.functions.json
+

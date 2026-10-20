@@ -1,0 +1,119 @@
+ M .claude/launch.json
+ M .gitignore
+ M apps/api/MyPetLink.Api.Tests/PhysicalQaHttpTests.cs
+ M apps/api/MyPetLink.Api.Tests/Relational/MerchantDirectoryRelationalTests.cs
+ M apps/api/MyPetLink.Api/Auth/AdminCapabilities.cs
+ M apps/api/MyPetLink.Api/Auth/AdminCapabilityCatalog.cs
+ M apps/api/MyPetLink.Api/Auth/AdminRoleTemplates.cs
+ M apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.cs
+ M apps/api/MyPetLink.Api/Migrations/MyPetLinkDbContextModelSnapshot.cs
+ M apps/api/MyPetLink.Api/Program.cs
+ M apps/api/MyPetLink.Api/Properties/launchSettings.json
+ M apps/api/MyPetLink.Api/Services/AdminService.cs
+ M apps/api/MyPetLink.Api/Services/AdminSmartTagService.cs
+ M apps/api/MyPetLink.Api/Services/AdminTagInventoryService.cs
+ M apps/api/MyPetLink.Api/Services/BusinessIdentityService.cs
+ M apps/api/MyPetLink.Api/Services/DocumentNumberService.cs
+ M apps/api/MyPetLink.Api/Services/MerchantDocumentRenderer.cs
+ M apps/api/MyPetLink.Api/Services/MerchantDocumentService.cs
+ M apps/api/MyPetLink.Api/Services/MerchantFulfilmentService.cs
+ M apps/api/MyPetLink.Api/Services/MerchantSalesService.cs
+ M apps/api/MyPetLink.Api/Services/SellableInventoryRules.cs
+ M apps/api/MyPetLink.Api/Services/TagOrderInventoryAvailabilityService.cs
+ M apps/api/MyPetLink.Api/appsettings.Development.json
+ M apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.test.tsx
+ M apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.tsx
+ M apps/web/src/components/admin/merchantSales/merchantSales.test.tsx
+ M apps/web/src/components/admin/merchantSales/tabs.authorization.test.ts
+ M apps/web/src/components/admin/merchantSales/tabs.ts
+ M apps/web/src/lib/adminCapabilities.ts
+ M apps/web/src/lib/adminNavigation.ts
+ M apps/web/src/lib/communityModeration.test.ts
+ M docs/operations/configuration-inventory.md
+ M marketing/xiaohongshu/01-account-strategy.md
+ M marketing/xiaohongshu/02-content-calendar.md
+ M marketing/xiaohongshu/03-filming-batching-plan.md
+ M migration.sql
+ M package.json
+?? TagOrder
+?? apps/api/MyPetLink.Api.Tests/ConsignmentAuthorizationTests.cs
+?? apps/api/MyPetLink.Api.Tests/ConsignmentCorrectnessTests.cs
+?? apps/api/MyPetLink.Api.Tests/ConsignmentHttpTests.cs
+?? apps/api/MyPetLink.Api.Tests/MarketingDemoSeederTests.cs
+?? apps/api/MyPetLink.Api.Tests/Relational/ConsignmentFinalRemediationRelationalTests.cs
+?? apps/api/MyPetLink.Api.Tests/Relational/ConsignmentMigrationSafetyRelationalTests.cs
+?? apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRelationalTests.cs
+?? apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRemediationRelationalTests.cs
+?? apps/api/MyPetLink.Api/Common/MarketingDemoOptions.cs
+?? apps/api/MyPetLink.Api/Controllers/Admin/AdminConsignmentController.cs
+?? apps/api/MyPetLink.Api/DTOs/ConsignmentDtos.cs
+?? apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.Consignment.cs
+?? apps/api/MyPetLink.Api/Entities/ConsignmentEntities.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.Designer.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.Designer.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017160448_CompleteConsignmentReceivingAndApproval.Designer.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017160448_CompleteConsignmentReceivingAndApproval.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentDocumentService.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentService.Evidence.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentService.Receiving.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentService.cs
+?? apps/api/MyPetLink.Api/Services/InventoryCustodyRules.cs
+?? apps/api/MyPetLink.Api/Services/MarketingDemoSeeder.cs
+?? apps/web/src/components/admin/merchantSales/ConsignmentPanel.test.tsx
+?? apps/web/src/components/admin/merchantSales/ConsignmentPanel.tsx
+?? apps/web/src/services/adminConsignmentService.ts
+?? artifacts/consignment-final-remediation/
+?? artifacts/consignment-final-verification/
+?? artifacts/consignment-independent-qa/
+?? artifacts/consignment-release-gate/
+?? artifacts/consignment-remediation/
+?? artifacts/consignment-tests/
+?? artifacts/merchant-locations-api-tests.log
+?? artifacts/merchant-locations-browser-tests.log
+?? artifacts/merchant-locations-build.log
+?? artifacts/merchant-locations-lint.log
+?? artifacts/merchant-locations-original-export-hash.txt
+?? artifacts/merchant-locations-qa-root.txt
+?? artifacts/merchant-locations-report.md
+?? artifacts/merchant-locations-screenshots/
+?? artifacts/merchant-locations-typecheck.log
+?? artifacts/merchant-locations-web-tests.log
+?? artifacts/merchant-logo-api-tests.log
+?? artifacts/merchant-logo-changed-files.txt
+?? artifacts/merchant-logo-lint.log
+?? artifacts/merchant-logo-regenerated.sql
+?? artifacts/merchant-logo-source.tar
+?? artifacts/merchant-logo-typecheck.log
+?? artifacts/merchant-logo-web-tests.log
+?? artifacts/production-preflight-2026-10-15/
+?? artifacts/smart-tag-activation-browser.log
+?? artifacts/smart-tag-activation-browser.mjs
+?? artifacts/smart-tag-activation-build.log
+?? artifacts/smart-tag-activation-screenshots/
+?? artifacts/smart-tags-management-after.json
+?? artifacts/smart-tags-management-api-tests.log
+?? artifacts/smart-tags-management-before.json
+?? artifacts/smart-tags-management-browser-before.log
+?? artifacts/smart-tags-management-browser.log
+?? artifacts/smart-tags-management-browser.mjs
+?? artifacts/smart-tags-management-build.log
+?? artifacts/smart-tags-management-component-tests.log
+?? artifacts/smart-tags-management-lint.log
+?? artifacts/smart-tags-management-report.md
+?? artifacts/smart-tags-management-screenshots/
+?? artifacts/smart-tags-management-typecheck.log
+?? artifacts/smart-tags-management-web-tests.log
+?? artifacts/solo-operator-mode/
+?? docs/architecture/consignment-mvp.md
+?? docs/deployment/consignment-mvp-rollout.md
+?? docs/deployment/merchant-partner-directory-production-preflight-2026-10-15.md
+?? marketing/2026-09-social-media-plan.md
+?? marketing/README.md
+?? marketing/competitive-brief-2026-10.md
+?? marketing/demo/
+?? marketing/social/
+?? marketing/xiaohongshu/assets/product/safety-profile-linko-demo.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/
+?? physical-qa-release.patch

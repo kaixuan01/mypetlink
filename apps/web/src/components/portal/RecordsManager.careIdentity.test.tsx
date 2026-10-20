@@ -132,7 +132,8 @@ describe("RecordsManager care identity and fulfilment", () => {
         careName: "Leptospirosis",
         fulfillsCareRecordId: target.id,
         title: "Booster visit",
-      })
+      }),
+      expect.objectContaining({ onSending: expect.any(Function) })
     );
   });
 
@@ -162,7 +163,8 @@ describe("RecordsManager care identity and fulfilment", () => {
     await waitFor(() => expect(mocks.createRecord).toHaveBeenCalledOnce());
     expect(mocks.createRecord).toHaveBeenCalledWith(
       "pet-1",
-      expect.objectContaining({ provider: "" })
+      expect.objectContaining({ provider: "" }),
+      expect.objectContaining({ onSending: expect.any(Function) })
     );
     expect(JSON.stringify(mocks.createRecord.mock.calls[0][1])).not.toContain(
       "Owner recorded"

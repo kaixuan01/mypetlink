@@ -1,0 +1,185 @@
+{
+  "capturedAtUtc": "2026-10-15T09:57:37.0155619+08:00",
+  "phase": "read-only baseline; no release performed",
+  "checks": [
+    {
+      "url": "https://api.mypetlink.com.my/health/ready",
+      "status": 200,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "application/json; charset=utf-8",
+      "body": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNP8DO49O7NJ:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/public/partner-stores",
+      "status": 404,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "",
+      "body": ""
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/tag-products",
+      "status": 200,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "application/json; charset=utf-8",
+      "productCount": 2,
+      "apiErrorCode": null
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/orders",
+      "status": 401,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "application/json",
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNP8DO49O7NJ:00000004\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/tags",
+      "status": 401,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "application/json",
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNP8DO49O7NJ:00000005\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/public/tags/RELEASE-PREFLIGHT-INVALID/qr",
+      "status": 200,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "application/json; charset=utf-8",
+      "body": "{\"data\":{\"state\":\"notFound\",\"tagCode\":\"RELEASE-PREFLIGHT-INVALID\",\"status\":null,\"scanSource\":\"Qr\",\"profile\":null},\"meta\":{\"requestId\":\"0HNP8DO49O7NJ:00000006\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/dev-auth/admin-login",
+      "status": 404,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "",
+      "body": ""
+    },
+    {
+      "url": "https://api.mypetlink.com.my/swagger",
+      "status": 404,
+      "cacheControl": "",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "",
+      "age": "",
+      "contentType": "",
+      "body": ""
+    },
+    {
+      "url": "https://mypetlink.com.my/where-to-buy",
+      "status": 200,
+      "cacheControl": "public, must-revalidate, max-age=0",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "DYNAMIC",
+      "age": "",
+      "contentType": "text/html; charset=utf-8",
+      "title": "Where to Buy | MyPetLink Smart Tags Malaysia",
+      "canonical": "https://mypetlink.com.my/where-to-buy",
+      "robots": "index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1",
+      "hasPartnerDirectoryApiPath": false
+    },
+    {
+      "url": "https://mypetlink.com.my/smart-tags",
+      "status": 404,
+      "cacheControl": "no-store",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "DYNAMIC",
+      "age": "",
+      "contentType": "text/html; charset=utf-8",
+      "title": "Loading | MyPetLink",
+      "canonical": "",
+      "robots": "noindex",
+      "hasPartnerDirectoryApiPath": false
+    },
+    {
+      "url": "https://mypetlink.com.my/q/RELEASE-PREFLIGHT-INVALID",
+      "status": 200,
+      "cacheControl": "no-store",
+      "cdnCacheControl": "",
+      "cloudflareCdnCacheControl": "",
+      "cfCacheStatus": "DYNAMIC",
+      "age": "",
+      "contentType": "text/html; charset=utf-8",
+      "title": "Pet Safety Profile | MyPetLink",
+      "canonical": "https://mypetlink.com.my/q/RELEASE-PREFLIGHT-INVALID",
+      "robots": "noindex,follow",
+      "hasPartnerDirectoryApiPath": false
+    },
+    {
+      "url": "https://mypetlink.com.my/",
+      "status": 200,
+      "cacheControl": "public, must-revalidate, max-age=0",
+      "releaseMeta": {
+        "community": "",
+        "smart-tags": "",
+        "tag-orders": "",
+        "ordering": ""
+      },
+      "title": "MyPetLink Malaysia | Smart Pet Profiles, QR &amp; NFC Pet Tags"
+    },
+    {
+      "url": "https://mypetlink.com.my/tags/order",
+      "status": 200,
+      "cacheControl": "public, must-revalidate, max-age=0",
+      "releaseMeta": {
+        "community": "",
+        "smart-tags": "",
+        "tag-orders": "",
+        "ordering": ""
+      },
+      "title": "Order a Smart Tag | MyPetLink"
+    },
+    {
+      "url": "https://mypetlink.com.my/tags",
+      "status": 200,
+      "cacheControl": "public, must-revalidate, max-age=0",
+      "releaseMeta": {
+        "community": "",
+        "smart-tags": "",
+        "tag-orders": "",
+        "ordering": ""
+      },
+      "title": "MyPetLink Smart Tags | MyPetLink"
+    },
+    {
+      "url": "https://mypetlink.com.my/orders",
+      "status": 200,
+      "cacheControl": "public, must-revalidate, max-age=0",
+      "releaseMeta": {
+        "community": "",
+        "smart-tags": "",
+        "tag-orders": "",
+        "ordering": ""
+      },
+      "title": "Orders | MyPetLink"
+    }
+  ]
+}

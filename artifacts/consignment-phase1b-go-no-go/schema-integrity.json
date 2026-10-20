@@ -1,0 +1,103 @@
+{
+  "rootHash": "43F2392BFCB8E1D9181AA04FCE113B9063A39ECE4C6691A9D4B152C55E7DFF4E",
+  "migrations": [
+    {
+      "file": "20261017082802_AddConsignmentAgreementAndCustody.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261017082802_AddConsignmentAgreementAndCustody.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261017103941_HardenConsignmentOperationalControls.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261017103941_HardenConsignmentOperationalControls.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261017160448_CompleteConsignmentReceivingAndApproval.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261017160448_CompleteConsignmentReceivingAndApproval.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261018035952_AddConsignmentSoloOperatorPolicy.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261018035952_AddConsignmentSoloOperatorPolicy.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261018125029_AddConsignmentSalesReportingLedger.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261018125029_AddConsignmentSalesReportingLedger.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261018164233_HardenConsignmentSalesReporting.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261018164233_HardenConsignmentSalesReporting.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261019010452_ProtectConsignmentContributorHistory.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261019010452_ProtectConsignmentContributorHistory.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261019025050_AddConsignmentStocktakeAndCarryForward.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261019025050_AddConsignmentStocktakeAndCarryForward.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261019060824_HardenConsignmentStocktakeReconciliation.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    },
+    {
+      "file": "20261019060824_HardenConsignmentStocktakeReconciliation.Designer.cs",
+      "unchangedSincePreviousReviewedTree": true,
+      "matchesIsolatedCopyAfterLineEndingNormalization": true
+    }
+  ],
+  "rootUnchanged": true,
+  "regeneratedMatches": true,
+  "newFiles": [
+    "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentLateReportLinkingRelationalTests.cs",
+    "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentStocktakeFinalGateRelationalTests.cs",
+    "apps/web/src/components/admin/merchantSales/ConsignmentSoldOutLateReport.test.tsx",
+    "apps/web/src/components/admin/merchantSales/__fixtures__/sold-out-late-report.json"
+  ]
+}

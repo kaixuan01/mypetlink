@@ -1,5 +1,7 @@
 # MyPetLink Xiaohongshu — account strategy
 
+> **2026-09 执行更新：**本月以 AI 品牌角色 Linko 为固定主角，用户没有真实宠物素材，也不安排真人出镜。以下原有「宠物主人第一人称」定位与真人素材建议不用于本月；每日内容和工具见 [Linko AI 社交媒体执行计划](../2026-09-social-media-plan.md)。不要把 Linko 的虚构经历写成真实养宠故事。
+
 ## Positioning
 
 **Not** "a pet app account". **Yes** "a Malaysian pet owner who is unusually organised

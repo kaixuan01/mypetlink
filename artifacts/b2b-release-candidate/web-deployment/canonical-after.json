@@ -1,0 +1,60 @@
+{
+  "id": "d12a3aae-5007-46b6-8bab-9313b1d4ce06",
+  "environment": "production",
+  "url": "https://d12a3aae.mypetlink.pages.dev",
+  "created_on": "2026-10-18T05:49:38.535095Z",
+  "modified_on": "2026-10-18T05:50:48.091854Z",
+  "latest_stage": {
+    "name": "deploy",
+    "started_on": "2026-10-18T05:50:38.284756Z",
+    "ended_on": "2026-10-18T05:50:48.091854Z",
+    "status": "success"
+  },
+  "deployment_trigger": {
+    "type": "github:push",
+    "metadata": {
+      "branch": "main",
+      "commit_hash": "2ff3b792b2f021168d257511d94ec71cf23e8b09",
+      "commit_message": "[CF-Pages-Skip] feat: release cumulative B2B consignment and Solo controls\n\nRelease the complete Wholesale correctness and Consignment custody implementation,\nincluding H1-H4, M1-M10, N1-N9 and Solo Operator Mode. Preserve Team defaults,\nexplicit founder authorization, partner evidence, held stock, immutable PDFs,\nappend-only review history and the no-financial-posting custody rule.\n\nInclude all four EF migrations, the matching root migration.sql, capability\ncatalogues, Admin UI, SQL Server regressions and operational documentation.\nProgram.cs contains only the two required Consignment registrations; unrelated\nMarketing Demo, launch settings and local configuration changes are excluded.\n\nValidation: isolated API Release build/publish; 337 web tests; app and Pages\nFunctions typecheck; scoped lint; production-profile web build and SEO checks;\nPages Functions compilation; EF model consistency and byte-identical root SQL.\n\nHold automatic Pages deployment for the separate Production release checkpoint.\nDatabase migration and API publishing were reported complete by the operator;\nAzure database history and recovery access were not independently verified.",
+      "commit_dirty": false
+    }
+  },
+  "stages": [
+    {
+      "name": "queued",
+      "started_on": "2026-10-18T05:49:38.673362Z",
+      "ended_on": "2026-10-18T05:49:38.676409Z",
+      "status": "success"
+    },
+    {
+      "name": "initialize",
+      "started_on": "2026-10-18T05:49:38.676409Z",
+      "ended_on": "2026-10-18T05:49:40.537788Z",
+      "status": "success"
+    },
+    {
+      "name": "clone_repo",
+      "started_on": "2026-10-18T05:49:40.537788Z",
+      "ended_on": "2026-10-18T05:49:43.327585Z",
+      "status": "success"
+    },
+    {
+      "name": "build",
+      "started_on": "2026-10-18T05:49:43.327585Z",
+      "ended_on": "2026-10-18T05:50:38.284756Z",
+      "status": "success"
+    },
+    {
+      "name": "deploy",
+      "started_on": "2026-10-18T05:50:38.284756Z",
+      "ended_on": "2026-10-18T05:50:48.091854Z",
+      "status": "success"
+    }
+  ],
+  "is_skipped": false,
+  "skip_reason": null,
+  "uses_functions": true,
+  "aliases": [
+    "https://mypetlink.com.my"
+  ]
+}

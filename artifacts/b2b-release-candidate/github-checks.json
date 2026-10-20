@@ -1,0 +1,4 @@
+{"conclusion":null,"details_url":"https://github.com/kaixuan01/mypetlink/actions/runs/39101294533/job/117597939759","name":"Web (all-off)","status":"in_progress"}
+{"conclusion":"success","details_url":"https://github.com/kaixuan01/mypetlink/actions/runs/39101294533/job/117597939755","name":"Web (retail-checkout)","status":"completed"}
+{"conclusion":"success","details_url":"https://github.com/kaixuan01/mypetlink/actions/runs/39101294533/job/117597939618","name":"Web (community-checkout)","status":"completed"}
+{"conclusion":null,"details_url":"https://github.com/kaixuan01/mypetlink/actions/runs/39101294533/job/117597939552","name":"API (.NET 8 build)","status":"in_progress"}

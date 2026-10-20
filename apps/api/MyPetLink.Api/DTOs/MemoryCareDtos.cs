@@ -145,3 +145,82 @@ public sealed record CareRecordDocumentResponse(
     long FileSizeBytes,
     MediaUploadCategory Category,
     int SortOrder);
+
+/// <summary>
+/// One page of the owner's pending care: due items on active pets that no
+/// active record has completed yet.
+///
+/// <see cref="AsOfDate"/> is the Malaysia calendar day every
+/// <see cref="UpcomingCareRecordResponse.DerivedStatus"/> was computed
+/// against. <see cref="PetIdsWithCareRecords"/> lists the in-scope pets that
+/// hold at least one active care record of any kind, so a caller can tell
+/// "no care logged yet" apart from "nothing waiting". The envelope's
+/// <c>meta.total</c> is the filtered pending count, never a record count.
+/// </summary>
+public sealed record UpcomingCareRecordsResponse(
+    DateOnly AsOfDate,
+    IReadOnlyCollection<Guid> PetIdsWithCareRecords,
+    IReadOnlyCollection<UpcomingCareRecordResponse> Items);
+
+/// <summary>
+/// Everything the Dashboard says about pending care, read from one consistent
+/// view of the database.
+///
+/// One scope covers all of the owner's active pets (<c>PetId</c> null) and one
+/// scope covers each active pet, so changing the Dashboard's pet filter never
+/// needs another read. Counts are exact. <see cref="Complete"/> is false only
+/// when there were more pending items than one summary reads; the items shown
+/// may then not be the most relevant ones, and the caller must not present
+/// the summary as everything that is due.
+/// </summary>
+public sealed record UpcomingCareSummaryResponse(
+    DateOnly AsOfDate,
+    DateOnly HorizonDate,
+    bool Complete,
+    IReadOnlyCollection<UpcomingCareScopeResponse> Scopes);
+
+/// <param name="HasCareRecords">At least one active care record of any kind in this scope.</param>
+/// <param name="PendingCount">Every pending due item in this scope, overdue and future.</param>
+/// <param name="DueWithinHorizonCount">Pending items due on or before <c>HorizonDate</c>, overdue included.</param>
+/// <param name="Items">At most three: the most recently missed item, then the nearest coming ones.</param>
+public sealed record UpcomingCareScopeResponse(
+    Guid? PetId,
+    bool HasCareRecords,
+    int PendingCount,
+    int DueWithinHorizonCount,
+    int OverdueCount,
+    IReadOnlyCollection<UpcomingCareRecordResponse> Items);
+
+/// <summary>
+/// Whether one due item has been completed, read straight from the records
+/// rather than inferred from its absence anywhere.
+///
+/// <c>State</c>, in order of precedence: <c>archived</c> (the target was
+/// deleted from the list), <c>pet-archived</c>, <c>no-due-date</c> (its due
+/// date was removed), <c>completed</c> (an active record of the same pet
+/// fulfils it), <c>pending</c>. <see cref="Completion"/> is the active
+/// fulfilling record whenever one exists — always for <c>completed</c>,
+/// possibly for <c>archived</c>, <c>pet-archived</c> or <c>no-due-date</c>
+/// when a write validated earlier landed late — and never for
+/// <c>pending</c>.
+/// </summary>
+public sealed record CareRecordCompletionStatusResponse(
+    string State,
+    DateOnly AsOfDate,
+    string PetName,
+    CareRecordResponse Target,
+    CareRecordResponse? Completion);
+
+/// <summary>
+/// The overview fields of a pending due item. Notes, provider and documents
+/// are deliberately absent: the overview never needs them.
+/// </summary>
+public sealed record UpcomingCareRecordResponse(
+    Guid Id,
+    Guid PetId,
+    string PetName,
+    CareRecordType Type,
+    string Title,
+    string? CareName,
+    DateOnly DueDate,
+    string DerivedStatus);

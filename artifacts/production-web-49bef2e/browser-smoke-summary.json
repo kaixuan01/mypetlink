@@ -1,0 +1,11 @@
+{
+  "screenshot": "live-homepage.png",
+  "observedConsoleErrors": 0,
+  "observedConsoleWarnings": 0,
+  "homepage": "Rendered successfully after deployment, configured public sample loaded",
+  "ownerLogin": "Google sign-in button rendered; no login submitted",
+  "ownerGuard": "Signed-out dashboard visit redirected to /login?redirect=%2Fdashboard",
+  "networkTraceCaptured": false,
+  "authenticatedWorkflowRun": false,
+  "adminGuard": "Signed-out Merchant Sales/Consignment visit redirected to /admin/login?redirect=%2Fadmin%2Fmerchant-sales"
+}

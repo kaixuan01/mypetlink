@@ -1,0 +1,50 @@
+<!doctype html><html lang="ms-MY"><meta charset="utf-8"><title>MyPetLink · Post 007 V2</title>
+<style>
+@font-face{font-family:Poppins;src:url('../assets/Poppins-ExtraBold.ttf');font-weight:800}@font-face{font-family:Poppins;src:url('../assets/Poppins-SemiBold.ttf');font-weight:600}
+*{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#fff8f2;color:#0d1b3d;font-family:Poppins,'Segoe UI',sans-serif}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:radial-gradient(ellipse at 15% 70%,#dcedff 0,transparent 52%),#fff8f2}
+.orb{position:absolute;border-radius:50%;pointer-events:none}.orb.a{width:850px;height:850px;left:530px;top:-260px;background:#ffe1d2}.orb.b{width:720px;height:720px;left:-320px;top:1250px;background:#bfead7;opacity:.6}
+.scene{position:absolute;inset:0;display:none}.scene.on{display:block}h1,h2,p{margin:0}h1,h2{font-weight:800;letter-spacing:-2.8px;line-height:1.13}
+.title{position:absolute;left:90px;top:235px;width:820px;font-size:68px}.sub{position:absolute;left:94px;top:350px;width:810px;font-size:34px;line-height:1.4;font-weight:600;color:#44506a}.accent{color:#1570ef}
+.phone{position:absolute;left:153px;top:485px;width:716px;height:1080px;border:12px solid #0d1b3d;border-radius:60px;background:#fff;overflow:hidden;box-shadow:0 26px 65px #0d1b3d26}.phone img{position:absolute;left:0;top:0;width:100%;height:auto;display:block}.phone:after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:145px;height:19px;background:#0d1b3d;border-radius:0 0 16px 16px}
+.mascot{position:absolute;object-fit:contain;filter:drop-shadow(0 26px 22px #844e1020)}.hook .title{top:245px;font-size:79px;line-height:1.12;width:840px}.hook .mascot{left:10px;top:555px;width:1010px;height:970px}.punct{position:absolute;left:765px;top:650px;font-size:130px;font-weight:800;color:#1570ef;transform:rotate(12deg)}
+.intro .title{font-size:62px;top:240px;white-space:nowrap}.intro .sub{top:343px}.intro .phone{top:480px}.intro .sticker{position:absolute;left:730px;top:455px;width:135px;height:135px;display:grid;place-items:center;font-size:58px;border-radius:50%;background:#ffdfc5;transform:rotate(12deg);box-shadow:0 8px 0 #f6b9a2}
+.create .title{top:230px;font-size:61px;white-space:nowrap}.create .free{position:absolute;left:86px;top:325px;font-size:96px;font-weight:800;letter-spacing:-4px;color:#1570ef;line-height:1.1}.create .phone{top:500px;height:1060px}
+.moments .title{font-size:68px;top:220px}.moment-frame{position:absolute;left:130px;top:465px;width:760px;height:1050px;overflow:hidden;border:3px solid #f1d9ca;border-radius:42px;background:#fff;box-shadow:0 26px 65px #0d1b3d20}.moment-frame img{display:block;width:100%;height:auto}
+.share .title{top:220px;font-size:49px;letter-spacing:-1.5px;white-space:nowrap}.share .sub{top:305px;font-size:33px;white-space:nowrap}.feature{position:absolute;left:94px;top:170px;color:#1570ef;font-size:25px;font-weight:800;letter-spacing:2px}
+.entry{position:absolute;left:130px;top:510px;width:760px;border-radius:42px;overflow:hidden;box-shadow:0 26px 65px #0d1b3d26}.entry img{display:block;width:100%}.tap{position:absolute;left:590px;top:255px;width:64px;height:64px;border:5px solid white;border-radius:50%;box-shadow:0 0 0 4px #1570ef;background:#ffffff30;opacity:0;pointer-events:none}
+.card-dialog{position:absolute;left:235px;top:420px;width:560px;height:1065px;overflow:hidden;border-radius:35px;box-shadow:0 24px 55px #0d1b3d20;background:#fff8f2}.card-dialog img{display:block;width:100%;height:auto}
+.finished-card{position:absolute;left:130px;top:455px;width:760px;height:950px;box-shadow:0 26px 65px #0d1b3d24;border-radius:22px;overflow:hidden}.finished-card img{display:block;width:100%;height:100%;object-fit:contain}.share>div:not(.feature){display:none}
+.recipient .title{top:225px;font-size:60px}.recipient .phone{top:535px;height:746px}.qr-scan{position:absolute;left:283px;top:600px;width:436px;height:436px;overflow:hidden;border-radius:24px;box-shadow:0 22px 65px #0d1b3d20;background:white}.qr-scan img{position:absolute;width:2160px;height:2700px;max-width:none;left:-860px;top:-2052px}.scan-line{position:absolute;left:0;width:436px;height:4px;background:#1570ef;box-shadow:0 0 12px #7cc6f4;pointer-events:none}.journey-note{position:absolute;left:95px;top:440px;color:#1570ef;font-size:28px;font-weight:600}
+.cta{background:radial-gradient(ellipse at 40% 63%,#e4f2ff 0,transparent 58%),#fff8f2}.cta .logo{position:absolute;left:93px;top:180px;width:380px}.cta .tagline{position:absolute;left:95px;top:280px;font-size:24px;font-weight:600;letter-spacing:1px}.cta .title{top:355px;font-size:50px;letter-spacing:-1.7px;white-space:nowrap}.cta .sub{top:438px;font-size:45px;font-weight:800;color:#1570ef}.cta .mascot{left:30px;top:580px;width:940px;height:860px}.cta .url{position:absolute;left:92px;top:1360px;width:812px;padding:22px 18px;text-align:center;border-radius:25px;background:#1570ef;color:#fff;font-size:46px;font-weight:800;letter-spacing:-1.5px}
+</style>
+<main id="stage"><div class="orb a"></div><div class="orb b"></div>
+<section class="scene hook" data-start="0" data-end="3"><h1 class="title">Kucing korang dah<br>ada <span class="accent">profil sendiri?</span></h1><img class="mascot" src="../assets/linko-hero.png"><div class="punct">?!</div></section>
+<section class="scene intro" data-start="3" data-end="6"><h2 class="title">Kenalkan <span class="accent">MyPetLink!</span></h2><p class="sub">Ruang khas untuk si bulus korang.</p><div class="phone"><img src="../assets/ui/profile.png"></div><div class="sticker">😻</div></section>
+<section class="scene create" data-start="6" data-end="10"><h2 class="title">Buat profil si bulus —</h2><div class="free">PERCUMA!</div><div class="phone"><img id="creation"></div></section>
+<section class="scene moments" data-start="10" data-end="14"><h2 class="title">Simpan momen comel<br>si bulus. 📸</h2><div class="moment-frame"><img src="../assets/ui/moment-card.png"></div></section>
+<section class="scene share" data-start="14" data-end="20"><p class="feature">SHARE CARD</p><h2 class="title">Si bulus pun ada kad sendiri! 💙</h2><p class="sub">Senang nak kongsi dengan kawan.</p><div class="entry"><img src="../assets/ui/share-entry-panel.png"><span class="tap"></span></div><div class="card-dialog"><img src="../assets/ui/share-open.png"></div><div class="finished-card"><img src="../assets/linko-share-card.jpg"></div></section>
+<section class="scene recipient" data-start="20" data-end="24"><h2 class="title">Kawan-kawan pun boleh<br>tengok profilnya! 🐾</h2><div class="qr-scan"><img src="../assets/linko-share-card.jpg"><span class="scan-line"></span></div><div class="phone"><img src="../assets/ui/recipient-profile-identity.png"></div></section>
+<section class="scene cta" data-start="24" data-end="28"><img class="logo" src="../assets/logo.svg"><p class="tagline">Protect. Connect. Reunite.</p><h2 class="title">Jom buat profil si bulus korang!</h2><p class="sub">Mula secara PERCUMA.</p><img class="mascot" src="../assets/linko-celebrate.png"><div class="url">mypetlink.com.my</div></section>
+</main>
+<script>
+const scenes=[...document.querySelectorAll('.scene')];
+window.render=async function(t){
+ for(const el of scenes)el.classList.remove('on');
+ const s=scenes.find(s=>t>=+s.dataset.start&&t<+s.dataset.end)||scenes.at(-1),local=t-Number(s.dataset.start);s.classList.add('on');
+ // Clean direct cuts. Product results remain stable; motion is reserved for Linko.
+ const m=s.querySelector('.mascot');if(m)m.style.transform=s.classList.contains('hook')?`translateY(${Math.sin(local*2.1)*5}px) scale(${1.02+Math.sin(local*1.4)*.008})`:`translateY(${Math.sin(local*1.4)*3}px)`;
+ if(s.classList.contains('create')){
+   const image=document.querySelector('#creation');
+   const url=local<1?'../frames/create/0030.jpg':local<2?'../assets/ui/photo-preview.png':'../assets/ui/profile.png';
+   if(image.getAttribute('src')!==url){image.src=url;await image.decode();}
+ }
+ if(s.classList.contains('share')){
+   const entry=s.querySelector('.entry'),dialog=s.querySelector('.card-dialog'),card=s.querySelector('.finished-card');
+   entry.style.display=local<1?'block':'none';dialog.style.display=local>=1&&local<2?'block':'none';card.style.display=local>=2?'block':'none';
+   const tap=s.querySelector('.tap');tap.style.opacity=local>=.62&&local<.98?String(Math.sin((local-.62)/.36*Math.PI)):0;
+ }
+ if(s.classList.contains('recipient')){s.querySelector('.qr-scan').style.display=local<.8?'block':'none';s.querySelector('.phone').style.display=local>=.8?'block':'none';s.querySelector('.scan-line').style.top=`${Math.min(1,local/.8)*432}px`;}
+};
+window.render(0);addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='post007')render(Number(e.data.time)||0);});
+</script></html>

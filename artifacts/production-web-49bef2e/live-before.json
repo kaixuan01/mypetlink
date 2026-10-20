@@ -1,0 +1,50 @@
+[
+  {
+    "url": "https://api.mypetlink.com.my/api/v1/health",
+    "contentType": [
+      "application/json; charset=utf-8"
+    ],
+    "health": "{\"data\":{\"status\":\"ok\",\"service\":\"MyPetLink.Api\"},\"meta\":{\"requestId\":\"0HNPDOGOSPCL6:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+    "status": 200,
+    "releaseMarkers": []
+  },
+  {
+    "url": "https://mypetlink.com.my/",
+    "contentType": [
+      "text/html; charset=utf-8"
+    ],
+    "status": 200,
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ]
+  },
+  {
+    "url": "https://mypetlink.com.my/login",
+    "contentType": [
+      "text/html; charset=utf-8"
+    ],
+    "status": 200,
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ]
+  },
+  {
+    "url": "https://mypetlink.com.my/admin/login",
+    "contentType": [
+      "text/html; charset=utf-8"
+    ],
+    "status": 200,
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "run": "focused-api",
+    "total": "187",
+    "passed": "187",
+    "failed": "0",
+    "notExecuted": "0",
+    "actualResults": 187,
+    "allPassed": true
+  },
+  {
+    "run": "independent-probes",
+    "total": "15",
+    "passed": "15",
+    "failed": "0",
+    "notExecuted": "0",
+    "actualResults": 15,
+    "allPassed": true
+  }
+]

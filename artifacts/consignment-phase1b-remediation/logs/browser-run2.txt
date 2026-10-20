@@ -1,0 +1,6 @@
+PASS late report linked to the 15 Sep shortage only by the reviewer, with evidence; shortage settled, books balanced
+PASS damaged stock confirmed (never certified as returned); the count sheet refused as evidence; evidence visible in history
+PASS next-morning count recorded with its real time and a reason nothing moved
+PASS month closed; verified stock 35 / 25 / 27 (+1 unsellable), the extra Pawsome LW still only a note; tie-out balanced
+PASS mobile report and stocktake views have no horizontal page scroll
+No page errors.

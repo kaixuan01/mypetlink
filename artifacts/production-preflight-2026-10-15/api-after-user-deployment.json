@@ -1,0 +1,34 @@
+[
+  {
+    "url": "https://api.mypetlink.com.my/api/v1/public/partner-stores?page=1&pageSize=20",
+    "status": 200,
+    "cacheControl": "no-store, must-revalidate, no-cache, max-age=0",
+    "cdnCacheControl": "no-store",
+    "cloudflareCdnCacheControl": "no-store",
+    "body": "{\"data\":[],\"meta\":{\"requestId\":\"0HNPAC6HLICP1:00000004\",\"page\":1,\"pageSize\":20,\"total\":0,\"retryAfterSeconds\":null}}"
+  },
+  {
+    "url": "https://api.mypetlink.com.my/api/v1/public/partner-stores?page=2&pageSize=20&search=release-verification",
+    "status": 200,
+    "cacheControl": "no-store, must-revalidate, no-cache, max-age=0",
+    "cdnCacheControl": "no-store",
+    "cloudflareCdnCacheControl": "no-store",
+    "body": "{\"data\":[],\"meta\":{\"requestId\":\"0HNPAC6HLICP1:00000005\",\"page\":2,\"pageSize\":20,\"total\":0,\"retryAfterSeconds\":null}}"
+  },
+  {
+    "url": "https://api.mypetlink.com.my/api/v1/public/partner-stores/00000000000000000000000000000000",
+    "status": 404,
+    "cacheControl": "no-store, must-revalidate, no-cache, max-age=0",
+    "cdnCacheControl": "no-store",
+    "cloudflareCdnCacheControl": "no-store",
+    "body": "{\"error\":{\"code\":\"partner_store_not_found\",\"message\":\"That store is not available.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPAC6HLICP1:00000006\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+  },
+  {
+    "url": "https://api.mypetlink.com.my/health/ready",
+    "status": 200,
+    "cacheControl": "",
+    "cdnCacheControl": "",
+    "cloudflareCdnCacheControl": "",
+    "body": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNPAC6HLICP1:00000007\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+  }
+]

@@ -1,0 +1,7 @@
+Independent existing regression run completed:
+Consignment and AdminCapabilityCoverageTests: 161 passed / 0 failed / 0 skipped; 13m16s.
+Focused web: 86 passed / 0 failed; 5 files; 8.57s.
+TypeScript app/functions: pass.
+Independent probes: 8 + 2 + 3 observations confirmed; no skipped SQL probes.
+Probe passing assertions include reproduced defects and are not acceptance passes.
+No full API/full web rerun or fresh browser/build result is claimed.

@@ -1,0 +1,14 @@
+SQL Server independent migration checks — 19 October 2026 (Malaysia time)
+Server: (localdb)\MSSQLLocalDB; integrated authentication; disposable audit databases only.
+Fresh root migration.sql: success, 79 migrations.
+Fresh root migration.sql replay: success, 79 migrations.
+Generated Phase 1A head: 20261019010452_ProtectConsignmentContributorHistory, 78 migrations.
+Upgrade Phase 1A head -> current root: success, 79 migrations.
+Upgrade script replay: success, 79 migrations.
+All three Phase 1B triggers present and enabled on both final databases.
+DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: no violations on either empty final schema.
+Root migration.sql equals generated idempotent script after BOM/newline normalization.
+Isolated consignment API build: 0 errors, 0 warnings; Program.cs from committed HEAD; Marketing Demo excluded.
+Isolated migration assembly generates the same root script after BOM/newline normalization.
+EF has-pending-model-changes: no pending changes.
+Caveat: raw INSERT of an unfrozen line into an approved stocktake is allowed; IP06 independently reproduces this.

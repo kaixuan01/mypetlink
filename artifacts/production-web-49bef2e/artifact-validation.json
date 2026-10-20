@@ -1,0 +1,108 @@
+{
+  "functionSources": [
+    "env.d.ts",
+    "[momentId].ts",
+    "[slug].ts",
+    "[slug].ts",
+    "[slug].ts",
+    "[slug].ts",
+    "[slug].ts",
+    "[handle].ts",
+    "followers.ts",
+    "following.ts"
+  ],
+  "productionApiChunks": [
+    "/_next/static/chunks/0sv_4ym5x2sn7.js"
+  ],
+  "consignmentChunks": [
+    {
+      "lateLinkUi": true,
+      "stocktakeEndpoint": true,
+      "stocktakeUi": true,
+      "path": "/_next/static/chunks/27lxe_8ole0_m.js",
+      "sha256": "D39BEDDF274160A4A2DF75BE1882150BD6BCD32F3B2057FF9382260ADEB29B56"
+    }
+  ],
+  "routes": {
+    "version": 1,
+    "include": [
+      "/p/*",
+      "/q/*",
+      "/t/*",
+      "/n/*",
+      "/u/*",
+      "/moments/*",
+      "/social/pets/*"
+    ],
+    "exclude": []
+  },
+  "staticFileCount": 1231,
+  "required": [
+    {
+      "exists": true,
+      "bytes": 121179,
+      "path": "index.html"
+    },
+    {
+      "exists": true,
+      "bytes": 39181,
+      "path": "login.html"
+    },
+    {
+      "exists": true,
+      "bytes": 25581,
+      "path": "dashboard.html"
+    },
+    {
+      "exists": true,
+      "bytes": 27130,
+      "path": "admin/login.html"
+    },
+    {
+      "exists": true,
+      "bytes": 25756,
+      "path": "admin/merchant-sales.html"
+    },
+    {
+      "exists": true,
+      "bytes": 24150,
+      "path": "feed.html"
+    },
+    {
+      "exists": true,
+      "bytes": 39097,
+      "path": "explore.html"
+    },
+    {
+      "exists": true,
+      "bytes": 24450,
+      "path": "search.html"
+    },
+    {
+      "exists": true,
+      "bytes": 24932,
+      "path": "community/profile.html"
+    },
+    {
+      "exists": true,
+      "bytes": 1435,
+      "path": "_headers"
+    },
+    {
+      "exists": true,
+      "bytes": 168,
+      "path": "_routes.json"
+    },
+    {
+      "exists": true,
+      "bytes": 1189,
+      "path": "sitemap.xml"
+    },
+    {
+      "exists": true,
+      "bytes": 70,
+      "path": "robots.txt"
+    }
+  ],
+  "htmlCount": 118
+}

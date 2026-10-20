@@ -1,0 +1,11 @@
+{
+  "source": "https://prices.azure.com/api/retail/prices?%24filter=serviceName+eq+%27SQL+Database%27+and+armRegionName+eq+%27southeastasia%27+and+skuName+eq+%27Basic%27&currencyCode=USD",
+  "response": {
+    "BillingCurrency": "USD",
+    "CustomerEntityId": "Default",
+    "CustomerEntityType": "Retail",
+    "Items": [],
+    "NextPageLink": null,
+    "Count": 0
+  }
+}

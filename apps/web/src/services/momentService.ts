@@ -482,6 +482,7 @@ export async function createPetMoment(
     showInLifeTimeline: payload.showInLifeTimeline ?? false,
     timelineNote: payload.timelineNote ?? "",
     additionalPetIds: payload.additionalPetIds ?? [],
+    createdAt: new Date().toISOString(),
   };
 
   writeStoredCollection(MOMENT_STORAGE_KEY, [moment, ...moments]);
@@ -676,6 +677,7 @@ function mapBackendMoment(moment: BackendMemory): PetMoment {
     showOnPublicProfile: moment.showOnPublicProfile,
     showInLifeTimeline: moment.showInLifeTimeline,
     timelineNote: moment.timelineNote ?? "",
+    createdAt: moment.createdAt,
   };
 }
 

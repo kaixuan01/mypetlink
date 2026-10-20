@@ -19,7 +19,10 @@ const mocks = vi.hoisted(() => ({
   updateRecord: vi.fn(),
 }));
 
-vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => false }));
+vi.mock("@/services/apiConfig", () => ({
+  canUseApi: () => false,
+  isApiConfigured: () => false,
+}));
 vi.mock("@/services/recordService", () => ({
   createRecord: (...args: unknown[]) => mocks.createRecord(...args),
   deleteRecord: vi.fn(),
@@ -249,10 +252,12 @@ describe("contextual create actions", () => {
 
     const pending = await screen.findByRole("button", { name: "Saving..." });
     expect((pending as HTMLButtonElement).disabled).toBe(true);
+    // The editor belongs to the save until it settles, so it can't be
+    // dismissed or replaced meanwhile.
     expect(
       (screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement)
         .disabled
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("opens a requested Care Record flow once and removes the create query", async () => {
@@ -418,7 +423,7 @@ describe("contextual create actions", () => {
       dueDate: "15 Jul 2020",
       notes: "Routine coat and nail care.",
       publicVisibility: "Public badge only",
-    });
+    }, expect.objectContaining({ onSending: expect.any(Function) }));
   });
 
   it.each([

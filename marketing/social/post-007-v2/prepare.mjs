@@ -1,0 +1,17 @@
+import {readFile,writeFile,copyFile,cp,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+const repo=process.env.MYPETLINK_REPO_ROOT||'C:/Project/MyPetLink';
+const root=process.env.POST007_V2_ROOT||'D:/Project/MyPetLink/Marketing/Videos/post-007-v2';
+const v1='D:/Project/MyPetLink/Marketing/Videos/post-007';
+await Promise.all(['source','assets/ui','frames/create','output','review'].map(x=>mkdir(root+'/'+x,{recursive:true})));
+const original=await readFile('D:/Project/MyPetLink/MyPetLink_TikTok_Post_007.mp4');
+await writeFile(root+'/source/original-v1-sha256.txt',createHash('sha256').update(original).digest('hex')+'\n');
+for(const f of ['Poppins-ExtraBold.ttf','Poppins-SemiBold.ttf','OFL.txt','linko-hero.png','linko-celebrate.png','logo.svg'])await copyFile(v1+'/assets/'+f,root+'/assets/'+f);
+for(const f of ['profile.png','photo-preview.png'])await copyFile(v1+'/assets/ui/'+f,root+'/assets/ui/'+f);
+await cp(v1+'/frames/create',root+'/frames/create',{recursive:true});
+for(const f of ['create.mp4','profile.mp4'])await copyFile(v1+'/recordings/'+f,root+'/recordings/'+f);
+let music=await readFile(repo+'/marketing/social/post-007/music.py','utf8');
+music=music.replace("else: ROOT=Path('D:/Project/MyPetLink/Marketing/Videos/post-007')","else: ROOT=Path('D:/Project/MyPetLink/Marketing/Videos/post-007-v2')").replace('D=24','D=28').replace('range(12)','range(14)').replace('at=bar*2; bass,chord=chords[bar%4]',"at=bar*2; progression=1 if bar==12 else 0 if bar==13 else bar%4; bass,chord=chords[progression]").replace('melody[bar%4][step]','melody[progression][step]').replace('[3,7,10,12,14,16,18]','[3,6,8,10,14,16,20,24]');
+await writeFile(root+'/source/music.py',music);
+await writeFile(repo+'/marketing/social/post-007-v2/music.py',music);
+console.log('V1 preserved. Reused original layers and music generators for V2.');

@@ -1,0 +1,25 @@
+{
+  "captured_at_utc": "2026-10-18T05:48:40.216612+00:00",
+  "checks": [
+    {
+      "path": "/health/live",
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\"},\"meta\":{\"requestId\":\"0HNPCRA40C4MR:0000000F\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNPCRA40C4MV:00000007\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": 401,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4N0:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": 401,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4MT:00000005\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    }
+  ]
+}

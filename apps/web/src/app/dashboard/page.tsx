@@ -9,11 +9,7 @@ export const metadata: Metadata = {
 export default function DashboardPage() {
   return (
     <AppLayout>
-      <DashboardClient
-        initialMoments={[]}
-        initialPets={[]}
-        initialRecords={[]}
-      />
+      <DashboardClient initialPets={[]} />
     </AppLayout>
   );
 }

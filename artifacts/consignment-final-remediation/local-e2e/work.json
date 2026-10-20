@@ -1,0 +1,16 @@
+{
+  "agreementId": "b7fe855d-3d6d-415c-8abe-d6a68c99bf87",
+  "unitIds": [
+    "ef73a4c2-6dcb-46c2-b948-a5d3d26bc9b9",
+    "61ae1301-b393-472b-a4be-3b142c325be2",
+    "556afee8-40be-4625-a688-4101eb7560eb",
+    "c96d1a62-0d98-49fd-9499-fe6a1d0ebda4"
+  ],
+  "unitReferences": [
+    "CU-EF73A4C26DCB46C2B948A5D3D26BC9B9",
+    "CU-61AE1301B393472BA4BE3B142C325BE2",
+    "CU-556AFEE840BE4625A6884101EB7560EB",
+    "CU-C96D1A620D9849FD9499FE6A1D0EBDA4"
+  ],
+  "dispatchId": "16398aa0-98e9-4673-90c3-f3b266ec0313"
+}

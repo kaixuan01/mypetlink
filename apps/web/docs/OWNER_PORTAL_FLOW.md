@@ -321,13 +321,66 @@ appears once the order is `Payment Confirmed`, `Preparing`, `Shipped`, or
 
 ## 6. Dashboard
 
-`/dashboard` reuses its already-loaded pet collection for one consolidated
-**Your pets** section. Each compact card has a dedicated management link plus
-separate Share Profile Share, QR, and View actions when that profile is public;
-private profiles show an Enable profile action instead. The dashboard never
-duplicates the pet list and never silently selects the first pet.
+`/dashboard` is pets first. In order: the Lost Mode notice (when any pet is
+in Lost Mode), a short greeting, **Your pets**, a pet filter (only when there
+is more than one active pet), **Care coming up**, **Recent Moments**, and at
+most one next step. There are no statistic tiles, navigation tiles or plan
+card; the header Add menu stays the global create entry point.
 
-General Quick actions use pet-agnostic routes for Care Records, Moments, and
-Owner Settings. Pet management lives in the consolidated section's
-**Manage pets** link, so it is not repeated in Quick actions. When there are no
-pets, the dashboard renders one focused Add Pet empty state.
+- **Your pets** shows up to four compact cards (64px photo, management link,
+  Share through the Share Center, View in a new tab; Enable profile when the
+  Share Profile is off) and View all for larger households. It never
+  duplicates the pet list and never silently selects a pet.
+- **The pet filter** starts on All pets, is never remembered between visits,
+  and narrows only Care coming up and Recent Moments.
+- **Care coming up** reads one consistent summary,
+  `GET /api/v1/care-records/upcoming/summary` (all pets and each pet, exact
+  counts, at most three items each), never pages stitched together and never
+  the per-pet history list. It keeps the most recently missed item plus the
+  nearest coming ones: three rows where there is room, two on phones, with an
+  exact "N more care dates". A failed or malformed read shows Try again; an
+  incomplete summary (more than 1000 pending items) says so. Neither is ever
+  shown as "nothing due". A complete read distinguishes "No care records
+  yet", "No pending care dates" and "Nothing due through {date}".
+- **Log as done** links to `ownerRoutes.petRecords(petId, { complete: id })`.
+  The id is consumed once from the address; `RecordsManager` reads the item's
+  completion status (`GET /api/v1/care-records/{id}/completion`) through the
+  owner's session and opens the ordinary create form prefilled only while it
+  is pending (type, title, care name, the fulfilment link, Malaysia's today as
+  the editable date; private, with no notes, provider, documents or next date
+  copied). Success appears only after a confirmed save, or when the status
+  shows an active completing record with the draft's details **and exactly
+  the attachments the request carried** (stored media ids, compared as a set;
+  never file names). With attachments it says the item "is logged as done
+  with your details and attachments"; without, only "Care is already logged
+  with these details.", because which request wrote it can't be shown.
+  While files stage or the request waits for its response, the save owns the
+  editor: the draft is read-only and the editor can't be cancelled, closed or
+  replaced by another record's editor. Every result first checks that its
+  editor is still the one on screen, so a late result can never reset, close
+  or overwrite a newer editor.
+  An unknown outcome (dropped connection, 408, 5xx) keeps the draft, read-only,
+  and locks Save **for as long as it stays unknown** — no time-based unlock.
+  The owner can Check again or View care records; closing the editor keeps the
+  save and its draft on this page (not across a reload or navigation; leaving
+  never cancels a sent request) as "isn't confirmed yet" with Review my save
+  and Discard my details. Same text with other attachments, other details, or
+  an item deleted, undated or on an archived pet are each explained and keep
+  the draft. Staged files are never deleted while the outcome is unknown.
+  The recovery flow never offers another write: a refusal only shows that
+  that request wrote nothing, not that an earlier one for the item stopped.
+  To log a separate event, the owner uses the ordinary Add record flow.
+  Disappearing from pending care is never read as completion.
+- **Recent Moments** shows the newest Moments for the pets in view (three on
+  phones, four where there is room), ordered by Moment date, then creation
+  time, then id, with the owner's own photos; a Moment
+  without a photo shows its category, never a stand-in picture. It makes no
+  weekly claims.
+- **Next step** is one card: finder contact setup first, then today's
+  birthday card (not for a pet in Lost Mode), then profile completion. A
+  quiet note appears for a pet at 80% of its private-Moment allowance, only
+  from a complete count.
+
+When there are no pets, the dashboard renders one focused Add Pet empty state.
+A household whose pets are all in Memorial Mode sees only a quiet link to each
+pet, with no care, celebration or prompt to add another pet.

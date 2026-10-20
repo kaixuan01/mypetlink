@@ -1,0 +1,13 @@
+Independent final gate — 19 October 2026
+Verdict: NEEDS FIXES (R1 temporal surplus settlement; R2 inaccessible required allocation).
+Existing focused API/SQL/auth/capability tests: 178/178, no failures/skips, one run, 15m49s.
+Focused existing web tests: 95/95, 5 files, one run.
+TypeScript app/functions: pass.
+Independent API probes: 12/12 observations in final single run; includes diagnostic assertions of remaining broken behavior.
+Independent UI diagnostic: 1/1 confirms disabled verification for a valid allocation-dependent report.
+Full API/full web/fresh browser runs were not independently repeated; author partial full API reruns are not an all-green suite.
+SQL: fresh 0->80, accepted Phase1A 78->80, reviewed Phase1B 79->80; each replay passes.
+Model/snapshot parity and current/isolated/root script parity: pass.
+Earlier four migrations plus designers: byte-for-byte identical; earlier root SQL unchanged prefix.
+Isolated API build excluding unrelated Program/Marketing/config changes: 0 errors/warnings.
+All manually created migration databases dropped; no LocalDB restart or user database changes.

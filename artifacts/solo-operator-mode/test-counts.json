@@ -1,0 +1,45 @@
+{
+  "api-regression": {
+    "total": 992,
+    "passed": 991,
+    "failed": 1,
+    "notExecuted": 0
+  },
+  "api-final-gates": {
+    "total": 20,
+    "passed": 20,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "api-gates-19": {
+    "total": 19,
+    "passed": 19,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "solo-final": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "solo-focused": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "web-full": {
+    "total": 4353,
+    "passed": 4346,
+    "failed": 0,
+    "skipped": 7
+  },
+  "web-focused-final": {
+    "total": 23,
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0
+  },
+  "disposition": "The broad-run capability inventory failure is corrected and passed in final gates. No business regression failed. Runs overlap, not additive."
+}

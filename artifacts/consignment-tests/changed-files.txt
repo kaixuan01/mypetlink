@@ -1,0 +1,46 @@
+Stage 1/2 task files (41); existing unrelated edits excluded.
+Program.cs: only two consignment service registrations belong to this task.
+
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Auth\AdminCapabilities.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Auth\AdminCapabilityCatalog.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Auth\AdminRoleTemplates.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Controllers\Admin\AdminConsignmentController.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\DTOs\ConsignmentDtos.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Data\MyPetLinkDbContext.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Data\MyPetLinkDbContext.Consignment.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Entities\ConsignmentEntities.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Migrations\20261017082802_AddConsignmentAgreementAndCustody.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Migrations\20261017082802_AddConsignmentAgreementAndCustody.Designer.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Migrations\MyPetLinkDbContextModelSnapshot.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Program.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\AdminService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\AdminSmartTagService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\AdminTagInventoryService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\BusinessIdentityService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentDocumentService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\DocumentNumberService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\InventoryCustodyRules.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\MerchantDocumentService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\MerchantFulfilmentService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\MerchantSalesService.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\SellableInventoryRules.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\ConsignmentAuthorizationTests.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\ConsignmentCorrectnessTests.cs
+C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentRelationalTests.cs
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\AdminMerchantSalesWorkspace.test.tsx
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\AdminMerchantSalesWorkspace.tsx
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\ConsignmentPanel.test.tsx
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\ConsignmentPanel.tsx
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\merchantSales.test.tsx
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\tabs.authorization.test.ts
+C:\Project\MyPetLink\apps\web\src\components\admin\merchantSales\tabs.ts
+C:\Project\MyPetLink\apps\web\src\lib\adminCapabilities.ts
+C:\Project\MyPetLink\apps\web\src\lib\adminNavigation.ts
+C:\Project\MyPetLink\apps\web\src\services\adminConsignmentService.ts
+C:\Project\MyPetLink\docs\architecture\consignment-mvp.md
+C:\Project\MyPetLink\docs\deployment\consignment-mvp-rollout.md
+C:\Project\MyPetLink\docs\operations\configuration-inventory.md
+C:\Project\MyPetLink\migration.sql
+
+Evidence and handoff: C:\Project\MyPetLink\artifacts\consignment-tests

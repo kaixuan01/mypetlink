@@ -1,0 +1,14 @@
+{
+  "branch": "detached exact release commit",
+  "configurationSource": "Existing Cloudflare Pages production config; no values changed",
+  "localDotenvPresent": false,
+  "functionsBuild": "Compiled successfully using established build:functions script",
+  "originMain": "49bef2e6045e9b2b7528cfa1024209e67931bb3f",
+  "typecheck": "Passed (app + Pages Functions)",
+  "checkout": "C:\\Project\\MyPetLink-web-release-49bef2e-20261019",
+  "lint": "Passed",
+  "commit": "49bef2e6045e9b2b7528cfa1024209e67931bb3f",
+  "pushNeeded": false,
+  "releaseFlagsTests": "15 passed, zero failed",
+  "productionBuild": "Passed, including release flags, Community and SEO checks"
+}

@@ -1,0 +1,56 @@
+import {createRequire} from 'node:module';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {pathToFileURL} from 'node:url';
+const repo=process.env.MYPETLINK_REPO_ROOT||'C:/Project/MyPetLink';
+const root=process.env.POST007_V2_ROOT||'D:/Project/MyPetLink/Marketing/Videos/post-007-v2';
+const require=createRequire(repo+'/package.json'),{chromium}=require('playwright-core'),ffmpeg=require('ffmpeg-static');
+const {detectPrivateText}=await import(pathToFileURL(repo+'/marketing/demo/scripts/privacy-guard.mjs'));
+await Promise.all(['assets/ui','recordings/raw','source'].map(p=>mkdir(root+'/'+p,{recursive:true})));
+const evidence={feature:'ShareCenter -> Share Pet Card -> PetShareCard',publicProfile:'https://mypetlink.com.my/p/linko-p3nj5udj5dzpyb7cg',remoteWritesBlocked:true,actions:[],noExternalMessages:true};
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--hide-scrollbars']});
+const stable=async p=>{await p.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode?.().catch(()=>{})));});await p.addStyleTag({content:'nextjs-portal{display:none!important}html,body,*{cursor:none!important}'});};
+const guard=async p=>{const text=await p.locator('body').innerText();const issues=detectPrivateText(text,['support@mypetlink.com.my','+601110000000']);if(issues.length)throw Error(issues.join('; '));};
+const run=args=>new Promise((res,rej)=>{const p=spawn(ffmpeg,args,{windowsHide:true,stdio:['ignore','ignore','pipe']});let err='';p.stderr.on('data',d=>err+=d);p.on('close',c=>c?rej(Error(err.slice(-2000))):res());});
+try{
+ const c=await browser.newContext({viewport:{width:430,height:820},deviceScaleFactor:2,locale:'en-MY',acceptDownloads:true,recordVideo:{dir:root+'/recordings/raw',size:{width:430,height:820}}});
+ await c.route('**/*',r=>['GET','HEAD'].includes(r.request().method())?r.continue():r.abort());
+ const p=await c.newPage();p.setDefaultTimeout(20000);
+ await p.goto(evidence.publicProfile,{waitUntil:'domcontentloaded',timeout:60000});
+ await p.getByRole('button',{name:'Share Linko',exact:true}).waitFor();await stable(p);await guard(p);
+ await p.getByRole('button',{name:'Share Linko',exact:true}).click();
+ const entry=p.getByRole('button',{name:/Share Pet Card/});await entry.waitFor();await stable(p);await guard(p);
+ await p.screenshot({path:root+'/assets/ui/share-entry.png'});
+ await p.locator('[data-share-center] section').screenshot({path:root+'/assets/ui/share-entry-panel.png'});
+ evidence.actions.push('Actual Share Linko click opened ShareCenter');
+ const before=Date.now();
+ await p.waitForTimeout(900);await entry.click();
+ const card=p.getByRole('img',{name:/Linko.s MyPetLink.*Share Card/});
+ await card.waitFor();await card.evaluate(i=>i.decode());await p.getByText('Preparing the Share Card…',{exact:true}).waitFor({state:'hidden'});
+ await stable(p);await guard(p);await p.waitForTimeout(350);
+ const ready=Date.now();evidence.openSeconds=(ready-before)/1000;
+ await p.screenshot({path:root+'/assets/ui/share-open.png'});
+ const imageUrl=await card.getAttribute('src');evidence.cardImageUrl=imageUrl;
+ const imageResponse=await c.request.get(imageUrl);if(!imageResponse.ok())throw Error('Card JPEG unavailable');
+ const bytes=await imageResponse.body();await writeFile(root+'/assets/linko-share-card.jpg',bytes);
+ const save=p.getByRole('button',{name:'Save Image',exact:true});await save.scrollIntoViewIfNeeded();
+ const downloadPromise=p.waitForEvent('download');await save.click();const download=await downloadPromise;
+ const saved=root+'/assets/linko-share-card-downloaded.jpg';await download.saveAs(saved);
+ const savedBytes=await readFile(saved);const sha=b=>createHash('sha256').update(b).digest('hex');
+ if(sha(bytes)!==sha(savedBytes))throw Error('Downloaded card mismatch');
+ evidence.actions.push('Actual Share Pet Card click opened generated card','Actual Save Image click started matching JPEG download');
+ evidence.cardSha256=sha(bytes);evidence.downloadSha256=sha(savedBytes);evidence.savedFilename=download.suggestedFilename();
+ evidence.availableButtons=await p.getByRole('dialog').last().getByRole('button').allTextContents();
+ await p.waitForTimeout(400);await p.screenshot({path:root+'/assets/ui/share-saved.png'});
+ const raw=await p.video().path();await c.close();evidence.rawRecording=raw;
+ // Actual UI recording is retained. The editorial sequence uses its verified
+ // ready states so neither page load nor card generation placeholders appear.
+ const local=await browser.newContext({viewport:{width:430,height:700},deviceScaleFactor:2,locale:'en-MY'});
+ const m=await local.newPage();await m.goto('http://localhost:3000/p/linko-linkodemo');await m.getByRole('button',{name:'Moments',exact:true}).click();
+ const moment=m.locator('[data-testid="social-moment-card"]').first();await moment.waitFor();await moment.locator('img').first().waitFor();await stable(m);await guard(m);
+ await moment.screenshot({path:root+'/assets/ui/moment-card.png'});
+ evidence.momentScreenshot='First fully loaded Linko Moment from real local Share Profile';
+ await local.close();await writeFile(root+'/source/share-card-verification.json',JSON.stringify(evidence,null,2));
+ console.log(JSON.stringify(evidence,null,2));
+}finally{await browser.close();}

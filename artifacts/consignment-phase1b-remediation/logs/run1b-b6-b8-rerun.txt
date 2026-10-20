@@ -1,0 +1,29 @@
+Test run for C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\bin\Debug\net8.0\MyPetLink.Api.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 17.14.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:21.35]     MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_ClosedAndRecordedStocktakeLinesCanNotBeInsertedMovedOrRecounted [FAIL]
+  Failed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_ClosedAndRecordedStocktakeLinesCanNotBeInsertedMovedOrRecounted [20 s]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 51052
+Actual:   2601
+  Stack Trace:
+     at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_ClosedAndRecordedStocktakeLinesCanNotBeInsertedMovedOrRecounted() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentStocktakeRemediationRelationalTests.cs:line 317
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_ClosedAndRecordedStocktakeLinesCanNotBeInsertedMovedOrRecounted() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentStocktakeRemediationRelationalTests.cs:line 349
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_ClosedAndRecordedStocktakeLinesCanNotBeInsertedMovedOrRecounted() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentStocktakeRemediationRelationalTests.cs:line 349
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:27.48]     MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B8_AResolutionNeedsEvidenceBeyondTheCountItselfInTeamAndSolo [FAIL]
+  Failed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B8_AResolutionNeedsEvidenceBeyondTheCountItselfInTeamAndSolo [6 s]
+  Error Message:
+   Assert.Throws() Failure: No exception was thrown
+Expected: typeof(MyPetLink.Api.Common.ApiException)
+  Stack Trace:
+     at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B8_AResolutionNeedsEvidenceBeyondTheCountItselfInTeamAndSolo() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentStocktakeRemediationRelationalTests.cs:line 467
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B8_AResolutionNeedsEvidenceBeyondTheCountItselfInTeamAndSolo() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentStocktakeRemediationRelationalTests.cs:line 471
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B8_AResolutionNeedsEvidenceBeyondTheCountItselfInTeamAndSolo() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentStocktakeRemediationRelationalTests.cs:line 471
+--- End of stack trace from previous location ---
+Results File: C:/Project/MyPetLink/artifacts/consignment-phase1b-remediation/logs/run1b-b6-b8-rerun.trx
+
+Failed!  - Failed:     2, Passed:     0, Skipped:     0, Total:     2, Duration: 26 s - MyPetLink.Api.Tests.dll (net8.0)

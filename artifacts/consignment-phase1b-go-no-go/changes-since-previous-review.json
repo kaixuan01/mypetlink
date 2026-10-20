@@ -1,0 +1,42 @@
+[
+  {
+    "Path": "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentStocktakeRemediationRelationalTests.cs",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/api/MyPetLink.Api/DTOs/ConsignmentSalesDtos.cs",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/api/MyPetLink.Api/DTOs/ConsignmentStocktakeDtos.cs",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/api/MyPetLink.Api/Services/ConsignmentService.Sales.cs",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/api/MyPetLink.Api/Services/ConsignmentService.Stocktake.cs",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/web/src/components/admin/merchantSales/consignment/LateReportLinks.tsx",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/web/src/components/admin/merchantSales/consignment/SalesReportsView.tsx",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/web/src/components/admin/merchantSales/consignment/model.ts",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/web/src/components/admin/merchantSales/consignment/useConsignmentActions.tsx",
+    "Status": "Changed"
+  },
+  {
+    "Path": "apps/web/src/services/adminConsignmentService.ts",
+    "Status": "Changed"
+  }
+]

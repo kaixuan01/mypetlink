@@ -1,0 +1,34 @@
+{
+  "source": "https://prices.azure.com/api/retail/prices?%24filter=serviceName+eq+%27SQL+Database%27+and+armRegionName+eq+%27southeastasia%27+and+skuName+eq+%27B%27&currencyCode=USD",
+  "response": {
+    "BillingCurrency": "USD",
+    "CustomerEntityId": "Default",
+    "CustomerEntityType": "Retail",
+    "Items": [
+      {
+        "currencyCode": "USD",
+        "tierMinimumUnits": 0.0,
+        "retailPrice": 0.161,
+        "unitPrice": 0.161,
+        "armRegionName": "southeastasia",
+        "location": "AP Southeast",
+        "effectiveStartDate": "2014-11-01T00:00:00Z",
+        "meterId": "cae64797-9ecf-4906-b517-6238c80c045f",
+        "meterName": "B DTU",
+        "productId": "DZH318Z0BQGZ",
+        "skuId": "DZH318Z0BQGZ/005D",
+        "productName": "SQL Database Single Basic",
+        "skuName": "B",
+        "serviceName": "SQL Database",
+        "serviceId": "DZH3180HX10K",
+        "serviceFamily": "Databases",
+        "unitOfMeasure": "1/Day",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": false,
+        "armSkuName": ""
+      }
+    ],
+    "NextPageLink": null,
+    "Count": 1
+  }
+}

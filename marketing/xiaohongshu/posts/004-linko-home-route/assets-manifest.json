@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "post": "004",
+  "title": "给 Linko 多一个回家的机会",
+  "format": "video",
+  "cover": {
+    "kicker": "宠物走失安全",
+    "hook": ["有人遇见它", "却联系不到你？"],
+    "subhead": "给 Linko 多一个回家的机会",
+    "accent": "coral",
+    "footer": "AI 情境示意｜扫码或轻触联系主人"
+  },
+  "assets": [
+    { "id": "lost-wide", "type": "image", "source": "human", "path": "posts/004-linko-home-route/generated/scene-01-lost.png", "required": true, "description": "Linko alone outdoors." },
+    { "id": "lost-close", "type": "image", "source": "human", "path": "posts/004-linko-home-route/generated/scene-02-lost-close.png", "required": true, "description": "Close emotional view of Linko." },
+    { "id": "finder", "type": "image", "source": "human", "path": "posts/004-linko-home-route/generated/scene-03-finder.png", "required": true, "description": "Finder notices Linko and the tag." },
+    { "id": "scan", "type": "image", "source": "human", "path": "posts/004-linko-home-route/generated/scene-04-scan.png", "required": true, "description": "Phone scanning the tag QR code." },
+    { "id": "contact", "type": "image", "source": "automated", "path": "posts/004-linko-home-route/generated/scene-05-contact.png", "required": true, "description": "Real Safety Profile capture of the demo account (/q/linkodemo): WhatsApp Owner button, no number on screen." },
+    { "id": "reunion", "type": "image", "source": "human", "path": "posts/004-linko-home-route/generated/scene-06-reunion.png", "required": true, "description": "Linko reunited with the owner." },
+    { "id": "endcard", "type": "image", "source": "automated", "path": "posts/004-linko-home-route/generated/scene-07-endcard.png", "required": true, "description": "Brand end card with the AI scenario disclosure." }
+  ],
+  "timeline": [
+    { "asset": "lost-wide", "duration": 3.5, "text": "如果 Linko 有一天\n走失了……", "motion": "slow-zoom-in" },
+    { "asset": "lost-close", "duration": 4.0, "text": "最怕的，不只是\n找不到它", "motion": "slow-zoom-in" },
+    { "asset": "finder", "duration": 4.5, "text": "而是有人遇见它\n却不知道怎么联系你", "motion": "slow-zoom-in" },
+    { "asset": "lost-close", "duration": 4.0, "text": "它不会说：\n“我的主人正在找我……”", "motion": "slow-zoom-in" },
+    { "asset": "scan", "duration": 4.0, "text": "QR + NFC Smart Tag\n可以替它开口", "motion": "slow-zoom-in" },
+    { "asset": "contact", "duration": 4.5, "text": "扫描二维码或轻触 NFC\n打开 Linko 的 Safety Profile", "motion": "none" },
+    { "asset": "contact", "duration": 4.0, "text": "一键 WhatsApp\n联系主人", "motion": "none" },
+    { "asset": "reunion", "duration": 4.0, "text": "让每一次被遇见\n都有机会变成团聚", "motion": "slow-zoom-in" },
+    { "asset": "endcard", "duration": 4.0, "text": "给它多一个\n回家的机会", "motion": "slow-zoom-in" }
+  ],
+  "audio": {}
+}

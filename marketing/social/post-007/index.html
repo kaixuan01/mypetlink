@@ -1,0 +1,62 @@
+<!doctype html><html lang="ms-MY"><meta charset="utf-8"><title>MyPetLink · Si Bulus Punya Profil Sendiri</title>
+<style>
+@font-face{font-family:Poppins;src:url('../assets/Poppins-ExtraBold.ttf');font-weight:800}
+@font-face{font-family:Poppins;src:url('../assets/Poppins-SemiBold.ttf');font-weight:600}
+*{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#fff8f2;color:#0d1b3d;font-family:Poppins,'Segoe UI',sans-serif}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:radial-gradient(ellipse at 15% 70%,#dcedff 0,transparent 52%),#fff8f2}
+.orb{position:absolute;border-radius:50%;pointer-events:none}.orb.a{width:850px;height:850px;left:530px;top:-260px;background:#ffe1d2}.orb.b{width:720px;height:720px;left:-320px;top:1250px;background:#bfead7;opacity:.6}
+.scene{position:absolute;inset:0;display:none}.scene.on{display:block}.eyebrow{position:absolute;left:92px;top:190px;font-size:29px;letter-spacing:3px;font-weight:800;text-transform:uppercase;color:#1570ef}
+h1,h2,p{margin:0}h1,h2{font-weight:800;letter-spacing:-3.5px;line-height:1.11}
+.title{position:absolute;left:90px;top:245px;width:820px;font-size:74px}.sub{position:absolute;left:94px;top:430px;width:790px;font-size:35px;line-height:1.4;font-weight:600;color:#44506a}
+.accent{color:#1570ef}.orange{color:#ec6a4e}.chip{display:inline-block;border-radius:999px;padding:13px 28px;background:#bfead7;color:#0d1b3d;font-size:31px;font-weight:800;letter-spacing:0}
+.phone{position:absolute;left:153px;top:550px;width:716px;height:1080px;border:12px solid #0d1b3d;border-radius:60px;background:#fff;overflow:hidden;box-shadow:0 26px 65px #0d1b3d26;transform-origin:50% 50%}
+.phone img{position:absolute;top:0;left:0;width:100%;height:auto;display:block}.phone:after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:145px;height:19px;background:#0d1b3d;border-radius:0 0 16px 16px}
+.mascot{position:absolute;object-fit:contain;filter:drop-shadow(0 26px 22px #844e1020)}.bubble{position:absolute;background:#fff;border:3px solid #0d1b3d;box-shadow:6px 8px 0 #0d1b3d;border-radius:28px;padding:18px 27px;font-size:31px;font-weight:800;transform:rotate(-5deg)}
+.hook .title{top:235px;font-size:90px;width:850px;line-height:1.09}.hook .mascot{left:10px;top:580px;width:1010px;height:970px}.hook .bubble{left:118px;top:1320px}.hook .punct{position:absolute;left:765px;top:650px;font-size:130px;font-weight:800;color:#1570ef;transform:rotate(12deg)}
+.brand-small{position:absolute;left:92px;top:1530px;width:310px}.sticker{position:absolute;left:715px;top:520px;width:150px;height:150px;display:grid;place-items:center;font-size:61px;border-radius:50%;background:#ffdfc5;transform:rotate(12deg);box-shadow:0 8px 0 #f6b9a2}
+.intro .title{font-size:69px}.intro .sub{top:425px}.intro .phone{top:555px}
+.create .title{top:220px;font-size:67px}.create .free{position:absolute;left:86px;top:380px;font-size:98px;font-weight:800;letter-spacing:-4px;color:#1570ef;line-height:1.1}.create .phone{top:540px}.create .micro{position:absolute;left:160px;top:1450px;width:700px;text-align:center;background:#0d1b3d;color:#fff;padding:18px;font-size:30px;border-radius:26px;font-weight:600}
+.value .title{font-size:74px;top:230px}.value .sub{top:335px}.value .phone{top:490px;height:1110px}.value .num{position:absolute;left:92px;top:176px;color:#1570ef;font-size:27px;font-weight:800;letter-spacing:3px}
+.safety .title{font-size:66px}.safety .sub{top:390px;font-size:33px}.safety .phone{top:520px;height:1110px}.safety .privacy{position:absolute;left:115px;top:1430px;width:760px;padding:19px 24px;border-radius:24px;background:#bfead7;font-size:30px;font-weight:600;text-align:center}
+.cta{background:radial-gradient(ellipse at 40% 63%,#e4f2ff 0,transparent 58%),#fff8f2}.cta .logo{position:absolute;left:93px;top:180px;width:380px}.cta .title{top:320px;font-size:75px;width:830px}.cta .phone{left:560px;top:650px;width:340px;height:620px;border-width:8px;border-radius:35px;transform:rotate(7deg);box-shadow:0 18px 50px #0d1b3d20}.cta .phone:after{width:90px;height:12px}.cta .mascot{left:-60px;top:690px;width:720px;height:700px}.cta .free-tag{position:absolute;left:105px;top:1170px;transform:rotate(-5deg);background:#bfead7;border:3px solid #0d1b3d;box-shadow:6px 7px 0 #0d1b3d;padding:13px 29px;border-radius:20px;font-size:57px;line-height:1.1;font-weight:800}.cta .detail{position:absolute;left:94px;top:1320px;font-size:30px;font-weight:600}.cta .url{position:absolute;left:92px;top:1395px;width:812px;padding:22px 18px;text-align:center;border-radius:25px;background:#1570ef;color:#fff;font-size:46px;font-weight:800;letter-spacing:-1.5px}.cta .tagline{position:absolute;left:95px;top:1530px;font-size:28px;font-weight:600;letter-spacing:1px}
+.cover .title{top:265px;font-size:88px}.cover .cover-free{position:absolute;left:96px;top:1285px;font-size:39px;font-weight:800;padding:18px 28px;background:#bfead7;border-radius:22px}.cover .logo{position:absolute;left:97px;top:1475px;width:340px}
+.create .eyebrow{top:174px}.create .title{top:235px}.create .free{top:403px}.create .phone{top:560px;height:1040px}.create .micro{top:1420px}
+.cta .detail{top:1285px}.cta .url{top:1350px}.cta .tagline{top:280px;font-size:24px}.cta .phone img{height:100%;width:100%;object-fit:cover;object-position:top}
+#wipe{position:absolute;inset:0;background:#1570ef;transform:translateX(110%);pointer-events:none}
+</style>
+<main id="stage"><div class="orb a"></div><div class="orb b"></div>
+<section class="scene hook" data-start="0" data-end="3"><div class="eyebrow">Geng Oyen, sini jap 😼</div><h1 class="title">Kucing korang<br>ada <span class="accent">profil<br>sendiri</span> belum?!</h1><img class="mascot" src="../assets/linko-hero.png"><div class="punct">?!</div><div class="bubble">Si bulus pun nak glamer 😼</div></section>
+<section class="scene intro" data-start="3" data-end="7"><div class="eyebrow">Si bulus punya ruang 💙</div><h2 class="title">Kenalkan<br><span class="accent">MyPetLink!</span></h2><p class="sub">Tempat khas untuk si bulus korang 🐾</p><div class="phone"><img data-clip="profile"></div><div class="sticker">😻</div></section>
+<section class="scene create" data-start="7" data-end="12"><div class="eyebrow">Nama. Gambar. Si bulus!</div><h2 class="title">Buat profil digital<br>si bulus —</h2><div class="free">PERCUMA! ✨</div><div class="phone"><img data-clip="create"></div><div class="micro">Sehingga 3 ekor dalam pelan percuma</div></section>
+<section class="scene value" data-start="12" data-end="14"><div class="num">01 / GAMBAR SI BULUS</div><h2 class="title">Simpan gambar 📸</h2><p class="sub">Momen comel, senang nak tengok balik.</p><div class="phone"><img data-clip="photos"></div></section>
+<section class="scene value" data-start="14" data-end="16"><div class="num">02 / KONGSI KEGEMARAN KORANG</div><h2 class="title">Kongsi profil 💙</h2><p class="sub">Salin pautan, hantar dekat geng korang.</p><div class="phone"><img data-clip="share"></div></section>
+<section class="scene safety" data-start="16" data-end="18"><div class="eyebrow">03 / Safety Profile</div><h2 class="title">Info penting,<br>semua di satu tempat 🐾</h2><p class="sub">Maklumat untuk bantu orang hubungi korang.</p><div class="phone"><img data-clip="safety"></div><div class="privacy">Korang pilih info yang dikongsi.</div></section>
+<section class="scene cta" data-start="18" data-end="24"><img class="logo" src="../assets/logo.svg"><h2 class="title">Jom buat profil<br>kucing korang<br><span class="accent">sekarang! 😻</span></h2><div class="phone"><img src="../assets/ui/profile.png"></div><img class="mascot" src="../assets/linko-celebrate.png"><div class="free-tag">PERCUMA</div><p class="detail">Sehingga 3 ekor • Tak perlu beli tag</p><div class="url">mypetlink.com.my</div><p class="tagline">Protect. Connect. Reunite.</p></section>
+<section class="scene hook cover" id="cover"><div class="eyebrow">Geng Oyen wajib tengok 😼</div><h1 class="title">Kucing Korang<br>Ada <span class="accent">Profil<br>Sendiri?! 😻</span></h1><img class="mascot" src="../assets/linko-hero.png"><div class="cover-free">Buat PERCUMA di MyPetLink</div><img class="logo" src="../assets/logo.svg"></section>
+<div id="wipe"></div></main>
+<script>
+const scenes=[...document.querySelectorAll('.scene[data-start]')];
+const clamp=x=>Math.max(0,Math.min(1,x));
+const ease=x=>1-Math.pow(1-clamp(x),3);
+window.render=async function(t,cover=false){
+ const pending=[];
+ for(const el of document.querySelectorAll('.scene'))el.classList.remove('on');
+ if(cover){document.querySelector('#cover').classList.add('on');return;}
+ const s=scenes.find(s=>t>=+s.dataset.start&&t<+s.dataset.end)||scenes.at(-1),local=t-Number(s.dataset.start),duration=Number(s.dataset.end)-Number(s.dataset.start);
+ s.classList.add('on');
+ const title=s.querySelector('.title');title.style.transform=`translateY(${(1-ease(local/.32))*22}px)`;
+ for(const m of s.querySelectorAll('.mascot')){
+   const scale=s.classList.contains('hook')?1.025+Math.sin(local*2)*.018:1+Math.sin(local*2.2)*.009;
+   m.style.transform=`translateY(${Math.sin(local*2.5)*9}px) rotate(${Math.sin(local*1.9)*1.4}deg) scale(${scale})`;
+ }
+ const phone=s.querySelector('.phone');if(phone)phone.style.transform=s.classList.contains('cta')?`translateY(${Math.sin(local*1.5)*7}px) rotate(${7+Math.sin(local)*.5}deg)`:`translateY(${(1-ease(local/.4))*48}px) rotate(${Math.sin(local*.8)*.55-.3}deg) scale(${1+local/duration*.018})`;
+ const clip=s.querySelector('[data-clip]');
+ if(clip){const frame=Math.min(Math.round(duration*30)-1,Math.floor(Math.max(0,local)*30));const url=`../frames/${clip.dataset.clip}/${String(frame+1).padStart(4,'0')}.jpg`;if(clip.getAttribute('src')!==url){clip.src=url;pending.push(clip.decode());}}
+ document.querySelector('.orb.a').style.transform=`translate(${Math.sin(t*.4)*30}px,${Math.cos(t*.3)*25}px)`;
+ const cuts=[3,7,12,14,16,18],near=cuts.find(x=>t>=x-.1&&t<x+.1),wipe=document.querySelector('#wipe');
+ wipe.style.transform=near===undefined?'translateX(110%)':`translateX(${((t-near+.1)/.2*220-110)}%)`;
+ await Promise.all(pending);
+};
+window.render(0);
+addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='post007')render(Number(e.data.time)||0);});
+</script></html>

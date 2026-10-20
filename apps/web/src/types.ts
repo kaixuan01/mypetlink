@@ -298,6 +298,85 @@ export type CareRecord = {
   archivedAt?: string;
 };
 
+/**
+ * A pending due item from the owner-wide care read: an active record with a
+ * next due date, on an active pet, that nothing has completed yet. Carries
+ * only what an overview shows — never notes, provider or documents.
+ */
+export type UpcomingCareItem = {
+  id: string;
+  petId: string;
+  petName: string;
+  type: RecordType;
+  title: string;
+  careName?: string;
+  /** Display form, e.g. "12 Oct 2026", matching CareRecord.dueDate. */
+  dueDate: string;
+  /** Calendar date, YYYY-MM-DD. */
+  dueDateIso: string;
+  status: Exclude<CareRecord["status"], "complete">;
+};
+
+export type UpcomingCarePage = {
+  /** The Malaysia calendar day statuses were derived for, YYYY-MM-DD. */
+  asOfDate: string;
+  petIdsWithCareRecords: string[];
+  items: UpcomingCareItem[];
+};
+
+/**
+ * Pending care for one set of pets — all active pets (`petId` null) or one.
+ * Counts are exact and come from the same consistent read as the items.
+ */
+export type UpcomingCareScope = {
+  petId: string | null;
+  /** At least one active care record of any kind in this scope. */
+  hasCareRecords: boolean;
+  pendingCount: number;
+  /** Overdue, or due on or before the summary's horizon date. */
+  dueWithinHorizonCount: number;
+  overdueCount: number;
+  /** At most three: the most recently missed, then the nearest coming. */
+  items: UpcomingCareItem[];
+};
+
+/**
+ * The Dashboard's pending-care summary, read once from one consistent view
+ * of the records — never stitched from separately requested pages, which can
+ * describe different moments. `complete` is false only when there was more
+ * pending care than one summary reads; the caller must then not present it
+ * as everything that is due.
+ */
+export type UpcomingCareSummary = {
+  /** Malaysia's calendar day the statuses were derived for, YYYY-MM-DD. */
+  asOfDate: string;
+  /** The last day counted as "due soon", YYYY-MM-DD. */
+  horizonDate: string;
+  complete: boolean;
+  scopes: UpcomingCareScope[];
+};
+
+/**
+ * Whether one due item has been completed, read from the records themselves.
+ * `completed` means an active record fulfils the target, and `completion` is
+ * that record. A target that merely stopped being pending is one of the other
+ * states — never "completed".
+ */
+export type CareCompletionState =
+  | "pending"
+  | "completed"
+  | "archived"
+  | "no-due-date"
+  | "pet-archived";
+
+export type CareCompletionStatus = {
+  state: CareCompletionState;
+  asOfDate: string;
+  petName: string;
+  target: CareRecord;
+  completion: CareRecord | null;
+};
+
 export type CareDocumentCategory =
   | "VaccinationDocument"
   | "MedicalDocument";
@@ -395,6 +474,12 @@ export type PetMoment = {
    * subjects only.
    */
   additionalPetIds?: string[];
+  /**
+   * When the Moment was written (ISO timestamp), distinct from `date`, the
+   * day it is about. Orders Moments that share a date, as the owner's
+   * Moments list does.
+   */
+  createdAt?: string;
 };
 
 // Product name shown on an order. "MyPetLink QR Pet Tag" is retained for

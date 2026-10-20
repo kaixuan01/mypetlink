@@ -1,0 +1,20 @@
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Error: strict mode violation: getByRole('dialog').getByText('The stocktake of 15 Sep 2026 already closed this period') resolved to 4 elements:
+    1) <p class="font-black text-slate-900">The stocktake of 15 Sep 2026 already closed this …</p> aka getByText('The stocktake of 15 Sep 2026 already closed this period', { exact: true })
+    2) <li>QA-PAWSOME-SD: the stocktake of 15 Sep 2026 alrea…</li> aka getByLabel('Verify this sales report?').getByText('QA-PAWSOME-SD: the stocktake')
+    3) <li>QA-MYBOSS-LW: the stocktake of 15 Sep 2026 alread…</li> aka getByLabel('Verify this sales report?').getByText('QA-MYBOSS-LW: the stocktake')
+    4) <li>QA-PAWSOME-LW: the stocktake of 15 Sep 2026 alrea…</li> aka getByLabel('Verify this sales report?').getByText('QA-PAWSOME-LW: the stocktake')
+
+Call log:
+[2m  - waiting for getByRole('dialog').getByText('The stocktake of 15 Sep 2026 already closed this period') to be visible[22m
+
+    at C:\Project\MyPetLink\artifacts\consignment-phase1b-remediation\e2e-remediation.mjs:48:85 {
+  log: [
+    "  - waiting for getByRole('dialog').getByText('The stocktake of 15 Sep 2026 already closed this period') to be visible"
+  ]
+}
+
+Node.js v22.13.1

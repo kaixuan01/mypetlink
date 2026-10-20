@@ -1,0 +1,43 @@
+{
+  "CapturedAtUtc": "2026-10-15T02:14:24.5006956+00:00",
+  "Latest": {
+    "id": "4f81b09a-d102-4820-b8e2-67efa35c37fa",
+    "url": "https://4f81b09a.mypetlink.pages.dev",
+    "environment": "production",
+    "latest_stage": {
+      "name": "deploy",
+      "started_on": "2026-10-15T02:13:46.649022Z",
+      "ended_on": "2026-10-15T02:13:57.528493Z",
+      "status": "success"
+    },
+    "deployment_trigger": {
+      "type": "github:push",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "d3b11c61de8d342bf3cecda773f22b53ce2c817d",
+        "commit_message": "feat: release merchant partner directory and verified fixes\n\nAdd consent-gated merchant listings and branches with safe public projections, versioned API routes, draft navigation protection and reactivation privacy. Include explicit release-profile verification, directory SEO, Smart Tag placeholder handling, the Moments editor race fix and verified test synchronization changes.",
+        "commit_dirty": false
+      }
+    }
+  },
+  "Canonical": {
+    "id": "4f81b09a-d102-4820-b8e2-67efa35c37fa",
+    "url": "https://4f81b09a.mypetlink.pages.dev",
+    "environment": "production",
+    "latest_stage": {
+      "name": "deploy",
+      "started_on": "2026-10-15T02:13:46.649022Z",
+      "ended_on": "2026-10-15T02:13:57.528493Z",
+      "status": "success"
+    },
+    "deployment_trigger": {
+      "type": "github:push",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "d3b11c61de8d342bf3cecda773f22b53ce2c817d",
+        "commit_message": "feat: release merchant partner directory and verified fixes\n\nAdd consent-gated merchant listings and branches with safe public projections, versioned API routes, draft navigation protection and reactivation privacy. Include explicit release-profile verification, directory SEO, Smart Tag placeholder handling, the Moments editor race fix and verified test synchronization changes.",
+        "commit_dirty": false
+      }
+    }
+  }
+}

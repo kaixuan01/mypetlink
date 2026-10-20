@@ -1,0 +1,40 @@
+[
+  {
+    "check": "Approved sample Share Profile",
+    "robots": [
+      "noindex, follow"
+    ],
+    "metadata": [
+      "dynamic-public-profile"
+    ],
+    "template": null,
+    "contentType": [
+      "text/html; charset=utf-8"
+    ],
+    "status": 200
+  },
+  {
+    "check": "Approved sample Safety Profile preview (HEAD only)",
+    "robots": null,
+    "metadata": null,
+    "template": null,
+    "contentType": [
+      "text/plain; charset=UTF-8"
+    ],
+    "status": 500
+  },
+  {
+    "check": "Approved sample social card",
+    "robots": [
+      "noindex"
+    ],
+    "metadata": null,
+    "template": [
+      "social-card-v3"
+    ],
+    "contentType": [
+      "image/jpeg"
+    ],
+    "status": 200
+  }
+]

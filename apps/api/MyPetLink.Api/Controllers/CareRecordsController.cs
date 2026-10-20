@@ -65,6 +65,56 @@ public sealed class CareRecordsController : ApiControllerBase
             ApiEnvelope.Ok(response, HttpContext));
     }
 
+    /// <summary>
+    /// The caller's pending due items across their active pets. Owner-wide by
+    /// default; <paramref name="petId"/> narrows it to one owned pet and is a
+    /// filter, never an identity. The actor is always the signed-in owner.
+    /// </summary>
+    [HttpGet("care-records/upcoming")]
+    public async Task<IActionResult> ListUpcoming(
+        [FromQuery] PagedQuery query,
+        [FromQuery] Guid? petId,
+        CancellationToken cancellationToken)
+    {
+        var (response, total) = await _careRecordService.ListUpcomingAsync(
+            _currentUserService.Current.UserId,
+            petId,
+            query.Page,
+            query.PageSize,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext, query.Page, query.PageSize, total));
+    }
+
+    /// <summary>
+    /// The Dashboard's pending-care summary: exact counts and the items to
+    /// show, for all active pets and for each one, from one consistent read.
+    /// </summary>
+    [HttpGet("care-records/upcoming/summary")]
+    public async Task<IActionResult> UpcomingSummary(CancellationToken cancellationToken)
+    {
+        var response = await _careRecordService.GetUpcomingSummaryAsync(
+            _currentUserService.Current.UserId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    /// <summary>
+    /// Whether this due item has been completed, and by which record. Lets
+    /// Log as done confirm an uncertain save from the records themselves.
+    /// </summary>
+    [HttpGet("care-records/{recordId:guid}/completion")]
+    public async Task<IActionResult> CompletionStatus(Guid recordId, CancellationToken cancellationToken)
+    {
+        var response = await _careRecordService.GetCompletionStatusAsync(
+            _currentUserService.Current.UserId,
+            recordId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpGet("care-records/{recordId:guid}")]
     public async Task<IActionResult> Get(Guid recordId, CancellationToken cancellationToken)
     {

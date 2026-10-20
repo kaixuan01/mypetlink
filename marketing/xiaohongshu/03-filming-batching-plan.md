@@ -1,5 +1,7 @@
 # Filming batching plan
 
+> **2026-09 执行更新：**此实拍清单本月不执行。没有真实宠物可拍；视频用 AI 角色 Linko 制作，产品画面取自真实页面截图。见 [Linko AI 社交媒体执行计划](../2026-09-social-media-plan.md)。收到实体 Smart Tag 后再安排实物拍摄。
+
 30 posts, but **only 9 of them need you to hold a phone**. Everything else is either
 generated from MyPetLink or designed in Canva.
 

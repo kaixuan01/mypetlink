@@ -1,0 +1,70 @@
+{
+  "captured_at_utc": "2026-10-18T05:43:17.945589+00:00",
+  "read_only": true,
+  "checks": [
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/health/live",
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\"},\"meta\":{\"requestId\":\"0HNPCRA40C4MM:00000002\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.79
+    },
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/health/ready",
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNPCRA40C4MN:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.88
+    },
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": 401,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4MP:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.77
+    },
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": 401,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4MO:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.75
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/health/live",
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\"},\"meta\":{\"requestId\":\"0HNPCRA40C4MN:00000002\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.15
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/health/ready",
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNPCRA40C4MM:00000003\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.19
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": 401,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4MO:00000002\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.2
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": 401,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4MO:00000003\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}",
+      "cache_control": null,
+      "seconds": 0.14
+    }
+  ]
+}

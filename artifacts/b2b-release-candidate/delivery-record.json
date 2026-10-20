@@ -1,0 +1,11 @@
+{
+  "captured_at_utc": "2026-10-18T05:45:25.562268+00:00",
+  "commit": "2ff3b792b2f021168d257511d94ec71cf23e8b09",
+  "remote_main": "2ff3b792b2f021168d257511d94ec71cf23e8b09\trefs/heads/main",
+  "changed_files": 66,
+  "original_work_preserved": true,
+  "original_hashes_verified": 2507,
+  "index_empty": true,
+  "production_db_api": "User-reported complete; agent performed GET probes only",
+  "latest_api_status": "Both domains: live/ready 200; protected Consignment routes 401"
+}

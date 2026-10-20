@@ -1,0 +1,66 @@
+[
+  {
+    "bodyBytes": 26817,
+    "robots": [
+      "noindex, follow"
+    ],
+    "metadata": [
+      "dynamic-finder-profile"
+    ],
+    "status": 200,
+    "contentType": [
+      "text/html; charset=utf-8"
+    ],
+    "deployment": "Current 49bef2e",
+    "cloudflareRay": [
+      "a4ced9d7fab0dc76-FRA"
+    ],
+    "method": "Get"
+  },
+  {
+    "bodyBytes": 0,
+    "robots": null,
+    "metadata": null,
+    "status": 500,
+    "contentType": [
+      "text/plain; charset=UTF-8"
+    ],
+    "deployment": "Current 49bef2e",
+    "cloudflareRay": [
+      "a4ced9e2383f1989-FRA"
+    ],
+    "method": "Head"
+  },
+  {
+    "bodyBytes": 26450,
+    "robots": [
+      "noindex, follow"
+    ],
+    "metadata": [
+      "dynamic-finder-profile"
+    ],
+    "status": 200,
+    "contentType": [
+      "text/html; charset=utf-8"
+    ],
+    "deployment": "Previous 2ff3b79",
+    "cloudflareRay": [
+      "a4ced9e49f4b5cd6-SIN"
+    ],
+    "method": "Get"
+  },
+  {
+    "bodyBytes": 0,
+    "robots": null,
+    "metadata": null,
+    "status": 500,
+    "contentType": [
+      "text/plain; charset=UTF-8"
+    ],
+    "deployment": "Previous 2ff3b79",
+    "cloudflareRay": [
+      "a4ced9e938366d3b-SIN"
+    ],
+    "method": "Head"
+  }
+]

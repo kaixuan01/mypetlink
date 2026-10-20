@@ -1,0 +1,44 @@
+Phase 1B remediation SQL checks — 2026-10-19 06:41 MYT
+Server: the MSSQLLocalDB instance via its named pipe (the (localdb) alias stopped resolving mid-session), integrated authentication, disposable databases only; sqlcmd -I -b with migration-session-settings.sql first.
+fresh install exit: 0
+fresh: 80 migrations, head 20261019060824_HardenConsignmentStocktakeReconciliation
+fresh replay exit: 0
+fresh replay: 80 migrations, head 20261019060824_HardenConsignmentStocktakeReconciliation
+fresh trigger: TR_ConsignmentDiscrepancyResolutions_AppendOnly enabled=yes
+fresh trigger: TR_ConsignmentRecordContributors_AppendOnly enabled=yes
+fresh trigger: TR_ConsignmentStockLedgerEntries_AppendOnly enabled=yes
+fresh trigger: TR_ConsignmentStocktakeLines_Frozen enabled=yes
+fresh trigger: TR_ConsignmentStocktakes_Closed enabled=yes
+fresh lines trigger covers INSERT: yes; raises 51052: yes; stocktake trigger raises 51052: yes
+fresh columns: ConsignmentStocktakes.CountedAfterCutoffNote nvarchar null, ConsignmentStocktakes.CountedAt datetimeoffset null, ConsignmentDiscrepancyResolutions.ReversesResolutionId uniqueidentifier null
+fresh indexes/checks: UX_ConsignmentDiscrepancyResolutions_LateReport, UX_ConsignmentDiscrepancyResolutions_Reverses, CK_ConsignmentDiscrepancyResolution_Withdrawal
+fresh DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: 0 violation rows
+phase 1A head exit: 0
+phase 1A head: 78 migrations, head 20261019010452_ProtectConsignmentContributorHistory
+upgrade 1A -> current exit: 0
+upgraded from 1A: 80 migrations, head 20261019060824_HardenConsignmentStocktakeReconciliation
+upgrade replay exit: 0
+upgrade replay: 80 migrations, head 20261019060824_HardenConsignmentStocktakeReconciliation
+from 1A trigger: TR_ConsignmentDiscrepancyResolutions_AppendOnly enabled=yes
+from 1A trigger: TR_ConsignmentRecordContributors_AppendOnly enabled=yes
+from 1A trigger: TR_ConsignmentStockLedgerEntries_AppendOnly enabled=yes
+from 1A trigger: TR_ConsignmentStocktakeLines_Frozen enabled=yes
+from 1A trigger: TR_ConsignmentStocktakes_Closed enabled=yes
+from 1A lines trigger covers INSERT: yes; raises 51052: yes; stocktake trigger raises 51052: yes
+from 1A columns: ConsignmentStocktakes.CountedAfterCutoffNote nvarchar null, ConsignmentStocktakes.CountedAt datetimeoffset null, ConsignmentDiscrepancyResolutions.ReversesResolutionId uniqueidentifier null
+from 1A indexes/checks: UX_ConsignmentDiscrepancyResolutions_LateReport, UX_ConsignmentDiscrepancyResolutions_Reverses, CK_ConsignmentDiscrepancyResolution_Withdrawal
+from 1A DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: 0 violation rows
+reviewed 1B head exit: 0
+reviewed 1B head: 79 migrations, head 20261019025050_AddConsignmentStocktakeAndCarryForward
+upgrade 1B -> current exit: 0
+upgraded from 1B: 80 migrations, head 20261019060824_HardenConsignmentStocktakeReconciliation
+from 1B trigger: TR_ConsignmentDiscrepancyResolutions_AppendOnly enabled=yes
+from 1B trigger: TR_ConsignmentRecordContributors_AppendOnly enabled=yes
+from 1B trigger: TR_ConsignmentStockLedgerEntries_AppendOnly enabled=yes
+from 1B trigger: TR_ConsignmentStocktakeLines_Frozen enabled=yes
+from 1B trigger: TR_ConsignmentStocktakes_Closed enabled=yes
+from 1B lines trigger covers INSERT: yes; raises 51052: yes; stocktake trigger raises 51052: yes
+from 1B columns: ConsignmentStocktakes.CountedAfterCutoffNote nvarchar null, ConsignmentStocktakes.CountedAt datetimeoffset null, ConsignmentDiscrepancyResolutions.ReversesResolutionId uniqueidentifier null
+from 1B indexes/checks: UX_ConsignmentDiscrepancyResolutions_LateReport, UX_ConsignmentDiscrepancyResolutions_Reverses, CK_ConsignmentDiscrepancyResolution_Withdrawal
+from 1B DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: 0 violation rows
+Dropped: MyPetLinkRemediation_Fresh, MyPetLinkRemediation_From1A, MyPetLinkRemediation_From1B

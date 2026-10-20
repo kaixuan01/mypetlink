@@ -11,16 +11,20 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/apiConfig", () => ({ canUseApi: () => true }));
-vi.mock("@/services/apiClient", () => ({
-  apiRequest: (...args: unknown[]) => mocks.apiRequest(...args),
-  isApiClientError: () => false,
-}));
+vi.mock("@/services/apiClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/apiClient")>();
+  return {
+    ...actual,
+    apiRequest: (...args: unknown[]) => mocks.apiRequest(...args),
+  };
+});
 vi.mock("@/services/mediaService", () => ({
   deleteMedia: (...args: unknown[]) => mocks.deleteMedia(...args),
   uploadMediaFile: (...args: unknown[]) => mocks.uploadMediaFile(...args),
 }));
 
 const { createRecord, updateRecord } = await import("./recordService");
+const { ApiClientError } = await import("@/services/apiClient");
 
 describe("recordService care documents", () => {
   beforeEach(() => {
@@ -121,9 +125,12 @@ describe("recordService care documents", () => {
     ).rejects.toThrow("second.pdf");
     expect(mocks.deleteMedia).toHaveBeenCalledWith("media-first");
 
+    // A refused save wrote nothing, so its staged files are cleaned up.
     mocks.deleteMedia.mockClear();
     mocks.uploadMediaFile.mockReset().mockResolvedValue(uploaded("media-save", first));
-    mocks.apiRequest.mockRejectedValue(new Error("Save failed."));
+    mocks.apiRequest.mockRejectedValue(
+      new ApiClientError(400, "validation_failed", "Save failed.")
+    );
     await expect(
       createRecord("pet-1", {
         type: "Vet Visit",
@@ -131,6 +138,65 @@ describe("recordService care documents", () => {
       })
     ).rejects.toThrow("Save failed");
     expect(mocks.deleteMedia).toHaveBeenCalledWith("media-save");
+  });
+
+  it.each([
+    ["a dropped connection", () => new ApiClientError(0, "service_unavailable", "We could not reach MyPetLink right now.")],
+    ["a server failure", () => new ApiClientError(503, "http_503", "Unavailable")],
+    ["a raw network failure", () => new TypeError("Failed to fetch")],
+  ])("keeps staged files when %s leaves the save's outcome unknown", async (_label, error) => {
+    // The record may have been saved with these files attached; deleting
+    // them could strip a saved record.
+    const certificate = file("certificate.pdf", "application/pdf");
+    mocks.uploadMediaFile.mockResolvedValue(uploaded("media-kept", certificate));
+    mocks.apiRequest.mockRejectedValue(error());
+
+    await expect(
+      createRecord("pet-1", {
+        type: "Vaccine",
+        documents: [draft("draft-kept", certificate, 0)],
+      })
+    ).rejects.toBeTruthy();
+    expect(mocks.deleteMedia).not.toHaveBeenCalled();
+  });
+
+  it("tells the caller exactly which stored files a request carries, just before sending it", async () => {
+    const kept = saved("media-kept", "old.pdf", 0);
+    const certificate = file("certificate.pdf", "application/pdf");
+    mocks.uploadMediaFile.mockResolvedValue(uploaded("media-new", certificate));
+    const onSending = vi.fn(() => {
+      expect(mocks.apiRequest).not.toHaveBeenCalled();
+    });
+    mocks.apiRequest.mockRejectedValue(new ApiClientError(0, "service_unavailable", "Unreachable"));
+
+    await expect(
+      createRecord(
+        "pet-1",
+        { type: "Vaccine", documents: [kept, draft("draft-new", certificate, 1)] },
+        { onSending }
+      )
+    ).rejects.toBeTruthy();
+
+    expect(onSending).toHaveBeenCalledExactlyOnceWith({
+      mediaFileIds: ["media-kept", "media-new"],
+      uploadedMediaFileIds: ["media-new"],
+    });
+    expect(mocks.apiRequest.mock.calls[0]![1]).toMatchObject({
+      body: { mediaFileIds: ["media-kept", "media-new"] },
+    });
+  });
+
+  it("never reports a request as sent when an upload failed first", async () => {
+    const certificate = file("certificate.pdf", "application/pdf");
+    mocks.uploadMediaFile.mockRejectedValue(new Error("Upload failed."));
+    const onSending = vi.fn();
+
+    await expect(
+      createRecord("pet-1", { type: "Vaccine", documents: [draft("draft", certificate, 0)] }, { onSending })
+    ).rejects.toThrow("certificate.pdf");
+
+    expect(onSending).not.toHaveBeenCalled();
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
   });
 });
 

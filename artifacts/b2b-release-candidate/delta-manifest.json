@@ -1,0 +1,398 @@
+[
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/AdminCapabilityCoverageTests.cs",
+    "status": "modified",
+    "base_sha256": "f02f602b7757bb75c4a313c01077ed3141b33fc87e8f84fdf8efbf4b9ee651f4",
+    "candidate_sha256": "44c134fac6112c96b6784444222bcad2175eb8e9dcc84805d7a16b8aafb6f780"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/ConsignmentAuthorizationTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "c270d3c76d295bd6a79af7dff963c737a080c7547f69cc737e2134d9f0d6208b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/ConsignmentCorrectnessTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "b4317427aece888e1125ad216809f9e6f5737d1044b041d1535ae5489b1e0fd5"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/ConsignmentHttpTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "3c79cd9ca0f3d4f3011adaef0eed6822231038fa46f8d679cdabcca2fb4a27ae"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/ConsignmentSoloOperatorHttpTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "8b389342d9457b066dbaf9d7810b091bc318f7139039886fae5dbacbff96a32f"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/PhysicalQaHttpTests.cs",
+    "status": "modified",
+    "base_sha256": "42d4535e512b7f8ba3bdac31fd534cfc2d3f9baa478d2dae5de28c5ba169675b",
+    "candidate_sha256": "028e1be3999fc53be58d9d36047cd6986fe15f1d05a30c0d1c14500d73a1a4b9"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentFinalRemediationRelationalTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "10ad6097bd661ec41136df3bbedf6170c84aebeb5b402854ce62f2e243ce62d9"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentMigrationSafetyRelationalTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "f3a3f82c863d58f498bc168e824b929c9c0014b74a0467249d455a1f41ce859d"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRelationalTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "cbf320b68418eb378f0529f871988d4beaba02a663b36f05b7a797ed79c9b19b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRemediationRelationalTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "ea780c5c4a3c54ad95bfe4fcba877dc6225b216c5cbc9eb5d9b13e38e4428d7a"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/Relational/ConsignmentSoloOperatorRelationalTests.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "4a746e5ce3ca06324cb616ded545764ed746b1d51390d0ac279154c5b303abbc"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api.Tests/Relational/MerchantDirectoryRelationalTests.cs",
+    "status": "modified",
+    "base_sha256": "d5d9997d093eaf6c2796d5a836e43115210e472ac5c9d007b07016ef820d0120",
+    "candidate_sha256": "537fc41fed3cad9172d7692eff510f795c6d56c40705fd5d304d091cd631ca18"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Auth/AdminCapabilities.cs",
+    "status": "modified",
+    "base_sha256": "97b43ec6569d7b3756775cceb788f87d7db05118c98977422d75930194019cff",
+    "candidate_sha256": "d7d42c136bd4d5f13152890493dd866ff8674cb2aa0148674742d00aeb88a90b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Auth/AdminCapabilityCatalog.cs",
+    "status": "modified",
+    "base_sha256": "bbdb38f71995e3827dec17c3427a0af434d48c735c58c9647a0cc26825606576",
+    "candidate_sha256": "256a5a6957bd893501ad15edbb60e40608db6120e055fa9953f5fe1e4e9a139c"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Auth/AdminRoleTemplates.cs",
+    "status": "modified",
+    "base_sha256": "50da2b696da481ea9fdd511f9845a9e77860c00ea93a67cb0a3e0a0073db05b5",
+    "candidate_sha256": "896e77a4b8fe85c1d3f6c0a5f92261dcd26b7691d062af1036e56956b7b4715b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Controllers/Admin/AdminConsignmentController.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "950a3824dce4804975121a8b79cb65d7ae165182d5b2275873eb12715809a1da"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/DTOs/ConsignmentApprovalDtos.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "ba8b873edf208e0c9d7a1c2fd900d6c80d37a108555f775fce456943aaabd0c6"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/DTOs/ConsignmentDtos.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "7349aa30237647c17b98f13dcdc5f93a4e148ce6770220e8937ee55bd3d2ba0d"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.Consignment.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "49b3f2451c59b5a597d55c684566bd416a63d35eef0a5abd58f735a21f66bf2c"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.cs",
+    "status": "modified",
+    "base_sha256": "0ef5f6a819a43004c03ef4574ead43f599ce42da2ea2877074a82726aff1a12e",
+    "candidate_sha256": "2624f696f96a362bc19f677507999031da61cadb9763aa9183f963b5c96aef1b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Entities/ConsignmentApprovalPolicy.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "13874254936a3677f3322cee789cd343d225e74ca7a5ba89120d8878cbdf58e9"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Entities/ConsignmentEntities.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "e689a4f11d468ce63a964f122be62f368eb6446edb79f6bd77a7f106dca942fe"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.Designer.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "6e9129812658c94b0a961f08c6b7d7a70ded334989082803e303b5c872dd8ed8"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "fec2edf5d52cbd108ee09b6c4c544c14377bf17516ddf8646876bb0f10cfcf9d"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.Designer.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "f2ef8590ea4dbcfaf0cf09603305ea74aa712347a2bfb0be3b622ac3901b2782"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "f5fb7adf113f7b9f5c65da1d34f005cb537692ccb88b80a87e31a11267b1dda4"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261017160448_CompleteConsignmentReceivingAndApproval.Designer.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "f5e4856fc8354b74298acc5d267ae5fe06d99b842e73e864ff4ac1ae485b961f"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261017160448_CompleteConsignmentReceivingAndApproval.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "3cb2123c3346127f7ee3af83f87afde0e862d7bd13ed71a0dbb5b9a7599702c1"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261018035952_AddConsignmentSoloOperatorPolicy.Designer.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "abc0ed537aa3259552c1304d2c73227b689a78fc8d6f39fe9eec22804b06ae04"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/20261018035952_AddConsignmentSoloOperatorPolicy.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "edfe60bfe95e9e59703901e928499f8854577f4502cc2b643ba8e4a2c89a9c35"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Migrations/MyPetLinkDbContextModelSnapshot.cs",
+    "status": "modified",
+    "base_sha256": "568a8f12898e6c1deb9bf62dc5c39ab021c8ae1f9296d7153d8e104bf2a23eb0",
+    "candidate_sha256": "87f1461993bc741e5de9e4558e101f43b178b08e520f4efab7fdc9c7439c096b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Program.cs",
+    "status": "modified",
+    "base_sha256": "6e1d982cca905db61e8e4b3b89902478ec89ed4a9b05321fd32a7035532fc823",
+    "candidate_sha256": "4ca7f8f0e172b1db834c68d2d64e1d727b9de489d217ea716d29aee289f5c777"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/AdminService.cs",
+    "status": "modified",
+    "base_sha256": "a770bc9454e7e7c7155d3d7a4eca0cee44bc058fe57fd014180350bc62dbd4bc",
+    "candidate_sha256": "91dc764d86ef3effaa02a861838699a16d1dfc1bd0147f3af434e9098a61ad53"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/AdminSmartTagService.cs",
+    "status": "modified",
+    "base_sha256": "30fb1d4e21fce11a2adfc422a741caed05c7600e54324af4b75795f3ba991806",
+    "candidate_sha256": "e6ecf26df067e1c321235f80d267f30b0d355cd8c1fc039ef7ea9ee974727227"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/AdminTagInventoryService.cs",
+    "status": "modified",
+    "base_sha256": "79ed48f2f887f6aa976da765e1086f375edb5a9055a95ae2614150cb95196e51",
+    "candidate_sha256": "84791f736eed37a65fd1d3a01b9887adb7c89c60cbb0e431d401bc034444fec5"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/BusinessIdentityService.cs",
+    "status": "modified",
+    "base_sha256": "b330a90e41c2038ef07c361bc0a5947cd60c0e91253ce11324c1a4ae5227d3c0",
+    "candidate_sha256": "ac4bba922ff7f464b734afd156893c8a7307ce5da62282b06c05545f8a9af310"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/ConsignmentDocumentService.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "89528762b4e280083d2111d96a6f5dfe9d490aaf4fa80eb73ac2bf56864160d6"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/ConsignmentService.Approval.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "4e246af37e38a1524cd90a8b04eda9d630eda9ad745570393485cd3138403d2b"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/ConsignmentService.Evidence.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "1337f2badee070accd484bc1662269db22b5590a7c3501d704f988da41d4935e"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/ConsignmentService.Receiving.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "ece743f64d22d8a0c92501e6dafeb6a82d51836fb03e3bbc4db40971caf920a1"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/ConsignmentService.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "7ec40de29723e71a9e5484de678ede0b2f658c8961d0adf369b5348982c54ad8"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/DocumentNumberService.cs",
+    "status": "modified",
+    "base_sha256": "4769cc10365030b045981a119a687720cd89ca5451fab8fc148408ab43f4c47d",
+    "candidate_sha256": "f9587e9d683dbf129adddeef3adf57346023d428b1a4e623d6580fabaecc9213"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/InventoryCustodyRules.cs",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "d6bf0444844e4c13202fb5131c328907c2a63a458ac7a6a4964647f028b84adf"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/MerchantDocumentRenderer.cs",
+    "status": "modified",
+    "base_sha256": "9366897d83519984c28e933d0fbd5c110c3c3594905d222180ee728efb1a31d5",
+    "candidate_sha256": "fd757112c828870d74d7a5a7a1ea8ba8a2f3e4b0996da5558836db1e29dc589d"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/MerchantDocumentService.cs",
+    "status": "modified",
+    "base_sha256": "5d3b69a74be5a47819b07ad32bfddbec24c609bcfb87c9a2bf7925324d5a8017",
+    "candidate_sha256": "01575dd405c50a929526c4ae760b728bf3d659f0e41c8b1abba7ea6424b27fe0"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/MerchantFulfilmentService.cs",
+    "status": "modified",
+    "base_sha256": "258ce1c745c307d9c0e0b3e27c8310defbaa63ef4e7d0d680c46db832d55b676",
+    "candidate_sha256": "7df41ab87bc77edf9a093361913ad33e517dd72d718d1164d5b03fc53aea8f00"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/MerchantSalesService.cs",
+    "status": "modified",
+    "base_sha256": "ac5ba55545ecf301232da83b2f733d171ab73c5c0ee8543f060b2a258633b12f",
+    "candidate_sha256": "3947b2b3f0d6e045659c4f3a922265bd9fa54ad38ba34ba52a73addc1210decf"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/SellableInventoryRules.cs",
+    "status": "modified",
+    "base_sha256": "a0153b3c4b8764524678368a78550bd21e3419d0e986ebea6e2a2e273cbd08e1",
+    "candidate_sha256": "23f500e8db6319d623afa9b3afeb3fb7625f3727e726c12f94e8d8615f99c10a"
+  },
+  {
+    "path": "apps/api/MyPetLink.Api/Services/TagOrderInventoryAvailabilityService.cs",
+    "status": "modified",
+    "base_sha256": "958ef4c8a6a1757c9ebb394a63feb90344bd416ca8c1fca4ffdd6c929e8de9d9",
+    "candidate_sha256": "e8420ecd9f5773849066341ef752342de2365ab8a95151f51b4c27eeeab05f6a"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.test.tsx",
+    "status": "modified",
+    "base_sha256": "5492a87bd3e12dd2a36046f75d4e3d26734e619dfd502f74cc38457ab7452a0b",
+    "candidate_sha256": "1bda9dab622ecb900bc75de9252808157037588105ebd619f594060788a0269a"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.tsx",
+    "status": "modified",
+    "base_sha256": "3cc62b66f5da1811d372e2638d82edfcd974ed0eaef5560b115cbcb33ace8e22",
+    "candidate_sha256": "e8c103615692f9ad1eb70d3ab56e404c6bad9ba8fa67f6c8efdb649915be28a3"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/ConsignmentApprovalPolicy.test.tsx",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "c460c1e48054701adbcc9dda94fd2b91e60a31a3b9005ae8f8766d2b19bba255"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/ConsignmentApprovalPolicy.tsx",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "9546e01db2af199d9e5cbe5584549401f334a8f3c531d0de5fa8240e8df2ecfd"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/ConsignmentPanel.test.tsx",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "ba7db63b55a5962465caaad27454a2a957711059ebca6586ad2d13462925030f"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/ConsignmentPanel.tsx",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "e81e4896b6e5f817306b8affca5ca1e9c01ea03f0bb433789dc9ab175be8fe88"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/merchantSales.test.tsx",
+    "status": "modified",
+    "base_sha256": "0244005dcf61dfb1f1d74dfcb848257eeeda993668978a1c62d9f346dceb291d",
+    "candidate_sha256": "c8949268c4b5ff730b7d59acaaf47364432456d606f0c1b4c284070297048449"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/tabs.authorization.test.ts",
+    "status": "modified",
+    "base_sha256": "d53393f170167f8fdb147b798dd20d3bbedf62de053ee5d8dfab85e8db9eccb2",
+    "candidate_sha256": "fa5ce2b55c7978a202fe6c1417af12a4124fe41e14bf5b06d60fcda1ea344093"
+  },
+  {
+    "path": "apps/web/src/components/admin/merchantSales/tabs.ts",
+    "status": "modified",
+    "base_sha256": "00955fae6cc3bfb9a5f5f44cad59712cda3e718851b23d213c9da9dca011d03c",
+    "candidate_sha256": "b1984d11b67bef7bf05be95dbdd0e41579efd858bac9bee04979bfdf7c129f88"
+  },
+  {
+    "path": "apps/web/src/lib/adminCapabilities.ts",
+    "status": "modified",
+    "base_sha256": "17dbd5a1f8bbb2ea3963329fd3763883df61a010d662ec17503a0b8efa521548",
+    "candidate_sha256": "d94a78fea3afc32eab4d2cb79c083744d92876f574ee317f23899b438b8af559"
+  },
+  {
+    "path": "apps/web/src/lib/adminNavigation.ts",
+    "status": "modified",
+    "base_sha256": "9c6d816d4f0ee24e4e0fa1a3de105ee96cbadb9064bafe55f3f691471d45469c",
+    "candidate_sha256": "d3dffde9def0c7729d693dfec3bf40a470e13fc845985896aee6edc3b9dd3584"
+  },
+  {
+    "path": "apps/web/src/services/adminConsignmentService.ts",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "855b2d49336ea522b55725302dc79a8ee08d8ac4ffe464c6f14ecb9df7cba7af"
+  },
+  {
+    "path": "docs/architecture/admin-access-management.md",
+    "status": "modified",
+    "base_sha256": "0bd47eb3f039c39dea7e0904f820cfc36fcba2a1a88b46ce2692c9ea62902233",
+    "candidate_sha256": "b3e655b927f28cfc53e227c99c4343f61cbc130df03af0c5d8c18d1216888b38"
+  },
+  {
+    "path": "docs/architecture/consignment-mvp.md",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "f3ce185739bbd07fa404319c67f9b7dccd6e86583926113ec7e1760233158d52"
+  },
+  {
+    "path": "docs/deployment/consignment-mvp-rollout.md",
+    "status": "added",
+    "base_sha256": null,
+    "candidate_sha256": "122721c689543ffaecebd606cd7ef83f17309abc0597e63857dda559e71015b5"
+  },
+  {
+    "path": "docs/operations/configuration-inventory.md",
+    "status": "modified",
+    "base_sha256": "791a41c13728978403f28755fb94be5d8013f30055c8ca147a36563cc370dce6",
+    "candidate_sha256": "ee20d1229298e38aa343113a5e5499a0e537343f43792b3818da2c33018911b9"
+  },
+  {
+    "path": "migration.sql",
+    "status": "modified",
+    "base_sha256": "508258183197f95ff349a69c91cd9b1bceff641023d31086b976a715ed0ba18d",
+    "candidate_sha256": "c7c45d2912dd6f3bb29e28041a300af75e69c39c840315dab4cd45a6bc487ec1"
+  }
+]

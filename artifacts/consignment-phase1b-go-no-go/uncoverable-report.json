@@ -1,0 +1,90 @@
+{
+  "id": "545ba955-352d-4785-b521-1ad0e9fa8877",
+  "merchantId": "f2000000-0000-0000-0000-000000000001",
+  "merchantName": "Happy Paws Veterinary Group Sdn Bhd",
+  "merchantBranchId": "f9000000-0000-0000-0000-000000000001",
+  "branchName": "QA branch",
+  "agreementId": "83623dce-28aa-4a7d-b5e6-98982d3ce4f0",
+  "agreementReference": "INITIAL",
+  "agreementVersion": 1,
+  "periodStart": "2026-08-16T00:00:00+08:00",
+  "periodEndExclusive": "2026-09-01T00:00:00+08:00",
+  "partnerReference": "FG12-FINAL-B",
+  "version": 1,
+  "supersedesReportId": null,
+  "supersededById": null,
+  "reportReceivedAt": "2026-09-04T02:00:00+00:00",
+  "evidenceLevel": "Summary",
+  "evidenceKind": "WhatsApp summary",
+  "evidenceReference": "WA EVIDENCE FG12-FINAL-B",
+  "notes": null,
+  "status": "Recorded",
+  "createdAt": "2026-10-19T09:03:43.4183887+00:00",
+  "recordedAt": "2026-09-05T02:00:00+00:00",
+  "verifiedAt": null,
+  "reviewMode": null,
+  "disputedAt": null,
+  "disputeReason": null,
+  "lines": [
+    {
+      "id": "89fd26e2-bec0-44b7-9042-aabe8328dde1",
+      "productVariantId": "f3000000-0000-0000-0000-000000000003",
+      "sku": "WS-NFC-0001",
+      "productName": "Wholesale Smart Tag \u00B7 Standard",
+      "lineType": "Sale",
+      "priceTermId": "6e5fff3f-d5bd-4aad-a4fa-477525200c1f",
+      "priceTermName": "Standard price",
+      "priceTermKind": "Standard",
+      "unitListPrice": 39.90,
+      "unitNetPrice": 39.90,
+      "quantity": 8,
+      "netValue": 319.20,
+      "promotionalDiscount": 0,
+      "refundOfPeriodStart": null,
+      "restockableQuantity": 0,
+      "unsellableReturnedQuantity": 0,
+      "notes": null,
+      "sealedReturnConfirmed": false,
+      "sealedReturnEvidence": null
+    }
+  ],
+  "unitsSold": 8,
+  "unitsRefunded": 0,
+  "netSalesValue": 319.20,
+  "issues": [
+    "WS-NFC-0001: these sales are 8 more than the sellable stock recorded at this branch. Check the delivery and earlier reports, or dispute this one."
+  ],
+  "warnings": [
+    "WS-NFC-0001: the stocktake of 31 Aug 2026 already closed this period, so this report is posted to the current month. That count found 7 missing. Link this report\u0027s sales to it only if the evidence shows they account for it."
+  ],
+  "concurrencyToken": "AAAAAAAACFc=",
+  "contributorHistoryComplete": true,
+  "lateReport": {
+    "closedByStocktakeId": "9c17b3ab-b6ca-4a1e-a531-bcc265cb7d89",
+    "closedCountDate": "2026-08-31",
+    "closedCutoffAt": "2026-09-01T00:00:00+08:00",
+    "skus": [
+      {
+        "productVariantId": "f3000000-0000-0000-0000-000000000003",
+        "sku": "WS-NFC-0001",
+        "lateShelfChange": -8,
+        "explainsKind": "Shortage",
+        "capacity": 8,
+        "candidates": [
+          {
+            "discrepancyId": "2ccd746a-b446-421f-b3ec-c9a2af6f7719",
+            "kind": "Shortage",
+            "originStocktakeId": "9c17b3ab-b6ca-4a1e-a531-bcc265cb7d89",
+            "originCountDate": "2026-08-31",
+            "originCutoffAt": "2026-09-01T00:00:00+08:00",
+            "quantity": 7,
+            "openQuantity": 7
+          }
+        ],
+        "withdrawn": [],
+        "requiredLinks": 0
+      }
+    ]
+  },
+  "linkResolvableIssues": []
+}

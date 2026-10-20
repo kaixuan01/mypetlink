@@ -1,0 +1,19 @@
+[CF-Pages-Skip] feat: release cumulative B2B consignment and Solo controls
+
+Release the complete Wholesale correctness and Consignment custody implementation,
+including H1-H4, M1-M10, N1-N9 and Solo Operator Mode. Preserve Team defaults,
+explicit founder authorization, partner evidence, held stock, immutable PDFs,
+append-only review history and the no-financial-posting custody rule.
+
+Include all four EF migrations, the matching root migration.sql, capability
+catalogues, Admin UI, SQL Server regressions and operational documentation.
+Program.cs contains only the two required Consignment registrations; unrelated
+Marketing Demo, launch settings and local configuration changes are excluded.
+
+Validation: isolated API Release build/publish; 337 web tests; app and Pages
+Functions typecheck; scoped lint; production-profile web build and SEO checks;
+Pages Functions compilation; EF model consistency and byte-identical root SQL.
+
+Hold automatic Pages deployment for the separate Production release checkpoint.
+Database migration and API publishing were reported complete by the operator;
+Azure database history and recovery access were not independently verified.

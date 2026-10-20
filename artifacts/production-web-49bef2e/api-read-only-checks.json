@@ -1,0 +1,32 @@
+[
+  {
+    "cors": [
+      "https://mypetlink.com.my"
+    ],
+    "path": "/api/v1/health",
+    "contentType": [
+      "application/json; charset=utf-8"
+    ],
+    "status": 200
+  },
+  {
+    "cors": [
+      "https://mypetlink.com.my"
+    ],
+    "path": "/api/v1/admin/merchant-sales/consignment/stocktakes",
+    "contentType": [
+      "application/json"
+    ],
+    "status": 401
+  },
+  {
+    "cors": [
+      "https://mypetlink.com.my"
+    ],
+    "path": "/api/v1/admin/merchant-sales/consignment/discrepancies",
+    "contentType": [
+      "application/json"
+    ],
+    "status": 401
+  }
+]

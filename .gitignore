@@ -51,3 +51,10 @@ next-env.d.ts
 
 # Cloudflare local tooling output
 .wrangler/
+
+# Marketing demo recordings (regenerate with npm run marketing:capture).
+# Normally written outside the repository - see marketing/demo/README.md - but
+# this stays ignored because the in-repo path is the documented fallback.
+marketing/demo/output/
+# Per-machine capture output location. Holds a local absolute path.
+marketing/demo/output-root.local

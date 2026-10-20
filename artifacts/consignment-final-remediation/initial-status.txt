@@ -1,0 +1,348 @@
+ M .claude/launch.json
+ M .gitignore
+ M apps/api/MyPetLink.Api.Tests/PhysicalQaHttpTests.cs
+ M apps/api/MyPetLink.Api.Tests/Relational/MerchantDirectoryRelationalTests.cs
+ M apps/api/MyPetLink.Api/Auth/AdminCapabilities.cs
+ M apps/api/MyPetLink.Api/Auth/AdminCapabilityCatalog.cs
+ M apps/api/MyPetLink.Api/Auth/AdminRoleTemplates.cs
+ M apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.cs
+ M apps/api/MyPetLink.Api/Migrations/MyPetLinkDbContextModelSnapshot.cs
+ M apps/api/MyPetLink.Api/Program.cs
+ M apps/api/MyPetLink.Api/Properties/launchSettings.json
+ M apps/api/MyPetLink.Api/Services/AdminService.cs
+ M apps/api/MyPetLink.Api/Services/AdminSmartTagService.cs
+ M apps/api/MyPetLink.Api/Services/AdminTagInventoryService.cs
+ M apps/api/MyPetLink.Api/Services/BusinessIdentityService.cs
+ M apps/api/MyPetLink.Api/Services/DocumentNumberService.cs
+ M apps/api/MyPetLink.Api/Services/MerchantDocumentRenderer.cs
+ M apps/api/MyPetLink.Api/Services/MerchantDocumentService.cs
+ M apps/api/MyPetLink.Api/Services/MerchantFulfilmentService.cs
+ M apps/api/MyPetLink.Api/Services/MerchantSalesService.cs
+ M apps/api/MyPetLink.Api/Services/SellableInventoryRules.cs
+ M apps/api/MyPetLink.Api/Services/TagOrderInventoryAvailabilityService.cs
+ M apps/api/MyPetLink.Api/appsettings.Development.json
+ M apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.test.tsx
+ M apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.tsx
+ M apps/web/src/components/admin/merchantSales/merchantSales.test.tsx
+ M apps/web/src/components/admin/merchantSales/tabs.authorization.test.ts
+ M apps/web/src/components/admin/merchantSales/tabs.ts
+ M apps/web/src/lib/adminCapabilities.ts
+ M apps/web/src/lib/adminNavigation.ts
+ M apps/web/src/lib/communityModeration.test.ts
+ M docs/operations/configuration-inventory.md
+ M marketing/xiaohongshu/01-account-strategy.md
+ M marketing/xiaohongshu/02-content-calendar.md
+ M marketing/xiaohongshu/03-filming-batching-plan.md
+ M migration.sql
+ M package.json
+?? TagOrder
+?? apps/api/MyPetLink.Api.Tests/ConsignmentAuthorizationTests.cs
+?? apps/api/MyPetLink.Api.Tests/ConsignmentCorrectnessTests.cs
+?? apps/api/MyPetLink.Api.Tests/ConsignmentHttpTests.cs
+?? apps/api/MyPetLink.Api.Tests/MarketingDemoSeederTests.cs
+?? apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRelationalTests.cs
+?? apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRemediationRelationalTests.cs
+?? apps/api/MyPetLink.Api/Common/MarketingDemoOptions.cs
+?? apps/api/MyPetLink.Api/Controllers/Admin/AdminConsignmentController.cs
+?? apps/api/MyPetLink.Api/DTOs/ConsignmentDtos.cs
+?? apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.Consignment.cs
+?? apps/api/MyPetLink.Api/Entities/ConsignmentEntities.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.Designer.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.Designer.cs
+?? apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentDocumentService.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentService.Evidence.cs
+?? apps/api/MyPetLink.Api/Services/ConsignmentService.cs
+?? apps/api/MyPetLink.Api/Services/InventoryCustodyRules.cs
+?? apps/api/MyPetLink.Api/Services/MarketingDemoSeeder.cs
+?? apps/web/src/components/admin/merchantSales/ConsignmentPanel.test.tsx
+?? apps/web/src/components/admin/merchantSales/ConsignmentPanel.tsx
+?? apps/web/src/services/adminConsignmentService.ts
+?? artifacts/consignment-final-remediation/baseline-manifest.json
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api.Tests/ConsignmentAuthorizationTests.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api.Tests/ConsignmentCorrectnessTests.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api.Tests/ConsignmentHttpTests.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRelationalTests.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRemediationRelationalTests.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api.Tests/Relational/MerchantDirectoryRelationalTests.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Controllers/Admin/AdminConsignmentController.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/DTOs/ConsignmentDtos.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.Consignment.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Entities/ConsignmentEntities.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.Designer.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.Designer.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Migrations/20261017103941_HardenConsignmentOperationalControls.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Migrations/MyPetLinkDbContextModelSnapshot.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Services/ConsignmentDocumentService.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Services/ConsignmentService.Evidence.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Services/ConsignmentService.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Services/InventoryCustodyRules.cs
+?? artifacts/consignment-final-remediation/baseline/apps/api/MyPetLink.Api/Services/MerchantFulfilmentService.cs
+?? artifacts/consignment-final-remediation/baseline/apps/web/src/components/admin/merchantSales/ConsignmentPanel.test.tsx
+?? artifacts/consignment-final-remediation/baseline/apps/web/src/components/admin/merchantSales/ConsignmentPanel.tsx
+?? artifacts/consignment-final-remediation/baseline/apps/web/src/services/adminConsignmentService.ts
+?? artifacts/consignment-final-remediation/baseline/docs/architecture/consignment-mvp.md
+?? artifacts/consignment-final-remediation/baseline/docs/deployment/consignment-mvp-rollout.md
+?? artifacts/consignment-final-remediation/baseline/docs/operations/configuration-inventory.md
+?? artifacts/consignment-final-remediation/baseline/migration.sql
+?? artifacts/consignment-final-verification/FinalVerificationProbes.cs
+?? artifacts/consignment-final-verification/api-failed-rerun.log
+?? artifacts/consignment-final-verification/api-failed-rerun.trx
+?? artifacts/consignment-final-verification/api-full-suite.log
+?? artifacts/consignment-final-verification/api-full-suite.trx
+?? artifacts/consignment-final-verification/consignment-related-serial.log
+?? artifacts/consignment-final-verification/consignment-related-serial.trx
+?? artifacts/consignment-final-verification/e2e-db-migration-replay.log
+?? artifacts/consignment-final-verification/e2e-db-migration.log
+?? artifacts/consignment-final-verification/e2e-seed-v2.sql
+?? artifacts/consignment-final-verification/final-probes.log
+?? artifacts/consignment-final-verification/final-verification-report.md
+?? artifacts/consignment-final-verification/mobile-375.jpg
+?? artifacts/consignment-final-verification/qa-inspect.mjs
+?? artifacts/consignment-final-verification/web-full-suite.log
+?? artifacts/consignment-final-verification/web-lint.log
+?? artifacts/consignment-final-verification/web-typecheck.log
+?? artifacts/consignment-independent-qa/IndependentQaProbes.cs
+?? artifacts/consignment-independent-qa/api-failed-rerun-serial.log
+?? artifacts/consignment-independent-qa/api-failed-rerun-serial.trx
+?? artifacts/consignment-independent-qa/api-full-suite.log
+?? artifacts/consignment-independent-qa/api-full-suite.trx
+?? artifacts/consignment-independent-qa/consignment-serial.log
+?? artifacts/consignment-independent-qa/consignment-serial.trx
+?? artifacts/consignment-independent-qa/e2e-db-migration-replay.log
+?? artifacts/consignment-independent-qa/e2e-db-migration.log
+?? artifacts/consignment-independent-qa/e2e-seed.sql
+?? artifacts/consignment-independent-qa/independent-probes.log
+?? artifacts/consignment-independent-qa/independent-qa-report.md
+?? artifacts/consignment-independent-qa/screenshots/mobile-375-dispatch.jpg
+?? artifacts/consignment-independent-qa/web-full-suite.log
+?? artifacts/consignment-independent-qa/web-lint.log
+?? artifacts/consignment-independent-qa/web-typecheck.log
+?? artifacts/consignment-remediation/api-build.log
+?? artifacts/consignment-remediation/api-corrected-regression.log
+?? artifacts/consignment-remediation/api-corrected-regression.trx
+?? artifacts/consignment-remediation/api-final-custody.log
+?? artifacts/consignment-remediation/api-final-custody.trx
+?? artifacts/consignment-remediation/api-focused.log
+?? artifacts/consignment-remediation/api-regression.log
+?? artifacts/consignment-remediation/api-remediation-regression.trx
+?? artifacts/consignment-remediation/baseline-manifest.json
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api.Tests/ConsignmentAuthorizationTests.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api.Tests/ConsignmentCorrectnessTests.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api.Tests/PhysicalQaHttpTests.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api.Tests/Relational/ConsignmentRelationalTests.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api.Tests/Relational/MerchantDirectoryRelationalTests.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Auth/AdminCapabilities.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Auth/AdminCapabilityCatalog.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Auth/AdminRoleTemplates.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Controllers/Admin/AdminConsignmentController.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/DTOs/ConsignmentDtos.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.Consignment.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Data/MyPetLinkDbContext.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Entities/ConsignmentEntities.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.Designer.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Migrations/20261017082802_AddConsignmentAgreementAndCustody.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Migrations/MyPetLinkDbContextModelSnapshot.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Program.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/AdminService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/AdminSmartTagService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/AdminTagInventoryService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/BusinessIdentityService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/ConsignmentDocumentService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/ConsignmentService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/DocumentNumberService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/InventoryCustodyRules.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/MerchantDocumentRenderer.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/MerchantDocumentService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/MerchantFulfilmentService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/MerchantSalesService.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/SellableInventoryRules.cs
+?? artifacts/consignment-remediation/baseline/apps/api/MyPetLink.Api/Services/TagOrderInventoryAvailabilityService.cs
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.test.tsx
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/AdminMerchantSalesWorkspace.tsx
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/ConsignmentPanel.test.tsx
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/ConsignmentPanel.tsx
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/merchantSales.test.tsx
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/tabs.authorization.test.ts
+?? artifacts/consignment-remediation/baseline/apps/web/src/components/admin/merchantSales/tabs.ts
+?? artifacts/consignment-remediation/baseline/apps/web/src/lib/adminCapabilities.ts
+?? artifacts/consignment-remediation/baseline/apps/web/src/lib/adminNavigation.ts
+?? artifacts/consignment-remediation/baseline/apps/web/src/lib/communityModeration.test.ts
+?? artifacts/consignment-remediation/baseline/apps/web/src/services/adminConsignmentService.ts
+?? artifacts/consignment-remediation/baseline/docs/architecture/consignment-mvp.md
+?? artifacts/consignment-remediation/baseline/docs/deployment/consignment-mvp-rollout.md
+?? artifacts/consignment-remediation/baseline/docs/operations/configuration-inventory.md
+?? artifacts/consignment-remediation/baseline/migration.sql
+?? artifacts/consignment-remediation/browser-final-custody.jpg
+?? artifacts/consignment-remediation/browser-narrow-custody.jpg
+?? artifacts/consignment-remediation/changed-files.txt
+?? artifacts/consignment-remediation/consignment-remediation-first.trx
+?? artifacts/consignment-remediation/dispatch-note-synthetic-1.jpg
+?? artifacts/consignment-remediation/dispatch-note-synthetic.pdf
+?? artifacts/consignment-remediation/e2e-cleanup.log
+?? artifacts/consignment-remediation/e2e-results.log
+?? artifacts/consignment-remediation/e2e-seed.log
+?? artifacts/consignment-remediation/e2e-stock-finance.log
+?? artifacts/consignment-remediation/ef-model-consistency.log
+?? artifacts/consignment-remediation/final-review-checks.log
+?? artifacts/consignment-remediation/git-diff-check.log
+?? artifacts/consignment-remediation/local-e2e/LocalE2E.csproj
+?? artifacts/consignment-remediation/local-e2e/Program.cs
+?? artifacts/consignment-remediation/local-e2e/manifest.json
+?? artifacts/consignment-remediation/local-e2e/reconcile.ps1
+?? artifacts/consignment-remediation/local-e2e/serve-api.ps1
+?? artifacts/consignment-remediation/local-e2e/work.json
+?? artifacts/consignment-remediation/remediation-report.md
+?? artifacts/consignment-remediation/remediation.patch
+?? artifacts/consignment-remediation/serial.runsettings
+?? artifacts/consignment-remediation/test-counts.json
+?? artifacts/consignment-remediation/verification-commands.md
+?? artifacts/consignment-remediation/web-final-focused.log
+?? artifacts/consignment-remediation/web-focused.log
+?? artifacts/consignment-remediation/web-full.log
+?? artifacts/consignment-remediation/web-lint.log
+?? artifacts/consignment-remediation/web-production-build.log
+?? artifacts/consignment-remediation/web-typecheck.log
+?? artifacts/consignment-tests/b2b-consignment-baseline.trx
+?? artifacts/consignment-tests/b2c-custody-regression.trx
+?? artifacts/consignment-tests/changed-files.txt
+?? artifacts/consignment-tests/consignment-final.trx
+?? artifacts/consignment-tests/consignment-last-validation.trx
+?? artifacts/consignment-tests/consignment-release.trx
+?? artifacts/consignment-tests/consignment-verified.trx
+?? artifacts/consignment-tests/ef-model-check.log
+?? artifacts/consignment-tests/implementation-report.md
+?? artifacts/consignment-tests/lint.log
+?? artifacts/consignment-tests/test-counts.json
+?? artifacts/consignment-tests/typecheck.log
+?? artifacts/consignment-tests/web-build.log
+?? artifacts/consignment-tests/web-tests.log
+?? artifacts/merchant-locations-api-tests.log
+?? artifacts/merchant-locations-browser-tests.log
+?? artifacts/merchant-locations-build.log
+?? artifacts/merchant-locations-lint.log
+?? artifacts/merchant-locations-original-export-hash.txt
+?? artifacts/merchant-locations-qa-root.txt
+?? artifacts/merchant-locations-report.md
+?? artifacts/merchant-locations-screenshots/admin-location-editor-1440.png
+?? artifacts/merchant-locations-screenshots/admin-location-editor-375.png
+?? artifacts/merchant-locations-screenshots/admin-location-editor-768.png
+?? artifacts/merchant-locations-screenshots/admin-locations-1440.png
+?? artifacts/merchant-locations-screenshots/admin-locations-375.png
+?? artifacts/merchant-locations-screenshots/admin-locations-768.png
+?? artifacts/merchant-locations-screenshots/public-multiple-1440.png
+?? artifacts/merchant-locations-screenshots/public-multiple-375.png
+?? artifacts/merchant-locations-screenshots/public-multiple-768.png
+?? artifacts/merchant-locations-screenshots/public-single-1440.png
+?? artifacts/merchant-locations-screenshots/public-single-375.png
+?? artifacts/merchant-locations-screenshots/public-single-768.png
+?? artifacts/merchant-locations-typecheck.log
+?? artifacts/merchant-locations-web-tests.log
+?? artifacts/merchant-logo-api-tests.log
+?? artifacts/merchant-logo-changed-files.txt
+?? artifacts/merchant-logo-lint.log
+?? artifacts/merchant-logo-regenerated.sql
+?? artifacts/merchant-logo-source.tar
+?? artifacts/merchant-logo-typecheck.log
+?? artifacts/merchant-logo-web-tests.log
+?? artifacts/production-preflight-2026-10-15/api-after-user-deployment.json
+?? artifacts/production-preflight-2026-10-15/ci-release.json
+?? artifacts/production-preflight-2026-10-15/cloudflare-production.json
+?? artifacts/production-preflight-2026-10-15/cloudflare-release.json
+?? artifacts/production-preflight-2026-10-15/production-baseline.json
+?? artifacts/production-preflight-2026-10-15/release-candidate.tar
+?? artifacts/production-preflight-2026-10-15/release-manifest.txt
+?? artifacts/smart-tag-activation-browser.log
+?? artifacts/smart-tag-activation-browser.mjs
+?? artifacts/smart-tag-activation-build.log
+?? artifacts/smart-tag-activation-screenshots/success-320.png
+?? artifacts/smart-tag-activation-screenshots/success-375.png
+?? artifacts/smart-tag-activation-screenshots/success-390.png
+?? artifacts/smart-tag-activation-screenshots/success-430.png
+?? artifacts/smart-tags-management-after.json
+?? artifacts/smart-tags-management-api-tests.log
+?? artifacts/smart-tags-management-before.json
+?? artifacts/smart-tags-management-browser-before.log
+?? artifacts/smart-tags-management-browser.log
+?? artifacts/smart-tags-management-browser.mjs
+?? artifacts/smart-tags-management-build.log
+?? artifacts/smart-tags-management-component-tests.log
+?? artifacts/smart-tags-management-lint.log
+?? artifacts/smart-tags-management-report.md
+?? artifacts/smart-tags-management-screenshots/after-1440.png
+?? artifacts/smart-tags-management-screenshots/after-320.png
+?? artifacts/smart-tags-management-screenshots/after-375.png
+?? artifacts/smart-tags-management-screenshots/after-390.png
+?? artifacts/smart-tags-management-screenshots/after-430.png
+?? artifacts/smart-tags-management-screenshots/after-768.png
+?? artifacts/smart-tags-management-screenshots/before-1440.png
+?? artifacts/smart-tags-management-screenshots/before-390.png
+?? artifacts/smart-tags-management-screenshots/expanded-1440.png
+?? artifacts/smart-tags-management-screenshots/expanded-320.png
+?? artifacts/smart-tags-management-screenshots/expanded-375.png
+?? artifacts/smart-tags-management-screenshots/expanded-390.png
+?? artifacts/smart-tags-management-screenshots/expanded-430.png
+?? artifacts/smart-tags-management-screenshots/expanded-768.png
+?? artifacts/smart-tags-management-typecheck.log
+?? artifacts/smart-tags-management-web-tests.log
+?? docs/architecture/consignment-mvp.md
+?? docs/deployment/consignment-mvp-rollout.md
+?? docs/deployment/merchant-partner-directory-production-preflight-2026-10-15.md
+?? marketing/2026-09-social-media-plan.md
+?? marketing/README.md
+?? marketing/competitive-brief-2026-10.md
+?? marketing/demo/README.md
+?? marketing/demo/assets/linko-cover.jpg
+?? marketing/demo/assets/linko-profile.jpg
+?? marketing/demo/assets/linky-cover.jpg
+?? marketing/demo/assets/linky-profile.jpg
+?? marketing/demo/assets/manifest.json
+?? marketing/demo/assets/moment-01-meet-linko.jpg
+?? marketing/demo/assets/moment-02-meet-linky.jpg
+?? marketing/demo/assets/moment-03-together.jpg
+?? marketing/demo/assets/moment-04-safe-at-home.jpg
+?? marketing/demo/assets/moment-05-smart-tag.jpg
+?? marketing/demo/assets/mypetlink-logo.png
+?? marketing/demo/config/capture-scenes.json
+?? marketing/demo/scripts/asset-map.mjs
+?? marketing/demo/scripts/capture-community-landscape.mjs
+?? marketing/demo/scripts/capture-post-04-carousel.mjs
+?? marketing/demo/scripts/capture.mjs
+?? marketing/demo/scripts/output-root.mjs
+?? marketing/demo/scripts/output-root.test.mjs
+?? marketing/demo/scripts/prepare-assets.mjs
+?? marketing/demo/scripts/privacy-guard.mjs
+?? marketing/demo/scripts/privacy-guard.test.mjs
+?? marketing/demo/scripts/reset.sql
+?? marketing/social/2026-10-posts/01-lost-pet-72-hours.md
+?? marketing/social/2026-10-posts/02-qr-nfc-airtag-gps.md
+?? marketing/social/2026-10-posts/README.md
+?? marketing/social/2026-10-posts/assets/linko-profile-cutout.png
+?? marketing/social/2026-10-posts/assets/linky-profile-cutout.png
+?? marketing/social/2026-10-posts/assets/safety-profile-linko-demo-top.png
+?? marketing/social/2026-10-posts/content.mjs
+?? marketing/social/2026-10-posts/render.mjs
+?? marketing/xiaohongshu/assets/product/safety-profile-linko-demo.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/assets-manifest.json
+?? marketing/xiaohongshu/posts/004-linko-home-route/brief.md
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-01-lost.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-02-lost-close.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-03-finder.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-04-scan.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-05-contact.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-06-reunion.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/generated/scene-07-endcard.png
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/caption.txt
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/cover.jpg
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/preview.mp4
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/review-01.jpg
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/review-25.jpg
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/review-34.jpg
+?? marketing/xiaohongshu/posts/004-linko-home-route/output/subtitles.srt
+?? marketing/xiaohongshu/posts/004-linko-home-route/prepare-assets.mjs
+?? marketing/xiaohongshu/posts/004-linko-home-route/script.md
+?? marketing/xiaohongshu/posts/004-linko-home-route/shot-list.md
+?? marketing/xiaohongshu/posts/004-linko-home-route/source/reference-storyboard.png
+?? physical-qa-release.patch

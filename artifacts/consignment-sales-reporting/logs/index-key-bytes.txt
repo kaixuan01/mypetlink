@@ -1,0 +1,17 @@
+tbl name key_bytes
+--- ---- ---------
+ConsignmentHandoverRecords IX_ConsignmentHandoverRecords_MerchantId_EventReference 316
+ConsignmentAgreements IX_ConsignmentAgreements_MerchantId_Reference_Version 220
+ConsignmentSalesReports UX_ConsignmentSalesReports_Reference 220
+ConsignmentAgreements IX_ConsignmentAgreements_MerchantId_Reference 216
+ConsignmentDispatches IX_ConsignmentDispatches_IdempotencyKey 160
+ConsignmentStockLedgerEntries UX_ConsignmentLedger_Source 160
+ConsignmentSalesReports UX_ConsignmentSalesReports_Idempotency 160
+ConsignmentDispatches IX_ConsignmentDispatches_RequestFingerprint 128
+name
+----
+TR_ConsignmentReviewEvents_AppendOnly
+TR_ConsignmentStockLedgerEntries_AppendOnly
+MigrationId
+-----------
+20261018125029_AddConsignmentSalesReportingLedger

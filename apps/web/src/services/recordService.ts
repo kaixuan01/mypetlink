@@ -8,7 +8,24 @@ import {
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
-import { careDateScore, deriveCareRecordStatus } from "@/lib/careRecordStatus";
+import { getPets } from "@/services/petService";
+import {
+  CARE_RECORD_DUE_SOON_DAYS,
+  careDateScore,
+  careDateScoreToIsoDate,
+  deriveCareRecordStatus,
+  getExplicitlyFulfilledCareRecordIds,
+  getMalaysiaTodayIsoDate,
+  selectDashboardCareRecords,
+} from "@/lib/careRecordStatus";
+import {
+  parseCareCompletionStatus,
+  parseUpcomingCarePage,
+  parseUpcomingCareSummary,
+  SUMMARY_ITEMS_PER_SCOPE,
+} from "@/lib/careContracts";
+import { getActivePets } from "@/lib/petLifecycle";
+import { isUncertainRequestOutcome } from "@/lib/requestOutcome";
 import {
   isCareRecordPublic,
   normalizeCareRecordVisibility,
@@ -18,14 +35,23 @@ import type {
   BackendCareRecordPublicVisibility,
   BackendCareRecordType,
   BackendPublicPetProfile,
+  BackendCareCompletionStatus,
+  BackendUpcomingCareRecord,
+  BackendUpcomingCareRecords,
+  BackendUpcomingCareSummary,
 } from "@/services/apiDtos";
 import type {
   ApiResponse,
+  CareCompletionStatus,
   CareDocument,
   CareRecord,
   PublicCareRecord,
   RecordPayload,
   RecordType,
+  UpcomingCareItem,
+  UpcomingCarePage,
+  UpcomingCareScope,
+  UpcomingCareSummary,
 } from "@/types";
 
 const RECORD_STORAGE_KEY = "mypetlink_records";
@@ -67,9 +93,298 @@ export async function getPetRecords(petId: string) {
   });
 }
 
-export async function createRecord(petId: string, payload: RecordPayload) {
+export const UPCOMING_CARE_PAGE_SIZE = 100;
+
+type UpcomingCarePageOptions = {
+  page?: number;
+  pageSize?: number;
+  petId?: string;
+};
+
+/**
+ * One page of the owner's pending care across their active pets, filtered
+ * completely before it is paged. `meta.total` is the filtered pending count.
+ *
+ * Pages are separate reads and can each describe a different moment, so a
+ * set of pages must never be presented as everything that is due. The
+ * Dashboard uses getUpcomingCareSummary instead. Each page is validated
+ * against the page that was asked for; a page that does not hold together is
+ * a failed read.
+ */
+export async function getUpcomingCarePage(
+  options: UpcomingCarePageOptions = {}
+): Promise<ApiResponse<UpcomingCarePage>> {
+  const page = options.page ?? 1;
+  const pageSize = options.pageSize ?? UPCOMING_CARE_PAGE_SIZE;
+
+  if (canUseApi()) {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (options.petId) {
+      params.set("petId", options.petId);
+    }
+    const response = await apiRequest<BackendUpcomingCareRecords>(
+      `/api/v1/care-records/upcoming?${params.toString()}`
+    );
+    const parsed = parseUpcomingCarePage(response.data, response.meta, {
+      page,
+      pageSize,
+    });
+
+    return apiResponse(
+      {
+        asOfDate: parsed.data.asOfDate,
+        petIdsWithCareRecords: parsed.data.petIdsWithCareRecords,
+        items: parsed.data.items.map(mapBackendUpcomingCareRecord),
+      },
+      { ...response.meta, total: parsed.total }
+    );
+  }
+
+  await mockDelay();
+  const summaryInput = await readLocalPendingCare();
+  if (
+    options.petId &&
+    !summaryInput.ownedPetIds.has(options.petId)
+  ) {
+    throw new Error("Pet was not found.");
+  }
+  const scoped = summaryInput.pending.filter(
+    (item) => !options.petId || item.petId === options.petId
+  );
+
+  return mockResponse(
+    {
+      asOfDate: summaryInput.asOfDate,
+      petIdsWithCareRecords: [...summaryInput.petIdsWithCareRecords].filter(
+        (petId) => !options.petId || petId === options.petId
+      ),
+      items: scoped.slice((page - 1) * pageSize, page * pageSize),
+    },
+    { page, pageSize, total: scoped.length }
+  );
+}
+
+/**
+ * The Dashboard's pending-care summary: exact counts and the items to show,
+ * for all active pets and for each one, from one consistent read. Throws when
+ * the response does not hold together, so the caller shows an error rather
+ * than an answer built on defaults.
+ */
+export async function getUpcomingCareSummary(): Promise<UpcomingCareSummary> {
+  if (canUseApi()) {
+    const response = await apiRequest<BackendUpcomingCareSummary>(
+      "/api/v1/care-records/upcoming/summary"
+    );
+    const summary = parseUpcomingCareSummary(response.data);
+
+    return {
+      asOfDate: summary.asOfDate,
+      horizonDate: summary.horizonDate,
+      complete: summary.complete,
+      scopes: summary.scopes.map((scope) => ({
+        petId: scope.petId,
+        hasCareRecords: scope.hasCareRecords,
+        pendingCount: scope.pendingCount,
+        dueWithinHorizonCount: scope.dueWithinHorizonCount,
+        overdueCount: scope.overdueCount,
+        items: scope.items.map(mapBackendUpcomingCareRecord),
+      })),
+    };
+  }
+
+  await mockDelay();
+  // Local data is read synchronously, so this is one consistent state too.
+  const input = await readLocalPendingCare();
+  const asOfScore = careDateScore(input.asOfDate) ?? 0;
+  const horizonScore = asOfScore + CARE_RECORD_DUE_SOON_DAYS;
+  const scope = (petId: string | null, items: UpcomingCareItem[]): UpcomingCareScope => {
+    const scores = items.map((item) => careDateScore(item.dueDateIso) ?? 0);
+    return {
+      petId,
+      hasCareRecords:
+        petId === null
+          ? input.activePetIds.some((id) => input.petIdsWithCareRecords.has(id))
+          : input.petIdsWithCareRecords.has(petId),
+      pendingCount: items.length,
+      dueWithinHorizonCount: scores.filter((score) => score <= horizonScore).length,
+      overdueCount: scores.filter((score) => score < asOfScore).length,
+      items: selectDashboardCareRecords(items, SUMMARY_ITEMS_PER_SCOPE),
+    };
+  };
+
+  return {
+    asOfDate: input.asOfDate,
+    horizonDate: careDateScoreToIsoDate(horizonScore),
+    complete: true,
+    scopes: [
+      scope(null, input.pending),
+      ...input.activePetIds.map((petId) =>
+        scope(petId, input.pending.filter((item) => item.petId === petId))
+      ),
+    ],
+  };
+}
+
+/**
+ * Whether one due item has been completed, and by which record — read from
+ * the records themselves. Used by Log as done both to decide whether the item
+ * can be logged and to settle a save whose outcome is unknown.
+ */
+export async function getCareCompletionStatus(
+  recordId: string
+): Promise<CareCompletionStatus> {
+  if (canUseApi()) {
+    const response = await apiRequest<BackendCareCompletionStatus>(
+      `/api/v1/care-records/${encodeURIComponent(recordId)}/completion`
+    );
+    const status = parseCareCompletionStatus(response.data, recordId);
+
+    return {
+      state: status.state as CareCompletionStatus["state"],
+      asOfDate: status.asOfDate,
+      petName: status.petName,
+      target: mapBackendRecord(status.target),
+      completion: status.completion ? mapBackendRecord(status.completion) : null,
+    };
+  }
+
+  await mockDelay();
+  const records = getRecordCollection();
+  const target = records.find((record) => record.id === recordId);
+  if (!target) {
+    throw new Error("Care record was not found.");
+  }
+  const pet = (await getPets()).data.find((item) => item.id === target.petId);
+  // Same precedence as the service: a changed target is reported before any
+  // completion, so an archived or undated item is never read as completed.
+  const completion =
+    records.find(
+      (record) =>
+        record.fulfillsCareRecordId === target.id &&
+        record.petId === target.petId &&
+        !record.archivedAt
+    ) ?? null;
+  const state: CareCompletionStatus["state"] = target.archivedAt
+    ? "archived"
+    : pet && pet.lifecycleStatus === "Archived"
+      ? "pet-archived"
+      : careDateScore(target.dueDate) === null
+        ? "no-due-date"
+        : completion
+          ? "completed"
+          : "pending";
+
+  return {
+    state,
+    asOfDate: getMalaysiaTodayIsoDate(),
+    petName: pet?.name ?? "",
+    target,
+    completion,
+  };
+}
+
+type LocalPendingCare = {
+  asOfDate: string;
+  ownedPetIds: Set<string>;
+  activePetIds: string[];
+  petIdsWithCareRecords: Set<string>;
+  /** Pending items ordered by due date, creation time, then id. */
+  pending: UpcomingCareItem[];
+};
+
+/**
+ * The service's pending-care rules applied to local data: active pets only,
+ * active records only, and a due item is pending until an active record
+ * fulfils it.
+ */
+async function readLocalPendingCare(): Promise<LocalPendingCare> {
+  const ownedPets = (await getPets()).data;
+  const activePets = getActivePets(ownedPets);
+  const petNames = new Map(activePets.map((pet) => [pet.id, pet.name]));
+  const allRecords = getRecordCollection();
+  const fulfilledIds = getExplicitlyFulfilledCareRecordIds(allRecords);
+  const activeRecords = allRecords.filter(
+    (record) => petNames.has(record.petId) && !record.archivedAt
+  );
+  const pending = activeRecords
+    .map((record) => ({ record, score: careDateScore(record.dueDate) }))
+    .filter(
+      (entry): entry is { record: CareRecord; score: number } =>
+        entry.score !== null && !fulfilledIds.has(entry.record.id)
+    )
+    .sort(
+      (left, right) =>
+        left.score - right.score ||
+        compareOrdinal(left.record.createdAt ?? "", right.record.createdAt ?? "") ||
+        compareOrdinal(left.record.id, right.record.id)
+    )
+    .map(({ record, score }): UpcomingCareItem => {
+      const status = deriveCareRecordStatus(record.dueDate);
+      return {
+        id: record.id,
+        petId: record.petId,
+        petName: petNames.get(record.petId) ?? "",
+        type: record.type,
+        title: record.title,
+        careName: record.careName,
+        dueDate: record.dueDate ?? "",
+        dueDateIso: careDateScoreToIsoDate(score),
+        status: status === "complete" ? "upcoming" : status,
+      };
+    });
+
+  return {
+    asOfDate: getMalaysiaTodayIsoDate(),
+    ownedPetIds: new Set(ownedPets.map((pet) => pet.id)),
+    activePetIds: activePets.map((pet) => pet.id),
+    petIdsWithCareRecords: new Set(activeRecords.map((record) => record.petId)),
+    pending,
+  };
+}
+
+export function mapBackendUpcomingCareRecord(
+  record: BackendUpcomingCareRecord
+): UpcomingCareItem {
+  const status = toFrontendStatus(record.derivedStatus);
+  return {
+    id: record.id,
+    petId: record.petId,
+    petName: record.petName,
+    type: fromBackendRecordType(record.type),
+    title: record.title,
+    careName: normalizeCareName(record.careName ?? undefined),
+    dueDate: toDisplayDate(record.dueDate),
+    dueDateIso: record.dueDate,
+    // Validation guarantees a pending status; "complete" cannot reach here.
+    status: status === "complete" ? "upcoming" : status,
+  };
+}
+
+/**
+ * Told the moment a create request is about to leave, with exactly what it
+ * carries: the stored media ids of every attached file — kept ones and ones
+ * just uploaded. A failure before this point wrote nothing; after it, the
+ * outcome may be unknown, and these ids are how a later read can recognise
+ * this save's record.
+ */
+export type CareSaveObserver = {
+  onSending?: (sent: { mediaFileIds: string[]; uploadedMediaFileIds: string[] }) => void;
+};
+
+export async function createRecord(
+  petId: string,
+  payload: RecordPayload,
+  observer: CareSaveObserver = {}
+) {
   if (canUseApi()) {
     const prepared = await prepareCareDocuments(petId, payload);
+    observer.onSending?.({
+      mediaFileIds: (prepared.documents ?? []).map((document) => document.id),
+      uploadedMediaFileIds: [...prepared.uploadedIds],
+    });
     try {
       const response = await apiRequest<BackendCareRecord>(
         `/api/v1/pets/${encodeURIComponent(petId)}/care-records`,
@@ -89,12 +404,21 @@ export async function createRecord(petId: string, payload: RecordPayload) {
 
       return apiResponse(record, response.meta);
     } catch (error) {
-      await cleanupUploadedDocuments(prepared.uploadedIds);
+      // When the outcome is unknown the record may have been saved with these
+      // files attached; deleting them could strip a saved record. Keep them.
+      if (!isUncertainRequestOutcome(error)) {
+        await cleanupUploadedDocuments(prepared.uploadedIds);
+      }
       throw error;
     }
   }
 
   await mockDelay();
+  const localDocuments = normalizeLocalDocuments(payload.documents, payload.type ?? "Other");
+  observer.onSending?.({
+    mediaFileIds: (localDocuments ?? []).map((document) => document.id),
+    uploadedMediaFileIds: [],
+  });
   const records = getRecordCollection();
   const now = new Date().toISOString();
   const record: CareRecord = {
@@ -110,7 +434,7 @@ export async function createRecord(petId: string, payload: RecordPayload) {
     notes: payload.notes ?? "No notes yet.",
     publicVisibility: normalizeCareRecordVisibility(payload.publicVisibility),
     status: deriveCareRecordStatus(payload.dueDate),
-    documents: normalizeLocalDocuments(payload.documents, payload.type ?? "Other"),
+    documents: localDocuments,
     createdAt: now,
     updatedAt: now,
   };
@@ -156,7 +480,11 @@ export async function updateRecord(
 
       return apiResponse(record, response.meta);
     } catch (error) {
-      await cleanupUploadedDocuments(prepared.uploadedIds);
+      // When the outcome is unknown the record may have been saved with these
+      // files attached; deleting them could strip a saved record. Keep them.
+      if (!isUncertainRequestOutcome(error)) {
+        await cleanupUploadedDocuments(prepared.uploadedIds);
+      }
       if (isApiClientError(error) && error.status === 404) {
         return apiResponse<CareRecord | null>(null);
       }

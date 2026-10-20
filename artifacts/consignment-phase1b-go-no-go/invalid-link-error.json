@@ -1,0 +1,5 @@
+{
+  "statusCode": 400,
+  "code": "validation_failed",
+  "message": "WS-NFC-0001: the count\u0027s own evidence shows what was missing or extra, not why. Record what links it to this report, for example the dated sale or return record."
+}

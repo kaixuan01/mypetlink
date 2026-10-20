@@ -1,0 +1,108 @@
+{
+  "productionConfig": {
+    "compatibilityDate": "2026-06-24",
+    "environment": [
+      {
+        "value": "https://api.mypetlink.com.my",
+        "name": "NEXT_PUBLIC_API_BASE_URL",
+        "type": "plain_text"
+      },
+      {
+        "value": "https://mypetlink.com.my",
+        "name": "NEXT_PUBLIC_APP_URL",
+        "type": "plain_text"
+      },
+      {
+        "value": "45",
+        "name": "NEXT_PUBLIC_DATABASE_WAKE_MAXIMUM_WAIT_SECONDS",
+        "type": "plain_text"
+      },
+      {
+        "value": "6",
+        "name": "NEXT_PUBLIC_DATABASE_WAKE_MAX_ATTEMPTS",
+        "type": "plain_text"
+      },
+      {
+        "value": "Configured (public identifier omitted)",
+        "name": "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+        "type": "plain_text"
+      },
+      {
+        "value": "Configured (public identifier omitted)",
+        "name": "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+        "type": "plain_text"
+      },
+      {
+        "value": "true",
+        "name": "NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "value": "true",
+        "name": "NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "value": "https://mypetlink.com.my",
+        "name": "NEXT_PUBLIC_SITE_URL",
+        "type": "plain_text"
+      },
+      {
+        "value": "true",
+        "name": "NEXT_PUBLIC_SMART_TAGS_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "value": "true",
+        "name": "NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "value": "true",
+        "name": "NEXT_PUBLIC_SOCIAL_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "value": "true",
+        "name": "NEXT_PUBLIC_TAG_ORDERS_ENABLED",
+        "type": "plain_text"
+      }
+    ],
+    "compatibilityFlags": [],
+    "placement": null,
+    "bindingNames": [
+      "fail_open",
+      "always_use_latest_compatibility_date",
+      "build_image_major_version",
+      "usage_model"
+    ]
+  },
+  "productionBranch": "main",
+  "domains": [
+    "mypetlink.pages.dev",
+    "mypetlink.com.my"
+  ],
+  "canonicalDeployment": {
+    "environment": "production",
+    "status": "success",
+    "url": "https://d12a3aae.mypetlink.pages.dev",
+    "id": "d12a3aae-5007-46b6-8bab-9313b1d4ce06",
+    "commit": "2ff3b792b2f021168d257511d94ec71cf23e8b09"
+  },
+  "buildConfig": {
+    "build_command": "npm run build",
+    "destination_dir": "out",
+    "root_dir": "apps/web",
+    "web_analytics_tag": null,
+    "web_analytics_token": null
+  },
+  "productionSourceBranch": "main",
+  "subdomain": "mypetlink.pages.dev",
+  "name": "mypetlink",
+  "latestDeployment": {
+    "status": "idle",
+    "id": "73fccd25-436f-45c2-94b8-568d8a9586bd",
+    "commit": "49bef2e6045e9b2b7528cfa1024209e67931bb3f"
+  },
+  "sourceType": "github"
+}

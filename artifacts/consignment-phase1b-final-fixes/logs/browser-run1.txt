@@ -1,0 +1,3 @@
+PASS FG10: sold-out late report reachable, short/invalid links refused with the dialog kept open, full link verifies to 0 / 0 / 10, balanced
+PASS R1: the 15 Oct count shows the later change, can't be closed (409), and the remaining extra stays open
+No page errors.

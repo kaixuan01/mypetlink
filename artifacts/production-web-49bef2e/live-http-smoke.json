@@ -1,0 +1,314 @@
+[
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my",
+    "robots": null,
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/pricing",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/pricing",
+    "robots": null,
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/where-to-buy",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/where-to-buy",
+    "robots": null,
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/sample",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/sample",
+    "robots": null,
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/login",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "",
+    "robots": [
+      "noindex, nofollow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/dashboard",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "",
+    "robots": [
+      "noindex, nofollow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/admin/login",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "",
+    "robots": [
+      "noindex, nofollow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/admin/merchant-sales?tab=consignment",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "",
+    "robots": [
+      "noindex, nofollow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/feed",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "",
+    "robots": [
+      "noindex, nofollow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/explore",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/explore",
+    "robots": null,
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/search",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/p/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [],
+    "canonical": "https://mypetlink.com.my/pet-profile",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 404
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/q/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/q/release_verification_invalid",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/n/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/n/release_verification_invalid",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/t/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [
+      "<meta name=\"mypetlink-release-smart-tags\" content=\"true\"",
+      "<meta name=\"mypetlink-release-tag-orders\" content=\"true\"",
+      "<meta name=\"mypetlink-release-ordering\" content=\"true\"",
+      "<meta name=\"mypetlink-release-community\" content=\"true\""
+    ],
+    "canonical": "https://mypetlink.com.my/t/release_verification_invalid",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 200
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/u/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [],
+    "canonical": "",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 404
+  },
+  {
+    "contentType": "text/html; charset=utf-8",
+    "branded": true,
+    "path": "/moments/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [],
+    "canonical": "",
+    "robots": [
+      "noindex, follow"
+    ],
+    "status": 404
+  },
+  {
+    "contentType": "text/plain; charset=utf-8",
+    "branded": false,
+    "path": "/social/pets/release_verification_invalid",
+    "server": [
+      "cloudflare"
+    ],
+    "releaseMarkers": [],
+    "canonical": "",
+    "robots": [
+      "noindex"
+    ],
+    "status": 404
+  }
+]

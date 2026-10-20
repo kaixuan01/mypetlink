@@ -1,51 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import {
+  DashboardCareSection,
+  type DashboardCareState,
+} from "@/components/portal/dashboard/DashboardCareSection";
+import {
+  ALL_PETS,
+  DashboardPetFilter,
+} from "@/components/portal/dashboard/DashboardPetFilter";
+import {
+  DashboardRecentMoments,
+  type DashboardMomentsState,
+} from "@/components/portal/dashboard/DashboardRecentMoments";
 import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
-import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import { ShareCenter } from "@/components/share/ShareCenter";
-import { toOwnerPetShareTarget } from "@/lib/petShareTarget";
+import { PetShareCard } from "@/components/share/PetShareCard";
+import { Badge } from "@/components/ui/Badge";
+import { CTAButton } from "@/components/ui/CTAButton";
+import { Icon } from "@/components/ui/Icon";
+import { PetAvatar } from "@/components/ui/PetAvatar";
+import { getPrivateMomentNotes, type PetMomentsLoad } from "@/lib/dashboardHome";
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
 } from "@/lib/features";
-import { Badge } from "@/components/ui/Badge";
-import { CTAButton } from "@/components/ui/CTAButton";
-import { Icon, type IconName } from "@/components/ui/Icon";
-import { PetAvatar } from "@/components/ui/PetAvatar";
-import { PetShareCard } from "@/components/share/PetShareCard";
-import {
-  getCareRecordStatusLabel,
-  selectDashboardCareRecords,
-} from "@/lib/careRecordStatus";
 import {
   hasUsableOwnerContact,
   readOwnerSettings,
   subscribeOwnerSettings,
 } from "@/lib/ownerSettings";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
+import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
+import { derivePetOccasions, type PetOccasion } from "@/lib/petOccasions";
+import { toOwnerPetShareTarget } from "@/lib/petShareTarget";
 import { getEffectivePlanLimits } from "@/lib/planLimits";
 import { deriveProfileCompletion } from "@/lib/profileCompletion";
-import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
 import {
   getAvailablePetShareCardOptions,
   getPublicProfileShareCardImagePath,
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
-import { derivePetOccasions, type PetOccasion } from "@/lib/petOccasions";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
 import { getFriendlyApiErrorMessage, getPets } from "@/services/petService";
-import { getPetRecords } from "@/services/recordService";
-import type { CareRecord, PetListItem, PetMoment } from "@/types";
+import { getUpcomingCareSummary } from "@/services/recordService";
+import type { PetListItem } from "@/types";
 
 type DashboardClientProps = {
   initialPets: PetListItem[];
-  initialRecords: CareRecord[];
-  initialMoments: PetMoment[];
 };
 
 // Stable boolean snapshots for useSyncExternalStore (owner settings live in
@@ -60,32 +73,74 @@ function getServerHasOwnerContactSnapshot() {
   return true;
 }
 
-export function DashboardClient({
-  initialPets,
-  initialRecords,
-  initialMoments,
-}: DashboardClientProps) {
+/**
+ * Home for a signed-in owner, pets first.
+ *
+ * The pets are the only critical read: they render as soon as they arrive.
+ * Care and Moments then load independently, each with its own loading,
+ * failure and retry, so one slow or failed section never hides the pets or
+ * the other section — and a failed care read never looks like "nothing due".
+ */
+export function DashboardClient({ initialPets }: DashboardClientProps) {
   const apiMode = isApiConfigured();
   const [allPets, setAllPets] = useState<PetListItem[]>(apiMode ? [] : initialPets);
-  const [allRecords, setAllRecords] = useState<CareRecord[]>(
-    apiMode ? [] : initialRecords
-  );
-  const [allMoments, setAllMoments] = useState<PetMoment[]>(
-    apiMode ? [] : initialMoments
-  );
   const [loading, setLoading] = useState(apiMode);
   const [error, setError] = useState("");
-  const [recordAvailability, setRecordAvailability] = useState<Set<string>>(
-    () => new Set(apiMode ? [] : getActivePets(initialPets).map((pet) => pet.id))
-  );
-  const [momentAvailability, setMomentAvailability] = useState<Set<string>>(
-    () => new Set(apiMode ? [] : getActivePets(initialPets).map((pet) => pet.id))
-  );
+  const [careState, setCareState] = useState<DashboardCareState>({
+    status: "loading",
+  });
+  const [momentsState, setMomentsState] = useState<DashboardMomentsState>({
+    status: "loading",
+  });
+  const [petFilter, setPetFilter] = useState(ALL_PETS);
+  const careRequestRef = useRef(0);
+  const momentsRequestRef = useRef(0);
   const hasOwnerContact = useSyncExternalStore(
     subscribeOwnerSettings,
     getHasOwnerContactSnapshot,
     getServerHasOwnerContactSnapshot
   );
+
+  const loadCare = useCallback(async () => {
+    const request = ++careRequestRef.current;
+    setCareState({ status: "loading" });
+    try {
+      // One summary read: every count and item on the Dashboard comes from
+      // the same consistent view, never from pages stitched together.
+      const summary = await getUpcomingCareSummary();
+      if (request === careRequestRef.current) {
+        setCareState({ status: "ready", summary });
+      }
+    } catch {
+      if (request === careRequestRef.current) {
+        setCareState({ status: "error" });
+      }
+    }
+  }, []);
+
+  const loadMoments = useCallback(async (activePets: PetListItem[]) => {
+    const request = ++momentsRequestRef.current;
+    setMomentsState({ status: "loading" });
+    const results = await Promise.allSettled(
+      activePets.map((pet) => getPetMoments(pet.id))
+    );
+    if (request !== momentsRequestRef.current) return;
+
+    setMomentsState({
+      status: "ready",
+      loads: activePets.map((pet, index): PetMomentsLoad => {
+        const result = results[index];
+        return result?.status === "fulfilled"
+          ? {
+              petId: pet.id,
+              status: "ok",
+              moments: result.value.data,
+              total: result.value.meta?.total,
+            }
+          : { petId: pet.id, status: "failed" };
+      }),
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -114,24 +169,13 @@ export function DashboardClient({
       }
 
       setAllPets(petsData);
-
-      // Secondary requests are resilient: a single failure leaves that section
-      // empty instead of blocking the whole dashboard.
-      const activePets = getActivePets(petsData);
-      const [recordResults, momentResults] = await Promise.all([
-        Promise.allSettled(activePets.map((pet) => getPetRecords(pet.id))),
-        Promise.allSettled(activePets.map((pet) => getPetMoments(pet.id))),
-      ]);
-
-      if (!active) {
-        return;
-      }
-
-      setAllRecords(collectFulfilled(recordResults));
-      setAllMoments(collectFulfilled(momentResults));
-      setRecordAvailability(fulfilledPetIds(activePets, recordResults));
-      setMomentAvailability(fulfilledPetIds(activePets, momentResults));
       setLoading(false);
+
+      const activePets = getActivePets(petsData);
+      if (activePets.length) {
+        void loadCare();
+        void loadMoments(activePets);
+      }
     }
 
     void loadDashboard();
@@ -139,37 +183,50 @@ export function DashboardClient({
     return () => {
       active = false;
     };
-  }, [apiMode]);
+  }, [apiMode, loadCare, loadMoments]);
 
   const pets = getActivePets(allPets);
   const memorialPets = getMemorialPets(allPets);
-  const publicProfileCount = pets.filter(
-    (pet) => pet.publicProfileEnabled
-  ).length;
   const lostModePets = pets.filter((pet) => pet.lostModeEnabled);
-  const upcomingRecords = useMemo(
-    () => selectDashboardCareRecords(allRecords),
-    [allRecords]
-  );
-  const momentCounts = useMemo(
-    () => countByPet(allMoments),
-    [allMoments]
-  );
-  const recordCounts = useMemo(
-    () => countByPet(allRecords),
-    [allRecords]
-  );
+  const filterValue = pets.some((pet) => pet.id === petFilter)
+    ? petFilter
+    : ALL_PETS;
+  const scopePets =
+    filterValue === ALL_PETS ? pets : pets.filter((pet) => pet.id === filterValue);
+  const scopePetIds = scopePets.map((pet) => pet.id);
+  const singlePetId = scopePets.length === 1 ? scopePets[0].id : undefined;
+  const secondaryReady =
+    careState.status !== "loading" && momentsState.status !== "loading";
+
   const completionCandidate = useMemo(() => {
+    if (!secondaryReady) return undefined;
+
+    const momentCounts = new Map(
+      momentsState.status === "ready"
+        ? momentsState.loads.flatMap((load) =>
+            load.status === "ok" ? [[load.petId, load.moments.length] as const] : []
+          )
+        : []
+    );
+    const petsWithCare =
+      careState.status === "ready"
+        ? new Set(
+            careState.summary.scopes.flatMap((scope) =>
+              scope.petId !== null && scope.hasCareRecords ? [scope.petId] : []
+            )
+          )
+        : null;
+
     const candidates = pets
       .map((pet) => ({
         pet,
         completion: deriveProfileCompletion({
           pet,
-          momentCount: momentAvailability.has(pet.id)
-            ? (momentCounts.get(pet.id) ?? 0)
-            : undefined,
-          careRecordCount: recordAvailability.has(pet.id)
-            ? (recordCounts.get(pet.id) ?? 0)
+          momentCount: momentCounts.get(pet.id),
+          careRecordCount: petsWithCare
+            ? petsWithCare.has(pet.id)
+              ? 1
+              : 0
             : undefined,
           safetyProfilesEnabled: safetyProfilesOwnerUiEnabled,
           publicProfilesEnabled,
@@ -184,19 +241,10 @@ export function DashboardClient({
       if (percentageDifference) return percentageDifference;
       return Date.parse(right.pet.createdAt) - Date.parse(left.pet.createdAt);
     })[0];
-  }, [momentAvailability, momentCounts, pets, recordAvailability, recordCounts]);
+  }, [careState, momentsState, pets, secondaryReady]);
 
   if (loading) {
-    return (
-      <section className="brand-card rounded-[1.75rem] p-6 text-center">
-        <p className="text-sm font-extrabold uppercase text-pet-teal">
-          Loading owner portal
-        </p>
-        <h1 className="mt-2 text-2xl font-black text-pet-ink">
-          Fetching your latest pet profiles
-        </h1>
-      </section>
-    );
+    return <DashboardLoading />;
   }
 
   if (error) {
@@ -223,7 +271,7 @@ export function DashboardClient({
   }
 
   // Zero-pet owners get a single, focused onboarding call to action instead of
-  // an empty dashboard of zero-value statistics.
+  // an empty dashboard of zero-value sections.
   if (!pets.length && !memorialPets.length) {
     return (
       <div className="grid gap-6">
@@ -233,104 +281,172 @@ export function DashboardClient({
     );
   }
 
-  // Launched-product summary only: counts reuse the data this dashboard
-  // already loads (no extra per-pet requests). Hidden features contribute no
-  // zero-value cards; upcoming care has its own section below.
-  const stats: DashboardStatData[] = [
-    { label: "Pets", value: pets.length, href: ownerRoutes.pets },
-    ...(publicProfilesEnabled
-      ? [{ label: "Share Profiles", value: publicProfileCount }]
-      : []),
-    { label: "Moments", value: allMoments.length, href: ownerRoutes.moments },
-  ];
+  if (!pets.length) {
+    return (
+      <div className="grid gap-6">
+        <DashboardGreeting subtitle="Your pets' profiles and Moments are kept safe here." />
+        <MemorialPetsSection pets={memorialPets} />
+      </div>
+    );
+  }
+
+  const celebrations = pets.flatMap((pet) =>
+    pet.publicProfileEnabled && !pet.lostModeEnabled
+      ? derivePetOccasions(pet, new Date()).map((occasion) => ({ pet, occasion }))
+      : []
+  );
+  const privateNotes =
+    momentsState.status === "ready"
+      ? getPrivateMomentNotes(
+          momentsState.loads,
+          pets.map((pet) => pet.id),
+          getEffectivePlanLimits().maxMemoriesPerPet
+        )
+      : [];
 
   return (
-    <div className="grid gap-6">
-      {!hasOwnerContact ? <OwnerContactSetupCard /> : null}
+    <div className="grid min-w-0 gap-6 sm:gap-7" data-dashboard>
+      {lostModePets.length ? <LostModeAlert pets={lostModePets} /> : null}
 
-      {/*
-        Compact on a phone. This card is a greeting and a count, and at its old
-        size it filled most of the first screen before anybody reached their
-        pets. The eyebrow, the larger heading and the full sentence all belong to
-        the desktop version, where there is room for them.
-
-        The stats sit one row across at every width. Two columns left the third
-        stat sitting alone under the other two, which reads as a missing fourth.
-      */}
-      <section className="brand-soft-card overflow-hidden rounded-[1.75rem] p-4 sm:p-6">
-        <p className="hidden text-xs font-extrabold uppercase text-pet-teal sm:block">
-          Owner portal
-        </p>
-        <h1 className="text-lg font-black leading-tight text-pet-ink sm:mt-1.5 sm:text-3xl">
-          Welcome back
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm leading-6 text-pet-muted sm:mt-2">
-          <span className="sm:hidden">Manage your pets and care.</span>
-          <span className="hidden sm:inline">
-            Manage your pet profiles, care records, and moments in one place.
-          </span>
-        </p>
-        {lostModePets.length ? <LostModeAlert pets={lostModePets} /> : null}
-        <div
-          className="mt-3 grid gap-2 sm:mt-4 sm:gap-2.5"
-          style={{
-            gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))`,
-          }}
-        >
-          {stats.map((stat) => (
-            <DashboardStat key={stat.label} {...stat} />
-          ))}
-        </div>
-      </section>
+      <DashboardGreeting
+        subtitle={
+          pets.length === 1
+            ? `Here's what's coming up for ${pets[0].name}.`
+            : "Here's what's coming up for your pets."
+        }
+      />
 
       <DashboardPetsSection pets={pets} />
 
-      <DashboardOccasionSection pets={pets} />
+      {pets.length > 1 ? (
+        <DashboardPetFilter
+          onChange={setPetFilter}
+          pets={pets}
+          value={filterValue}
+        />
+      ) : null}
 
-      {completionCandidate ? (
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] 2xl:items-start">
+        <DashboardCareSection
+          onRetry={() => void loadCare()}
+          scopePetId={filterValue === ALL_PETS ? null : filterValue}
+          singlePetId={singlePetId}
+          state={careState}
+        />
+        <DashboardRecentMoments
+          onRetry={() => void loadMoments(pets)}
+          pets={pets}
+          scopePetIds={scopePetIds}
+          singlePetId={singlePetId}
+          state={momentsState}
+        />
+      </div>
+
+      {/* One next step at most. Finder contact comes first because it is
+          what lets a lost pet get home; a celebration next; then profile
+          completion. */}
+      {!hasOwnerContact ? (
+        <OwnerContactSetupCard />
+      ) : celebrations.length ? (
+        <DashboardOccasionSection celebrations={celebrations} />
+      ) : completionCandidate ? (
         <ProfileCompletionCard
           compact
           completion={completionCandidate.completion}
           pet={completionCandidate.pet}
-          suppressedItems={!hasOwnerContact ? ["contact"] : []}
         />
       ) : null}
 
-      <UpcomingCareSection pets={pets} records={upcomingRecords} />
-
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
-        <QuickActions />
-        <DashboardSection title="Plan usage">
-          <PlanSummaryCard
-            compact
-            initialMoments={allMoments}
-            initialPets={allPets}
-            refreshOnMount={false}
-          />
-        </DashboardSection>
-      </div>
+      {privateNotes.length ? (
+        <ul className="grid gap-1.5" data-dashboard-private-notes>
+          {privateNotes.map((note) => {
+            const pet = pets.find((item) => item.id === note.petId);
+            return (
+              <li
+                className="flex min-w-0 items-start gap-2 text-xs font-medium leading-5 text-pet-muted"
+                key={note.petId}
+              >
+                <Icon aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" name="heart" />
+                <span className="min-w-0">
+                  {pet?.name ?? "Your pet"} has {note.privateCount} of {note.limit} private
+                  Moments.{" "}
+                  <Link
+                    className="font-bold text-pet-teal hover:text-[#0f5fd0]"
+                    href={ownerRoutes.petMoments(note.petId)}
+                  >
+                    View Moments
+                  </Link>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 }
 
-function DashboardOccasionSection({ pets }: { pets: PetListItem[] }) {
-  const now = new Date();
-  const celebrations = pets.flatMap((pet) =>
-    pet.publicProfileEnabled
-      ? derivePetOccasions(pet, now).map((occasion) => ({ pet, occasion }))
-      : []
-  );
-  if (!celebrations.length) return null;
-
+function DashboardGreeting({ subtitle }: { subtitle: string }) {
   return (
-    <DashboardSection
-      title="Celebrate today"
-      description="Create a card for today's special moments."
-    >
+    <header className="min-w-0">
+      <h1 className="brand-heading text-xl font-bold leading-tight text-pet-ink sm:text-2xl">
+        Welcome back
+      </h1>
+      <p className="mt-1 break-words text-sm leading-6 text-pet-muted [overflow-wrap:anywhere]">
+        {subtitle}
+      </p>
+    </header>
+  );
+}
+
+function DashboardLoading() {
+  return (
+    <div aria-busy="true" className="grid gap-6 sm:gap-7" data-dashboard-loading>
+      <p className="sr-only" role="status">
+        Loading your dashboard
+      </p>
+      <div aria-hidden="true" className="grid gap-2">
+        <span className="h-7 w-40 animate-pulse rounded-full bg-white/80 motion-reduce:animate-none" />
+        <span className="h-4 w-64 max-w-full animate-pulse rounded-full bg-white/70 motion-reduce:animate-none" />
+      </div>
+      <div aria-hidden="true" className="grid gap-3 md:grid-cols-2">
+        {[0, 1].map((key) => (
+          <span
+            className="h-[7.75rem] animate-pulse rounded-[1.375rem] bg-white/80 motion-reduce:animate-none"
+            key={key}
+          />
+        ))}
+      </div>
+      <span
+        aria-hidden="true"
+        className="h-44 animate-pulse rounded-[1.375rem] bg-white/80 motion-reduce:animate-none"
+      />
+    </div>
+  );
+}
+
+function DashboardOccasionSection({
+  celebrations,
+}: {
+  celebrations: Array<{ pet: PetListItem; occasion: PetOccasion }>;
+}) {
+  return (
+    <section className="min-w-0" aria-labelledby="dashboard-celebrate-title">
+      <div className="mb-3">
+        <h2
+          className="brand-heading text-lg font-bold text-pet-ink sm:text-xl"
+          id="dashboard-celebrate-title"
+        >
+          Celebrate today
+        </h2>
+        <p className="mt-1 text-sm leading-5 text-pet-muted">
+          Create a card for today&apos;s special moments.
+        </p>
+      </div>
       <div className="grid gap-3 md:grid-cols-2">
         {celebrations.map(({ pet, occasion }) => (
           <article
-            className="brand-card flex min-w-0 items-center gap-3 rounded-[1.35rem] p-4"
+            className="flex min-w-0 items-center gap-3 rounded-[1.375rem] border border-pet-border bg-white p-4 shadow-[0_8px_24px_rgba(13,27,61,0.05)]"
             key={`${pet.id}-${occasion.variant}`}
           >
             <PetAvatar pet={pet} size="sm" />
@@ -354,7 +470,7 @@ function DashboardOccasionSection({ pets }: { pets: PetListItem[] }) {
           </article>
         ))}
       </div>
-    </DashboardSection>
+    </section>
   );
 }
 
@@ -364,52 +480,14 @@ function occasionMessage(name: string, occasion: PetOccasion) {
     : `${name} turns ${occasion.count} today.`;
 }
 
-type DashboardStatData = {
-  label: string;
-  value: number;
-  href?: string;
-};
-
-function DashboardStat({ label, value, href }: DashboardStatData) {
-  const inner = (
-    <>
-      <span className="block text-xl font-black leading-none text-pet-ink sm:text-2xl">
-        {value}
-      </span>
-      {/* Three of these share a phone's width, so the label wraps rather than
-          truncating: "Share Profiles" cut to "Share Pr…" says less than two
-          short lines do. */}
-      <span className="mt-1 block text-[11px] font-bold leading-4 text-pet-muted sm:text-xs">
-        {label}
-      </span>
-    </>
-  );
-
-  if (href) {
-    return (
-      <Link
-        className="min-w-0 rounded-[1.25rem] border border-pet-border bg-white p-2.5 transition hover:border-pet-teal hover:bg-pet-cream sm:p-3"
-        href={href}
-      >
-        {inner}
-      </Link>
-    );
-  }
-
-  return (
-    <div className="min-w-0 rounded-[1.25rem] border border-pet-border bg-white p-2.5 sm:p-3">
-      {inner}
-    </div>
-  );
-}
-
 function LostModeAlert({ pets }: { pets: PetListItem[] }) {
   const onePet = pets.length === 1 ? pets[0] : undefined;
   const href = onePet ? ownerRoutes.petProfile(onePet.id) : ownerRoutes.pets;
 
   return (
     <Link
-      className="mt-4 flex min-w-0 items-center gap-3 rounded-[1.25rem] border border-[#ffc7bc] bg-[#ffe8e3] p-3.5 transition hover:border-pet-coral"
+      className="flex min-w-0 items-center gap-3 rounded-[1.25rem] border border-[#ffc7bc] bg-[#ffe8e3] p-3.5 transition hover:border-pet-coral"
+      data-dashboard-lost-mode
       href={href}
     >
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-[#a63c2e] shadow-sm">
@@ -457,31 +535,44 @@ function ZeroPetWelcome() {
   );
 }
 
-function DashboardSection({
-  title,
-  description,
-  action,
-  children,
-}: {
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
+/**
+ * A household whose pets are all in Memorial Mode. Quiet on purpose: no due
+ * care, no celebration and no suggestion to add another pet — just a way back
+ * to each pet's profile and Moments.
+ */
+function MemorialPetsSection({ pets }: { pets: PetListItem[] }) {
   return (
-    <section className="min-w-0">
-      <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-black text-pet-ink sm:text-xl">{title}</h2>
-          {description ? (
-            <p className="mt-1 text-sm leading-5 text-pet-muted">
-              {description}
-            </p>
-          ) : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      {children}
+    <section
+      aria-labelledby="dashboard-memorial-title"
+      className="min-w-0 rounded-[1.375rem] border border-pet-border bg-white p-4 shadow-[0_8px_24px_rgba(13,27,61,0.05)] sm:p-5"
+      data-dashboard-memorial
+    >
+      <h2
+        className="brand-heading text-lg font-bold text-pet-ink sm:text-xl"
+        id="dashboard-memorial-title"
+      >
+        Your pets
+      </h2>
+      <ul className="mt-3 grid gap-3 md:grid-cols-2">
+        {pets.map((pet) => (
+          <li key={pet.id}>
+            <Link
+              className="flex min-w-0 items-center gap-3 rounded-2xl bg-pet-cream/70 p-3 transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+              href={ownerRoutes.petProfile(pet.id)}
+            >
+              <PetAvatar pet={pet} size="md" />
+              <span className="min-w-0">
+                <span className="block truncate text-base font-bold text-pet-ink" title={pet.name}>
+                  {pet.name}
+                </span>
+                <span className="block text-xs font-medium text-pet-muted">
+                  In loving memory
+                </span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -491,38 +582,35 @@ function DashboardPetsSection({ pets }: { pets: PetListItem[] }) {
   const remaining = pets.length - visiblePets.length;
 
   return (
-    <DashboardSection
-      title="Your pets"
-      description="Manage and share your pet profiles."
-      action={
+    <section aria-labelledby="dashboard-pets-title" className="min-w-0">
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+        <h2
+          className="brand-heading min-w-0 text-lg font-bold leading-tight text-pet-ink sm:text-xl"
+          id="dashboard-pets-title"
+        >
+          Your pets
+        </h2>
         <Link
-          className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
+          className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
           href={ownerRoutes.pets}
         >
           Manage pets
         </Link>
-      }
-    >
-      {visiblePets.length ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          {visiblePets.map((pet) => (
-            <DashboardPetCard key={pet.id} pet={pet} />
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-[1.25rem] border border-pet-border bg-white px-4 py-3.5 text-sm font-semibold text-pet-muted">
-          No active pets right now. Restore one from Archived or add a new pet.
-        </p>
-      )}
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {visiblePets.map((pet) => (
+          <DashboardPetCard key={pet.id} pet={pet} />
+        ))}
+      </div>
       {remaining > 0 ? (
         <Link
-          className="mt-3 inline-flex text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
+          className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
           href={ownerRoutes.pets}
         >
           View all {pets.length} pets
         </Link>
       ) : null}
-    </DashboardSection>
+    </section>
   );
 }
 
@@ -532,19 +620,19 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
 
   return (
     <article
-      className="brand-card min-w-0 rounded-[1.35rem] p-3.5 sm:p-4"
+      className="min-w-0 rounded-[1.375rem] border border-pet-border bg-white p-3.5 shadow-[0_8px_24px_rgba(13,27,61,0.05)] sm:p-4"
       data-dashboard-pet-card
     >
       <Link
         aria-label={`Manage ${pet.name}`}
-        className="group flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+        className="group flex min-w-0 items-center gap-3.5 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
         href={ownerRoutes.petProfile(pet.id)}
       >
-        <PetAvatar pet={pet} size="sm" />
+        <PetAvatar pet={pet} size="md" />
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2">
             <span
-              className="min-w-0 flex-1 truncate text-base font-black text-pet-ink"
+              className="brand-heading min-w-0 flex-1 truncate text-base font-bold text-pet-ink sm:text-lg"
               title={pet.name}
             >
               {pet.name}
@@ -556,7 +644,7 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
             ) : null}
           </span>
           <span
-            className="mt-0.5 line-clamp-2 text-xs font-semibold leading-4 text-pet-muted"
+            className="mt-0.5 line-clamp-2 text-xs font-medium leading-4 text-pet-muted"
             data-dashboard-pet-metadata
           >
             {getPetSummaryLabel(pet)}
@@ -564,8 +652,8 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
         </span>
         <Icon
           aria-hidden="true"
-          name="record"
-          className="h-4 w-4 shrink-0 text-pet-muted transition-transform group-hover:translate-x-0.5"
+          name="chevron"
+          className="h-4 w-4 shrink-0 -rotate-90 text-pet-muted transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
         />
       </Link>
 
@@ -575,7 +663,7 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
             <ShareProfileActions pet={pet} sharePath={sharePath} />
           ) : (
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-semibold leading-5 text-pet-muted">
+              <p className="text-xs font-medium leading-5 text-pet-muted">
                 This profile is private and cannot be shared yet.
               </p>
               <Link
@@ -594,11 +682,9 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
 }
 
 /**
- * Public Profile share actions: one primary Share action (native share sheet
- * on supporting browsers, copy-link fallback elsewhere) plus compact QR and
- * preview actions. At 320px the primary action spans the card width; from
- * 360px all three actions share one row. Visible labels stay short on compact
- * cards while their accessible names remain complete.
+ * Share Profile actions: the one Share entry point (the Share Center, which
+ * also holds the QR) plus a View link that opens the public page in a new
+ * tab. Full width on a phone for tap comfort; compact from sm upwards.
  */
 function ShareProfileActions({
   pet,
@@ -607,11 +693,7 @@ function ShareProfileActions({
   pet: PetListItem;
   sharePath: string;
 }) {
-  // One Share entry point; the QR now lives inside the Share Center rather than
-  // competing with it as a third equally weighted button.
   return (
-    // Full width on a phone for tap comfort; compact from sm upwards so a
-    // desktop card does not read as one giant button.
     <div
       className="grid min-w-0 grid-cols-[1fr_auto] gap-2 sm:flex sm:flex-wrap sm:items-center"
       data-dashboard-pet-actions
@@ -622,7 +704,7 @@ function ShareProfileActions({
       />
       <Link
         aria-label={`View ${pet.name}'s Share Profile`}
-        className="inline-flex min-h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-white/70"
+        className="inline-flex min-h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
         href={sharePath}
         rel="noopener noreferrer"
         target="_blank"
@@ -631,199 +713,4 @@ function ShareProfileActions({
       </Link>
     </div>
   );
-}
-
-function UpcomingCareSection({
-  pets,
-  records,
-}: {
-  pets: PetListItem[];
-  records: CareRecord[];
-}) {
-  return (
-    <DashboardSection
-      title="Care due dates"
-      action={
-        records.length ? (
-          <Link
-            className="text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
-            href={ownerRoutes.records}
-          >
-            View all
-          </Link>
-        ) : null
-      }
-    >
-      {records.length ? (
-        <div className="grid gap-2.5">
-          {records.map((record) => (
-            <ReminderItem
-              key={record.id}
-              pet={pets.find((pet) => pet.id === record.petId)}
-              record={record}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2 rounded-[1.25rem] border border-pet-border bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-pet-muted">
-            No care due dates added.
-          </p>
-          <Link
-            className="text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
-            href={ownerRoutes.records}
-          >
-            View care records
-          </Link>
-        </div>
-      )}
-    </DashboardSection>
-  );
-}
-
-function ReminderItem({ record, pet }: { record: CareRecord; pet?: PetListItem }) {
-  return (
-    <div
-      className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 rounded-[1.25rem] bg-pet-cream px-4 py-3"
-      data-dashboard-care-item
-    >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-pet-teal">
-        <Icon name={recordIcon(record.type)} className="h-4 w-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-start gap-2">
-          <p className="min-w-0 flex-1 text-sm font-black leading-5 text-pet-ink">
-            {record.type}
-          </p>
-          <Badge
-            tone={
-              record.status === "overdue"
-                ? "danger"
-                : record.status === "due-soon"
-                  ? "warm"
-                  : "soft"
-            }
-            className="shrink-0 whitespace-nowrap"
-          >
-            {getCareRecordStatusLabel(record)}
-          </Badge>
-        </div>
-        <p
-          className="mt-0.5 truncate text-xs font-semibold text-pet-muted"
-          data-dashboard-care-pet-name
-          title={pet?.name ?? "Pet"}
-        >
-          {pet?.name ?? "Pet"}
-        </p>
-        <p
-          className="mt-0.5 whitespace-nowrap text-xs font-bold text-pet-ink"
-          data-dashboard-care-date
-        >
-          Due {record.dueDate}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function QuickActions() {
-  // Every tile opens an all-pets list or a general management page. Actions
-  // that need one specific pet start from that pet's own card instead — the
-  // dashboard never silently picks a pet on the owner's behalf.
-  return (
-    <DashboardSection title="Quick actions">
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
-        <ActionTile
-          ariaLabel="Manage care records"
-          href={ownerRoutes.records}
-          icon="record"
-          label="Care Records"
-        />
-        <ActionTile
-          ariaLabel="View pet moments"
-          href={ownerRoutes.moments}
-          icon="heart"
-          label="Moments"
-        />
-        <ActionTile
-          ariaLabel="Update owner contact details"
-          href={ownerRoutes.settingsOwnerContact}
-          icon="phone"
-          label="Owner Settings"
-        />
-      </div>
-    </DashboardSection>
-  );
-}
-
-function ActionTile({
-  href,
-  icon,
-  label,
-  ariaLabel,
-  target,
-  rel,
-}: {
-  href: string;
-  icon: IconName;
-  label: string;
-  ariaLabel: string;
-  target?: string;
-  rel?: string;
-}) {
-  return (
-    <Link
-      aria-label={ariaLabel}
-      className="brand-card flex min-h-[5.5rem] min-w-0 flex-col items-center justify-center gap-2 rounded-[1.25rem] px-2 py-3 text-center font-extrabold text-pet-ink transition hover:border-pet-teal hover:bg-pet-cream sm:px-3"
-      href={href}
-      rel={rel}
-      target={target}
-    >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
-        <Icon name={icon} className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 max-w-full text-xs leading-tight sm:text-sm">
-        {label}
-      </span>
-    </Link>
-  );
-}
-
-function collectFulfilled<T>(
-  results: PromiseSettledResult<{ data: T[] }>[]
-): T[] {
-  return results.flatMap((result) =>
-    result.status === "fulfilled" ? result.value.data : []
-  );
-}
-
-function fulfilledPetIds<T>(
-  pets: PetListItem[],
-  results: PromiseSettledResult<{ data: T[] }>[]
-) {
-  return new Set(
-    pets.flatMap((pet, index) =>
-      results[index]?.status === "fulfilled" ? [pet.id] : []
-    )
-  );
-}
-
-function countByPet(items: Array<{ petId: string }>) {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    counts.set(item.petId, (counts.get(item.petId) ?? 0) + 1);
-  }
-  return counts;
-}
-
-function recordIcon(type: CareRecord["type"]): IconName {
-  if (type === "Grooming") {
-    return "heart";
-  }
-
-  if (type === "Vet Visit" || type === "Vaccine") {
-    return "shield";
-  }
-
-  return "record";
 }

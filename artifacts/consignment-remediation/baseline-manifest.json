@@ -1,0 +1,166 @@
+[
+  {
+    "path": "apps\\web\\src\\lib\\adminCapabilities.ts",
+    "sha256": "c5c8d74aa4e17e7d346b295afc833e780111d8b40ea09fb434b18f89c68685a4"
+  },
+  {
+    "path": "docs\\architecture\\consignment-mvp.md",
+    "sha256": "435e08c37e028c94145425cfee0764365006801b8fb9334fa47a6f15b3e912c7"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Controllers\\Admin\\AdminConsignmentController.cs",
+    "sha256": "3b4f81a66da47426711589f3b312bf3893468593cf2127ebfd81a9a3320f5654"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\MerchantSalesService.cs",
+    "sha256": "ab3800d0e647ce984253e8dec8a8d44585a1bf6fa1bfd4847e3d48b4e832761d"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\ConsignmentDocumentService.cs",
+    "sha256": "d3aaef3892e572b1ccd3c3726bfe8abe6b190d3cd76ce63f7dd7f9a9d666eb87"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\InventoryCustodyRules.cs",
+    "sha256": "ba184c60100882e21377baaae725241521bd20e5340ff30f469d95bb78c62984"
+  },
+  {
+    "path": "apps\\web\\src\\services\\adminConsignmentService.ts",
+    "sha256": "cd748e336f1c256d5677146973b3549e13cc34bfd527b6a08879702c5fc51581"
+  },
+  {
+    "path": "docs\\operations\\configuration-inventory.md",
+    "sha256": "5be02c3a9249e9090be9fa3f2fa106b2070e24ccb096bd1408b7c61963412696"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Data\\MyPetLinkDbContext.Consignment.cs",
+    "sha256": "f0e5900a86b0f6f1b649f0acd2135b72c03ebe62186bc23ec2d7472e08212b8b"
+  },
+  {
+    "path": "migration.sql",
+    "sha256": "f2e640053c2b809b5fd82cd270f299174d605c1ad7fe6893545a2e361dc45561"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api.Tests\\ConsignmentAuthorizationTests.cs",
+    "sha256": "989be663d7ac2dd63bd376bd4cf187fce1cb4b9d1359297e2e15e5e87122f109"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\merchantSales.test.tsx",
+    "sha256": "c8949268c4b5ff730b7d59acaaf47364432456d606f0c1b4c284070297048449"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Migrations\\MyPetLinkDbContextModelSnapshot.cs",
+    "sha256": "22f47e4d4fbd8749221209b9b3a4276c3e2ff543d5b6f3a33472ce212d1bc8be"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\DocumentNumberService.cs",
+    "sha256": "f9587e9d683dbf129adddeef3adf57346023d428b1a4e623d6580fabaecc9213"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Migrations\\20261017082802_AddConsignmentAgreementAndCustody.Designer.cs",
+    "sha256": "6e9129812658c94b0a961f08c6b7d7a70ded334989082803e303b5c872dd8ed8"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api.Tests\\ConsignmentCorrectnessTests.cs",
+    "sha256": "b4317427aece888e1125ad216809f9e6f5737d1044b041d1535ae5489b1e0fd5"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\AdminService.cs",
+    "sha256": "91dc764d86ef3effaa02a861838699a16d1dfc1bd0147f3af434e9098a61ad53"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\SellableInventoryRules.cs",
+    "sha256": "3e47c4a3c76f866f36c34502b4d7a7190184ffda1b8389c27cebe2ec8ccf14ad"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\AdminSmartTagService.cs",
+    "sha256": "e6ecf26df067e1c321235f80d267f30b0d355cd8c1fc039ef7ea9ee974727227"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\ConsignmentPanel.tsx",
+    "sha256": "a662aeb708563215c575c4f13740b537822ce31924ea88938ae5962709be83dc"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api.Tests\\Relational\\ConsignmentRelationalTests.cs",
+    "sha256": "1f34bd48476e5c34c7ba4597293ed53b4ace62643acc68ec8cddd904eaf7bfcb"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\ConsignmentPanel.test.tsx",
+    "sha256": "17b8ea042ba20e08f5d61f949887b4fe25778c51c662aa63ecc94aaa3ecba02d"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Entities\\ConsignmentEntities.cs",
+    "sha256": "ee49807b7220dc7113563d5b67057ba1bf2906869528a86001464fe3dc4f0557"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Auth\\AdminCapabilities.cs",
+    "sha256": "8f899c9a17797771796b249ea871859dc3d8ccf08b081fbf6cd979ed39e78eb9"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Auth\\AdminCapabilityCatalog.cs",
+    "sha256": "f0ca631fae102224235dbc9d56424a95e723883ecb83bf74524c5b0eb417241c"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Migrations\\20261017082802_AddConsignmentAgreementAndCustody.cs",
+    "sha256": "a74f895958a07bf5b50218922d3aef37e69bf7a7d21a71b0fa1cc5c9ac9dad7d"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Data\\MyPetLinkDbContext.cs",
+    "sha256": "2b1ac254e0a5bd1d2060b8625ca2547aae3e230ca282e78f3b872a4a5f9a26d5"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\AdminMerchantSalesWorkspace.test.tsx",
+    "sha256": "1bda9dab622ecb900bc75de9252808157037588105ebd619f594060788a0269a"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\MerchantDocumentService.cs",
+    "sha256": "01575dd405c50a929526c4ae760b728bf3d659f0e41c8b1abba7ea6424b27fe0"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Program.cs",
+    "sha256": "33d645c02fe8c0d14315763de44df14ec2096e037dab021b88ffd292387c3fad"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\DTOs\\ConsignmentDtos.cs",
+    "sha256": "16a2fd4776726dae8c33e18ff44a565caf0faf8465bc53fd2f9724f7a17bd22f"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\ConsignmentService.cs",
+    "sha256": "47f2e3cb7226c992dc3148ef7e0b725178becf3712c669cac2295f20419d1d44"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\tabs.ts",
+    "sha256": "b1984d11b67bef7bf05be95dbdd0e41579efd858bac9bee04979bfdf7c129f88"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\tabs.authorization.test.ts",
+    "sha256": "fa5ce2b55c7978a202fe6c1417af12a4124fe41e14bf5b06d60fcda1ea344093"
+  },
+  {
+    "path": "apps\\web\\src\\components\\admin\\merchantSales\\AdminMerchantSalesWorkspace.tsx",
+    "sha256": "e8c103615692f9ad1eb70d3ab56e404c6bad9ba8fa67f6c8efdb649915be28a3"
+  },
+  {
+    "path": "apps\\web\\src\\lib\\adminNavigation.ts",
+    "sha256": "d3dffde9def0c7729d693dfec3bf40a470e13fc845985896aee6edc3b9dd3584"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\AdminTagInventoryService.cs",
+    "sha256": "84791f736eed37a65fd1d3a01b9887adb7c89c60cbb0e431d401bc034444fec5"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\BusinessIdentityService.cs",
+    "sha256": "ac4bba922ff7f464b734afd156893c8a7307ce5da62282b06c05545f8a9af310"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Services\\MerchantFulfilmentService.cs",
+    "sha256": "670caa4439c6301210ac0edc701fa9e9ba99184b580110fcaba266fcb43399d3"
+  },
+  {
+    "path": "apps\\api\\MyPetLink.Api\\Auth\\AdminRoleTemplates.cs",
+    "sha256": "fd2764567904f7cc83bade5434df41f529a9bd7fc14392df76711a48838e1af2"
+  },
+  {
+    "path": "docs\\deployment\\consignment-mvp-rollout.md",
+    "sha256": "a780a68090f2d32dd7a21375681de9efe3bfbd22147bcb43a0eaaf0cdadc5e67"
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "width": 320,
+    "cardHeights": [
+      327,
+      327,
+      327
+    ],
+    "errors": [],
+    "result": "PASS",
+    "previewScans": 0,
+    "fullHistory": false
+  },
+  {
+    "width": 375,
+    "cardHeights": [
+      327,
+      327,
+      327
+    ],
+    "errors": [],
+    "result": "PASS",
+    "previewScans": 0,
+    "fullHistory": false
+  },
+  {
+    "width": 390,
+    "cardHeights": [
+      327,
+      327,
+      327
+    ],
+    "errors": [],
+    "result": "PASS",
+    "previewScans": 0,
+    "fullHistory": false
+  },
+  {
+    "width": 430,
+    "cardHeights": [
+      327,
+      327,
+      327
+    ],
+    "errors": [],
+    "result": "PASS",
+    "previewScans": 0,
+    "fullHistory": false
+  },
+  {
+    "width": 768,
+    "cardHeights": [
+      335,
+      335,
+      335
+    ],
+    "errors": [],
+    "result": "PASS",
+    "previewScans": 0,
+    "fullHistory": true
+  },
+  {
+    "width": 1440,
+    "cardHeights": [
+      335,
+      335,
+      335
+    ],
+    "errors": [],
+    "result": "PASS",
+    "previewScans": 0,
+    "fullHistory": false
+  }
+]

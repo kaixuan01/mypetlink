@@ -1,0 +1,20 @@
+[
+  {
+    "file": "mypetlink-api-prod - FTP.pubxml",
+    "WebPublishMethod": "FTP",
+    "SiteUrlToLaunchAfterPublish": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net"
+  },
+  {
+    "file": "mypetlink-api-prod - Web Deploy.pubxml",
+    "WebPublishMethod": "MSDeploy",
+    "SiteUrlToLaunchAfterPublish": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+    "MSDeployServiceURL": "mypetlink-api-prod-hug7becrejguf6d4.scm.southeastasia-01.azurewebsites.net:443",
+    "DeployIisAppPath": "mypetlink-api-prod"
+  },
+  {
+    "file": "mypetlink-api-prod - Zip Deploy.pubxml",
+    "WebPublishMethod": "ZipDeploy",
+    "SiteUrlToLaunchAfterPublish": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+    "PublishUrl": "https://mypetlink-api-prod-hug7becrejguf6d4.scm.southeastasia-01.azurewebsites.net/"
+  }
+]

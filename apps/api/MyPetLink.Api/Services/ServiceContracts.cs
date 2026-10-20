@@ -661,6 +661,22 @@ public interface ICareRecordService : ISkeletonService
         bool includeArchived,
         CancellationToken cancellationToken = default);
 
+    Task<(UpcomingCareRecordsResponse Response, int Total)> ListUpcomingAsync(
+        Guid? currentUserId,
+        Guid? petId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<UpcomingCareSummaryResponse> GetUpcomingSummaryAsync(
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<CareRecordCompletionStatusResponse> GetCompletionStatusAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CancellationToken cancellationToken = default);
+
     Task<CareRecordResponse> CreateAsync(
         Guid? currentUserId,
         Guid petId,

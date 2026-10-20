@@ -1,0 +1,117 @@
+[
+  {
+    "name": "A: server committed the create",
+    "ok": true,
+    "detail": "HTTP 201"
+  },
+  {
+    "name": "A: confirmed from the stored record, truthful wording",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A: one completing record, one create request",
+    "ok": true,
+    "detail": "logs=1 posts=1"
+  },
+  {
+    "name": "B: Save stays locked with no unlinked option after real elapsed time",
+    "ok": true,
+    "detail": "16s, 4 checks"
+  },
+  {
+    "name": "B: closing the editor keeps the unconfirmed save",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B: the late original is accepted",
+    "ok": true,
+    "detail": "HTTP 201"
+  },
+  {
+    "name": "B: confirmed once the original landed; one record, one browser request",
+    "ok": true,
+    "detail": "logs=1 posts=1"
+  },
+  {
+    "name": "C: another tab deleted the due item",
+    "ok": true,
+    "detail": "HTTP 204"
+  },
+  {
+    "name": "C: changed item reported, Save locked, no unlinked save offered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C: the late original is refused by the server",
+    "ok": true,
+    "detail": "HTTP 400"
+  },
+  {
+    "name": "C: no completing record and only one browser request",
+    "ok": true,
+    "detail": "logs=0 posts=1"
+  },
+  {
+    "name": "D: other tab logged it",
+    "ok": true,
+    "detail": "HTTP 201"
+  },
+  {
+    "name": "D: reopening a completed item writes nothing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "E: other tab logged it first",
+    "ok": true,
+    "detail": "HTTP 201"
+  },
+  {
+    "name": "E: refusal explained, draft kept, Save locked, no unlinked shortcut",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "E: one browser request; only the other tab's record exists",
+    "ok": true,
+    "detail": "posts=1 linked=1 total=1"
+  },
+  {
+    "name": "F: history record B exists",
+    "ok": true,
+    "detail": "HTTP 201"
+  },
+  {
+    "name": "F: while A waits, Escape/Cancel/Close/Edit B can't leave or replace A's editor",
+    "ok": true,
+    "detail": "cancelDisabled=true closeHidden=true stillA=true"
+  },
+  {
+    "name": "F: A settled once; B's new draft is untouched",
+    "ok": true,
+    "detail": "posts=1 logs=1"
+  },
+  {
+    "name": "G: B refused by the server; no unlinked shortcut; Save locked; earlier save mentioned",
+    "ok": true,
+    "detail": "archive=204 posts=1"
+  },
+  {
+    "name": "G: A arriving late is refused too; no record and no unlinked copy",
+    "ok": true,
+    "detail": "HTTP 400 logs=0"
+  },
+  {
+    "name": "H: removing a completed item's due date is refused; it stays completed",
+    "ok": true,
+    "detail": "landed=201 clear=400 state=completed"
+  },
+  {
+    "name": "H: confirmed once, one record",
+    "ok": true,
+    "detail": ""
+  }
+]

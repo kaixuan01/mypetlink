@@ -1,0 +1,65 @@
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F3ContributionSurvivesDisablingAndReEnablingTheEditor
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F1CorrectedHandoverKeepsOneLedgerIdentityThroughTrackingStartAndReversal(attribution: "NonSaleWithdrawal")
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F3PriceEditorCannotApproveTheirOwnChangeAsIndependent
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2ExistingOwnerCannotBeReclassifiedAsMissingOrDamagedStock(missing: False)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F4ReportsCannotBeVerifiedBeforeTheirExclusiveMalaysiaEnd(month: "2026-08", half: 2, end: "2026-09-01T00:00:00+08:00")
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F4ReportsCannotBeVerifiedBeforeTheirExclusiveMalaysiaEnd(month: "2026-08", half: 1, end: "2026-08-16T00:00:00+08:00")
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B7_RefundOnlyCorrectionsOfALateReportAreHandled
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2ConcurrentConflictingReceivingFindingsHaveExactlyOneWinner
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N4ARenewalSplitsReportsAtTheSuccessorsStart(fixedEnd: False)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F2CorrectionCannotLeaveMoreVerifiedRefundsThanSales
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3AllSubstantiveContributorsRemainIneligibleAfterNoOpAndRepeatedSaves
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EveryEditorIsExcludedAndOnlyTheNamedFounderMaySelfReviewInSolo
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B4_SettlingARelatedShortageNeedsIndependenceFromBothCounts
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2ExistingOwnerCannotBeReclassifiedAsMissingOrDamagedStock(missing: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3APriceWithUnknownHistoryIsRecoveredByAddingItAgain
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Opening", evidence: "PARTNER-OK", price: 39.90, startDays: 0, newName: "Opening", newEvidence: "PARTNER-OK", newPrice: 39.9, newStartDays: 0, isEdit: False)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2PassedDamagedReturnCannotReenterStockBeforeIndependentReview
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F5CorrectionAfterIdentifiedHandoversSucceedsWhenTheNetIsValid
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F1CorrectedHandoverKeepsOneLedgerIdentityThroughTrackingStartAndReversal(attribution: "AggregateSale")
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1HeldConsignmentShipsDespiteLaterRetailPendingBacklog
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F2RemovedLinesPriceChangesAndCorrectionsOfCorrectionsKeepRefundsCovered
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1AReportEditHiddenInDelimitedTextIsStillAnEdit
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F3ReportEditorCannotVerifyAReportSomeoneElseRecorded
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3AnUpgradeFromTheSoloSchemaWithNoSalesRecordsAddsNoRestriction
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_ClosedAndRecordedStocktakeLinesCanNotBeInsertedMovedOrRecounted
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Opening", evidence: null, price: 39.90, startDays: 0, newName: "Opening", newEvidence: "", newPrice: 39.90, newStartDays: 0, isEdit: False)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N4ARevisionCantStartInsideAPeriodAlreadyReportedUnderTheEarlierVersion
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "A|B", evidence: "E|F-OK", price: 39.90, startDays: 0, newName: "A|B|E", newEvidence: "F-OK", newPrice: 39.90, newStartDays: 0, isEdit: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2ContributorRollbackGuardRefusesWhileHistoryExists
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1ConcurrentPhysicalQaDowngradeAndDispatchCannotShipFailedStock
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2LocatedMissingAndReviewedReturnedDamageCompleteWithoutFalseRecount
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Opening", evidence: "  PARTNER-OK  ", price: 39.90, startDays: 0, newName: "Opening ", newEvidence: "PARTNER-OK", newPrice: 39.90, newStartDays: 0, isEdit: False)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2ActualHundredUnitPartialReceiptAllowsGoodStockAndPreservesEveryHold
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B1_ReducingAnExplainedLateRefundReopensTheSurplusNote
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F7RefundsMustMatchVerifiedSalesInTheirStatedOriginPeriod
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N4ARenewalSplitsReportsAtTheSuccessorsStart(fixedEnd: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F5SamePeriodSalesAndSealedReturnVerifyWhenTheFinalPositionIsValid
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2MissingAndDamagedCannotActivateWhileConfirmedGoodRemainsUsable
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2MissingLocatedCentrallyNeedsActualReturnAndIndependentReviewNotPartnerReceipt
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F5AnInvalidFinalPositionRollsBackEverything
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B5_CountTimeIsRecordedAndADelayedCountNeedsConfirmationWithNoMovement
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F8ChangedRetryAfterSomeoneElseEditedTheDraftIsAConflict
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B3_DamagedStockCanNotBeResolvedAsReturned
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F6RefundInARenewedVersionUsesTheOriginalSaleAndASplitPeriodStart
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B2_ALateSaleNeverExplainsAShortageFromALaterUnrelatedCount
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3UnknownEditorsFromTheOriginalPhase1ASchemaAreNotTreatedAsIndependent
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Opening", evidence: "PARTNER-OK", price: 39.90, startDays: 0, newName: "Opening", newEvidence: "PARTNER-OK", newPrice: 39.91, newStartDays: 0, isEdit: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Promo\0", evidence: "PARTNER\x1fOK", price: 39.90, startDays: 0, newName: "Promo", newEvidence: "PARTNER\x1fOK", newPrice: 39.90, newStartDays: 0, isEdit: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B6_HardeningRollbackIsCleanWhenEmptyAndBlockedByItsHistory
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3AReportWithUnknownHistoryIsReEnteredFromEvidenceAndReversedOnce
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F3NoOpSaveDoesNotMakeAnOperatorAContributor
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Opening", evidence: null, price: 39.90, startDays: 0, newName: "Opening", newEvidence: "PARTNER-OK", newPrice: 39.90, newStartDays: 0, isEdit: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B8_AResolutionNeedsEvidenceBeyondTheCountItselfInTeamAndSolo
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F4ReportsCannotBeVerifiedBeforeTheirExclusiveMalaysiaEnd(month: "2028-02", half: 2, end: "2028-03-01T00:00:00+08:00")
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B1_CorrectingAnExplainedLateSaleReopensTheShortageThroughEveryCorrection
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1WholesaleReadyAndShipmentDoNotReconsumeShelfStock
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Opening", evidence: "PARTNER-OK", price: 39.90, startDays: 0, newName: "Opening", newEvidence: "PARTNER-OK", newPrice: 39.90, newStartDays: 1, isEdit: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B2_ASaleNeverExplainsACountTakenBeforeItsPeriodAndEveryLinkIsChecked
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3NewRecordsHaveCompleteHistory
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.B7_ACorrectionTheShelfCannotSupportIsAClearBusinessError
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N2ContributorHistoryRefusesRawSqlEditsOnTheMigratedSchema
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N3UnknownHistoryCanOnlyBeSelfReviewedBySoloFounderWithEvidence
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.F8ChangedRetryNeverReturnsTheOldQuantitiesSilently
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1EditsAreComparedFieldByFieldNotAsJoinedText(name: "Promo\x1eA", evidence: "PARTNER-OK", price: 39.90, startDays: 0, newName: "Promo\x1eB", newEvidence: "PARTNER-OK", newPrice: 39.90, newStartDays: 0, isEdit: True)
+Passed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.N1TheReviewedDelimiterCollisionIsStillAnEditAndBlocksTeamApproval

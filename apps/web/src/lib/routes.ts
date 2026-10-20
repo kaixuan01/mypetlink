@@ -25,6 +25,12 @@ type TagOrderEntryOptions = TagOrderOptions & {
 
 type PetRecordsOptions = {
   create?: boolean;
+  /**
+   * Opens Log as done for this due item. Carries the record id only — an
+   * opaque navigation hint, never authorization. The page loads the record
+   * through the owner's session and decides whether it can be completed.
+   */
+  complete?: string;
 };
 
 type PetMomentsOptions = {
@@ -86,8 +92,20 @@ export const ownerRoutes = {
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string, options: PetEditOptions = {}) =>
     `/pets/${petId}/edit${options.tab ? `?tab=${options.tab}` : ""}`,
-  petRecords: (petId: string, options: PetRecordsOptions = {}) =>
-    `/pets/${petId}/records${options.create ? "?create=1" : ""}`,
+  petRecords: (petId: string, options: PetRecordsOptions = {}) => {
+    const params = new URLSearchParams();
+
+    if (options.create) {
+      params.set("create", "1");
+    }
+
+    if (options.complete) {
+      params.set("complete", options.complete);
+    }
+
+    const query = params.toString();
+    return `/pets/${petId}/records${query ? `?${query}` : ""}`;
+  },
   petMoments: (petId: string, options: PetMomentsOptions = {}) => {
     const params = new URLSearchParams();
 

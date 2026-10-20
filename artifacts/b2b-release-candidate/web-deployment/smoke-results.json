@@ -1,0 +1,344 @@
+{
+  "captured_at_utc": "2026-10-18T05:52:03.694501+00:00",
+  "read_only": true,
+  "checks": [
+    {
+      "url": "https://mypetlink.com.my/",
+      "final_url": "https://mypetlink.com.my/",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": "public, max-age=0, must-revalidate",
+      "robots_header": null,
+      "body_sha256": "a32db0a5769c547cc7458bf0e487d1e6c25c6eb5172f57e74f018b5e389fa88a",
+      "title": "MyPetLink Malaysia | Smart Pet Profiles, QR &amp; NFC Pet Tags",
+      "branded": true
+    },
+    {
+      "url": "https://mypetlink.com.my/where-to-buy",
+      "final_url": "https://mypetlink.com.my/where-to-buy",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": "public, max-age=0, must-revalidate",
+      "robots_header": null,
+      "body_sha256": "6d8277919ea792220cc78867f0f5ff64efa79f5fbb53249e7184e750af755f81",
+      "title": "Partner Stores &amp; Smart Tags | MyPetLink Malaysia",
+      "branded": true
+    },
+    {
+      "url": "https://mypetlink.com.my/admin/login",
+      "final_url": "https://mypetlink.com.my/admin/login",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": "public, max-age=0, must-revalidate",
+      "robots_header": null,
+      "body_sha256": "f67187fdf9c308b8d7e72720fa7db4d6744e37cee26233099762a31e464b4630",
+      "title": "Admin Login | MyPetLink",
+      "branded": true
+    },
+    {
+      "url": "https://mypetlink.com.my/admin/merchant-sales",
+      "final_url": "https://mypetlink.com.my/admin/merchant-sales",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": "public, max-age=0, must-revalidate",
+      "robots_header": null,
+      "body_sha256": "ef9a2a8fc3be37793961a3daea2920d92c6b7e492e18e51ebe9b6e6990d3916d",
+      "title": "Merchant Sales | MyPetLink",
+      "branded": true
+    },
+    {
+      "url": "https://mypetlink.com.my/login",
+      "final_url": "https://mypetlink.com.my/login",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": "public, max-age=0, must-revalidate",
+      "robots_header": null,
+      "body_sha256": "d95f856c533b7a22e9282112f0603c4a2073ff8ae1389cb1fe9090b10176d171",
+      "title": "Login | MyPetLink",
+      "branded": true
+    },
+    {
+      "url": "https://mypetlink.com.my/tags/order",
+      "final_url": "https://mypetlink.com.my/tags/order",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": "public, max-age=0, must-revalidate",
+      "robots_header": null,
+      "body_sha256": "7bc88dbabc672213156a861b16c1bf857a418e5371d880104aef44de20c0b169",
+      "title": "Order a Smart Tag | MyPetLink",
+      "branded": true
+    },
+    {
+      "url": "https://api.mypetlink.com.my/health/live",
+      "final_url": "https://api.mypetlink.com.my/health/live",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "0c77e624ee1f3e4d2c8113df53ac1361ff15234b7a67de99ed1ff860165cc069",
+      "response_excerpt": "{\"data\":{\"status\":\"ok\"},\"meta\":{\"requestId\":\"0HNPCRA40C4N4:00000003\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/health/ready",
+      "final_url": "https://api.mypetlink.com.my/health/ready",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "3df322f92f1413714fdc99eefa15381b4b2db9015d26ed15d6cdca2c8d0062b7",
+      "response_excerpt": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNPCRA40C4N2:0000000D\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "final_url": "https://api.mypetlink.com.my/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "8663b97986a4d127c0bd3a13085f61dee06333c99aad3bd9c4587c91e9f4dfb4",
+      "response_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4N2:0000000E\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/admin/merchant-sales/consignment/agreements",
+      "final_url": "https://api.mypetlink.com.my/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "0e79b40c49e1599dca19b6fa3811c7381127bb5e50d9e8133a2dff8b05018d26",
+      "response_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4N2:0000000F\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/admin/merchant-sales/merchants",
+      "final_url": "https://api.mypetlink.com.my/api/v1/admin/merchant-sales/merchants",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "d332ac73e464f5d4cd0328ca344b22bdd0a1322675bec05ed36ab519af3a71f1",
+      "response_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4N2:00000010\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/orders",
+      "final_url": "https://api.mypetlink.com.my/api/v1/orders",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "d58c2aba4e794015b17e06f7c5deb3441f71e5f63fe5feba8d0709d06dea3bcb",
+      "response_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4N4:00000004\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/tags",
+      "final_url": "https://api.mypetlink.com.my/api/v1/tags",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "713c1797fbe86cfe1bdc13b4f3fdc3f9936a43f27ce294c6533aebbfe7ade9b8",
+      "response_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPCRA40C4N4:00000005\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "url": "https://api.mypetlink.com.my/api/v1/tag-products",
+      "final_url": "https://api.mypetlink.com.my/api/v1/tag-products",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "cache_control": null,
+      "robots_header": "noindex",
+      "body_sha256": "8121b7138c94c4beaf52669022136cba57eafa10c9173b60d4e5aa058e6cb105"
+    }
+  ],
+  "release_markers": {
+    "smart-tags": "true",
+    "tag-orders": "true",
+    "ordering": "true",
+    "community": "true"
+  },
+  "admin_bundle_features": {
+    "Consignment approval policy": true,
+    "Self-reviewed (Solo)": true,
+    "/api/v1/admin/merchant-sales/consignment": true
+  },
+  "admin_js_assets": [
+    {
+      "path": "/_next/static/chunks/04pflo1ba08s0.js",
+      "status": 200,
+      "sha256": "fd97e8e2086e9ca36b1fe6bcda82e0f3887d4a91af5b9fba4fe1efd8924039a9"
+    },
+    {
+      "path": "/_next/static/chunks/0_201xelwfyz1.js",
+      "status": 200,
+      "sha256": "038be1b9bbe7b4a2fe06885383ac20ea7385585bf65647c996f18d3d42a0b188"
+    },
+    {
+      "path": "/_next/static/chunks/0cz1d0mv5g_q7.js",
+      "status": 200,
+      "sha256": "0973c1d64c88adc8e3c950410cb58b288f72118d5965b78049438deb8f2f9683"
+    },
+    {
+      "path": "/_next/static/chunks/0dprs2yubr4ad.js",
+      "status": 200,
+      "sha256": "6bc7594708505aa037dbb339e3657309a193efc797ccfb2cacceb730badbf4ba"
+    },
+    {
+      "path": "/_next/static/chunks/0g5i2ykpxo1ia.js",
+      "status": 200,
+      "sha256": "b8be7ef25dd4f2e90bd7e79233421b31f2f9e66cf3686e00ca169b83466d86cc"
+    },
+    {
+      "path": "/_next/static/chunks/0hkibb9gnwmnk.js",
+      "status": 200,
+      "sha256": "7632e3a13af4439c70d0852342514a7fd6a2de1105e2370d7b0a86650ef03409"
+    },
+    {
+      "path": "/_next/static/chunks/0mw0b4k6gv7v7.js",
+      "status": 200,
+      "sha256": "ed01a5247f6b8d014762c134d1340329ab61bd5c990df10072808518a08b3a87"
+    },
+    {
+      "path": "/_next/static/chunks/0w1wfklnaqahq.js",
+      "status": 200,
+      "sha256": "31d1b6967eed3320fb428375dc24f183da78709b1f723b2b057fe5409cf14ed2"
+    },
+    {
+      "path": "/_next/static/chunks/11g60nny48hi9.js",
+      "status": 200,
+      "sha256": "49439911d1e118058bf44e0c0662a5fa38a6e23329b7976cc938d5f7784e6e5a"
+    },
+    {
+      "path": "/_next/static/chunks/14mrh2-p_w84d.js",
+      "status": 200,
+      "sha256": "a3ac200f3ab8bfa57cf78882057741ddb5c0fbc9e2490c5d951c099b37484206"
+    },
+    {
+      "path": "/_next/static/chunks/1nrnb_3wjulr8.js",
+      "status": 200,
+      "sha256": "4d19cec4805dc502f75d805e9c87d9fcffd5953e70b835c7d39af0bd68a3dff0"
+    },
+    {
+      "path": "/_next/static/chunks/1ozu74jsu-j7k.js",
+      "status": 200,
+      "sha256": "5405d015f7c6096c0916c83e8a5f197c4aa6932b1165ee9504c0c543deab33f9"
+    },
+    {
+      "path": "/_next/static/chunks/1q22zuioa_obi.js",
+      "status": 200,
+      "sha256": "8476a96c45ebff7fbf38e3ee254e0af3cad07cd66d841e10d286188e069b92d0"
+    },
+    {
+      "path": "/_next/static/chunks/1s5_2r-pasvhx.js",
+      "status": 200,
+      "sha256": "7172ec79a22937249e9f3ca7d2518b0b64c7dba71c75b42ef6a062e957ed7141"
+    },
+    {
+      "path": "/_next/static/chunks/1ylz-mz3iykyt.js",
+      "status": 200,
+      "sha256": "47fbfb8471bca29756c5f9c6bff3da6597b198838e1f8774c3e01aeb32c4d820"
+    },
+    {
+      "path": "/_next/static/chunks/27jktro2p5rq9.js",
+      "status": 200,
+      "sha256": "5261101892e2476e4346e19e86fd5f19cbcf7c765ff76e92eb9cefcc86b6db6a"
+    },
+    {
+      "path": "/_next/static/chunks/2a6tl56b300v2.js",
+      "status": 200,
+      "sha256": "a54ecab00f3415af09e25326dde1e8d2b0cedafa92fffb930addabf1c51f7694"
+    },
+    {
+      "path": "/_next/static/chunks/2hgt7z871gks5.js",
+      "status": 200,
+      "sha256": "9cf2b6fdf44cc861e3773ddb69cd4efda09ddbf0c6d2ab97f45731822b5527c4"
+    },
+    {
+      "path": "/_next/static/chunks/2lub1a44ha3n5.js",
+      "status": 200,
+      "sha256": "331103dae3efb7224a0aa498098fe6605b872ec0760f3d5197c6264e5dde7ea6"
+    },
+    {
+      "path": "/_next/static/chunks/2u1o6mo7ex30f.js",
+      "status": 200,
+      "sha256": "9bd667be9516f82ae82d6b3711718327e617618ea5c705ce71f995f5f9d955b6"
+    },
+    {
+      "path": "/_next/static/chunks/2zsr37z_n_j1_.js",
+      "status": 200,
+      "sha256": "28454bb4457723d560ec6cca88526d8796e2662a0a76450ed9a5e01f4f9fddd9"
+    },
+    {
+      "path": "/_next/static/chunks/3-lwqbgjt0st4.js",
+      "status": 200,
+      "sha256": "d8a5d5f3d0707b02de6a05feb3ef503e678a3b90253443c0270ee3f3f2cf4b31"
+    },
+    {
+      "path": "/_next/static/chunks/31i6h9b07ghtn.js",
+      "status": 200,
+      "sha256": "d51671bfb421ea517b04c2f13e5c80f936368ba554a517e37ee09e1b83eca327"
+    },
+    {
+      "path": "/_next/static/chunks/32joplubpelas.js",
+      "status": 200,
+      "sha256": "001aeb39b3646e229c11d3517b4326a9e2b440216d30d07d32684261a9268f03"
+    },
+    {
+      "path": "/_next/static/chunks/35l83kqqqoav6.js",
+      "status": 200,
+      "sha256": "bb218c0c6f458923cad130815b268d816b40371a801e2f232b11169a2aa6713e"
+    },
+    {
+      "path": "/_next/static/chunks/3dmaybp10v1-7.js",
+      "status": 200,
+      "sha256": "ae1572078143ea0d9581e2d64c4b84af87f5ce8b5191effca1d29e34a96070df"
+    },
+    {
+      "path": "/_next/static/chunks/3fzbn053x11wp.js",
+      "status": 200,
+      "sha256": "0b36a05cae87aff923e7d26d17a3b7f1492bce4f6e1b193f31e75d12000b23dd"
+    },
+    {
+      "path": "/_next/static/chunks/3g_amu1ns9wgm.js",
+      "status": 200,
+      "sha256": "f9f6bae96763919c61b03cc0d5736a02ec6e0d802d45ad13e607266053ffd756"
+    },
+    {
+      "path": "/_next/static/chunks/3rb4xshpnmb9w.js",
+      "status": 200,
+      "sha256": "4957eb562915c38d6aa044d82d2ccb890cbc374bdbbf17d5aea3cee2f8afc509"
+    },
+    {
+      "path": "/_next/static/chunks/3u0l_xwov1ppf.js",
+      "status": 200,
+      "sha256": "a98b925e9e5f3b45999b82633abbcefdef9cd2f2e9419c846f1eb934d8ae49e8"
+    },
+    {
+      "path": "/_next/static/chunks/3xo2kva-xmhxb.js",
+      "status": 200,
+      "sha256": "dab57d89e59bfc70590df64f19532eddba8b3905ea2957a4ee56721c968bc1c1"
+    },
+    {
+      "path": "/_next/static/chunks/turbopack-23ig9s6b7eo-r.js",
+      "status": 200,
+      "sha256": "f6694b0572ec1f1205daea702ba5428046b92992f621ccaec89a95ed9bfecf49"
+    },
+    {
+      "path": "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092",
+      "status": 200,
+      "sha256": "637381256384554e1cc3309a62fb238a51b83e7f10b2a56d8ba15dbc73ca762e"
+    }
+  ],
+  "all_passed": true
+}

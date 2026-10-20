@@ -1,0 +1,161 @@
+
+> mypetlink@0.1.0 build
+> node --experimental-strip-types scripts/build-release.mjs
+
+(node:36308) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Release selection: {
+  NEXT_PUBLIC_SMART_TAGS_ENABLED: 'true',
+  NEXT_PUBLIC_TAG_ORDERS_ENABLED: 'true',
+  NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED: 'true',
+  NEXT_PUBLIC_SOCIAL_ENABLED: 'true'
+}
+▲ Next.js 16.2.9 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 7.0s
+  Running TypeScript ...
+  Finished TypeScript in 22.5s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/160) ...
+  Generating static pages using 11 workers (40/160) 
+  Generating static pages using 11 workers (80/160) 
+  Generating static pages using 11 workers (120/160) 
+✓ Generating static pages using 11 workers (160/160) in 1415ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ● /activate/[tagCode]
+│ ├ /activate/MPL-9F3K-H7Q2
+│ ├ /activate/mpl-9f3k-h7q2
+│ ├ /activate/8KX29A
+│ └ [+15 more paths]
+├ ○ /admin
+├ ○ /admin/access/activity
+├ ○ /admin/access/roles
+├ ○ /admin/access/users
+├ ○ /admin/business-identity
+├ ○ /admin/community-comments
+├ ○ /admin/community-moments
+├ ○ /admin/community-reports
+├ ○ /admin/delivery-rates
+├ ○ /admin/email-templates
+├ ○ /admin/login
+├ ○ /admin/merchant-sales
+├ ○ /admin/operational-status
+├ ○ /admin/order-checkout
+├ ○ /admin/orders
+├ ○ /admin/payment-proofs
+├ ○ /admin/pets
+├ ○ /admin/plans
+├ ○ /admin/qr-profiles
+├ ○ /admin/sample-experience
+├ ○ /admin/shipping-fulfilment
+├ ○ /admin/tag-inventory
+├ ○ /admin/tag-products
+├ ○ /admin/tags
+├ ○ /admin/users
+├ ○ /community/profile
+├ ○ /community/profile/edit
+├ ○ /dashboard
+├ ○ /explore
+├ ○ /feed
+├ ○ /how-it-works
+├ ○ /login
+├ ○ /manifest.webmanifest
+├ ○ /moments
+├ ● /moments/[momentId]
+│ └ /moments/00000000-0000-0000-0000-000000000000
+├ ● /n/[tagCode]
+│ ├ /n/MPL-9F3K-H7Q2
+│ ├ /n/mpl-9f3k-h7q2
+│ ├ /n/8KX29A
+│ └ [+15 more paths]
+├ ○ /notifications
+├ ○ /orders
+├ ○ /orders/view
+├ ● /p/[slug]
+│ ├ /p/milo-k7q2
+│ ├ /p/luna-m4r8
+│ └ /p/topu-pnpr4ipnr6ppelnsn
+├ ○ /pet-profile
+├ ○ /pets
+├ ● /pets/[id]
+│ ├ /pets/pet_milo
+│ └ /pets/pet_luna
+├ ● /pets/[id]/edit
+│ ├ /pets/pet_milo/edit
+│ └ /pets/pet_luna/edit
+├ ● /pets/[id]/moments
+│ ├ /pets/pet_milo/moments
+│ └ /pets/pet_luna/moments
+├ ● /pets/[id]/moments/new
+│ ├ /pets/pet_milo/moments/new
+│ └ /pets/pet_luna/moments/new
+├ ● /pets/[id]/qr
+│ ├ /pets/pet_milo/qr
+│ └ /pets/pet_luna/qr
+├ ● /pets/[id]/records
+│ ├ /pets/pet_milo/records
+│ └ /pets/pet_luna/records
+├ ● /pets/[id]/tags
+│ ├ /pets/pet_milo/tags
+│ └ /pets/pet_luna/tags
+├ ● /pets/[id]/tags/order
+│ ├ /pets/pet_milo/tags/order
+│ └ /pets/pet_luna/tags/order
+├ ● /pets/[id]/timeline
+│ ├ /pets/pet_milo/timeline
+│ └ /pets/pet_luna/timeline
+├ ○ /pets/new
+├ ○ /pricing
+├ ○ /privacy
+├ ● /q/[safetyCode]
+│ ├ /q/MPL-SAFE-MILO
+│ ├ /q/mpl-safe-milo
+│ ├ /q/MPL-SAFE-LUNA
+│ └ [+20 more paths]
+├ ○ /records
+├ ○ /robots.txt
+├ ○ /safety-profile
+├ ○ /sample
+├ ○ /search
+├ ○ /settings
+├ ○ /sitemap.xml
+├ ○ /smart-pet-tags
+├ ● /t/[tagCode]
+│ ├ /t/MPL-9F3K-H7Q2
+│ ├ /t/mpl-9f3k-h7q2
+│ ├ /t/8KX29A
+│ └ [+15 more paths]
+├ ○ /tags
+├ ○ /tags/order
+├ ○ /terms
+├ ● /u/[handle]
+│ └ /u/mypetlink-profile
+├ ● /u/[handle]/followers
+│ └ /u/mypetlink-profile/followers
+├ ● /u/[handle]/following
+│ └ /u/mypetlink-profile/following
+└ ○ /where-to-buy
+
+
+○  (Static)  prerendered as static content
+●  (SSG)     prerendered as static HTML (uses generateStaticParams)
+
+(node:20880) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20880) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Project/MyPetLink/apps/web/src/lib/releaseFlags.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Project\MyPetLink\apps\web\package.json.
+All four release flags verified against exported metadata and rendered Smart Tag availability.
+Social flag verified: the export is Social ON.
+  3 entry points checked in the export, 4 control markers confirmed, 1 client-rendered entry point gate confirmed at source, 11 routes present, _routes.json admits every finder and social path.
+warning: /p/topu-pnpr4ipnr6ppelnsn is indexable but its initial HTML has 93 characters of text (docs/seo/seo-audit.md, SEO-M4)
+SEO output verified: 12 sitemap URLs (from sitemap.xml), 104 unlisted pages confirmed noindex, robots.txt, _headers, and 404.html.
+(node:36308) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Project/MyPetLink/apps/web/src/lib/releaseFlags.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Project\MyPetLink\apps\web\package.json.

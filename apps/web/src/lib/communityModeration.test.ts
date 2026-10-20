@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/services/apiClient";
 import {
   communityActionErrorMessage,
@@ -10,6 +10,10 @@ import {
 } from "@/lib/communityModeration";
 
 const now = Date.parse("2026-10-08T02:00:00Z");
+
+// Restriction-copy tests use their stated date, independent of the wall clock.
+beforeEach(() => { vi.spyOn(Date, "now").mockReturnValue(now); });
+afterEach(() => { vi.restoreAllMocks(); });
 
 describe("Community restriction copy", () => {
   it("says until when a timed restriction lasts, in Malaysia time", () => {

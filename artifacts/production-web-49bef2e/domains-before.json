@@ -1,0 +1,25 @@
+[
+  {
+    "name": "mypetlink.com.my",
+    "status": "active",
+    "verification_data": {
+      "status": "active"
+    },
+    "validation_data": {
+      "status": "active",
+      "method": "http"
+    }
+  },
+  {
+    "name": "www.mypetlink.com.my",
+    "status": "error",
+    "verification_data": {
+      "status": "active"
+    },
+    "validation_data": {
+      "status": "error",
+      "method": "http",
+      "error_message": "SSL Validation encountered the following errors: This certificate pack has reached expiration and has been removed from the Cloudflare network. It has been replaced with one or more certificate packs which cover some or all of the SANs on the original pack."
+    }
+  }
+]

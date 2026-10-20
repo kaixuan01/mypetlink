@@ -1,0 +1,113 @@
+{
+  "preview": {
+    "merchantBranchId": "f9000000-0000-0000-0000-000000000001",
+    "countDate": "2026-10-15",
+    "cutoffAt": "2026-10-16T00:00:00+08:00",
+    "previousCutoffAt": "2026-10-01T00:00:00+08:00",
+    "lines": [
+      {
+        "id": null,
+        "productVariantId": "f3000000-0000-0000-0000-000000000003",
+        "sku": "WS-NFC-0001",
+        "productName": "Wholesale Smart Tag \u00B7 Standard",
+        "bookSellable": 8,
+        "bookUnsellable": 0,
+        "bookInvestigation": 0,
+        "bookSold": 2,
+        "bookLost": 0,
+        "openSurplusBefore": 0,
+        "expectedSellable": 8,
+        "expectedUnsellable": 0,
+        "countedSellable": null,
+        "countedUnsellable": null,
+        "sellableVariance": null,
+        "unsellableVariance": null,
+        "unsellableFound": 0,
+        "unsellableShortage": 0,
+        "shortage": 0,
+        "surplus": 0,
+        "surplusNoLongerPresent": 0,
+        "closingSellable": 8,
+        "closingUnsellable": 0,
+        "closingInvestigation": 0,
+        "closingSold": 2,
+        "closingLost": 0,
+        "openSurplusAfter": 0,
+        "custodyUnits": 10,
+        "notes": null,
+        "frozen": false
+      }
+    ],
+    "issues": [
+      "WS-NFC-0001: extra stock noted at an earlier count was reopened on 20 Oct 2026, after this count date, so this count can\u0027t be compared with it reliably. Discard this count and count again on the next count date."
+    ]
+  },
+  "count": {
+    "id": "e9c456c2-eebf-41d8-8e48-fa0b427fe8f0",
+    "merchantId": "f2000000-0000-0000-0000-000000000001",
+    "merchantName": "Happy Paws Veterinary Group Sdn Bhd",
+    "merchantBranchId": "f9000000-0000-0000-0000-000000000001",
+    "branchName": "QA branch",
+    "countDate": "2026-10-15",
+    "cutoffAt": "2026-10-16T00:00:00+08:00",
+    "countedBy": "Shop owner",
+    "evidenceKind": "Count sheet photo",
+    "evidenceReference": "Count sheet photo 2026-10-15",
+    "notes": null,
+    "status": "Recorded",
+    "previousStocktakeId": null,
+    "previousCutoffAt": "2026-10-01T00:00:00+08:00",
+    "createdAt": "2026-10-19T09:04:04.4869255+00:00",
+    "recordedAt": "2026-10-21T10:00:00+08:00",
+    "approvedAt": null,
+    "reviewMode": null,
+    "lines": [
+      {
+        "id": "e21f829c-1f76-4a06-8c0e-92c803ecd96e",
+        "productVariantId": "f3000000-0000-0000-0000-000000000003",
+        "sku": "WS-NFC-0001",
+        "productName": "Wholesale Smart Tag \u00B7 Standard",
+        "bookSellable": 8,
+        "bookUnsellable": 0,
+        "bookInvestigation": 0,
+        "bookSold": 2,
+        "bookLost": 0,
+        "openSurplusBefore": 0,
+        "expectedSellable": 8,
+        "expectedUnsellable": 0,
+        "countedSellable": 8,
+        "countedUnsellable": 0,
+        "sellableVariance": 0,
+        "unsellableVariance": 0,
+        "unsellableFound": 0,
+        "unsellableShortage": 0,
+        "shortage": 0,
+        "surplus": 0,
+        "surplusNoLongerPresent": 0,
+        "closingSellable": 8,
+        "closingUnsellable": 0,
+        "closingInvestigation": 0,
+        "closingSold": 2,
+        "closingLost": 0,
+        "openSurplusAfter": 0,
+        "custodyUnits": 10,
+        "notes": null,
+        "frozen": false
+      }
+    ],
+    "issues": [
+      "WS-NFC-0001: extra stock noted at an earlier count was reopened on 20 Oct 2026, after this count date, so this count can\u0027t be compared with it reliably. Discard this count and count again on the next count date."
+    ],
+    "warnings": [],
+    "concurrencyToken": "AAAAAAAACH0=",
+    "countedAt": "2026-10-15T21:00:00+08:00",
+    "countedAfterCutoffNote": null,
+    "reviewFingerprint": "941DC90E5F45A997599410809F02DF8F"
+  },
+  "error": {
+    "statusCode": 409,
+    "code": "historical_count_incompatible",
+    "message": "WS-NFC-0001: extra stock noted at an earlier count was reopened on 20 Oct 2026, after this count date, so this count can\u0027t be compared with it reliably. Discard this count and count again on the next count date."
+  },
+  "unchanged": true
+}

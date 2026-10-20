@@ -1,0 +1,16 @@
+
+ RUN  v4.1.10 C:/Project/MyPetLink/apps/web
+
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: Window's scrollTo() method
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+
+ Test Files  378 passed | 1 skipped (379)
+      Tests  4423 passed | 7 skipped (4430)
+   Start at  16:43:24
+   Duration  157.77s (transform 51.36s, setup 0ms, import 294.10s, tests 391.42s, environment 863.80s)
+

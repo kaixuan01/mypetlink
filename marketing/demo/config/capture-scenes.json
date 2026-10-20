@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "defaults": {
+    "viewport": {
+      "width": 540,
+      "height": 960
+    },
+    "video": {
+      "width": 1080,
+      "height": 1920
+    },
+    "deviceScaleFactor": 2,
+    "locale": "en-MY",
+    "timezoneId": "Asia/Kuala_Lumpur",
+    "imageTimeoutMs": 20000,
+    "settleMs": 700
+  },
+  "allowedContact": [
+    "+601110000000",
+    "+60 11-1000 0000",
+    "support@mypetlink.com.my"
+  ],
+  "batches": {
+    "mpl-v001": [
+      "safety-profile-linko",
+      "safety-profile-linky",
+      "mypetlink-profile",
+      "community",
+      "mascot-moment"
+    ]
+  },
+  "scenes": {
+    "safety-profile-linko": {
+      "description": "Linko's Safety Profile, the page a finder reaches. Holds on the photo and name, reads down the finder information, then rests on the Contact Owner action.",
+      "path": "/q/linkodemo",
+      "targetSeconds": [
+        4,
+        6
+      ],
+      "expectText": [
+        "Found Linko?",
+        "MyPetLink",
+        "WhatsApp Owner"
+      ],
+      "actions": [
+        {
+          "type": "wait",
+          "ms": 1100
+        },
+        {
+          "type": "scroll",
+          "y": 300,
+          "durationMs": 1400
+        },
+        {
+          "type": "wait",
+          "ms": 700
+        },
+        {
+          "type": "scroll",
+          "y": 240,
+          "durationMs": 1200
+        },
+        {
+          "type": "wait",
+          "ms": 1100
+        }
+      ]
+    },
+    "safety-profile-linky": {
+      "description": "Linky's Safety Profile, the same finder page for the second mascot.",
+      "path": "/q/linkydemo",
+      "targetSeconds": [
+        4,
+        6
+      ],
+      "expectText": [
+        "Found Linky?",
+        "MyPetLink",
+        "WhatsApp Owner"
+      ],
+      "actions": [
+        {
+          "type": "wait",
+          "ms": 1100
+        },
+        {
+          "type": "scroll",
+          "y": 300,
+          "durationMs": 1400
+        },
+        {
+          "type": "wait",
+          "ms": 700
+        },
+        {
+          "type": "scroll",
+          "y": 240,
+          "durationMs": 1200
+        },
+        {
+          "type": "wait",
+          "ms": 1100
+        }
+      ]
+    },
+    "mypetlink-profile": {
+      "description": "The MyPetLink Community profile: brand mark, name and handle, then Linko, then down into the Moments grid.",
+      "path": "/u/mypetlink",
+      "targetSeconds": [
+        5,
+        8
+      ],
+      "expectText": [
+        "MyPetLink",
+        "@mypetlink",
+        "Linko",
+        "Linky",
+        "Moments"
+      ],
+      "actions": [
+        {
+          "type": "wait",
+          "ms": 1300
+        },
+        {
+          "type": "scroll",
+          "y": 300,
+          "durationMs": 1400
+        },
+        {
+          "type": "wait",
+          "ms": 900
+        },
+        {
+          "type": "scroll",
+          "y": 420,
+          "durationMs": 1600
+        },
+        {
+          "type": "wait",
+          "ms": 900
+        }
+      ]
+    },
+    "community": {
+      "description": "Community discovery, opening on Linko and drifting down through the MyPetLink Moments.",
+      "path": "/explore",
+      "targetSeconds": [
+        5,
+        8
+      ],
+      "expectText": [
+        "Linko",
+        "Linky",
+        "@mypetlink"
+      ],
+      "actions": [
+        {
+          "type": "wait",
+          "ms": 1100
+        },
+        {
+          "type": "scroll",
+          "y": 360,
+          "durationMs": 1500
+        },
+        {
+          "type": "wait",
+          "ms": 800
+        },
+        {
+          "type": "scroll",
+          "y": 420,
+          "durationMs": 1600
+        },
+        {
+          "type": "wait",
+          "ms": 800
+        }
+      ]
+    },
+    "mascot-moment": {
+      "description": "The Moment about both mascots: the IP artwork, the brand line, Linko and Linky as subjects, MyPetLink as author.",
+      "path": "/moments/b4a4de70-0000-4000-8000-000000000023",
+      "targetSeconds": [
+        3,
+        5
+      ],
+      "expectText": [
+        "Connect",
+        "Linko",
+        "Linky",
+        "MyPetLink"
+      ],
+      "actions": [
+        {
+          "type": "wait",
+          "ms": 1500
+        },
+        {
+          "type": "scroll",
+          "y": 260,
+          "durationMs": 1400
+        },
+        {
+          "type": "wait",
+          "ms": 1200
+        }
+      ]
+    }
+  }
+}

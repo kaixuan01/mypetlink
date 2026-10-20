@@ -1,0 +1,42 @@
+[
+  {
+    "sha256": "D39BEDDF274160A4A2DF75BE1882150BD6BCD32F3B2057FF9382260ADEB29B56",
+    "productionApi": false,
+    "path": "/_next/static/chunks/27lxe_8ole0_m.js",
+    "origin": "https://mypetlink.com.my",
+    "bytes": 433366,
+    "stocktakeUi": true,
+    "lateLinkUi": true,
+    "matchesRelease": true
+  },
+  {
+    "sha256": "0B17CD8AFF5A9467DE0F421176CC0D9FBB0C1C00FE8D94A095B7FC4DD526D78B",
+    "productionApi": true,
+    "path": "/_next/static/chunks/0sv_4ym5x2sn7.js",
+    "origin": "https://mypetlink.com.my",
+    "bytes": 29909,
+    "stocktakeUi": false,
+    "lateLinkUi": false,
+    "matchesRelease": true
+  },
+  {
+    "sha256": "D39BEDDF274160A4A2DF75BE1882150BD6BCD32F3B2057FF9382260ADEB29B56",
+    "productionApi": false,
+    "path": "/_next/static/chunks/27lxe_8ole0_m.js",
+    "origin": "https://ff6055b0.mypetlink.pages.dev",
+    "bytes": 433366,
+    "stocktakeUi": true,
+    "lateLinkUi": true,
+    "matchesRelease": true
+  },
+  {
+    "sha256": "0B17CD8AFF5A9467DE0F421176CC0D9FBB0C1C00FE8D94A095B7FC4DD526D78B",
+    "productionApi": true,
+    "path": "/_next/static/chunks/0sv_4ym5x2sn7.js",
+    "origin": "https://ff6055b0.mypetlink.pages.dev",
+    "bytes": 29909,
+    "stocktakeUi": false,
+    "lateLinkUi": false,
+    "matchesRelease": true
+  }
+]

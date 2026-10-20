@@ -1,0 +1,2 @@
+dbd55fb0414e09f21b95456922d74aaf6d9a252ef2f9c17d670d3f5afb7d76d7 *apps/api/MyPetLink.Api/Services/ConsignmentService.Stocktake.cs
+5cd6da761f164598d3f09a7b00e8571c347d4fa478b752efab873a6902711195 *apps/api/MyPetLink.Api/Services/ConsignmentService.Sales.cs

@@ -1,0 +1,105 @@
+{
+  "description": "Demo media for the local MyPetLink marketing profile. Derived from the official IP masters; the masters themselves are never modified.",
+  "assets": [
+    {
+      "file": "linko-profile.jpg",
+      "purpose": "Linko's pet profile photo",
+      "note": "Official mascot render, cropped from the IP board. Paired with linky-profile.jpg.",
+      "source": "IP folder: IP_Linko_Linky.png",
+      "sourceSha256": "8f594baf40c5a5c433972ea1ba0bb3fb7cfea14074b92f336199c3a4f50e0622",
+      "width": 900,
+      "height": 1029,
+      "bytes": 129970
+    },
+    {
+      "file": "linky-profile.jpg",
+      "purpose": "Linky's pet profile photo",
+      "note": "Official mascot render, cropped from the IP board. Paired with linko-profile.jpg.",
+      "source": "IP folder: IP_Linko_Linky.png",
+      "sourceSha256": "8f594baf40c5a5c433972ea1ba0bb3fb7cfea14074b92f336199c3a4f50e0622",
+      "width": 900,
+      "height": 922,
+      "bytes": 93584
+    },
+    {
+      "file": "linko-cover.jpg",
+      "purpose": "Linko's pet cover photo",
+      "note": "Full seated portrait with the navy collar and round MyPetLink tag clearly visible.",
+      "source": "IP folder: Linko/Moments/04 MyPetLink Tag/Linko_Ch04_05_CompletedPortrait_v8.png",
+      "sourceSha256": "4684817561e074074cfe201d32b435fe7137abb7848107cdef39676a8771f3f4",
+      "width": 1122,
+      "height": 1402,
+      "bytes": 252326
+    },
+    {
+      "file": "linky-cover.jpg",
+      "purpose": "Linky's pet cover photo",
+      "note": "Landscape scene, which suits a banner. From Linky's own story set.",
+      "source": "IP folder: Linky_2_Playdate.png",
+      "sourceSha256": "6a445e023613d6b80214ad293b574e11e57be7c0ded5c31c268e421f81b909b6",
+      "width": 1402,
+      "height": 1122,
+      "bytes": 395340
+    },
+    {
+      "file": "moment-01-meet-linko.jpg",
+      "purpose": "Moment 1 — Meet Linko",
+      "note": "Close owner-perspective portrait; the warmest single image of Linko.",
+      "source": "IP folder: Linko/Moments/03 Meet Linko/Linko_Ch03_04_MeetLinkoPortrait_v2.png",
+      "sourceSha256": "9f2084f6262af2bb80c3304c7fa7b772cc81a27c1119533ef84927988581c392",
+      "width": 1122,
+      "height": 1402,
+      "bytes": 312774
+    },
+    {
+      "file": "moment-02-meet-linky.jpg",
+      "purpose": "Moment 2 — Meet Linky",
+      "note": "Linky's First Meet, 15 March 2025: found under a banana leaf. His origin image.",
+      "source": "IP folder: Linky_1_FirstMeet.png",
+      "sourceSha256": "6cd4e491abe56675fd1820bde9d7e1d5aba35c7880cf7d854502ace760fb1f86",
+      "width": 1402,
+      "height": 1122,
+      "bytes": 392219
+    },
+    {
+      "file": "moment-03-together.jpg",
+      "purpose": "Moment 3 — Together",
+      "note": "The official IP board, used whole. The one Moment that is about both mascots.",
+      "source": "IP folder: IP_Linko_Linky.png",
+      "sourceSha256": "8f594baf40c5a5c433972ea1ba0bb3fb7cfea14074b92f336199c3a4f50e0622",
+      "width": 1402,
+      "height": 1122,
+      "bytes": 212708
+    },
+    {
+      "file": "moment-04-safe-at-home.jpg",
+      "purpose": "Moment 4 — Every pet deserves identity, safety and connection",
+      "note": "Linky's First Day Home, 22 March 2025: his first meal, safe.",
+      "source": "IP folder: Linky_3_FirstDayHome.png",
+      "sourceSha256": "f9272248ab86e448e6dca2d098f481e1907491aec32f59310b3b257eed9f275a",
+      "width": 1402,
+      "height": 1122,
+      "bytes": 395775
+    },
+    {
+      "file": "moment-05-smart-tag.jpg",
+      "purpose": "Moment 5 — Smart, modern tools for every pet family",
+      "note": "The one Moment that shows the product on the pet.",
+      "source": "IP folder: Linko/Moments/04 MyPetLink Tag/Linko_Ch04_01_FirstTag_Cover_v9.png",
+      "sourceSha256": "b3f087659e755a0b7bbd62a2547ba6db610f4e8918b62e192ac5bef7e74263fc",
+      "width": 1122,
+      "height": 1402,
+      "bytes": 292626
+    },
+    {
+      "file": "mypetlink-logo.png",
+      "purpose": "MyPetLink owner avatar",
+      "note": "Official brand mark, square, copied unchanged.",
+      "source": "Repository: apps/web/public/app-icon-512.png",
+      "sourceSha256": "a6ccf16e0d65ea05ba20cf8ae2669701d77191a4ba7e2bd4c14308b27e1b10fc",
+      "width": 512,
+      "height": 512,
+      "bytes": 95541
+    }
+  ]
+}

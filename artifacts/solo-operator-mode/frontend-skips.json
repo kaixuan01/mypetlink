@@ -1,0 +1,37 @@
+[
+  {
+    "file": "apps/web/src/app/page.test.tsx",
+    "test": "landing page commercial claims offers no purchase action while Smart Tag ordering is disabled",
+    "status": "skipped"
+  },
+  {
+    "file": "apps/web/src/components/auth/OwnerLoginExperience.test.tsx",
+    "test": "OwnerLoginExperience marks Smart Tag add-ons as Coming Soon while ordering is off",
+    "status": "skipped"
+  },
+  {
+    "file": "apps/web/src/components/layouts/ContextualSocialShell.test.tsx",
+    "test": "an anonymous visitor is offered no Community destination while Community is off",
+    "status": "skipped"
+  },
+  {
+    "file": "apps/web/src/app/page.test.tsx",
+    "test": "landing page commercial claims offers the Smart Tag checkout, and online ordering rather than a partner, while ordering is open",
+    "status": "skipped"
+  },
+  {
+    "file": "apps/web/src/services/merchantDirectoryService.routing.test.ts",
+    "test": "reads and edits Admin listing/branches through actual routes",
+    "status": "skipped"
+  },
+  {
+    "file": "apps/web/src/services/merchantDirectoryService.routing.test.ts",
+    "test": "publishes with evidence and serves public list/search/direct responses",
+    "status": "skipped"
+  },
+  {
+    "file": "apps/web/src/services/merchantDirectoryService.routing.test.ts",
+    "test": "withdraws immediately and real public routing rejects the old code",
+    "status": "skipped"
+  }
+]

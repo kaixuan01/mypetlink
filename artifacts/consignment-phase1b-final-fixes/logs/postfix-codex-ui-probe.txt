@@ -1,0 +1,42 @@
+﻿node.exe : Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The 
+following esbuild options were set: `{ jsx: 'automatic' }`
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Both esbuild an... 'automatic' }`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+ RUN  v4.1.10 C:/Project/MyPetLink
+
+ ❯ artifacts/consignment-phase1b-final-fixes/codex-rerun/sold-out-report.test.tsx (1 test | 1 failed) 248ms
+   × reproduces a valid sold-out report whose required allocation dialog is unreachable 246ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  artifacts/consignment-phase1b-final-fixes/codex-rerun/sold-out-report.test.tsx > reproduces a valid sold-out 
+report whose required allocation dialog is unreachable
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ artifacts/consignment-phase1b-final-fixes/codex-rerun/sold-out-report.test.tsx:78:27
+     76|   render(<ConsignmentPanel />);
+     77|   const button=await screen.findByRole("button",{name:"Verify report"}…
+     78|   expect(button.disabled).toBe(true);
+       |                           ^
+     79|   fireEvent.click(button);
+     80|   expect(screen.queryByRole("dialog")).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  16:21:49
+   Duration  2.96s (transform 594ms, setup 0ms, import 1.02s, tests 248ms, environment 1.47s)
+

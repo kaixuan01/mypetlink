@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.26" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.26" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.26" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="8.10.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="PdfPig" Version="0.1.9" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="C:/Project/MyPetLink/apps/api/MyPetLink.Api/MyPetLink.Api.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="C:/Project/MyPetLink/apps/api/MyPetLink.Api.Tests/**/*.cs" Exclude="C:/Project/MyPetLink/apps/api/MyPetLink.Api.Tests/bin/**;C:/Project/MyPetLink/apps/api/MyPetLink.Api.Tests/obj/**" />
+    <Compile Include="IndependentProbes.cs" />
+  </ItemGroup>
+</Project>

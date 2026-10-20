@@ -1,0 +1,20 @@
+Phase 1B remediation SQL checks — 2026-10-19 06:33 MYT
+Server: (localdb)\MSSQLLocalDB, integrated authentication, disposable databases only; sqlcmd -I -b with migration-session-settings.sql first.
+fresh install exit: 1
+fresh:  migrations, head 
+fresh replay exit: 1
+fresh replay:  migrations, head 
+fresh DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: 0 violation rows
+phase 1A head exit: 1
+phase 1A head:  migrations, head 
+upgrade 1A -> current exit: 1
+upgraded from 1A:  migrations, head 
+upgrade replay exit: 1
+upgrade replay:  migrations, head 
+from 1A DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: 0 violation rows
+reviewed 1B head exit: 1
+reviewed 1B head:  migrations, head 
+upgrade 1B -> current exit: 1
+upgraded from 1B:  migrations, head 
+from 1B DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS: 0 violation rows
+Dropped: MyPetLinkRemediation_Fresh, MyPetLinkRemediation_From1A, MyPetLinkRemediation_From1B

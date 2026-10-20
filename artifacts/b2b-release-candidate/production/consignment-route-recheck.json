@@ -1,0 +1,41 @@
+{
+  "captured_at_utc": "2026-10-18T05:39:52.421764+00:00",
+  "checks": [
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/health/ready",
+      "status": null,
+      "body": "The read operation timed out"
+    },
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": null,
+      "body": "The read operation timed out"
+    },
+    {
+      "origin": "https://api.mypetlink.com.my",
+      "path": "/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": null,
+      "body": "The read operation timed out"
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/health/ready",
+      "status": 500,
+      "body": ""
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": 500,
+      "body": ""
+    },
+    {
+      "origin": "https://mypetlink-api-prod-hug7becrejguf6d4.southeastasia-01.azurewebsites.net",
+      "path": "/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": 500,
+      "body": ""
+    }
+  ]
+}

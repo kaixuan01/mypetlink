@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using MyPetLink.Api.Auth;
@@ -52,6 +53,8 @@ builder.Services.AddOptions<ReferralAttributionOptions>()
 builder.Services.AddSingleton<IValidateOptions<ReferralAttributionOptions>,
     ReferralAttributionOptionsValidator>();
 builder.Services.Configure<DevAuthOptions>(builder.Configuration.GetSection(DevAuthOptions.SectionName));
+builder.Services.Configure<MarketingDemoOptions>(
+    builder.Configuration.GetSection(MarketingDemoOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
 builder.Services.Configure<SmartTagRateLimitingOptions>(
@@ -201,6 +204,14 @@ var devAuth = builder.Configuration
     .GetSection(DevAuthOptions.SectionName)
     .Get<DevAuthOptions>() ?? new DevAuthOptions();
 DevAuthOptions.ValidateForStartup(builder.Environment, devAuth);
+
+// Validated at startup rather than at first use, so a host that has been
+// configured to fabricate the marketing brand account outside Development
+// fails to boot instead of quietly ignoring the setting.
+var marketingDemo = builder.Configuration
+    .GetSection(MarketingDemoOptions.SectionName)
+    .Get<MarketingDemoOptions>() ?? new MarketingDemoOptions();
+MarketingDemoOptions.ValidateForStartup(builder.Environment, marketingDemo);
 
 var databaseResilience = builder.Configuration
     .GetSection(DatabaseResilienceOptions.SectionName)
@@ -401,6 +412,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDevelopmentAdminSeeder, DevelopmentAdminSeeder>();
 builder.Services.AddScoped<IDevelopmentSocialSeeder, DevelopmentSocialSeeder>();
+builder.Services.AddScoped<IMarketingDemoSeeder, MarketingDemoSeeder>();
 builder.Services.AddSingleton<IDevelopmentAuthRequestGuard, DevelopmentAuthRequestGuard>();
 builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
@@ -576,9 +588,55 @@ if (app.Environment.IsDevelopment() && devAuth.Enabled)
         // A realistic social world to walk through locally. Same gate, same
         // .local addresses, and idempotent: it does nothing on a database that
         // already has it.
+        //
+        // Deliberately skipped on a filming host. The two seeders want opposite
+        // things: this one exists to put a missing dog, a wall-of-text caption
+        // and four unrelated households in front of you, and every one of those
+        // would land in shot behind the brand account on a Community recording.
+        // A database is either for walking the product or for filming it.
+        if (!marketingDemo.Enabled)
+        {
+            await scope.ServiceProvider
+                .GetRequiredService<IDevelopmentSocialSeeder>()
+                .EnsureSeededAsync();
+        }
+
+        // The polished brand account used to film launch material. Off unless
+        // MarketingDemo:Enabled is set as well, because most local work wants
+        // the walkthrough world above and not a marketing set.
         await scope.ServiceProvider
-            .GetRequiredService<IDevelopmentSocialSeeder>()
+            .GetRequiredService<IMarketingDemoSeeder>()
             .EnsureSeededAsync();
+    }
+
+    if (marketingDemo.Enabled)
+    {
+        // Demo pictures are served from the repository folder the preparation
+        // script writes, so nothing has to be uploaded to reach them — and in
+        // particular nothing reaches the Cloudflare bucket a local machine is
+        // usually pointed at. Development only, and the seeder is the only
+        // thing that puts these URLs into the database.
+        var marketingAssetsRoot = Path.IsPathRooted(marketingDemo.AssetsPath)
+            ? marketingDemo.AssetsPath
+            : Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, marketingDemo.AssetsPath));
+
+        if (Directory.Exists(marketingAssetsRoot))
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(marketingAssetsRoot),
+                RequestPath = marketingDemo.MediaRequestPath.TrimEnd('/'),
+                ServeUnknownFileTypes = false
+            });
+        }
+        else
+        {
+            app.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("MarketingDemo")
+                .LogWarning(
+                    "Marketing demo media folder not found at {Path}. Run the demo asset preparation script before recording.",
+                    marketingAssetsRoot);
+        }
     }
 
     app.MapPost(

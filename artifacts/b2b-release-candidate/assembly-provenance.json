@@ -1,0 +1,10 @@
+{
+  "baseCommit": "d692fe590b60b4c745dbfdd270cba310eeb72b4f",
+  "baseArchive": "base-head.zip",
+  "source": "source",
+  "overlayFiles": 65,
+  "mixedFile": "apps/api/MyPetLink.Api/Program.cs",
+  "mixedFileRule": "HEAD plus exactly ConsignmentService and ConsignmentDocumentService scoped registrations",
+  "noGitOperations": "No branch, stage, commit, push or deployment",
+  "unrelatedHashCount": 2507
+}

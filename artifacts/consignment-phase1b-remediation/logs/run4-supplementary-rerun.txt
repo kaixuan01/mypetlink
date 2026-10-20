@@ -1,0 +1,8 @@
+Test run for C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\bin\Debug\net8.0\MyPetLink.Api.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 17.14.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: C:/Project/MyPetLink/artifacts/consignment-phase1b-remediation/logs/run4-supplementary-rerun.trx
+
+Passed!  - Failed:     0, Passed:    21, Skipped:     0, Total:    21, Duration: 23 s - MyPetLink.Api.Tests.dll (net8.0)

@@ -18,6 +18,18 @@
         "http"
       ],
       "port": 5281
+    },
+    {
+      "name": "mypetlink-marketing-demo-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "apps/api/MyPetLink.Api/MyPetLink.Api.csproj",
+        "--launch-profile",
+        "marketing-demo"
+      ],
+      "port": 5281
     }
   ]
 }

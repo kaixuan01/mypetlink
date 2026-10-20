@@ -1,0 +1,39 @@
+﻿Test run for C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\bin\Debug\net8.0\MyPetLink.Api.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 17.14.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+dotnet : [xUnit.net 00:00:16.06]     
+MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.R2_StructuralIssuesAreNeverMarkedResolvableByALink [FAIL]
+At line:1 char:617
++ ... ixes\logs'; dotnet test MyPetLink.Api.Tests --no-build --filter "Full ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([xUnit.net 00:0...eByALink [FAIL]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Failed MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.R2_StructuralIssuesAreNeverMarkedResolvableByALink [15 s]
+  Error Message:
+   MyPetLink.Api.Common.ApiException : Only a draft can be discarded. A recorded report stays in history.
+  Stack Trace:
+     at MyPetLink.Api.Services.ConsignmentService.<>c__DisplayClass79_0.<<VoidSalesReportAsync>b__0>d.MoveNext() in C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentService.Sales.cs:line 290
+--- End of stack trace from previous location ---
+   at MyPetLink.Api.Services.ConsignmentService.<>c__DisplayClass20_0.<<RunAsync>b__0>d.MoveNext() in C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentService.cs:line 378
+--- End of stack trace from previous location ---
+   at MyPetLink.Api.Services.ConsignmentService.<>c__DisplayClass20_0.<<RunAsync>b__0>d.MoveNext() in C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentService.cs:line 384
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.ExecutionStrategyExtensions.<>c.<<ExecuteAsync>b__3_0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at MyPetLink.Api.Services.ConsignmentService.RunAsync(Nullable`1 actor, Func`2 operation, CancellationToken ct) in C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentService.cs:line 373
+   at MyPetLink.Api.Services.ConsignmentService.VoidSalesReportAsync(Nullable`1 actor, Guid id, ConsignmentTokenRequest r, CancellationToken ct) in C:\Project\MyPetLink\apps\api\MyPetLink.Api\Services\ConsignmentService.Sales.cs:line 287
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.R2_StructuralIssuesAreNeverMarkedResolvableByALink() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentLateReportLinkingRelationalTests.cs:line 56
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.R2_StructuralIssuesAreNeverMarkedResolvableByALink() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentLateReportLinkingRelationalTests.cs:line 63
+   at MyPetLink.Api.Tests.Relational.ConsignmentRelationalTests.R2_StructuralIssuesAreNeverMarkedResolvableByALink() in C:\Project\MyPetLink\apps\api\MyPetLink.Api.Tests\Relational\ConsignmentLateReportLinkingRelationalTests.cs:line 63
+--- End of stack trace from previous location ---
+Results File: C:\Project\MyPetLink\artifacts\consignment-phase1b-final-fixes\logs\postfix-r2-structural-rerun.trx
+
+Failed!  - Failed:     1, Passed:     0, Skipped:     0, Total:     1, Duration: 15 s - MyPetLink.Api.Tests.dll (net8.0)

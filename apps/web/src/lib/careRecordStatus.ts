@@ -55,7 +55,13 @@ export function getCareRecordStatusLabel(
   return "Complete";
 }
 
-export function getExplicitlyFulfilledCareRecordIds(records: CareRecord[]) {
+type FulfilmentLink = Partial<Pick<CareRecord, "fulfillsCareRecordId" | "archivedAt">>;
+
+/** The fields the Dashboard's due-item selection reads. */
+export type DashboardCareCandidate = Pick<CareRecord, "id" | "dueDate" | "status"> &
+  FulfilmentLink;
+
+export function getExplicitlyFulfilledCareRecordIds(records: FulfilmentLink[]) {
   return new Set(
     records
       .filter(isActiveCareRecord)
@@ -116,10 +122,10 @@ export function getEligibleFulfillmentCandidates(
     .sort((left, right) => dashboardDateScore(left) - dashboardDateScore(right));
 }
 
-export function selectDashboardCareRecords(
-  records: CareRecord[],
+export function selectDashboardCareRecords<T extends DashboardCareCandidate>(
+  records: T[],
   limit = 3
-) {
+): T[] {
   if (limit <= 0) return [];
 
   const fulfilledRecordIds = getExplicitlyFulfilledCareRecordIds(records);
@@ -134,7 +140,7 @@ export function selectDashboardCareRecords(
   const currentAndFuture = dueRecords
     .filter((record) => record.status !== "overdue")
     .sort((a, b) => dashboardDateScore(a) - dashboardDateScore(b));
-  const selected: CareRecord[] = [];
+  const selected: T[] = [];
 
   // Keep the most recently overdue item visible, then protect space for the
   // nearest current/future care. If no future care exists, fill with overdue
@@ -167,11 +173,11 @@ export function careDateScore(value?: string | null) {
   return Math.floor(Date.UTC(year, month - 1, day) / millisecondsPerDay);
 }
 
-function dashboardDateScore(record: CareRecord) {
+function dashboardDateScore(record: Pick<CareRecord, "dueDate">) {
   return careDateScore(record.dueDate) ?? Number.MAX_SAFE_INTEGER;
 }
 
-function isActiveCareRecord(record: CareRecord) {
+function isActiveCareRecord(record: Pick<CareRecord, "archivedAt">) {
   return !record.archivedAt;
 }
 
@@ -207,6 +213,17 @@ function malaysiaTodayScore(now: Date) {
   return Math.floor(
     Date.UTC(values.year, values.month - 1, values.day) / millisecondsPerDay
   );
+}
+
+/** Malaysia's calendar day as YYYY-MM-DD, whatever the browser's timezone. */
+export function getMalaysiaTodayIsoDate(now: Date = new Date()) {
+  const { year, month, day } = getMalaysiaCalendarDateParts(now);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** A care date score (see careDateScore) back to YYYY-MM-DD. */
+export function careDateScoreToIsoDate(score: number) {
+  return new Date(score * millisecondsPerDay).toISOString().slice(0, 10);
 }
 
 export function getMalaysiaCalendarDateParts(now: Date = new Date()) {

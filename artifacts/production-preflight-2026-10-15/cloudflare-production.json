@@ -1,0 +1,39 @@
+{
+  "capturedAtUtc": "2026-10-15T01:59:21.4892141+00:00",
+  "project": "mypetlink",
+  "productionBranch": "main",
+  "build": {
+    "build_command": "npm run build",
+    "destination_dir": "out",
+    "root_dir": "apps/web",
+    "web_analytics_tag": null,
+    "web_analytics_token": null
+  },
+  "productionFlags": {
+    "NEXT_PUBLIC_SOCIAL_ENABLED": "true",
+    "NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED": "true",
+    "NEXT_PUBLIC_TAG_ORDERS_ENABLED": "true",
+    "NEXT_PUBLIC_SMART_TAGS_ENABLED": "true"
+  },
+  "canonicalDeployment": {
+    "id": "b496156a-de5c-459d-aedb-e9eb89e8dc97",
+    "environment": "production",
+    "url": "https://b496156a.mypetlink.pages.dev",
+    "created_on": "2026-10-12T06:19:25.672181Z",
+    "latest_stage": {
+      "name": "deploy",
+      "started_on": "2026-10-12T06:20:25.380706Z",
+      "ended_on": "2026-10-12T06:20:44.679927Z",
+      "status": "success"
+    },
+    "deployment_trigger": {
+      "type": "github:push",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "b4de33736e2c068bc28a035a0e51b33086b4fe1c",
+        "commit_message": "Show SKU size and weight throughout Smart Tag checkout",
+        "commit_dirty": false
+      }
+    }
+  }
+}

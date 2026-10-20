@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
@@ -86,6 +87,366 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
                         : Array.Empty<CareRecordDocumentResponse>()))
                 .ToArray(),
             total);
+    }
+
+    /// <summary>
+    /// The owner's pending care across every active pet, filtered completely
+    /// in the query before it is paged.
+    ///
+    /// A due item is pending while it is an active record with a next due
+    /// date, on an active pet the caller owns, and no active record fulfils
+    /// it. Ordering is by due date, then creation time, then id, so pages are
+    /// stable and a pending item can never fall behind unrelated history the
+    /// way it can in the per-pet list, which is ordered by record date.
+    /// </summary>
+    public async Task<(UpcomingCareRecordsResponse Response, int Total)> ListUpcomingAsync(
+        Guid? currentUserId,
+        Guid? petId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireUserId(currentUserId);
+        if (petId.HasValue)
+        {
+            await EnsureOwnedPetExistsAsync(userId, petId.Value, cancellationToken);
+        }
+
+        var today = GetMalaysiaToday();
+        var activeRecords = OwnedActiveRecords(userId);
+
+        if (petId.HasValue)
+        {
+            activeRecords = activeRecords.Where(record => record.PetId == petId.Value);
+        }
+
+        var pending = PendingOnly(activeRecords);
+
+        var petIdsWithCareRecords = await activeRecords
+            .Select(record => record.PetId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var total = await pending.CountAsync(cancellationToken);
+        var rows = await pending
+            .OrderBy(record => record.DueDate)
+            .ThenBy(record => record.CreatedAt)
+            .ThenBy(record => record.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(record => new
+            {
+                record.Id,
+                record.PetId,
+                PetName = record.Pet.Name,
+                record.Type,
+                record.Title,
+                record.CareName,
+                DueDate = record.DueDate!.Value
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = rows
+            .Select(row => new UpcomingCareRecordResponse(
+                row.Id,
+                row.PetId,
+                row.PetName,
+                row.Type,
+                row.Title,
+                row.CareName,
+                row.DueDate,
+                DeriveStatus(row.DueDate, today)))
+            .ToArray();
+
+        return (
+            new UpcomingCareRecordsResponse(today, petIdsWithCareRecords, items),
+            total);
+    }
+
+    /// <summary>
+    /// How many pending items one summary reads in full. Counts stay exact
+    /// above it; only the choice of items shown is then uncertain, and the
+    /// summary says so.
+    /// </summary>
+    public const int SummaryRowLimit = 1000;
+    internal const int SummaryItemsPerScope = 3;
+    private const int DueSoonDays = 30;
+
+    /// <summary>
+    /// The Dashboard's pending-care summary, for all active pets and for each
+    /// one, from a single consistent view of the database.
+    ///
+    /// Every read runs inside one SERIALIZABLE, read-only transaction on SQL
+    /// Server, so the active pets, the pets with care, the exact counts and
+    /// the rows behind the items all describe the same committed state — a
+    /// row cannot leave or join the pending set between them. This replaces
+    /// stitching independently requested pages together, which can describe
+    /// several states while reporting the same total. The whole read retries
+    /// as a unit on a transient failure, including being chosen as a
+    /// deadlock victim.
+    /// </summary>
+    public async Task<UpcomingCareSummaryResponse> GetUpcomingSummaryAsync(
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireUserId(currentUserId);
+        var today = GetMalaysiaToday();
+        var horizon = today.AddDays(DueSoonDays);
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken)
+                : null;
+
+            var activePetIds = await _dbContext.Pets
+                .AsNoTracking()
+                .Where(pet =>
+                    pet.OwnerUserId == userId
+                    && pet.DeletedAt == null
+                    && pet.ArchivedAt == null
+                    && pet.LifecycleStatus == PetLifecycleStatus.Active)
+                .OrderBy(pet => pet.Id)
+                .Select(pet => pet.Id)
+                .ToListAsync(cancellationToken);
+            var activeRecords = OwnedActiveRecords(userId);
+            var pending = PendingOnly(activeRecords);
+            var petIdsWithCareRecords = (await activeRecords
+                    .Select(record => record.PetId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
+            var counts = await pending
+                .GroupBy(record => record.PetId)
+                .Select(group => new
+                {
+                    PetId = group.Key,
+                    Pending = group.Count(),
+                    DueWithinHorizon = group.Count(record => record.DueDate <= horizon),
+                    Overdue = group.Count(record => record.DueDate < today)
+                })
+                .ToListAsync(cancellationToken);
+            var rows = await pending
+                .OrderBy(record => record.DueDate)
+                .ThenBy(record => record.CreatedAt)
+                .ThenBy(record => record.Id)
+                .Take(SummaryRowLimit)
+                .Select(record => new
+                {
+                    record.Id,
+                    record.PetId,
+                    PetName = record.Pet.Name,
+                    record.Type,
+                    record.Title,
+                    record.CareName,
+                    DueDate = record.DueDate!.Value
+                })
+                .ToListAsync(cancellationToken);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            var items = rows
+                .Select(row => new UpcomingCareRecordResponse(
+                    row.Id,
+                    row.PetId,
+                    row.PetName,
+                    row.Type,
+                    row.Title,
+                    row.CareName,
+                    row.DueDate,
+                    DeriveStatus(row.DueDate, today)))
+                .ToArray();
+            var countsByPet = counts.ToDictionary(count => count.PetId);
+            var totalPending = counts.Sum(count => count.Pending);
+            var scopes = new List<UpcomingCareScopeResponse>
+            {
+                new(
+                    null,
+                    activePetIds.Any(petIdsWithCareRecords.Contains),
+                    totalPending,
+                    counts.Sum(count => count.DueWithinHorizon),
+                    counts.Sum(count => count.Overdue),
+                    SelectDashboardItems(items, today))
+            };
+
+            foreach (var petId in activePetIds)
+            {
+                countsByPet.TryGetValue(petId, out var count);
+                scopes.Add(new UpcomingCareScopeResponse(
+                    petId,
+                    petIdsWithCareRecords.Contains(petId),
+                    count?.Pending ?? 0,
+                    count?.DueWithinHorizon ?? 0,
+                    count?.Overdue ?? 0,
+                    SelectDashboardItems(items.Where(item => item.PetId == petId), today)));
+            }
+
+            return new UpcomingCareSummaryResponse(
+                today,
+                horizon,
+                items.Length == totalPending,
+                scopes);
+        });
+    }
+
+    /// <summary>
+    /// The items a scope shows: the most recently missed one, then the
+    /// nearest coming ones, then older missed ones. Mirrors the web's
+    /// <c>selectDashboardCareRecords</c>, which the local preview uses.
+    /// </summary>
+    internal static IReadOnlyCollection<UpcomingCareRecordResponse> SelectDashboardItems(
+        IEnumerable<UpcomingCareRecordResponse> pendingByDueDate,
+        DateOnly malaysiaToday)
+    {
+        var ordered = pendingByDueDate.ToList();
+        var overdue = ordered
+            .Where(item => item.DueDate < malaysiaToday)
+            .OrderByDescending(item => item.DueDate)
+            .ToList();
+        var currentAndFuture = ordered.Where(item => item.DueDate >= malaysiaToday);
+        var selected = new List<UpcomingCareRecordResponse>(SummaryItemsPerScope);
+
+        if (overdue.Count > 0)
+        {
+            selected.Add(overdue[0]);
+            overdue.RemoveAt(0);
+        }
+
+        selected.AddRange(currentAndFuture.Take(SummaryItemsPerScope - selected.Count));
+        selected.AddRange(overdue.Take(SummaryItemsPerScope - selected.Count));
+        return selected;
+    }
+
+    /// <summary>
+    /// Whether one due item has been completed, read from the records
+    /// themselves: the target, its pet's state, the active record that fulfils
+    /// it (same pet, same owner, not deleted or archived) and both records'
+    /// attached documents, all inside one SERIALIZABLE read transaction so the
+    /// documents belong to exactly the records returned.
+    ///
+    /// Absence from any pending list is never treated as completion. A target
+    /// that changed — deleted from the list (archived), on an archived pet, or
+    /// no longer due (its due date removed) — reports that state first, even
+    /// when a write validated earlier has since linked a completing record to
+    /// it; the record is still returned so the caller can see it, but the
+    /// state never pretends the item completed normally.
+    /// </summary>
+    public async Task<CareRecordCompletionStatusResponse> GetCompletionStatusAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireUserId(currentUserId);
+        var today = GetMalaysiaToday();
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken)
+                : null;
+
+            var snapshot = await _dbContext.CareRecords
+                .AsNoTracking()
+                .Where(record =>
+                    record.Id == recordId
+                    && record.Pet.OwnerUserId == userId
+                    && record.Pet.DeletedAt == null
+                    && record.DeletedAt == null)
+                .Select(record => new
+                {
+                    Target = record,
+                    PetName = record.Pet.Name,
+                    PetArchived = record.Pet.ArchivedAt != null
+                        || record.Pet.LifecycleStatus == PetLifecycleStatus.Archived,
+                    Completion = _dbContext.CareRecords
+                        .Where(fulfiller =>
+                            fulfiller.FulfillsCareRecordId == record.Id
+                            && fulfiller.PetId == record.PetId
+                            && fulfiller.Pet.OwnerUserId == userId
+                            && fulfiller.Pet.DeletedAt == null
+                            && fulfiller.DeletedAt == null
+                            && fulfiller.ArchivedAt == null)
+                        .OrderBy(fulfiller => fulfiller.CreatedAt)
+                        .ThenBy(fulfiller => fulfiller.Id)
+                        .FirstOrDefault()
+                })
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw NotFound("Care record was not found.");
+
+            var documents = await LoadRecordDocumentsAsync(
+                snapshot.Completion is null
+                    ? [snapshot.Target.Id]
+                    : [snapshot.Target.Id, snapshot.Completion.Id],
+                cancellationToken);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            var state = snapshot.Target.ArchivedAt.HasValue
+                ? "archived"
+                : snapshot.PetArchived
+                    ? "pet-archived"
+                    : !snapshot.Target.DueDate.HasValue
+                        ? "no-due-date"
+                        : snapshot.Completion is not null
+                            ? "completed"
+                            : "pending";
+
+            return new CareRecordCompletionStatusResponse(
+                state,
+                today,
+                snapshot.PetName,
+                ToResponse(snapshot.Target, DocumentsFor(documents, snapshot.Target.Id)),
+                snapshot.Completion is null
+                    ? null
+                    : ToResponse(snapshot.Completion, DocumentsFor(documents, snapshot.Completion.Id)));
+        });
+    }
+
+    private static IReadOnlyCollection<CareRecordDocumentResponse> DocumentsFor(
+        Dictionary<Guid, CareRecordDocumentResponse[]> documents,
+        Guid recordId)
+    {
+        return documents.TryGetValue(recordId, out var found)
+            ? found
+            : Array.Empty<CareRecordDocumentResponse>();
+    }
+
+    /// <summary>Active care records on the owner's active pets.</summary>
+    private IQueryable<CareRecord> OwnedActiveRecords(Guid userId)
+    {
+        return _dbContext.CareRecords
+            .AsNoTracking()
+            .Where(record =>
+                record.Pet.OwnerUserId == userId
+                && record.Pet.DeletedAt == null
+                && record.Pet.ArchivedAt == null
+                && record.Pet.LifecycleStatus == PetLifecycleStatus.Active
+                && record.DeletedAt == null
+                && record.ArchivedAt == null);
+    }
+
+    /// <summary>
+    /// Records with a next due date that no active record has completed.
+    /// </summary>
+    private IQueryable<CareRecord> PendingOnly(IQueryable<CareRecord> activeRecords)
+    {
+        return activeRecords.Where(record =>
+            record.DueDate != null
+            && !_dbContext.CareRecords.Any(fulfiller =>
+                fulfiller.FulfillsCareRecordId == record.Id
+                && fulfiller.DeletedAt == null
+                && fulfiller.ArchivedAt == null));
     }
 
     public async Task<CareRecordResponse> CreateAsync(
@@ -797,18 +1158,19 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
 
     private string DeriveStatus(CareRecord record)
     {
-        if (!record.DueDate.HasValue)
-        {
-            return "complete";
-        }
+        return record.DueDate.HasValue
+            ? DeriveStatus(record.DueDate.Value, GetMalaysiaToday())
+            : "complete";
+    }
 
-        var today = GetMalaysiaToday();
-        if (record.DueDate.Value < today)
+    private static string DeriveStatus(DateOnly dueDate, DateOnly malaysiaToday)
+    {
+        if (dueDate < malaysiaToday)
         {
             return "overdue";
         }
 
-        return record.DueDate.Value <= today.AddDays(30) ? "due-soon" : "upcoming";
+        return dueDate <= malaysiaToday.AddDays(30) ? "due-soon" : "upcoming";
     }
 
     private DateOnly GetMalaysiaToday()

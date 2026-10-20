@@ -1,0 +1,14 @@
+{
+  "purpose": "Production-profile build verification only; public Google client ID not yet read from effective Production configuration. Rebuild using verified complete Production values before publishing.",
+  "NEXT_PUBLIC_API_BASE_URL": "https://api.mypetlink.com.my",
+  "NEXT_PUBLIC_APP_URL": "https://mypetlink.com.my",
+  "NEXT_PUBLIC_SITE_URL": "https://mypetlink.com.my",
+  "NEXT_PUBLIC_SMART_TAGS_ENABLED": "true",
+  "NEXT_PUBLIC_TAG_ORDERS_ENABLED": "true",
+  "NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED": "true",
+  "NEXT_PUBLIC_SOCIAL_ENABLED": "true",
+  "NEXT_PUBLIC_DEV_AUTH_ENABLED": "false",
+  "NEXT_PUBLIC_NOINDEX": "false",
+  "NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED": "true",
+  "NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED": "true"
+}

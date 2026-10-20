@@ -1,0 +1,870 @@
+{
+  "total": 216,
+  "includes_container_logs": true,
+  "data": [
+    {
+      "ts": "2026-10-18T05:49:40.594676Z",
+      "line": "Cloning repository..."
+    },
+    {
+      "ts": "2026-10-18T05:49:42.546068Z",
+      "line": "From https://github.com/kaixuan01/mypetlink"
+    },
+    {
+      "ts": "2026-10-18T05:49:42.54638Z",
+      "line": " * branch            2ff3b792b2f021168d257511d94ec71cf23e8b09 -> FETCH_HEAD"
+    },
+    {
+      "ts": "2026-10-18T05:49:42.546463Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:42.948804Z",
+      "line": "HEAD is now at 2ff3b79 [CF-Pages-Skip] feat: release cumulative B2B consignment and Solo controls"
+    },
+    {
+      "ts": "2026-10-18T05:49:42.949084Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:42.986035Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:42.986456Z",
+      "line": "Using v2 root directory strategy"
+    },
+    {
+      "ts": "2026-10-18T05:49:43.001571Z",
+      "line": "Success: Finished cloning repository files"
+    },
+    {
+      "ts": "2026-10-18T05:49:44.371441Z",
+      "line": "Checking for configuration in a Wrangler configuration file (BETA)"
+    },
+    {
+      "ts": "2026-10-18T05:49:44.371812Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:44.509936Z",
+      "line": "No Wrangler configuration file found. Continuing."
+    },
+    {
+      "ts": "2026-10-18T05:49:44.835718Z",
+      "line": "Detected the following tools from environment: npm@10.9.2, nodejs@22.22.0"
+    },
+    {
+      "ts": "2026-10-18T05:49:44.836061Z",
+      "line": "Installing nodejs 22.22.0"
+    },
+    {
+      "ts": "2026-10-18T05:49:45.38695Z",
+      "line": "Trying to update node-build... ok"
+    },
+    {
+      "ts": "2026-10-18T05:49:45.434904Z",
+      "line": "To follow progress, use 'tail -f /tmp/node-build.20261018054945.804.log' or pass --verbose"
+    },
+    {
+      "ts": "2026-10-18T05:49:45.46955Z",
+      "line": "Downloading node-v22.22.0-linux-x64.tar.gz..."
+    },
+    {
+      "ts": "2026-10-18T05:49:45.52439Z",
+      "line": "-> https://nodejs.org/dist/v22.22.0/node-v22.22.0-linux-x64.tar.gz"
+    },
+    {
+      "ts": "2026-10-18T05:49:47.830524Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:47.830775Z",
+      "line": "WARNING: node-v22.22.0-linux-x64 is in LTS Maintenance mode and nearing its end of life."
+    },
+    {
+      "ts": "2026-10-18T05:49:47.830841Z",
+      "line": "It only receives *critical* security updates, *critical* bug fixes and documentation updates."
+    },
+    {
+      "ts": "2026-10-18T05:49:47.83089Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:47.830933Z",
+      "line": "Installing node-v22.22.0-linux-x64..."
+    },
+    {
+      "ts": "2026-10-18T05:49:48.250227Z",
+      "line": "Installed node-v22.22.0-linux-x64 to /opt/buildhome/.asdf/installs/nodejs/22.22.0"
+    },
+    {
+      "ts": "2026-10-18T05:49:48.250506Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:48.761391Z",
+      "line": "Installing project dependencies: npm clean-install --progress=false"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.138061Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:59.138384Z",
+      "line": "added 499 packages in 10s"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.138477Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:59.138522Z",
+      "line": "172 packages are looking for funding"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.138559Z",
+      "line": "  run `npm fund` for details"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.201955Z",
+      "line": "Executing user command: npm run build"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.449714Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:59.450008Z",
+      "line": "> mypetlink@0.1.0 build"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.450123Z",
+      "line": "> node --experimental-strip-types scripts/build-release.mjs"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.450195Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:49:59.534432Z",
+      "line": "Release selection: {"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.534719Z",
+      "line": "  NEXT_PUBLIC_SMART_TAGS_ENABLED: 'true',"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.534798Z",
+      "line": "  NEXT_PUBLIC_TAG_ORDERS_ENABLED: 'true',"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.534846Z",
+      "line": "  NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED: 'true',"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.534888Z",
+      "line": "  NEXT_PUBLIC_SOCIAL_ENABLED: 'true'"
+    },
+    {
+      "ts": "2026-10-18T05:49:59.534948Z",
+      "line": "}"
+    },
+    {
+      "ts": "2026-10-18T05:50:00.190179Z",
+      "line": "\u26a0 No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache"
+    },
+    {
+      "ts": "2026-10-18T05:50:00.197027Z",
+      "line": "Attention: Next.js now collects completely anonymous telemetry regarding usage."
+    },
+    {
+      "ts": "2026-10-18T05:50:00.197231Z",
+      "line": "This information is used to shape Next.js' roadmap and prioritize features."
+    },
+    {
+      "ts": "2026-10-18T05:50:00.1973Z",
+      "line": "You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:"
+    },
+    {
+      "ts": "2026-10-18T05:50:00.19741Z",
+      "line": "https://nextjs.org/telemetry"
+    },
+    {
+      "ts": "2026-10-18T05:50:00.197616Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:00.210457Z",
+      "line": "\u25b2 Next.js 16.2.9 (Turbopack)"
+    },
+    {
+      "ts": "2026-10-18T05:50:00.210705Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:00.289382Z",
+      "line": "  Creating an optimized production build ..."
+    },
+    {
+      "ts": "2026-10-18T05:50:10.793916Z",
+      "line": "\u2713 Compiled successfully in 10.3s"
+    },
+    {
+      "ts": "2026-10-18T05:50:10.797643Z",
+      "line": "  Running TypeScript ..."
+    },
+    {
+      "ts": "2026-10-18T05:50:31.278793Z",
+      "line": "  Finished TypeScript in 20.5s ..."
+    },
+    {
+      "ts": "2026-10-18T05:50:31.283943Z",
+      "line": "  Collecting page data using 3 workers ..."
+    },
+    {
+      "ts": "2026-10-18T05:50:31.826938Z",
+      "line": "  Generating static pages using 3 workers (0/160) ..."
+    },
+    {
+      "ts": "2026-10-18T05:50:32.288158Z",
+      "line": "  Generating static pages using 3 workers (40/160) \r"
+    },
+    {
+      "ts": "2026-10-18T05:50:32.540287Z",
+      "line": "  Generating static pages using 3 workers (80/160) \r"
+    },
+    {
+      "ts": "2026-10-18T05:50:32.806205Z",
+      "line": "  Generating static pages using 3 workers (120/160) \r"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.458367Z",
+      "line": "\u2713 Generating static pages using 3 workers (160/160) in 1631ms"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.46895Z",
+      "line": "  Finalizing page optimization ..."
+    },
+    {
+      "ts": "2026-10-18T05:50:33.673164Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:33.676511Z",
+      "line": "Route (app)"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.676838Z",
+      "line": "\u250c \u25cb /"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.676951Z",
+      "line": "\u251c \u25cb /_not-found"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677024Z",
+      "line": "\u251c \u25cf /activate/[tagCode]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.67708Z",
+      "line": "\u2502 \u251c /activate/MPL-9F3K-H7Q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.67714Z",
+      "line": "\u2502 \u251c /activate/mpl-9f3k-h7q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677188Z",
+      "line": "\u2502 \u251c /activate/8KX29A"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677237Z",
+      "line": "\u2502 \u2514 [+15 more paths]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677297Z",
+      "line": "\u251c \u25cb /admin"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677355Z",
+      "line": "\u251c \u25cb /admin/access/activity"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677419Z",
+      "line": "\u251c \u25cb /admin/access/roles"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677484Z",
+      "line": "\u251c \u25cb /admin/access/users"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677561Z",
+      "line": "\u251c \u25cb /admin/business-identity"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677625Z",
+      "line": "\u251c \u25cb /admin/community-comments"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677713Z",
+      "line": "\u251c \u25cb /admin/community-moments"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677764Z",
+      "line": "\u251c \u25cb /admin/community-reports"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677821Z",
+      "line": "\u251c \u25cb /admin/delivery-rates"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677876Z",
+      "line": "\u251c \u25cb /admin/email-templates"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677915Z",
+      "line": "\u251c \u25cb /admin/login"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.677951Z",
+      "line": "\u251c \u25cb /admin/merchant-sales"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678009Z",
+      "line": "\u251c \u25cb /admin/operational-status"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678064Z",
+      "line": "\u251c \u25cb /admin/order-checkout"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678133Z",
+      "line": "\u251c \u25cb /admin/orders"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678185Z",
+      "line": "\u251c \u25cb /admin/payment-proofs"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678221Z",
+      "line": "\u251c \u25cb /admin/pets"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678267Z",
+      "line": "\u251c \u25cb /admin/plans"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678313Z",
+      "line": "\u251c \u25cb /admin/qr-profiles"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678366Z",
+      "line": "\u251c \u25cb /admin/sample-experience"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678413Z",
+      "line": "\u251c \u25cb /admin/shipping-fulfilment"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.67847Z",
+      "line": "\u251c \u25cb /admin/tag-inventory"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678528Z",
+      "line": "\u251c \u25cb /admin/tag-products"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678582Z",
+      "line": "\u251c \u25cb /admin/tags"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.67866Z",
+      "line": "\u251c \u25cb /admin/users"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678727Z",
+      "line": "\u251c \u25cb /community/profile"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678792Z",
+      "line": "\u251c \u25cb /community/profile/edit"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678848Z",
+      "line": "\u251c \u25cb /dashboard"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.67891Z",
+      "line": "\u251c \u25cb /explore"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.678958Z",
+      "line": "\u251c \u25cb /feed"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.679002Z",
+      "line": "\u251c \u25cb /how-it-works"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.679046Z",
+      "line": "\u251c \u25cb /login"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681289Z",
+      "line": "\u251c \u25cb /manifest.webmanifest"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681435Z",
+      "line": "\u251c \u25cb /moments"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681502Z",
+      "line": "\u251c \u25cf /moments/[momentId]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681549Z",
+      "line": "\u2502 \u2514 /moments/00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681588Z",
+      "line": "\u251c \u25cf /n/[tagCode]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681638Z",
+      "line": "\u2502 \u251c /n/MPL-9F3K-H7Q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681697Z",
+      "line": "\u2502 \u251c /n/mpl-9f3k-h7q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681737Z",
+      "line": "\u2502 \u251c /n/8KX29A"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681774Z",
+      "line": "\u2502 \u2514 [+15 more paths]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681811Z",
+      "line": "\u251c \u25cb /notifications"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681849Z",
+      "line": "\u251c \u25cb /orders"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681885Z",
+      "line": "\u251c \u25cb /orders/view"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.68192Z",
+      "line": "\u251c \u25cf /p/[slug]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681957Z",
+      "line": "\u2502 \u251c /p/milo-k7q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.681996Z",
+      "line": "\u2502 \u251c /p/luna-m4r8"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682032Z",
+      "line": "\u2502 \u2514 /p/topu-pnpr4ipnr6ppelnsn"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.68207Z",
+      "line": "\u251c \u25cb /pet-profile"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682127Z",
+      "line": "\u251c \u25cb /pets"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682168Z",
+      "line": "\u251c \u25cf /pets/[id]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682205Z",
+      "line": "\u2502 \u251c /pets/pet_milo"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682242Z",
+      "line": "\u2502 \u2514 /pets/pet_luna"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682289Z",
+      "line": "\u251c \u25cf /pets/[id]/edit"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.68233Z",
+      "line": "\u2502 \u251c /pets/pet_milo/edit"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682368Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/edit"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682407Z",
+      "line": "\u251c \u25cf /pets/[id]/moments"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682451Z",
+      "line": "\u2502 \u251c /pets/pet_milo/moments"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682489Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/moments"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682527Z",
+      "line": "\u251c \u25cf /pets/[id]/moments/new"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682564Z",
+      "line": "\u2502 \u251c /pets/pet_milo/moments/new"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682603Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/moments/new"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682633Z",
+      "line": "\u251c \u25cf /pets/[id]/qr"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682681Z",
+      "line": "\u2502 \u251c /pets/pet_milo/qr"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682714Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/qr"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682751Z",
+      "line": "\u251c \u25cf /pets/[id]/records"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682799Z",
+      "line": "\u2502 \u251c /pets/pet_milo/records"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682857Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/records"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682906Z",
+      "line": "\u251c \u25cf /pets/[id]/tags"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682946Z",
+      "line": "\u2502 \u251c /pets/pet_milo/tags"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.682985Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/tags"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683027Z",
+      "line": "\u251c \u25cf /pets/[id]/tags/order"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683074Z",
+      "line": "\u2502 \u251c /pets/pet_milo/tags/order"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683126Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/tags/order"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683165Z",
+      "line": "\u251c \u25cf /pets/[id]/timeline"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683211Z",
+      "line": "\u2502 \u251c /pets/pet_milo/timeline"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683271Z",
+      "line": "\u2502 \u2514 /pets/pet_luna/timeline"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683308Z",
+      "line": "\u251c \u25cb /pets/new"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683339Z",
+      "line": "\u251c \u25cb /pricing"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683378Z",
+      "line": "\u251c \u25cb /privacy"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683407Z",
+      "line": "\u251c \u25cf /q/[safetyCode]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683434Z",
+      "line": "\u2502 \u251c /q/MPL-SAFE-MILO"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683461Z",
+      "line": "\u2502 \u251c /q/mpl-safe-milo"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683489Z",
+      "line": "\u2502 \u251c /q/MPL-SAFE-LUNA"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683517Z",
+      "line": "\u2502 \u2514 [+20 more paths]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683544Z",
+      "line": "\u251c \u25cb /records"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683584Z",
+      "line": "\u251c \u25cb /robots.txt"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683635Z",
+      "line": "\u251c \u25cb /safety-profile"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683706Z",
+      "line": "\u251c \u25cb /sample"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683766Z",
+      "line": "\u251c \u25cb /search"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683825Z",
+      "line": "\u251c \u25cb /settings"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683877Z",
+      "line": "\u251c \u25cb /sitemap.xml"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.68393Z",
+      "line": "\u251c \u25cb /smart-pet-tags"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.683988Z",
+      "line": "\u251c \u25cf /t/[tagCode]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684043Z",
+      "line": "\u2502 \u251c /t/MPL-9F3K-H7Q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684094Z",
+      "line": "\u2502 \u251c /t/mpl-9f3k-h7q2"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684146Z",
+      "line": "\u2502 \u251c /t/8KX29A"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684185Z",
+      "line": "\u2502 \u2514 [+15 more paths]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684232Z",
+      "line": "\u251c \u25cb /tags"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.68427Z",
+      "line": "\u251c \u25cb /tags/order"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684299Z",
+      "line": "\u251c \u25cb /terms"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684326Z",
+      "line": "\u251c \u25cf /u/[handle]"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684353Z",
+      "line": "\u2502 \u2514 /u/mypetlink-profile"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684381Z",
+      "line": "\u251c \u25cf /u/[handle]/followers"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684411Z",
+      "line": "\u2502 \u2514 /u/mypetlink-profile/followers"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684446Z",
+      "line": "\u251c \u25cf /u/[handle]/following"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684496Z",
+      "line": "\u2502 \u2514 /u/mypetlink-profile/following"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684542Z",
+      "line": "\u2514 \u25cb /where-to-buy"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684571Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684602Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684629Z",
+      "line": "\u25cb  (Static)  prerendered as static content"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684669Z",
+      "line": "\u25cf  (SSG)     prerendered as static HTML (uses generateStaticParams)"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.684698Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:33.882151Z",
+      "line": "(node:1897) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///opt/buildhome/repo/apps/web/src/lib/releaseFlags.ts is not specified and it doesn't parse as CommonJS."
+    },
+    {
+      "ts": "2026-10-18T05:50:33.882491Z",
+      "line": "Reparsing as ES module because module syntax was detected. This incurs a performance overhead."
+    },
+    {
+      "ts": "2026-10-18T05:50:33.882686Z",
+      "line": "To eliminate this warning, add \"type\": \"module\" to /opt/buildhome/repo/apps/web/package.json."
+    },
+    {
+      "ts": "2026-10-18T05:50:33.882815Z",
+      "line": "(Use `node --trace-warnings ...` to show where the warning was created)"
+    },
+    {
+      "ts": "2026-10-18T05:50:33.883697Z",
+      "line": "All four release flags verified against exported metadata and rendered Smart Tag availability."
+    },
+    {
+      "ts": "2026-10-18T05:50:33.929766Z",
+      "line": "Social flag verified: the export is Social ON."
+    },
+    {
+      "ts": "2026-10-18T05:50:33.930035Z",
+      "line": "  3 entry points checked in the export, 4 control markers confirmed, 1 client-rendered entry point gate confirmed at source, 11 routes present, _routes.json admits every finder and social path."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.038483Z",
+      "line": "warning: /p/topu-pnpr4ipnr6ppelnsn is indexable but its initial HTML has 93 characters of text (docs/seo/seo-audit.md, SEO-M4)"
+    },
+    {
+      "ts": "2026-10-18T05:50:34.038775Z",
+      "line": "SEO output verified: 12 sitemap URLs (from sitemap.xml), 142 unlisted pages confirmed noindex, robots.txt, _headers, and 404.html."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.043418Z",
+      "line": "(node:1758) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///opt/buildhome/repo/apps/web/src/lib/releaseFlags.ts is not specified and it doesn't parse as CommonJS."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.043677Z",
+      "line": "Reparsing as ES module because module syntax was detected. This incurs a performance overhead."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.04377Z",
+      "line": "To eliminate this warning, add \"type\": \"module\" to /opt/buildhome/repo/apps/web/package.json."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.043836Z",
+      "line": "(Use `node --trace-warnings ...` to show where the warning was created)"
+    },
+    {
+      "ts": "2026-10-18T05:50:34.062461Z",
+      "line": "Finished"
+    },
+    {
+      "ts": "2026-10-18T05:50:34.57214Z",
+      "line": "Checking for configuration in a Wrangler configuration file (BETA)"
+    },
+    {
+      "ts": "2026-10-18T05:50:34.572512Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:34.695772Z",
+      "line": "No Wrangler configuration file found. Continuing."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.69638Z",
+      "line": "Found Functions directory at /functions. Uploading."
+    },
+    {
+      "ts": "2026-10-18T05:50:34.794397Z",
+      "line": " \u26c5\ufe0f wrangler 3.114.17"
+    },
+    {
+      "ts": "2026-10-18T05:50:34.794699Z",
+      "line": "-------------------"
+    },
+    {
+      "ts": "2026-10-18T05:50:35.422279Z",
+      "line": "\u2728 Compiled Worker successfully"
+    },
+    {
+      "ts": "2026-10-18T05:50:35.500597Z",
+      "line": "Found _routes.json in output directory. Uploading."
+    },
+    {
+      "ts": "2026-10-18T05:50:35.506571Z",
+      "line": "Validating asset output directory"
+    },
+    {
+      "ts": "2026-10-18T05:50:38.347172Z",
+      "line": "Deploying your site to Cloudflare's global network..."
+    },
+    {
+      "ts": "2026-10-18T05:50:39.585642Z",
+      "line": "Parsed 18 valid header rules."
+    },
+    {
+      "ts": "2026-10-18T05:50:41.169881Z",
+      "line": "Uploading... (168/1571)"
+    },
+    {
+      "ts": "2026-10-18T05:50:42.622945Z",
+      "line": "Uploading... (636/1571)"
+    },
+    {
+      "ts": "2026-10-18T05:50:42.646396Z",
+      "line": "Uploading... (1104/1571)"
+    },
+    {
+      "ts": "2026-10-18T05:50:42.778868Z",
+      "line": "Uploading... (1571/1571)"
+    },
+    {
+      "ts": "2026-10-18T05:50:42.779111Z",
+      "line": "\u2728 Success! Uploaded 1403 files (168 already uploaded) (2.45 sec)"
+    },
+    {
+      "ts": "2026-10-18T05:50:42.779193Z",
+      "line": ""
+    },
+    {
+      "ts": "2026-10-18T05:50:43.82332Z",
+      "line": "\u2728 Upload complete!"
+    },
+    {
+      "ts": "2026-10-18T05:50:46.335437Z",
+      "line": "Success: Assets published!"
+    }
+  ]
+}

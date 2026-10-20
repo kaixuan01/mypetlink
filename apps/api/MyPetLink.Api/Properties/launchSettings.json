@@ -29,6 +29,19 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
+    "marketing-demo": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5281",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__MyPetLinkDb": "Server=(localdb)\\MSSQLLocalDB;Database=MyPetLinkMarketingDemo;Trusted_Connection=True;TrustServerCertificate=True;",
+        "DevAuth__Enabled": "true",
+        "DevAuth__AdminEmail": "dev.admin@mypetlink.local",
+        "MarketingDemo__Enabled": "true"
+      }
+    },
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,

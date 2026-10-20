@@ -1,5 +1,7 @@
 # 30-post calendar at a glance
 
+> **2026-09 执行更新：**本表保留为长期题材库。本月 9/18–9/30 的实际发布日期、Linko AI 图文／视频形式和提示词，以 [Linko AI 社交媒体执行计划](../2026-09-social-media-plan.md) 为准。
+
 Legend — **Fmt:** 📸 carousel · 🎬 video. **Src:** 🤖 auto from MyPetLink · 🎨 Canva ·
 📱 your phone · 🤖📱 mixed.
 

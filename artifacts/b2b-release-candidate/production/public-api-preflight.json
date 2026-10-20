@@ -1,0 +1,53 @@
+{
+  "captured_at_utc": "2026-10-18T05:38:55.337597+00:00",
+  "database_api_deployment": "User confirmed migration and API publish completed; not independently verified through Azure or SQL",
+  "checks": [
+    {
+      "path": "/health/live",
+      "status": 200,
+      "cache_control": null,
+      "body": "{\"data\":{\"status\":\"ok\"},\"meta\":{\"requestId\":\"0HNPBQ5S4GQJO:00000001\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "cache_control": null,
+      "body": "{\"data\":{\"status\":\"ready\"},\"meta\":{\"requestId\":\"0HNPBQ5S4GQJO:00000002\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/api/v1/admin/merchant-sales/consignment/approval-policy",
+      "status": 404,
+      "cache_control": null,
+      "body": ""
+    },
+    {
+      "path": "/api/v1/admin/merchant-sales/consignment/agreements",
+      "status": 404,
+      "cache_control": null,
+      "body": ""
+    },
+    {
+      "path": "/api/v1/admin/merchant-sales/merchants",
+      "status": 401,
+      "cache_control": null,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPBQ5S4GQJO:00000005\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/api/v1/orders",
+      "status": 401,
+      "cache_control": null,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPBQ5S4GQJO:00000006\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/api/v1/tags",
+      "status": 401,
+      "cache_control": null,
+      "body": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Authentication is required.\",\"details\":null},\"meta\":{\"requestId\":\"0HNPBQ5S4GQJO:00000007\",\"page\":null,\"pageSize\":null,\"total\":null,\"retryAfterSeconds\":null}}"
+    },
+    {
+      "path": "/api/v1/tag-products",
+      "status": 200,
+      "cache_control": null
+    }
+  ]
+}
