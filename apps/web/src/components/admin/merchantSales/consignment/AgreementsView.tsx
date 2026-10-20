@@ -6,6 +6,7 @@ import { AdminEmptyPanel, AdminStatusBadge } from "@/components/admin/AdminStatu
 import { Icon } from "@/components/ui/Icon";
 import * as api from "@/services/adminConsignmentService";
 import { fieldClass, primaryButton, secondaryButton } from "../shared";
+import { AgreementDocumentCard } from "./AgreementDocumentCard";
 import { AgreementTermsSummary } from "./AgreementTermsSummary";
 import { PriceTermsCard } from "./PriceTermsCard";
 import type { ConsignmentContext } from "./context";
@@ -292,7 +293,7 @@ function AgreementDetail({
             <Callout title="Before this draft can be approved" tone="warning">
               <span id="approve-blocked">Pending: {pending.join(", ")}.</span>{" "}
               {pending.includes("Signed agreement reference")
-                ? "Record the signed partner agreement once it exists — an internal approval is not the partner’s signature."
+                ? "Issue the agreement document below for the partner to sign, then record the signed copy and its reference — an internal approval is not the partner’s signature."
                 : "Agree these with the partner, then edit the draft."}
             </Callout>
           ) : null}
@@ -307,6 +308,8 @@ function AgreementDetail({
           <AgreementTermsSummary agreement={a} />
         </div>
       </section>
+
+      <AgreementDocumentCard agreement={a} context={context} />
 
       <PriceTermsCard agreement={a} context={context} />
 

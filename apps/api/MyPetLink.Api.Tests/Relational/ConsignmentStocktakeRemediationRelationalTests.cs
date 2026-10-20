@@ -17,6 +17,7 @@ namespace MyPetLink.Api.Tests.Relational;
 public sealed partial class ConsignmentRelationalTests
 {
     private const string HardeningMigration = "20261019060824_HardenConsignmentStocktakeReconciliation";
+    private const string AgreementDocumentsMigration = "20261019110531_AddConsignmentAgreementDocuments";
 
     private static ConsignmentLateAllocationRequest Link(Guid discrepancy, int quantity, string evidence = "POS receipt dated in the period") =>
         new(discrepancy, quantity, evidence, "The partner's dated record accounts for what the count found");
@@ -361,7 +362,7 @@ public sealed partial class ConsignmentRelationalTests
             await using var db = empty.NewContext();
             await db.Database.MigrateAsync();
             await db.GetService<IMigrator>().MigrateAsync(StocktakeMigration);
-            Assert.Equal([HardeningMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([HardeningMigration, AgreementDocumentsMigration, ReferencesMigration], await db.Database.GetPendingMigrationsAsync());
             // The previous, weaker trigger is back exactly as it was.
             var definition = await db.Database.SqlQueryRaw<string>("SELECT OBJECT_DEFINITION(OBJECT_ID('TR_ConsignmentStocktakeLines_Frozen')) AS Value").SingleAsync();
             Assert.DoesNotContain("51052", definition);
@@ -374,10 +375,12 @@ public sealed partial class ConsignmentRelationalTests
             await using var scope = await Database(4); await using var db = scope.NewContext();
             var a = await AgreementFrom(db, AugustFirst); await ReceiveUnder(db, a.Id, 4, "b6-down");
             await RecordedCount(db, Count("2026-08-15", 4));
+            await ReleaseReferenceRollbackGuard(db, StocktakeMigration);
             var blocked = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(StocktakeMigration));
             Assert.Contains("51053", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+            // Only the empty agreement-document migration above it rolled back.
+            Assert.Equal([AgreementDocumentsMigration, ReferencesMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentStocktakes.CountAsync(s => s.CountedAt != null));
         }
         finally { MigratedSchema.Value = false; }

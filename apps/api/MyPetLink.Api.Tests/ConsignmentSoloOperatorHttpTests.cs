@@ -24,7 +24,7 @@ public sealed class ConsignmentSoloOperatorHttpTests
             role.Capabilities.Add(new(){Capability=AdminCapabilities.ConsignmentView});role.Assignments.Add(new(){AdminUserId=admin.Id});db.AdminRoles.Add(role);db.ConsignmentApprovalPolicies.Add(new());
             var merchant=new Merchant {MerchantCode="SYN-SOLO",LegalBusinessName="Synthetic partner"};db.Merchants.Add(merchant);await db.SaveChangesAsync();
             var a=await scope.ServiceProvider.GetRequiredService<ConsignmentService>().SaveAgreementAsync(PhysicalQaTests.UserId,null,
-                new(merchant.Id,"SYN-SOLO",35m,DateTimeOffset.UtcNow.AddDays(-1),null,"Synthetic duration","Synthetic settlement",14,"Synthetic discounts","Synthetic returns","Synthetic liability","SYN-PARTNER-ACCEPTANCE","SYN-TRACKER"),null,default);
+                new(merchant.Id,null,35m,DateTimeOffset.UtcNow.AddDays(-1),null,"Synthetic duration","Synthetic settlement",14,"Synthetic discounts","Synthetic returns","Synthetic liability","SYN-PARTNER-ACCEPTANCE","SYN-TRACKER"),null,default);
             agreementId=a.Id;var saved=await db.ConsignmentAgreements.SingleAsync(x=>x.Id==a.Id);saved.RowVersion=[1];await db.SaveChangesAsync();agreementToken=Convert.ToBase64String(saved.RowVersion);
         }
         const string root="/api/v1/admin/merchant-sales/consignment";

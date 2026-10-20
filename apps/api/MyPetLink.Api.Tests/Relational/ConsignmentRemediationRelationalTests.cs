@@ -184,7 +184,9 @@ public sealed partial class ConsignmentRelationalTests
             db.ConsignmentDispatches.Add(dispatch);await db.SaveChangesAsync();
         }
         var error=await Assert.ThrowsAnyAsync<Exception>(()=>db.GetService<IMigrator>().MigrateAsync("20261015032111_AddMerchantMainLogo"));
-        Assert.Contains("rollback",error.ToString(),StringComparison.OrdinalIgnoreCase);Assert.Single(await db.ConsignmentAgreements.ToListAsync());
+        Assert.Contains("rollback",error.ToString(),StringComparison.OrdinalIgnoreCase);
+        // Counted in SQL: later, empty migrations rolled back first, so today's model no longer matches the table.
+        Assert.Equal(1,await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM ConsignmentAgreements").SingleAsync());
         Assert.Contains("Consignment",string.Join(',',await db.Database.GetAppliedMigrationsAsync()));
         Assert.Equal(active?1:0,await db.ConsignmentUnits.CountAsync());
     }

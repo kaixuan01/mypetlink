@@ -32,6 +32,7 @@ public enum BusinessDocumentKind
     MerchantInvoice,
     CommissionPayout,
     ConsignmentDispatch,
+    ConsignmentAgreement,
 }
 
 public sealed class BusinessIdentityService : IBusinessIdentityService

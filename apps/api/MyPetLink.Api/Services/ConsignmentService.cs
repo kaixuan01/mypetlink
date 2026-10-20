@@ -28,7 +28,7 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
         SaveConsignmentAgreementRequest r, string? token, CancellationToken ct)
     {
         if (r.PartnerCommissionPercentage is null) throw Bad("Enter the agreed partner commission percentage explicitly.");
-        if (r.MerchantId == Guid.Empty || string.IsNullOrWhiteSpace(r.Reference) || r.Reference.Length > 100
+        if (r.MerchantId == Guid.Empty || r.Reference?.Length > 100 || r.IdempotencyKey?.Length > 80
             || r.PartnerCommissionPercentage < 0 || r.PartnerCommissionPercentage > 100
             || decimal.Round(r.PartnerCommissionPercentage.Value,2) != r.PartnerCommissionPercentage
             || r.PaymentDeadlineDays is < 0 or > 365
@@ -36,8 +36,26 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
             || new[] { r.DurationTerms, r.SettlementFrequency, r.DiscountTerms, r.ReturnTerms, r.LossTerms,
                 r.SignedAgreementReference, r.ExternalTrackerReference }.Any(s => s?.Length > 2000))
             throw Bad("Check the agreement details, percentage, dates and payment deadline.");
+        var requested = Trim(r.Reference);
+        var creationKey = Trim(r.IdempotencyKey);
+        // What this create request asked for, so a retry of the same request can be told
+        // apart from a different request that reused the key.
+        var creationFingerprint = id.HasValue || creationKey is null ? null
+            : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(r with { IdempotencyKey = null }))));
         Guid saved = Guid.Empty;
         await RunAsync(actor, async admin => {
+            if (creationKey is not null && !id.HasValue)
+            {
+                var earlier = await db.ConsignmentAgreements.Where(x => x.CreationKey == creationKey)
+                    .Select(x => new { x.Id, x.Reference, x.CreationRequestFingerprint }).SingleOrDefaultAsync(ct);
+                if (earlier is not null)
+                {
+                    if (earlier.CreationRequestFingerprint != creationFingerprint)
+                        throw Conflict($"This form already created draft {earlier.Reference}. Open that draft to make further changes.");
+                    saved = earlier.Id;   // A retried request: hand back the draft it created.
+                    return;
+                }
+            }
             var merchant = await db.Merchants.SingleOrDefaultAsync(m => m.Id == r.MerchantId && m.IsActive, ct)
                 ?? throw Bad("Choose an active merchant.");
             ConsignmentAgreement a;
@@ -46,36 +64,53 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
                 a = await db.ConsignmentAgreements.Include(x => x.Merchant).Include(x => x.DraftContributors).SingleOrDefaultAsync(x => x.Id == id, ct)
                     ?? throw Missing();
                 Token(a.RowVersion, token);
-                if (a.Status != ConsignmentAgreementStatus.Draft || a.MerchantId != r.MerchantId || a.Reference != r.Reference.Trim())
+                if (a.Status != ConsignmentAgreementStatus.Draft || a.MerchantId != r.MerchantId || requested is not null && a.Reference != requested)
                     throw Conflict("Approved terms cannot be edited. Create a new agreement version.");
             }
             else
             {
                 var version = 1;
+                string reference;
                 if (r.SupersedesAgreementId.HasValue)
                 {
+                    // A revision keeps its agreement's reference; only the version moves on.
                     var prior = await db.ConsignmentAgreements.SingleOrDefaultAsync(x => x.Id == r.SupersedesAgreementId, ct)
                         ?? throw Missing();
-                    if (prior.MerchantId != r.MerchantId || prior.Reference != r.Reference.Trim())
+                    if (prior.MerchantId != r.MerchantId || requested is not null && prior.Reference != requested)
                         throw Bad("A new version must use the same merchant and agreement reference.");
+                    reference = prior.Reference;
                     version = (await db.ConsignmentAgreements.Where(x => x.MerchantId == r.MerchantId && x.Reference == prior.Reference)
                         .MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
                 }
-                else if (await db.ConsignmentAgreements.AnyAsync(x => x.MerchantId == r.MerchantId && x.Reference == r.Reference.Trim(), ct))
-                    throw Conflict("This agreement reference already exists. Create a revision instead.");
+                else
+                {
+                    if (requested is not null)
+                        throw Bad("Agreement references are assigned automatically when the draft is saved.");
+                    reference = await NextAgreementReferenceAsync(merchant, admin, ct);
+                    if (r.DefaultTermsRevision is { } revision && !await db.ConsignmentDefaultTermsRevisions.AnyAsync(x => x.Revision == revision && x.IsActive, ct))
+                        throw Bad("Those default terms are not a confirmed revision. Reload the form and try again.");
+                }
                 a = new ConsignmentAgreement { MerchantId = merchant.Id, Merchant = merchant,
-                    Reference = r.Reference.Trim(), Version = version, SupersedesAgreementId = r.SupersedesAgreementId };
+                    Reference = reference, Version = version, SupersedesAgreementId = r.SupersedesAgreementId,
+                    CreationKey = creationKey, CreationRequestFingerprint = creationFingerprint,
+                    // A revision starts from its predecessor's terms, never the current defaults.
+                    DefaultTermsRevision = r.SupersedesAgreementId.HasValue ? null : r.DefaultTermsRevision };
                 a.DraftContributorHistoryComplete = true;
                 db.ConsignmentAgreements.Add(a);
             }
             var before = MapAgreement(a);
             var priorTerms = DraftTerms(a);
+            var priorFingerprint = TermsFingerprint(a);
             a.PartnerCommissionPercentage = r.PartnerCommissionPercentage.Value;
             a.EffectiveFrom = r.EffectiveFrom?.ToUniversalTime(); a.EffectiveTo = r.EffectiveTo?.ToUniversalTime();
             a.DurationTerms = Trim(r.DurationTerms); a.SettlementFrequency = Trim(r.SettlementFrequency);
             a.PaymentDeadlineDays = r.PaymentDeadlineDays; a.DiscountTerms = Trim(r.DiscountTerms);
             a.ReturnTerms = Trim(r.ReturnTerms); a.LossTerms = Trim(r.LossTerms);
             a.SignedAgreementReference = Trim(r.SignedAgreementReference); a.ExternalTrackerReference = Trim(r.ExternalTrackerReference);
+            // A partner has signed these exact terms. Changing them is an amendment: a new version, signed again.
+            if (id.HasValue && priorFingerprint != TermsFingerprint(a)
+                && await db.ConsignmentSignedAgreements.AnyAsync(s => s.AgreementId == a.Id, ct))
+                throw Conflict("The partner has signed these terms. Create a new agreement version to change them; the signed copy stays with this version.");
             if ((!id.HasValue || priorTerms != DraftTerms(a))
                 && a.DraftContributors.All(c => c.AdminUserId != admin))
                 a.DraftContributors.Add(new ConsignmentDraftContributor { AgreementId=a.Id, AdminUserId=admin,
@@ -447,7 +482,8 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
     private static ConsignmentAgreementResponse MapAgreement(ConsignmentAgreement a) => new(a.Id,a.MerchantId,
         a.Merchant?.TradingName ?? a.Merchant?.LegalBusinessName ?? "",a.Reference,a.Version,a.Status.ToString(),
         a.PartnerCommissionPercentage,a.EffectiveFrom,a.EffectiveTo,a.DurationTerms,a.SettlementFrequency,a.PaymentDeadlineDays,
-        a.DiscountTerms,a.ReturnTerms,a.LossTerms,a.SignedAgreementReference,a.ExternalTrackerReference,Pending(a),Convert.ToBase64String(a.RowVersion),a.ApprovalReviewMode);
+        a.DiscountTerms,a.ReturnTerms,a.LossTerms,a.SignedAgreementReference,a.ExternalTrackerReference,Pending(a),Convert.ToBase64String(a.RowVersion),a.ApprovalReviewMode,
+        a.DefaultTermsRevision);
     private static SaveConsignmentAgreementRequest DraftTerms(ConsignmentAgreement a) => new(a.MerchantId,a.Reference,
         a.PartnerCommissionPercentage,a.EffectiveFrom,a.EffectiveTo,a.DurationTerms,a.SettlementFrequency,a.PaymentDeadlineDays,
         a.DiscountTerms,a.ReturnTerms,a.LossTerms,a.SignedAgreementReference,a.ExternalTrackerReference,a.SupersedesAgreementId);

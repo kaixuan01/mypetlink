@@ -443,18 +443,20 @@ public sealed partial class ConsignmentRelationalTests
             await using var scope = await Database(4); await using var db = scope.NewContext();
             var a = await AgreementFrom(db, AugustFirst); await ReceiveUnder(db, a.Id, 4, "st-down");
             var counted = await RecordedCount(db, Count("2026-08-15", 4));
-            // The newest guard refuses first: count times are closed-month history too.
+            // The newest guard holding history refuses first: count times are closed-month history too.
+            // The agreement-document migration above it holds nothing here, so it rolls back cleanly first.
+            await ReleaseReferenceRollbackGuard(db, "20261019010452_ProtectConsignmentContributorHistory");
             var blocked = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync("20261019010452_ProtectConsignmentContributorHistory"));
             Assert.Contains("51053", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([AgreementDocumentsMigration, ReferencesMigration], await db.Database.GetPendingMigrationsAsync());
             // Without the new history, the hardening rolls back and the stocktake guard still refuses (non-atomic chain).
             await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE ConsignmentStocktakes SET Status = 'Voided' WHERE Id = {counted.Id}");
             await db.Database.ExecuteSqlRawAsync("DISABLE TRIGGER TR_ConsignmentStocktakes_Closed ON ConsignmentStocktakes; UPDATE ConsignmentStocktakes SET CountedAt = NULL; ENABLE TRIGGER TR_ConsignmentStocktakes_Closed ON ConsignmentStocktakes;");
             blocked = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync("20261019010452_ProtectConsignmentContributorHistory"));
             Assert.Contains("51051", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Equal([HardeningMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([HardeningMigration, AgreementDocumentsMigration, ReferencesMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentStocktakes.CountAsync());
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());

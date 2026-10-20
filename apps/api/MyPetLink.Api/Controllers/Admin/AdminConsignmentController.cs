@@ -47,6 +47,54 @@ public sealed class AdminConsignmentController(ConsignmentService service, Consi
     [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsApprove)]
     public async Task<IActionResult> Close(Guid id, ConsignmentActionRequest r, CancellationToken ct) =>
         Ok(ApiEnvelope.Ok(await service.AgreementActionAsync(current.Current.UserId,id,"close",r,ct),HttpContext));
+    // --- Default agreement terms ---------------------------------------------------
+    // The starting point for new drafts; approvers own it, since it shapes the terms they review.
+    [HttpGet("default-terms")]
+    public async Task<IActionResult> DefaultTerms(CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.DefaultTermsAsync(ct),HttpContext));
+    [HttpPut("default-terms")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsApprove)]
+    public async Task<IActionResult> SaveDefaultTerms(SaveConsignmentDefaultTermsRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.SaveDefaultTermsAsync(current.Current.UserId,r,ct),HttpContext));
+
+    // --- Automatic agreement references -------------------------------------------
+    [HttpGet("merchants/{merchantId:guid}/agreement-prefix")]
+    public async Task<IActionResult> AgreementPrefix(Guid merchantId,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.AgreementPrefixAsync(merchantId,ct),HttpContext));
+    [HttpPut("merchants/{merchantId:guid}/agreement-prefix")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsManage)]
+    public async Task<IActionResult> SaveAgreementPrefix(Guid merchantId,SaveConsignmentAgreementPrefixRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.SaveAgreementPrefixAsync(current.Current.UserId,merchantId,r,ct),HttpContext));
+
+    // --- Agreement document -----------------------------------------------------
+    [HttpGet("agreements/{id:guid}/document")]
+    public async Task<IActionResult> AgreementDocument(Guid id,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.AgreementDocumentAsync(id,ct),HttpContext));
+    // Opening agreement files also needs agreement management or approval, checked in the service.
+    [HttpGet("agreements/{id:guid}/document/preview.pdf")]
+    public async Task<IActionResult> PreviewAgreement(Guid id,[FromQuery] string concurrencyToken,CancellationToken ct) {
+        var file = await service.PreviewAgreementAsync(current.Current.UserId,id,concurrencyToken,ct);
+        return File(file.Content,file.ContentType,file.FileName);
+    }
+    [HttpPost("agreements/{id:guid}/document/issue")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsManage)]
+    public async Task<IActionResult> IssueAgreement(Guid id,IssueConsignmentAgreementRequest r,CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.IssueAgreementAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpGet("agreements/{id:guid}/documents/{documentId:guid}/pdf")]
+    public async Task<IActionResult> IssuedAgreement(Guid id,Guid documentId,CancellationToken ct) {
+        var file = await service.IssuedAgreementPdfAsync(current.Current.UserId,id,documentId,ct);
+        return File(file.Content,file.ContentType,file.FileName);
+    }
+    [HttpPost("agreements/{id:guid}/signed-copies")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentAgreementsManage)]
+    [RequestSizeLimit(12_000_000)]
+    public async Task<IActionResult> UploadSignedAgreement(Guid id,UploadConsignmentSignedAgreementRequest r,CancellationToken ct) =>
+        StatusCode(201,ApiEnvelope.Ok(await service.UploadSignedAgreementAsync(current.Current.UserId,id,r,ct),HttpContext));
+    [HttpGet("agreements/{id:guid}/signed-copies/{copyId:guid}/file")]
+    public async Task<IActionResult> SignedAgreementFile(Guid id,Guid copyId,CancellationToken ct) {
+        var (content,type,name) = await service.SignedAgreementFileAsync(current.Current.UserId,id,copyId,ct);
+        return File(content,type,name);
+    }
     [HttpGet("dispatches")]
     public async Task<IActionResult> Dispatches([FromQuery] PagedQuery q, Guid? agreementId, CancellationToken ct) {
         var (items,total) = await service.DispatchesAsync(q.Page,q.PageSize,agreementId,ct);

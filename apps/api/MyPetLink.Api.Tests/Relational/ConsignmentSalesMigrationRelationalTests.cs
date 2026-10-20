@@ -171,6 +171,7 @@ public sealed partial class ConsignmentRelationalTests
             await Recorded(db, Report(a.Id, [Sale(price.Id, 1)]));
             Assert.NotEmpty(db.ConsignmentRecordContributors);
             var migrator = db.GetService<IMigrator>();
+            await ReleaseReferenceRollbackGuard(db, SalesLedgerMigration);
             var blocked = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(SalesLedgerMigration));
             // The newest guard refuses first; the remediation guard (51045) stands behind it.
             Assert.Contains("51047", blocked.ToString()); Assert.Contains("rollback blocked", blocked.ToString(), StringComparison.OrdinalIgnoreCase);
@@ -179,9 +180,10 @@ public sealed partial class ConsignmentRelationalTests
             var further = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(SoloPolicyMigration));
             Assert.Contains("rollback blocked", further.ToString(), StringComparison.OrdinalIgnoreCase);
             db.ChangeTracker.Clear();
-            // A downgrade isn't atomic across migrations: the stocktake migration, holding no stocktakes,
+            // A downgrade isn't atomic across migrations: the stocktake and agreement-document migrations, holding no records,
             // rolled back cleanly before 51047 refused. No history was lost, and reapplying restores the head.
-            Assert.Equal(["20261019025050_AddConsignmentStocktakeAndCarryForward", "20261019060824_HardenConsignmentStocktakeReconciliation"], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal(["20261019025050_AddConsignmentStocktakeAndCarryForward", "20261019060824_HardenConsignmentStocktakeReconciliation",
+                AgreementDocumentsMigration, ReferencesMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentSalesReports.CountAsync());
             Assert.Equal(4, await db.ConsignmentStockLedgerEntries.CountAsync());
             await db.Database.MigrateAsync();

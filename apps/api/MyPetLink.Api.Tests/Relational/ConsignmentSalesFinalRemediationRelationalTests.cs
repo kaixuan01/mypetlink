@@ -159,7 +159,16 @@ public sealed partial class ConsignmentRelationalTests
         await SeedConsignment(db, 10); await AddReviewer(db);
         // Agreements already existed in the original Phase 1A schema. (Stock is received after the
         // upgrade below: today's ledger posting reads tables a later migration adds.)
-        var a = await AgreementFrom(db, AugustFirst);
+        // Written in the original schema's own shape: today's save also writes columns added later.
+        var a = (Id: Guid.NewGuid(), Unused: 0);
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT ConsignmentAgreements(Id,MerchantId,Reference,Version,PartnerCommissionPercentage,EffectiveFrom,EffectiveTo,DurationTerms,
+              SettlementFrequency,PaymentDeadlineDays,DiscountTerms,ReturnTerms,LossTerms,SignedAgreementReference,ExternalTrackerReference,
+              Status,UpdatedByAdminUserId,ApprovedByAdminUserId,ApprovedAt,ApprovalReviewMode,DraftContributorHistoryComplete,CreatedAt,UpdatedAt)
+            VALUES({a.Id},{MerchantId},'N3-LEGACY',1,35,{AugustFirst},NULL,'Test-only duration','Test-only settlement',14,'Test-only discounts',
+              'Test-only returns','Test-only loss','TEST-SIGNED','TEST-TRACKER','Active',{AdminRecordId},{CheckerAdminId},{Now},'Independent (Team)',1,{Now},{Now});
+            INSERT ConsignmentDraftContributors(AgreementId,AdminUserId,FirstContributedAt,IsCreator) VALUES({a.Id},{AdminRecordId},{Now},1);
+            """);
         var sku = await db.TagProductVariants.Where(v => v.Id == NfcVariantId).Select(v => v.Sku).SingleAsync();
         var (standard, edited, report) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         // As the original API left them: an approved price, and a draft the admin created and someone
@@ -374,11 +383,13 @@ public sealed partial class ConsignmentRelationalTests
         {
             await using var scope = await Database(4); await using var db = scope.NewContext();
             var a = await AgreementFrom(db, AugustFirst); await Price(db, a.Id, AugustFirst);
+            await ReleaseReferenceRollbackGuard(db, "20261018164233_HardenConsignmentSalesReporting");
             var blocked = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync("20261018164233_HardenConsignmentSalesReporting"));
             Assert.Contains("51047", blocked.ToString());
             db.ChangeTracker.Clear();
-            // Downgrades aren't atomic: the empty stocktake migrations rolled back before 51047 refused.
-            Assert.Equal(["20261019025050_AddConsignmentStocktakeAndCarryForward", "20261019060824_HardenConsignmentStocktakeReconciliation"], await db.Database.GetPendingMigrationsAsync());
+            // Downgrades aren't atomic: the empty stocktake and agreement-document migrations rolled back before 51047 refused.
+            Assert.Equal(["20261019025050_AddConsignmentStocktakeAndCarryForward", "20261019060824_HardenConsignmentStocktakeReconciliation",
+                AgreementDocumentsMigration, ReferencesMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentPriceTerms.CountAsync());
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());

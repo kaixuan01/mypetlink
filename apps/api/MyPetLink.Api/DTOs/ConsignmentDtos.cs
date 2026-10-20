@@ -1,20 +1,38 @@
 using System.ComponentModel.DataAnnotations;
 namespace MyPetLink.Api.DTOs;
 
+// Reference is assigned by the server for a new agreement and inherited by a revision.
+// Clients may echo an existing reference back; IdempotencyKey makes "create draft" safe to retry.
 public sealed record SaveConsignmentAgreementRequest(
-    Guid MerchantId, [Required, MaxLength(100)] string Reference,
+    Guid MerchantId, [MaxLength(100)] string? Reference,
     [Required] decimal? PartnerCommissionPercentage, DateTimeOffset? EffectiveFrom, DateTimeOffset? EffectiveTo,
     [MaxLength(2000)] string? DurationTerms, [MaxLength(2000)] string? SettlementFrequency,
     int? PaymentDeadlineDays, [MaxLength(2000)] string? DiscountTerms,
     [MaxLength(2000)] string? ReturnTerms, [MaxLength(2000)] string? LossTerms,
     [MaxLength(2000)] string? SignedAgreementReference, [MaxLength(2000)] string? ExternalTrackerReference,
-    Guid? SupersedesAgreementId = null);
+    Guid? SupersedesAgreementId = null, [MaxLength(80)] string? IdempotencyKey = null, int? DefaultTermsRevision = null);
+/// <summary>Starting terms for new agreements. Evidence (dates, signed and tracker references) is never part of it.</summary>
+public sealed record ConsignmentDefaultTermsValues(decimal? PartnerCommissionPercentage, int? TrialDurationDays,
+    [MaxLength(2000)] string? DurationTerms, [MaxLength(2000)] string? SettlementFrequency, int? PaymentDeadlineDays,
+    [MaxLength(2000)] string? DiscountTerms, [MaxLength(2000)] string? ReturnTerms, [MaxLength(2000)] string? LossTerms);
+public sealed record ConsignmentDefaultTermsRevisionResponse(int Revision, bool IsActive, ConsignmentDefaultTermsValues Terms,
+    DateTimeOffset RecordedAt, string? RecordedByName);
+public sealed record ConsignmentDefaultTermsResponse(int Revision, bool IsActive, ConsignmentDefaultTermsValues Terms,
+    IReadOnlyList<string> Missing, DateTimeOffset? UpdatedAt, string? UpdatedByName, string ConcurrencyToken,
+    IReadOnlyList<ConsignmentDefaultTermsRevisionResponse> History);
+public sealed record SaveConsignmentDefaultTermsRequest([Required] string ConcurrencyToken, bool IsActive,
+    [Required] ConsignmentDefaultTermsValues Terms);
+public sealed record ConsignmentAgreementPrefixResponse(Guid MerchantId, string? Prefix, string SuggestedPrefix,
+    bool Locked, DateTimeOffset? LockedAt, string ReferencePattern, string ConcurrencyToken);
+// ConcurrencyToken is empty while the merchant has no prefix yet.
+public sealed record SaveConsignmentAgreementPrefixRequest([Required, MaxLength(40)] string Prefix, string? ConcurrencyToken);
 public sealed record ConsignmentAgreementResponse(Guid Id, Guid MerchantId, string MerchantName,
     string Reference, int Version, string Status, decimal PartnerCommissionPercentage,
     DateTimeOffset? EffectiveFrom, DateTimeOffset? EffectiveTo, string? DurationTerms,
     string? SettlementFrequency, int? PaymentDeadlineDays, string? DiscountTerms,
     string? ReturnTerms, string? LossTerms, string? SignedAgreementReference,
-    string? ExternalTrackerReference, IReadOnlyList<string> PendingTerms, string ConcurrencyToken, string? ApprovalReviewMode = null);
+    string? ExternalTrackerReference, IReadOnlyList<string> PendingTerms, string ConcurrencyToken, string? ApprovalReviewMode = null,
+    int? DefaultTermsRevision = null);
 public sealed record ConsignmentLineRequest(Guid ProductVariantId, [Range(1,1000)] int Quantity,
     IReadOnlyList<Guid>? SmartTagIds = null);
 public sealed record ReserveConsignmentRequest(Guid AgreementId,

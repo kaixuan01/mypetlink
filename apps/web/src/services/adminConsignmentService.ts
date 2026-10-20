@@ -13,6 +13,8 @@ export type Agreement = AgreementInput & {
   id: string; merchantName: string; version: number; status: string;
   partnerCommissionPercentage: number;
   pendingTerms: string[]; concurrencyToken: string; approvalReviewMode?: string | null;
+  /** The default-terms revision the creating form started from; audit only. */
+  defaultTermsRevision?: number | null;
 };
 export type CustodyUnit = {
   id: string; unitReference: string; receivingState: string; tagCode: string | null; sku: string; productName: string; variant: string;
@@ -68,9 +70,45 @@ export async function listAgreements(page = 1, options: ListOptions = {}) {
   const r = await apiRequest<Agreement[]>(`${base}/agreements?${listQuery(page, options, "merchantId")}`);
   return { items: r.data ?? [], total: r.meta?.total ?? 0 };
 }
-export async function saveAgreement(input: AgreementInput, id?: string, token?: string) {
+/**
+ * A new agreement's reference is assigned by the server, so none is sent. idempotencyKey makes a
+ * retried "create draft" return the draft it already created instead of taking another number.
+ */
+export async function saveAgreement(input: AgreementInput, id?: string, token?: string,
+  creation: { idempotencyKey?: string; defaultTermsRevision?: number | null } = {}) {
   const path = id ? `/${id}?concurrencyToken=${encodeURIComponent(token ?? "")}` : "";
-  return requireData((await apiRequest<Agreement>(`${base}/agreements${path}`, { method: id ? "PUT" : "POST", body: input })).data);
+  const body = { ...input, reference: input.reference.trim() || null, ...(id ? {} : creation) };
+  return requireData((await apiRequest<Agreement>(`${base}/agreements${path}`, { method: id ? "PUT" : "POST", body })).data);
+}
+// --- Automatic references and default terms -------------------------------------------
+export type AgreementPrefix = {
+  merchantId: string; prefix: string | null; suggestedPrefix: string; locked: boolean; lockedAt: string | null;
+  /** e.g. "ANKPETS-CONS-2026-": the number is only assigned when the draft is saved. */
+  referencePattern: string; concurrencyToken: string;
+};
+export async function getAgreementPrefix(merchantId: string) {
+  return requireData((await apiRequest<AgreementPrefix>(`${base}/merchants/${merchantId}/agreement-prefix`)).data);
+}
+export async function saveAgreementPrefix(merchantId: string, prefix: string, concurrencyToken: string) {
+  return requireData((await apiRequest<AgreementPrefix>(`${base}/merchants/${merchantId}/agreement-prefix`, {
+    method: "PUT", body: { prefix, concurrencyToken },
+  })).data);
+}
+export type DefaultTermsValues = {
+  partnerCommissionPercentage: number | null; trialDurationDays: number | null; durationTerms: string | null;
+  settlementFrequency: string | null; paymentDeadlineDays: number | null; discountTerms: string | null;
+  returnTerms: string | null; lossTerms: string | null;
+};
+export type DefaultTerms = {
+  revision: number; isActive: boolean; terms: DefaultTermsValues; missing: string[]; updatedAt: string | null;
+  updatedByName: string | null; concurrencyToken: string;
+  history: { revision: number; isActive: boolean; terms: DefaultTermsValues; recordedAt: string; recordedByName: string | null }[];
+};
+export async function getDefaultTerms() {
+  return requireData((await apiRequest<DefaultTerms>(`${base}/default-terms`)).data);
+}
+export async function saveDefaultTerms(terms: DefaultTermsValues, isActive: boolean, concurrencyToken: string) {
+  return requireData((await apiRequest<DefaultTerms>(`${base}/default-terms`, { method: "PUT", body: { terms, isActive, concurrencyToken } })).data);
 }
 export async function agreementAction(a: Agreement, action: "approve" | "close", reference: string, selfReview?: SelfReview) {
   return requireData((await apiRequest<Agreement>(`${base}/agreements/${a.id}/${action}`, {
@@ -322,6 +360,63 @@ export async function downloadStocktakes(from: string, to: string) {
   saveBlob(r.blob, "MyPetLink-consignment-stocktakes.csv");
 }
 
+// --- Agreement document ---------------------------------------------------------
+/** Derived by the server from the saved agreement, its issued copies and signed copies. Never an approval. */
+export type AgreementDocumentStatus = "incomplete" | "ready" | "issued" | "signed-copy-received" | "approved" | "closed";
+export type IssuedAgreementDocument = {
+  id: string; issueNumber: number; agreementVersion: number; termsFingerprint: string; contentSha256: string;
+  fileName: string; issuedAt: string; issuedByName: string | null; isCurrent: boolean;
+};
+export type SignedAgreementCopy = {
+  id: string; issuedDocumentId: string; issueNumber: number; agreementVersion: number; originalFileName: string; contentType: string;
+  fileSize: number; sha256: string; partnerSignatoryName: string; partnerSignatoryDesignation: string | null; partnerSignedOn: string;
+  companySignatoryName: string | null; companySignatoryDesignation: string | null; companySignedOn: string | null; notes: string | null;
+  uploadedAt: string; uploadedByName: string | null; matchesCurrentTerms: boolean;
+};
+export type AgreementDocumentSummary = {
+  agreementId: string; reference: string; version: number; status: AgreementDocumentStatus; statusLabel: string;
+  missingForDocument: string[]; currentTermsFingerprint: string | null; currentIssuedDocumentId: string | null;
+  issuedPartyDetailsChanged: boolean; signedCopyMatchesCurrentTerms: boolean; canIssue: boolean; concurrencyToken: string;
+  issuedDocuments: IssuedAgreementDocument[]; signedCopies: SignedAgreementCopy[];
+};
+export type SignedCopyInput = {
+  issuedDocumentId: string; fileName: string; contentType: string; contentBase64: string;
+  partnerSignatoryName: string; partnerSignatoryDesignation: string | null; partnerSignedOn: string;
+  companySignatoryName: string | null; companySignatoryDesignation: string | null; companySignedOn: string | null; notes: string | null;
+};
+export type AgreementFile = { blob: Blob; fileName: string };
+export const MAX_SIGNED_COPY_BYTES = 8 * 1024 * 1024;
+export async function getAgreementDocument(agreementId: string) {
+  return requireData((await apiRequest<AgreementDocumentSummary>(`${base}/agreements/${agreementId}/document`)).data);
+}
+async function pdfFile(path: string, fallbackName: string): Promise<AgreementFile> {
+  const response = await apiRequestBlob(path);
+  if (!response.blob.type.startsWith("application/pdf")) throw new Error("The agreement could not be prepared. Please try again.");
+  return { blob: response.blob, fileName: response.fileName ?? fallbackName };
+}
+/** The saved terms the operator is looking at. A later save by anyone else is refused, never previewed silently. */
+export async function previewAgreementDocument(a: Agreement) {
+  return pdfFile(`${base}/agreements/${a.id}/document/preview.pdf?concurrencyToken=${encodeURIComponent(a.concurrencyToken)}`,
+    `MyPetLink_Consignment_${a.reference}_v${a.version}_PREVIEW.pdf`);
+}
+export async function issueAgreementDocument(a: Agreement) {
+  return requireData((await apiRequest<AgreementDocumentSummary>(`${base}/agreements/${a.id}/document/issue`, {
+    method: "POST", body: { concurrencyToken: a.concurrencyToken },
+  })).data);
+}
+export async function fetchIssuedAgreement(agreementId: string, document: IssuedAgreementDocument) {
+  return pdfFile(`${base}/agreements/${agreementId}/documents/${document.id}/pdf`, document.fileName);
+}
+export async function uploadSignedAgreement(agreementId: string, input: SignedCopyInput) {
+  return requireData((await apiRequest<AgreementDocumentSummary>(`${base}/agreements/${agreementId}/signed-copies`, { method: "POST", body: input })).data);
+}
+export async function fetchSignedAgreement(agreementId: string, copy: SignedAgreementCopy): Promise<AgreementFile> {
+  const response = await apiRequestBlob(`${base}/agreements/${agreementId}/signed-copies/${copy.id}/file`);
+  return { blob: response.blob, fileName: response.fileName ?? copy.originalFileName };
+}
+export function saveAgreementFile(file: AgreementFile) {
+  saveBlob(file.blob, file.fileName);
+}
 function saveBlob(blob: Blob,fileName: string) {
   const url = URL.createObjectURL(blob);
   try {

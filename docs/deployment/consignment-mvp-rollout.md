@@ -275,3 +275,41 @@ rollback is switch to Team and stop affected work; do not restore an older API t
 cannot read Solo evidence or drop review history. The existing inventory hold/rollback
 protections remain in effect. Rehearse fresh/upgrade/idempotent script and blocked
 Down paths on disposable SQL Server before any separately approved deployment.
+
+## Agreement document for signature (local only, 19 October 2026)
+
+Not deployed. Production deployment needs separate authorization.
+
+- **Migration** `20261019110531_AddConsignmentAgreementDocuments` adds `ConsignmentAgreementDocuments`
+  and `ConsignmentSignedAgreements` with restrictive foreign keys, append-only triggers (51054) and a
+  guarded Down (51055 once any issued or signed agreement exists). It changes no existing table and
+  seeds nothing. The root `migration.sql` carries its idempotent section.
+- **Order.** Apply the migration before the API that writes the new tables; the web build can follow.
+  An older API ignores the new tables, so rolling the API back is safe; the schema stays.
+- **Before first use** confirm Admin → Business identity has the legal business name, registration
+  number and complete registered address, and that each partner merchant record has its legal name,
+  registration number and billing address. The document refuses to generate without them. No
+  signatory is configured: the signature blocks are blank and filled in by hand.
+- **Permissions.** No capability is added or granted. Issuing and recording signed copies follow
+  `consignment.agreements.manage`; opening files needs manage or approve. Viewers see status only.
+- **Operational check.** Preview an existing draft, issue it, confirm the fingerprint on each page,
+  download, print and, after signing, record the signed copy. Approval still requires the signed
+  agreement reference and the existing review rules. Use synthetic agreements in staging; never
+  upload fake signed copies to Production.
+- **Rollback.** Roll the API and web back freely. Keep the tables: they hold what partners were sent
+  and what they signed. The guarded Down refuses once any exists.
+
+## Automatic references and default terms (local only, 19 October 2026)
+
+Not deployed. Apply `20261019124347_AddConsignmentReferencesAndDefaultTerms` after the agreement-document
+migration and before the matching API. It adds three tables and three nullable agreement columns, seeds
+the suggested default terms **inactive**, and refuses to start (51056) if two merchants share an agreement
+reference and version — resolve those by hand first. Existing references are never renamed.
+
+- **Before first use:** an approver reviews Agreement Settings → Default agreement terms, edits every clause
+  to the confirmed policy and puts them in use. Until then new drafts start with empty terms.
+- **Prefixes:** for an existing partner such as Ank Pets, open New agreement, choose the merchant and check
+  the suggested prefix before saving the first draft; change it if needed. Hand-typed historical references
+  (for example `ANKPETS-CONS-2026-001`) are kept and their numbers skipped.
+- **Rollback:** roll the API and web back freely. The guarded Down (51058) refuses once any reference,
+  creation key or default revision exists.

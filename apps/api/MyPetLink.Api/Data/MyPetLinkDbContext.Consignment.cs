@@ -14,11 +14,20 @@ public sealed partial class MyPetLinkDbContext
 
     public DbSet<ConsignmentApprovalPolicy> ConsignmentApprovalPolicies => Set<ConsignmentApprovalPolicy>();
     public DbSet<ConsignmentReviewEvent> ConsignmentReviewEvents => Set<ConsignmentReviewEvent>();
+    public DbSet<ConsignmentPartnerPrefix> ConsignmentPartnerPrefixes => Set<ConsignmentPartnerPrefix>();
+    public DbSet<ConsignmentDefaultTerms> ConsignmentDefaultTerms => Set<ConsignmentDefaultTerms>();
+    public DbSet<ConsignmentDefaultTermsRevision> ConsignmentDefaultTermsRevisions => Set<ConsignmentDefaultTermsRevision>();
+    public DbSet<ConsignmentAgreementDocument> ConsignmentAgreementDocuments => Set<ConsignmentAgreementDocument>();
+    public DbSet<ConsignmentSignedAgreement> ConsignmentSignedAgreements => Set<ConsignmentSignedAgreement>();
 
     private void EnforceConsignmentReviewHistory()
     {
         if(ChangeTracker.Entries<ConsignmentReviewEvent>().Any(e=>e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Consignment review history is append-only.");
+        // An issued agreement and a partner's signed copy are evidence of what was sent and signed.
+        if(ChangeTracker.Entries().Any(e=>e.Entity is ConsignmentAgreementDocument or ConsignmentSignedAgreement or ConsignmentDefaultTermsRevision
+            && e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Issued and signed consignment agreements are append-only.");
         EnforceConsignmentStockLedger();
     }
     private static void ConfigureConsignment(ModelBuilder model)
@@ -74,6 +83,12 @@ public sealed partial class MyPetLinkDbContext
             foreach (var name in new[] { "DurationTerms", "SettlementFrequency", "DiscountTerms", "ReturnTerms", "LossTerms", "SignedAgreementReference", "ExternalTrackerReference" })
                 e.Property<string>(name).HasMaxLength(2000);
             e.HasIndex(x => new { x.MerchantId, x.Reference, x.Version }).IsUnique();
+            // A reference names one agreement across every merchant; versions share it.
+            e.HasIndex(x => new { x.Reference, x.Version }).IsUnique();
+            e.Property(x => x.CreationKey).HasMaxLength(80);
+            e.Property(x => x.CreationRequestFingerprint).HasMaxLength(64);
+            e.HasIndex(x => x.CreationKey).IsUnique().HasFilter("[CreationKey] IS NOT NULL");
+            e.HasOne<ConsignmentDefaultTermsRevision>().WithMany().HasForeignKey(x => x.DefaultTermsRevision).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.MerchantId, x.Status, x.EffectiveFrom });
             e.HasIndex(x => new { x.MerchantId, x.Reference }).IsUnique().HasFilter("[Status] = 'Active'");
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.UpdatedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
@@ -168,6 +183,71 @@ public sealed partial class MyPetLinkDbContext
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.ActorAdminUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ConsignmentDispatch>().WithMany(x => x.HandoverRecords).HasForeignKey(x => x.DispatchId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ConsignmentHandoverRecord>().WithMany().HasForeignKey(x => x.SupersedesRecordId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ConsignmentDefaultTerms>(e =>
+        {
+            e.ToTable("ConsignmentDefaultTerms", t => {
+                t.HasCheckConstraint("CK_ConsignmentDefaultTerms_Singleton", "[Id] = 1");
+                t.HasCheckConstraint("CK_ConsignmentDefaultTerms_Values", "([PartnerCommissionPercentage] IS NULL OR [PartnerCommissionPercentage] BETWEEN 0 AND 100) AND ([TrialDurationDays] IS NULL OR [TrialDurationDays] BETWEEN 1 AND 3650) AND ([PaymentDeadlineDays] IS NULL OR [PaymentDeadlineDays] BETWEEN 0 AND 365)");
+                t.HasCheckConstraint("CK_ConsignmentDefaultTerms_Active", "[IsActive] = 0 OR ([PartnerCommissionPercentage] IS NOT NULL AND [TrialDurationDays] IS NOT NULL AND [PaymentDeadlineDays] IS NOT NULL AND [DurationTerms] IS NOT NULL AND [SettlementFrequency] IS NOT NULL AND [DiscountTerms] IS NOT NULL AND [ReturnTerms] IS NOT NULL AND [LossTerms] IS NOT NULL)");
+            });
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.PartnerCommissionPercentage).HasPrecision(5,2);
+            foreach (var name in new[] { "DurationTerms", "SettlementFrequency", "DiscountTerms", "ReturnTerms", "LossTerms" })
+                e.Property<string>(name).HasMaxLength(2000);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.UpdatedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ConsignmentDefaultTermsRevision>(e =>
+        {
+            e.ToTable("ConsignmentDefaultTermsRevisions");
+            e.HasKey(x => x.Revision);
+            e.Property(x => x.Revision).ValueGeneratedNever();
+            e.Property(x => x.PartnerCommissionPercentage).HasPrecision(5,2);
+            foreach (var name in new[] { "DurationTerms", "SettlementFrequency", "DiscountTerms", "ReturnTerms", "LossTerms" })
+                e.Property<string>(name).HasMaxLength(2000);
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.RecordedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ConsignmentPartnerPrefix>(e =>
+        {
+            e.ToTable("ConsignmentPartnerPrefixes", t => t.HasCheckConstraint("CK_ConsignmentPartnerPrefix_Format",
+                "LEN([Prefix]) BETWEEN 2 AND 12 AND [Prefix] COLLATE Latin1_General_BIN NOT LIKE '%[^A-Z0-9]%' AND LEFT([Prefix],1) COLLATE Latin1_General_BIN LIKE '[A-Z]'"));
+            e.HasKey(x => x.MerchantId);
+            e.Property(x => x.Prefix).HasMaxLength(12);
+            e.HasIndex(x => x.Prefix).IsUnique();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Merchant>().WithOne().HasForeignKey<ConsignmentPartnerPrefix>(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.UpdatedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ConsignmentAgreementDocument>(e =>
+        {
+            e.ToTable("ConsignmentAgreementDocuments", t => t.HasCheckConstraint("CK_ConsignmentAgreementDocument_Issue", "[IssueNumber] > 0 AND [AgreementVersion] > 0"));
+            e.Property(x => x.AgreementReference).HasMaxLength(100);
+            e.Property(x => x.TermsFingerprint).HasMaxLength(64);
+            e.Property(x => x.ContentSha256).HasMaxLength(64);
+            e.Property(x => x.FileName).HasMaxLength(200);
+            e.HasIndex(x => new { x.AgreementId, x.IssueNumber }).IsUnique();
+            e.HasOne(x => x.Agreement).WithMany().HasForeignKey(x => x.AgreementId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Merchant>().WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.IssuedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ConsignmentSignedAgreement>(e =>
+        {
+            e.ToTable("ConsignmentSignedAgreements", t => t.HasCheckConstraint("CK_ConsignmentSignedAgreement_File", "[FileSize] > 0 AND [ContentType] IN ('application/pdf','image/jpeg','image/png')"));
+            e.Property(x => x.TermsFingerprint).HasMaxLength(64);
+            e.Property(x => x.OriginalFileName).HasMaxLength(200);
+            e.Property(x => x.ContentType).HasMaxLength(64);
+            e.Property(x => x.Sha256).HasMaxLength(64);
+            e.Property(x => x.PartnerSignatoryName).HasMaxLength(200);
+            e.Property(x => x.PartnerSignatoryDesignation).HasMaxLength(200);
+            e.Property(x => x.CompanySignatoryName).HasMaxLength(200);
+            e.Property(x => x.CompanySignatoryDesignation).HasMaxLength(200);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.HasIndex(x => new { x.AgreementId, x.UploadedAt });
+            e.HasOne<ConsignmentAgreement>().WithMany().HasForeignKey(x => x.AgreementId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Merchant>().WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.IssuedDocument).WithMany().HasForeignKey(x => x.IssuedDocumentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.UploadedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
         });
         ConfigureConsignmentStocktake(model);
         ConfigureConsignmentSales(model);

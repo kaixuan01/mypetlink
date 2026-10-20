@@ -17,6 +17,7 @@ vi.mock("@/services/adminMerchantSalesService", () => ({ listMerchants: vi.fn(as
 vi.mock("@/services/merchantDirectoryService", () => ({ getMerchantListing: vi.fn(async () => ({ branches: [] })) }));
 vi.mock("@/services/tagCatalogService", () => ({ listAdminTagCatalogOptions: vi.fn(async () => []) }));
 vi.mock("@/services/adminConsignmentService", () => ({
+  getAgreementDocument: vi.fn(() => new Promise(() => {})),
   getApprovalPolicy: mocks.policy, listAgreements: mocks.agreements, listDispatches: mocks.dispatches, getDispatch: vi.fn(),
   custodyAction: vi.fn(), saveAgreement: vi.fn(), agreementAction: vi.fn(), downloadConsignment: vi.fn(), reserveConsignment: vi.fn(),
   downloadReconciliation: vi.fn(), downloadReviewLog: vi.fn(), downloadSalesReports: vi.fn(), downloadStockLedger: vi.fn(),

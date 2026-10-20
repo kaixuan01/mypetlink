@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { FormDialog } from "@/components/ui/FormDialog";
 import type { AdminMerchant } from "@/services/adminMerchantSalesService";
 import * as api from "@/services/adminConsignmentService";
@@ -14,10 +14,10 @@ import {
   errorMessage,
   myPetLinkShare,
   pendingTermsFor,
-  PROPOSED_PARTNER_RATE,
   startOfDayIso,
   validateAgreement,
 } from "./model";
+import { applyDefaultTerms, differsFromDefaults, emptyDefaultTerms, normalizePrefix, prefixProblem, suggestedEndIso } from "./defaultTerms";
 import { Callout, DateField, SelectField, TextAreaField, TextField, WorkflowStepper, textButton } from "./ui";
 
 export type AgreementRequest =
@@ -78,6 +78,93 @@ export function AgreementWizard({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState<api.Agreement | null>(null);
+  // One logical "create draft": a retry after a lost response returns the same draft and number.
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  );
+  const isNew = request.mode === "new";
+  const [defaults, setDefaults] = useState<api.DefaultTerms | null>(null);
+  const [defaultsState, setDefaultsState] = useState<"loading" | "applied" | "inactive" | "error" | "none">(isNew ? "loading" : "none");
+  const [appliedRevision, setAppliedRevision] = useState<number | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  // A date the operator picked is never replaced by a suggestion.
+  const [endTouched, setEndTouched] = useState(!isNew);
+  const [prefix, setPrefix] = useState<api.AgreementPrefix | null>(null);
+  const [prefixDraft, setPrefixDraft] = useState<string | null>(null);
+  const [prefixError, setPrefixError] = useState("");
+  const [prefixSaving, setPrefixSaving] = useState(false);
+
+  // Default terms fill an untouched form once. The saved draft keeps its own copy.
+  useEffect(() => {
+    if (!isNew) return;
+    let active = true;
+    api
+      .getDefaultTerms()
+      .then((result) => {
+        if (!active) return;
+        setDefaults(result);
+        if (!result.isActive) {
+          setDefaultsState("inactive");
+          return;
+        }
+        setForm((current) => (differsFromDefaults(current, emptyDefaultTerms) ? current : applyDefaultTerms(current, result.terms)));
+        setAppliedRevision(result.revision);
+        setDefaultsState("applied");
+      })
+      .catch(() => {
+        if (active) setDefaultsState("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [isNew]);
+
+  const merchantId = form.merchantId;
+  useEffect(() => {
+    if (!isNew || !merchantId) return;
+    let active = true;
+    api
+      .getAgreementPrefix(merchantId)
+      .then((result) => {
+        if (active) setPrefix(result);
+      })
+      .catch((e) => {
+        if (active) setPrefixError(errorMessage(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, [isNew, merchantId]);
+
+  const trialDays = appliedRevision !== null ? (defaults?.terms.trialDurationDays ?? null) : null;
+
+  function restoreDefaults() {
+    if (!defaults?.isActive) return;
+    setForm((current) => applyDefaultTerms(current, defaults.terms));
+    setAppliedRevision(defaults.revision);
+    setConfirmRestore(false);
+    setDirty(true);
+  }
+
+  async function savePrefix() {
+    if (!prefix || prefixDraft === null) return;
+    const value = normalizePrefix(prefixDraft);
+    const problem = prefixProblem(value);
+    if (problem) {
+      setPrefixError(problem);
+      return;
+    }
+    setPrefixSaving(true);
+    setPrefixError("");
+    try {
+      setPrefix(await api.saveAgreementPrefix(prefix.merchantId, value, prefix.concurrencyToken));
+      setPrefixDraft(null);
+    } catch (e) {
+      setPrefixError(errorMessage(e));
+    } finally {
+      setPrefixSaving(false);
+    }
+  }
 
   const locked = request.mode !== "new";
   const errors = validateAgreement(form);
@@ -118,7 +205,8 @@ export function AgreementWizard({
     setSaveError("");
     try {
       const editing = request.mode === "edit" ? request.agreement : null;
-      const result = await api.saveAgreement(form, editing?.id, editing?.concurrencyToken);
+      const result = await api.saveAgreement(form, editing?.id, editing?.concurrencyToken,
+        editing ? {} : { idempotencyKey, defaultTermsRevision: isNew ? appliedRevision : null });
       setSaved(result);
       setDirty(false);
       setStep(3);
@@ -226,30 +314,111 @@ export function AgreementWizard({
               error={visible("merchantId")}
               hint={locked ? "A draft or new version keeps its original partner." : "Only active merchants are listed."}
               label="Merchant"
-              onChange={(value) => change("merchantId", value)}
+              onChange={(value) => {
+                change("merchantId", value);
+                setPrefix(null);
+                setPrefixDraft(null);
+                setPrefixError("");
+              }}
               options={merchantOptions}
               requirement="required"
               value={form.merchantId}
             />
-            <TextField
-              disabled={locked}
-              error={visible("reference")}
-              hint={
-                locked
-                  ? "Versions share one reference so their history stays together."
-                  : "Your reference for this agreement, for example the partner code and year."
-              }
-              label="Agreement reference"
-              maxLength={100}
-              onChange={(value) => change("reference", value)}
-              requirement="required"
-              value={form.reference}
-            />
+            {locked ? (
+              <TextField
+                disabled
+                hint="Versions share one reference so their history stays together."
+                label="Agreement reference"
+                onChange={() => undefined}
+                value={form.reference}
+              />
+            ) : (
+              <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm" role="status">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Agreement reference</p>
+                {!form.merchantId ? (
+                  <p className="font-semibold text-slate-600">Choose a merchant to see the reference format.</p>
+                ) : prefix ? (
+                  <>
+                    <p className="font-mono text-base font-black text-slate-900">{prefix.referencePattern}…</p>
+                    <p className="font-semibold text-slate-600">
+                      Agreement reference will be generated when you save this draft. The number is assigned then, so it isn’t shown yet.
+                    </p>
+                    {prefixDraft === null ? (
+                      prefix.locked ? (
+                        <p className="text-xs text-slate-500">
+                          {prefix.prefix} is already used in this partner’s references, so it stays the same.
+                        </p>
+                      ) : (
+                        <button
+                          className={`${textButton} justify-self-start`}
+                          onClick={() => setPrefixDraft(prefix.prefix ?? prefix.suggestedPrefix)}
+                          type="button"
+                        >
+                          Change prefix
+                        </button>
+                      )
+                    ) : (
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="min-w-40 flex-1">
+                          <TextField
+                            hint="2–12 letters and numbers. It can’t change once a reference uses it."
+                            label="Reference prefix"
+                            maxLength={12}
+                            onChange={(value) => setPrefixDraft(normalizePrefix(value))}
+                            value={prefixDraft}
+                          />
+                        </div>
+                        <button className={secondaryButton} disabled={prefixSaving} onClick={() => setPrefixDraft(null)} type="button">
+                          Cancel
+                        </button>
+                        <button className={primaryButton} disabled={prefixSaving} onClick={() => void savePrefix()} type="button">
+                          {prefixSaving ? "Saving…" : "Save prefix"}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : prefixError ? null : (
+                  <p className="font-semibold text-slate-500">Loading reference format…</p>
+                )}
+                {prefixError ? (
+                  <p className="text-xs font-bold text-[#a63c2e]" role="alert">
+                    {prefixError}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </section>
         ) : null}
 
         {step === 1 ? (
           <div className="grid gap-6">
+            {defaultsState === "applied" && defaults ? (
+              <Callout title="Default terms have been applied" tone="info">
+                You can customise them for this agreement. Saving keeps this agreement’s own copy; later changes to the defaults
+                won’t affect it. (Default terms revision {appliedRevision}.)
+                {confirmRestore ? (
+                  <span className="mt-2 flex flex-wrap items-center gap-2" role="alert">
+                    <span className="font-black">Replace your edited commission and clauses with the defaults?</span>
+                    <button className={textButton} onClick={() => setConfirmRestore(false)} type="button">
+                      Keep my edits
+                    </button>
+                    <button className={textButton} onClick={restoreDefaults} type="button">
+                      Replace with defaults
+                    </button>
+                  </span>
+                ) : differsFromDefaults(form, defaults.terms) ? (
+                  <button className={`${textButton} ml-1`} onClick={() => setConfirmRestore(true)} type="button">
+                    Restore default terms
+                  </button>
+                ) : null}
+              </Callout>
+            ) : null}
+            {defaultsState === "inactive" ? (
+              <Callout tone="info">No default terms are in use yet. Enter the terms agreed with this partner.</Callout>
+            ) : null}
+            {defaultsState === "error" ? (
+              <Callout tone="warning">The default terms couldn’t be loaded. Enter the terms agreed with this partner.</Callout>
+            ) : null}
             <TermsSection title="Commission and duration">
               <div className="grid gap-2">
                 <TextField
@@ -269,20 +438,6 @@ export function AgreementWizard({
                   type="number"
                   value={form.partnerCommissionPercentage === null ? "" : String(form.partnerCommissionPercentage)}
                 />
-                {form.partnerCommissionPercentage === null ? (
-                  <button
-                    className={`${textButton} justify-self-start`}
-                    onClick={() => change("partnerCommissionPercentage", PROPOSED_PARTNER_RATE)}
-                    type="button"
-                  >
-                    Use proposed initial rate ({PROPOSED_PARTNER_RATE}%)
-                  </button>
-                ) : null}
-                {form.partnerCommissionPercentage === PROPOSED_PARTNER_RATE ? (
-                  <p className="text-xs font-bold text-[#8a5a10]">
-                    {PROPOSED_PARTNER_RATE}% is MyPetLink’s proposed initial rate. Confirm the partner has accepted it before approval.
-                  </p>
-                ) : null}
               </div>
               <TextField
                 hint="For example: 12 months, renewing unless either side gives 30 days’ written notice."
@@ -295,16 +450,29 @@ export function AgreementWizard({
                 error={visible("effectiveFrom")}
                 hint={form.effectiveFrom ? `Starts ${shortDate(form.effectiveFrom)}.` : "The first day the terms apply."}
                 label="Effective start"
-                onChange={(value) => change("effectiveFrom", value ? startOfDayIso(value) : null)}
+                onChange={(value) => {
+                  const start = value ? startOfDayIso(value) : null;
+                  change("effectiveFrom", start);
+                  if (!endTouched) change("effectiveTo", suggestedEndIso(start, trialDays));
+                }}
                 requirement="approval"
                 value={dateInputValue(form.effectiveFrom)}
               />
               <DateField
                 error={visible("effectiveTo")}
-                hint={form.effectiveTo ? `Runs to the end of ${shortDate(form.effectiveTo)}.` : "Leave blank if no end date was agreed."}
+                hint={
+                  form.effectiveTo
+                    ? `Runs to the end of ${shortDate(form.effectiveTo)}.${!endTouched && trialDays ? ` Suggested from the ${trialDays}-day trial, counting the start day as day 1.` : ""}`
+                    : trialDays
+                      ? `Pick the start date to suggest the end of the ${trialDays}-day trial, or leave blank if no end date was agreed.`
+                      : "Leave blank if no end date was agreed."
+                }
                 label="Effective end"
                 min={dateInputValue(form.effectiveFrom) || undefined}
-                onChange={(value) => change("effectiveTo", value ? endOfDayIso(value) : null)}
+                onChange={(value) => {
+                  setEndTouched(true);
+                  change("effectiveTo", value ? endOfDayIso(value) : null);
+                }}
                 requirement="optional"
                 value={dateInputValue(form.effectiveTo)}
               />
@@ -404,7 +572,7 @@ export function AgreementWizard({
                 Review before saving
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                {merchantName} · {form.reference}
+                {merchantName} · {isNew ? "reference generated when you save" : form.reference}
                 {request.mode === "revision" ? ` · version ${request.agreement.version + 1}` : ""}
               </p>
             </div>
@@ -417,6 +585,11 @@ export function AgreementWizard({
                 After saving, the draft can be approved. Approval is an internal check, not the partner’s signature.
               </Callout>
             )}
+            <p className="text-xs font-semibold text-slate-500">
+              {dirty
+                ? "These changes aren’t saved yet. The agreement document only ever uses saved terms — save the draft before previewing or issuing it."
+                : "The agreement document is generated from the saved terms on the agreement page."}
+            </p>
             {saveError ? (
               <div className="rounded-xl border border-[#ffd2c9] bg-[#fff2ef] px-4 py-3 text-sm font-bold text-[#a63c2e]" role="alert">
                 {saveError} Your entries are kept.
@@ -431,7 +604,12 @@ export function AgreementWizard({
             <h3 className="text-base font-black text-slate-950" id="wizard-saved">
               {saved.reference} v{saved.version} saved as a draft
             </h3>
-            {saved.pendingTerms.length > 0 ? (
+            {saved.pendingTerms.length > 0 && saved.pendingTerms.every((t) => t === "Signed agreement reference" || t === "External tracker") ? (
+              <Callout title="Next: issue the agreement for signature" tone="info">
+                The commercial terms are complete. On the agreement page, preview and issue the agreement document, send it to
+                the partner, then record their signed copy and its reference.
+              </Callout>
+            ) : saved.pendingTerms.length > 0 ? (
               <Callout title="Next: complete the remaining terms" tone="warning">
                 Still pending: {saved.pendingTerms.join(", ")}. Edit the draft once these are agreed with the partner.
               </Callout>

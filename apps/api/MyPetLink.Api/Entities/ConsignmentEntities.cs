@@ -12,6 +12,13 @@ public sealed class ConsignmentAgreement : AuditableEntity
     public Merchant Merchant { get; set; } = null!;
     public string Reference { get; set; } = "";
     public int Version { get; set; } = 1;
+    // Client-chosen key for one logical "create draft"; a retried request returns this row
+    // instead of allocating another reference. Null for drafts created before keys existed.
+    public string? CreationKey { get; set; }
+    public string? CreationRequestFingerprint { get; set; }
+    // Which revision of the default terms the creating form started from. Audit metadata only:
+    // the agreement's own columns are its terms, and nothing reads the template back.
+    public int? DefaultTermsRevision { get; set; }
     public Guid? SupersedesAgreementId { get; set; }
     public decimal PartnerCommissionPercentage { get; set; }
     public DateTimeOffset? EffectiveFrom { get; set; }
@@ -141,4 +148,17 @@ public sealed class ConsignmentHandoverRecord : Entity
     // Set on branches with SKU stock tracking: whether this identified unit is one of the
     // aggregate reported sales or a non-sale withdrawal. Legacy rows stay null.
     public ConsignmentHandoverAttribution? Attribution { get; set; }
+}
+
+// Merchant part of automatic agreement references (ANKPETS-CONS-2026-001). Chosen from the
+// merchant's name, adjustable until LockedAt, and never re-derived on rename, so references
+// already issued keep their meaning. Kept apart from Merchant so merchant edits never race it.
+public sealed class ConsignmentPartnerPrefix
+{
+    public Guid MerchantId { get; set; }
+    public string Prefix { get; set; } = "";
+    public DateTimeOffset? LockedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public Guid UpdatedByAdminUserId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }

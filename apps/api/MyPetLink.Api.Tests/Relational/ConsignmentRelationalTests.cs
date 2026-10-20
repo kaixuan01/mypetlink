@@ -45,7 +45,7 @@ public sealed partial class ConsignmentRelationalTests
         var audit=new AuditLogService(db,new HttpContextAccessor());
         return new(db,audit,new BusinessIdentityService(db,audit,new FixedClock(Now)),new DocumentNumberService(db),new FixedClock(Now));
     }
-    private static SaveConsignmentAgreementRequest Terms(string reference="INITIAL") => new(MerchantId,reference,35m,Now.AddDays(-1),null,
+    private static SaveConsignmentAgreementRequest Terms(string? reference=null) => new(MerchantId,reference,35m,Now.AddDays(-1),null,
         "Test-only duration subject to signed schedule","Test-only settlement schedule",14,"Test-only discounts","Test-only returns",
         "Test-only loss allocation","TEST-SIGNED","TEST-TRACKER");
     private static async Task<ConsignmentAgreementResponse> Agreement(MyPetLinkDbContext db) {

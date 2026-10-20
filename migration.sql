@@ -13367,3 +13367,409 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE TABLE [ConsignmentAgreementDocuments] (
+        [Id] uniqueidentifier NOT NULL,
+        [AgreementId] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [AgreementReference] nvarchar(100) NOT NULL,
+        [AgreementVersion] int NOT NULL,
+        [IssueNumber] int NOT NULL,
+        [TermsFingerprint] nvarchar(64) NOT NULL,
+        [SnapshotJson] nvarchar(max) NOT NULL,
+        [Content] varbinary(max) NOT NULL,
+        [ContentSha256] nvarchar(64) NOT NULL,
+        [FileName] nvarchar(200) NOT NULL,
+        [IssuedAt] datetimeoffset NOT NULL,
+        [IssuedByAdminUserId] uniqueidentifier NOT NULL,
+        CONSTRAINT [PK_ConsignmentAgreementDocuments] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentAgreementDocument_Issue] CHECK ([IssueNumber] > 0 AND [AgreementVersion] > 0),
+        CONSTRAINT [FK_ConsignmentAgreementDocuments_AdminUsers_IssuedByAdminUserId] FOREIGN KEY ([IssuedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentAgreementDocuments_ConsignmentAgreements_AgreementId] FOREIGN KEY ([AgreementId]) REFERENCES [ConsignmentAgreements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentAgreementDocuments_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSignedAgreements] (
+        [Id] uniqueidentifier NOT NULL,
+        [AgreementId] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [AgreementVersion] int NOT NULL,
+        [IssuedDocumentId] uniqueidentifier NOT NULL,
+        [TermsFingerprint] nvarchar(64) NOT NULL,
+        [OriginalFileName] nvarchar(200) NOT NULL,
+        [ContentType] nvarchar(64) NOT NULL,
+        [FileSize] bigint NOT NULL,
+        [Sha256] nvarchar(64) NOT NULL,
+        [Content] varbinary(max) NOT NULL,
+        [PartnerSignatoryName] nvarchar(200) NOT NULL,
+        [PartnerSignatoryDesignation] nvarchar(200) NULL,
+        [PartnerSignedOn] date NOT NULL,
+        [CompanySignatoryName] nvarchar(200) NULL,
+        [CompanySignatoryDesignation] nvarchar(200) NULL,
+        [CompanySignedOn] date NULL,
+        [Notes] nvarchar(1000) NULL,
+        [UploadedAt] datetimeoffset NOT NULL,
+        [UploadedByAdminUserId] uniqueidentifier NOT NULL,
+        CONSTRAINT [PK_ConsignmentSignedAgreements] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSignedAgreement_File] CHECK ([FileSize] > 0 AND [ContentType] IN ('application/pdf','image/jpeg','image/png')),
+        CONSTRAINT [FK_ConsignmentSignedAgreements_AdminUsers_UploadedByAdminUserId] FOREIGN KEY ([UploadedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSignedAgreements_ConsignmentAgreementDocuments_IssuedDocumentId] FOREIGN KEY ([IssuedDocumentId]) REFERENCES [ConsignmentAgreementDocuments] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSignedAgreements_ConsignmentAgreements_AgreementId] FOREIGN KEY ([AgreementId]) REFERENCES [ConsignmentAgreements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSignedAgreements_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentAgreementDocuments_AgreementId_IssueNumber] ON [ConsignmentAgreementDocuments] ([AgreementId], [IssueNumber]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentAgreementDocuments_IssuedByAdminUserId] ON [ConsignmentAgreementDocuments] ([IssuedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentAgreementDocuments_MerchantId] ON [ConsignmentAgreementDocuments] ([MerchantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSignedAgreements_AgreementId_UploadedAt] ON [ConsignmentSignedAgreements] ([AgreementId], [UploadedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSignedAgreements_IssuedDocumentId] ON [ConsignmentSignedAgreements] ([IssuedDocumentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSignedAgreements_MerchantId] ON [ConsignmentSignedAgreements] ([MerchantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSignedAgreements_UploadedByAdminUserId] ON [ConsignmentSignedAgreements] ([UploadedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentAgreementDocuments_AppendOnly ON ConsignmentAgreementDocuments
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51054, ''Issued and signed consignment agreements are append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentSignedAgreements_AppendOnly ON ConsignmentSignedAgreements
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51054, ''Issued and signed consignment agreements are append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019110531_AddConsignmentAgreementDocuments'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261019110531_AddConsignmentAgreementDocuments', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    ALTER TABLE [ConsignmentAgreements] ADD [CreationKey] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    ALTER TABLE [ConsignmentAgreements] ADD [CreationRequestFingerprint] nvarchar(64) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    ALTER TABLE [ConsignmentAgreements] ADD [DefaultTermsRevision] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE TABLE [ConsignmentDefaultTerms] (
+        [Id] int NOT NULL,
+        [Revision] int NOT NULL,
+        [IsActive] bit NOT NULL,
+        [PartnerCommissionPercentage] decimal(5,2) NULL,
+        [TrialDurationDays] int NULL,
+        [DurationTerms] nvarchar(2000) NULL,
+        [SettlementFrequency] nvarchar(2000) NULL,
+        [PaymentDeadlineDays] int NULL,
+        [DiscountTerms] nvarchar(2000) NULL,
+        [ReturnTerms] nvarchar(2000) NULL,
+        [LossTerms] nvarchar(2000) NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [UpdatedAt] datetimeoffset NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_ConsignmentDefaultTerms] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentDefaultTerms_Active] CHECK ([IsActive] = 0 OR ([PartnerCommissionPercentage] IS NOT NULL AND [TrialDurationDays] IS NOT NULL AND [PaymentDeadlineDays] IS NOT NULL AND [DurationTerms] IS NOT NULL AND [SettlementFrequency] IS NOT NULL AND [DiscountTerms] IS NOT NULL AND [ReturnTerms] IS NOT NULL AND [LossTerms] IS NOT NULL)),
+        CONSTRAINT [CK_ConsignmentDefaultTerms_Singleton] CHECK ([Id] = 1),
+        CONSTRAINT [CK_ConsignmentDefaultTerms_Values] CHECK (([PartnerCommissionPercentage] IS NULL OR [PartnerCommissionPercentage] BETWEEN 0 AND 100) AND ([TrialDurationDays] IS NULL OR [TrialDurationDays] BETWEEN 1 AND 3650) AND ([PaymentDeadlineDays] IS NULL OR [PaymentDeadlineDays] BETWEEN 0 AND 365)),
+        CONSTRAINT [FK_ConsignmentDefaultTerms_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE TABLE [ConsignmentDefaultTermsRevisions] (
+        [Revision] int NOT NULL,
+        [IsActive] bit NOT NULL,
+        [PartnerCommissionPercentage] decimal(5,2) NULL,
+        [TrialDurationDays] int NULL,
+        [DurationTerms] nvarchar(2000) NULL,
+        [SettlementFrequency] nvarchar(2000) NULL,
+        [PaymentDeadlineDays] int NULL,
+        [DiscountTerms] nvarchar(2000) NULL,
+        [ReturnTerms] nvarchar(2000) NULL,
+        [LossTerms] nvarchar(2000) NULL,
+        [RecordedByAdminUserId] uniqueidentifier NULL,
+        [RecordedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentDefaultTermsRevisions] PRIMARY KEY ([Revision]),
+        CONSTRAINT [FK_ConsignmentDefaultTermsRevisions_AdminUsers_RecordedByAdminUserId] FOREIGN KEY ([RecordedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE TABLE [ConsignmentPartnerPrefixes] (
+        [MerchantId] uniqueidentifier NOT NULL,
+        [Prefix] nvarchar(12) NOT NULL,
+        [LockedAt] datetimeoffset NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_ConsignmentPartnerPrefixes] PRIMARY KEY ([MerchantId]),
+        CONSTRAINT [CK_ConsignmentPartnerPrefix_Format] CHECK (LEN([Prefix]) BETWEEN 2 AND 12 AND [Prefix] COLLATE Latin1_General_BIN NOT LIKE '%[^A-Z0-9]%' AND LEFT([Prefix],1) COLLATE Latin1_General_BIN LIKE '[A-Z]'),
+        CONSTRAINT [FK_ConsignmentPartnerPrefixes_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentPartnerPrefixes_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_ConsignmentAgreements_CreationKey] ON [ConsignmentAgreements] ([CreationKey]) WHERE [CreationKey] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentAgreements_DefaultTermsRevision] ON [ConsignmentAgreements] ([DefaultTermsRevision]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    IF EXISTS (SELECT 1 FROM ConsignmentAgreements GROUP BY Reference, Version HAVING COUNT(*) > 1)
+        THROW 51056, 'Duplicate consignment agreement references exist across merchants. Review them before applying automatic references.', 1;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentAgreements_Reference_Version] ON [ConsignmentAgreements] ([Reference], [Version]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDefaultTerms_UpdatedByAdminUserId] ON [ConsignmentDefaultTerms] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDefaultTermsRevisions_RecordedByAdminUserId] ON [ConsignmentDefaultTermsRevisions] ([RecordedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentPartnerPrefixes_Prefix] ON [ConsignmentPartnerPrefixes] ([Prefix]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentPartnerPrefixes_UpdatedByAdminUserId] ON [ConsignmentPartnerPrefixes] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    ALTER TABLE [ConsignmentAgreements] ADD CONSTRAINT [FK_ConsignmentAgreements_ConsignmentDefaultTermsRevisions_DefaultTermsRevision] FOREIGN KEY ([DefaultTermsRevision]) REFERENCES [ConsignmentDefaultTermsRevisions] ([Revision]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    INSERT INTO ConsignmentDefaultTermsRevisions (Revision, IsActive, PartnerCommissionPercentage, TrialDurationDays,
+        DurationTerms, SettlementFrequency, PaymentDeadlineDays, DiscountTerms, ReturnTerms, LossTerms, RecordedByAdminUserId, RecordedAt)
+    VALUES (1, 0, 35.00, 60,
+        N'Initial trial of 60 calendar days from the effective start date. The agreement continues after the trial only by mutual written agreement; it does not renew automatically.',
+        N'Monthly, after the month''s partner sales are reconciled and confirmed by both parties.',
+        7,
+        N'The Partner sells only at selling prices and promotional prices approved in writing by MyPetLink.',
+        N'Unsold stock carries forward while this agreement is active. On termination, or as otherwise agreed in writing, unsold stock is physically returned to MyPetLink.',
+        N'Responsibility for lost or damaged stock is decided on evidence. Loss or damage caused by the Partner''s negligence is the Partner''s responsibility; manufacturing defects are MyPetLink''s responsibility.',
+        NULL, '2026-10-19T00:00:00+00:00');
+    INSERT INTO ConsignmentDefaultTerms (Id, Revision, IsActive, PartnerCommissionPercentage, TrialDurationDays, DurationTerms,
+        SettlementFrequency, PaymentDeadlineDays, DiscountTerms, ReturnTerms, LossTerms, UpdatedByAdminUserId, UpdatedAt)
+    SELECT 1, Revision, IsActive, PartnerCommissionPercentage, TrialDurationDays, DurationTerms, SettlementFrequency,
+        PaymentDeadlineDays, DiscountTerms, ReturnTerms, LossTerms, NULL, NULL
+    FROM ConsignmentDefaultTermsRevisions WHERE Revision = 1;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentDefaultTermsRevisions_AppendOnly ON ConsignmentDefaultTermsRevisions
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51057, ''Default agreement term revisions are append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261019124347_AddConsignmentReferencesAndDefaultTerms'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261019124347_AddConsignmentReferencesAndDefaultTerms', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

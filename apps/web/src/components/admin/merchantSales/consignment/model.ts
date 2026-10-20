@@ -274,9 +274,6 @@ export function summarise(
 
 // --- Agreement form ----------------------------------------------------------
 
-/** The proposed opening rate. It is offered, never assumed. */
-export const PROPOSED_PARTNER_RATE = 35;
-
 export const emptyAgreement: api.AgreementInput = {
   merchantId: "",
   reference: "",
@@ -328,8 +325,8 @@ const textTerms = [
 export function validateAgreement(form: api.AgreementInput): AgreementErrors {
   const errors: AgreementErrors = {};
   if (!form.merchantId) errors.merchantId = "Choose the partner merchant.";
-  if (!form.reference.trim()) errors.reference = "Enter the agreement reference.";
-  else if (form.reference.trim().length > 100) errors.reference = "Use 100 characters or fewer.";
+  // A new agreement's reference is assigned on save; an existing one is only ever echoed back.
+  if (form.reference.trim().length > 100) errors.reference = "Use 100 characters or fewer.";
   const rate = form.partnerCommissionPercentage;
   if (rate === null || Number.isNaN(rate)) errors.partnerCommissionPercentage = "Enter the partner commission agreed for this version.";
   else if (rate < 0 || rate > 100) errors.partnerCommissionPercentage = "Use a percentage from 0 to 100.";

@@ -379,3 +379,104 @@ Rollback of the stocktake migration is refused once any stocktake, discrepancy o
 (51051); rollback of the hardening migration is refused once any count time or withdrawn late-report
 link exists (51053). Migrations roll back one at a time: a refused multi-step downgrade may already have rolled
 back later, empty migrations, so never assume it left the schema unchanged; reapply Up to recover.
+
+## Agreement document for signature (19 October 2026)
+
+Administrators no longer write a separate Word/PDF agreement. The agreement a partner signs is
+generated server-side from the saved `ConsignmentAgreements` row, so the signed paper and the terms
+the system enforces cannot drift apart. Nothing in this flow approves, signs or activates anything:
+internal approval keeps its existing rules (Team/Solo) and still needs the signed agreement reference.
+
+- **Source of truth.** Terms come only from the saved row: reference, version, partner commission
+  (and MyPetLink's complement), effective dates, duration and renewal, settlement frequency, payment
+  deadline, discount, return and loss terms, printed verbatim. The renderer
+  (`ConsignmentAgreementRenderer`) adds headings and signature blocks, never clauses or values.
+  Price terms, stock quantities and dispatches have their own approval lifecycle and are **not**
+  contractual schedules of this document. The external tracker and signed agreement references are
+  evidence, not terms, and are not printed.
+- **Parties.** The company is the configured business identity (`BusinessIdentitySettings`: legal
+  name, registration number, registered address, support email, brand); the partner is the stored
+  merchant (legal and trading name, registration number, billing address, contact person and email).
+  A missing field blocks the document with a list of what is needed (`agreement_document_incomplete`):
+  nothing is invented, and no signatory is configured — signature blocks are blank.
+- **Preview** renders the saved draft, watermarked "Draft preview — not for signature", and stores
+  nothing. It needs the agreement's concurrency token, so a preview can never show terms the operator
+  has not seen (unsaved form values never reach the server; someone else's later save is refused).
+- **Issue for signature** freezes the document: `ConsignmentAgreementDocuments` keeps the PDF bytes,
+  their SHA-256, a JSON snapshot of both parties and the terms, and a **terms fingerprint** (SHA-256
+  of the commercial terms alone, printed as `XXXX-XXXX-XXXX` on every page). Issues are numbered per
+  agreement version. Re-issuing identical saved content returns the existing issue; after any edit the
+  old issue is kept but is no longer current, and a new issue is produced.
+- **Signed copy.** `ConsignmentSignedAgreements` stores the partner's actual file (PDF, JPEG or PNG,
+  up to 8 MB; type detected from the bytes and required to match the declared type and extension, then
+  opened in full — a PDF must parse with readable pages and no encryption, an image must decode completely
+  within 12,000 px per side and 40 megapixels — so nothing unreadable is kept as evidence),
+  its SHA-256, the issue it answers and that issue's fingerprint, the partner signatory, optional
+  MyPetLink signatory, signing dates (between the issue date and today, Malaysia time) and the
+  uploader. A copy for an issue whose terms no longer match is refused. Once a signed copy exists, the
+  draft's commercial terms are locked: changing them requires a new agreement version, signed again.
+  Evidence references stay editable so the signed reference can be recorded for approval.
+- **Status** shown in Admin is derived, never stored: Draft — Incomplete, Ready for Signature, Issued
+  for Signature, Signed Copy Received, Approved, Closed.
+- **Storage.** Files live in SQL Server beside the agreement (as dispatch notes already do), not in
+  object storage: they are reached only through authorized API endpoints, never a public or
+  predictable URL. Both tables are append-only in EF and in SQL Server (trigger 51054).
+- **Access.** Status (metadata only): `consignment.view`. Opening any agreement file (preview, issued
+  PDF, signed copy) additionally needs `consignment.agreements.manage` or
+  `consignment.agreements.approve`, checked in the service. Issuing and recording a signed copy:
+  `consignment.agreements.manage`. Every file id is looked up together with its agreement id. Preview,
+  issue, download and upload are audited.
+- **Sharing.** Download, print (the PDF itself, in the browser's print flow) and the device share sheet
+  where the browser supports sharing files; otherwise an attach-it-yourself dialog with a suggested
+  message. MyPetLink never records an agreement as sent. Emailing the PDF from the transactional
+  outbox was assessed and deferred: it needs a new message type, attachment resolver entry and a
+  disabled-by-default template switch under the configuration governance rules.
+
+Rollback of the agreement-document migration is refused once any issued or signed agreement exists
+(51055).
+
+## Automatic agreement references and default terms (19 October 2026)
+
+**References.** A new agreement's reference is assigned by the server when its first draft is saved:
+`{PREFIX}-CONS-{yyyy}-{nnn}`, for example `ANKPETS-CONS-2026-001`. Administrators no longer type it.
+
+- **Prefix** (`ConsignmentPartnerPrefixes`, one row per merchant, kept apart from `Merchants` so merchant
+  edits never race it). Suggested from the trading or legal name: whole words up to 12 letters and digits,
+  legal-form words (Sdn, Bhd, PLT…) dropped. Unique across merchants (unique index); a collision takes the
+  next free `PREFIX2`, `PREFIX3`…, and a stem already used by another partner's hand-typed references is
+  never offered to someone else. Historical references are read case-insensitively (`legacy-cons-2025-001`
+  reserves `LEGACY` and holds its number) and never rewritten; one without a usable stem reserves nothing. Adjustable (`consignment.agreements.manage`, audited) until its first
+  reference locks it; never re-derived when a merchant is renamed. The existing `MerchantCode`
+  (`MPL-MER-00001`) is stable but not name-based, so it is not reused.
+- **Sequence.** `DocumentNumberCounters` key `consignment-agreement:{PREFIX}:{yyyy}`, Malaysian calendar
+  year. The increment runs inside the draft's transaction (locked single-statement update, plus the
+  consignment application lock), so a failed save releases the number and a committed one is never
+  reissued — closing or withdrawing an agreement does not free it. Numbers already taken by a
+  hand-typed historical reference are skipped. `(Reference, Version)` is unique across all merchants.
+- **Retries.** The wizard sends an idempotency key (`CreationKey`, unique); a retried request with the
+  same content returns the draft it already created, and the same key with different content is refused.
+- **Revisions** inherit the original reference with the next version number and take no new number.
+- **History.** Existing references are untouched. Issued PDFs, file names and signed copies already read
+  the agreement's stored reference, so they carry the generated one without change.
+
+**Default agreement terms** (Agreement Settings → Default agreement terms; `ConsignmentDefaultTerms`,
+a single typed row with RowVersion, and append-only `ConsignmentDefaultTermsRevisions`).
+
+- Partner commission, trial duration (days), duration and renewal, settlement frequency, payment
+  deadline, discount, return and loss clauses. Never dates, signed references, signing dates or trackers.
+- Seeded by the migration with the suggested starting terms **inactive**. Nothing reaches an agreement
+  until an approver reviews and puts them in use; activation requires every field. Editing needs
+  `consignment.agreements.approve` (the people who review commercial terms); viewing needs
+  `consignment.view`. Every save is a new revision with operator, UTC time, old and new values in the
+  audit log; stale saves are refused.
+- A new draft's form is filled once from the active revision; every field stays editable, and
+  "Restore default terms" asks before replacing edits. The trial length suggests the end date, counting
+  the start day as day 1, until the operator picks one. The agreement records which revision it started
+  from (`DefaultTermsRevision`, audit only). Saving copies the values into the agreement: nothing —
+  preview, issue, PDF or approval — ever reads the template again. Revisions start from their
+  predecessor, never the current defaults. The former hard-coded 35% "proposed rate" button is removed.
+
+Rollback of `AddConsignmentReferencesAndDefaultTerms` is refused (51058) once a reference locked a prefix,
+a draft used a creation key or default revision, or the defaults were revised. Default-term revisions
+are append-only in EF and SQL Server (51057). The migration refuses to start (51056) if two merchants
+already share a reference and version.

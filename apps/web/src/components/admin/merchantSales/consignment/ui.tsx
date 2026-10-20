@@ -200,7 +200,7 @@ export function TextField({
   );
 }
 
-export function DateField(props: BaseFieldProps & { min?: string }) {
+export function DateField(props: BaseFieldProps & { min?: string; max?: string }) {
   const id = useId();
   return (
     <FieldShell error={props.error} hint={props.hint} id={id} label={props.label} requirement={props.requirement}>
@@ -210,6 +210,7 @@ export function DateField(props: BaseFieldProps & { min?: string }) {
         className={fieldClass}
         disabled={props.disabled}
         id={id}
+        max={props.max}
         min={props.min}
         onChange={(event) => props.onChange(event.target.value)}
         type="date"

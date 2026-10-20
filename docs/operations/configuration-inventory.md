@@ -290,6 +290,22 @@ and issue-review rules are category G invariants. The reported amount validation
 the existing B2B numeric-input envelope, not a new commercial price or commission setting.
 No configuration ownership moves and no new App Setting are introduced.
 
+Consignment agreement documents (2026-10-19): issued agreement PDFs with their frozen snapshot
+and terms fingerprint (`ConsignmentAgreementDocuments`) and partner signed copies
+(`ConsignmentSignedAgreements`) are category E append-only evidence. Contracting-party details
+remain owned by `BusinessIdentitySettings` (category D) and the merchant record; no signatory,
+template text or commercial default is added, and no new App Setting is introduced. The 8 MB
+signed-copy ceiling is a validation envelope, not a business value.
+
+Consignment default agreement terms (2026-10-19): category **D**, single owner
+`ConsignmentDefaultTerms` (typed singleton, RowVersion, UpdatedAt/UpdatedBy, audited old/new values),
+history in append-only `ConsignmentDefaultTermsRevisions` (category E). Seeded inactive with suggested
+values; activation is explicit and confirmed in Admin. Edit capability: `consignment.agreements.approve`.
+It is a starting point only: each agreement stores its own copy. The former web constant
+`PROPOSED_PARTNER_RATE` (35%) duplicated this business fact and is removed (category H).
+Consignment agreement references (2026-10-19): `ConsignmentPartnerPrefixes` (category D, adjustable
+until first use, then frozen) and the yearly `DocumentNumberCounters` series (category E). No App Setting.
+
 ### Consignment approval policy (2026-10-18)
 
 Category **D**, single owner: `ConsignmentApprovalPolicies` singleton typed Mode and

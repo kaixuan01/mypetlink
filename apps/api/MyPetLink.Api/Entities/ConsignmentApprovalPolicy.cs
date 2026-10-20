@@ -34,3 +34,41 @@ public sealed class ConsignmentReviewEvent : Entity
     public string? SubjectType { get; set; }
     public Guid? SubjectId { get; set; }
 }
+
+// The starting terms offered for a new agreement. One organisation-wide row (category D):
+// copied into the form when a draft is started, never read again for a saved agreement.
+// Seeded inactive with suggested values; nothing is applied until an administrator activates it.
+public sealed class ConsignmentDefaultTerms
+{
+    public int Id { get; set; } = 1;
+    public int Revision { get; set; }
+    public bool IsActive { get; set; }
+    public decimal? PartnerCommissionPercentage { get; set; }
+    public int? TrialDurationDays { get; set; }
+    public string? DurationTerms { get; set; }
+    public string? SettlementFrequency { get; set; }
+    public int? PaymentDeadlineDays { get; set; }
+    public string? DiscountTerms { get; set; }
+    public string? ReturnTerms { get; set; }
+    public string? LossTerms { get; set; }
+    public Guid? UpdatedByAdminUserId { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+// Append-only copy of every saved revision of the default terms, for audit.
+public sealed class ConsignmentDefaultTermsRevision
+{
+    public int Revision { get; set; }
+    public bool IsActive { get; set; }
+    public decimal? PartnerCommissionPercentage { get; set; }
+    public int? TrialDurationDays { get; set; }
+    public string? DurationTerms { get; set; }
+    public string? SettlementFrequency { get; set; }
+    public int? PaymentDeadlineDays { get; set; }
+    public string? DiscountTerms { get; set; }
+    public string? ReturnTerms { get; set; }
+    public string? LossTerms { get; set; }
+    public Guid? RecordedByAdminUserId { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+}
