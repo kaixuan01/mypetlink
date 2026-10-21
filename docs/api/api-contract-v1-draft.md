@@ -740,6 +740,7 @@ Rules:
 
 - Pending means: an active (not archived, not deleted) record with a `dueDate`, on a pet that is Active (not Memorial, Archived or deleted), with no active record fulfilling it.
 - Every rule is applied in the query before paging; `meta.total` is the filtered pending count.
+- Each page is its own read, ordered by due date, creation time, then id. Separate page requests are not one snapshot: an item completed or added between them can shift items across page boundaries without changing `meta.total`. Clients present multi-page results as a best-effort live list and offer a refresh; the Care planner re-reads its whole window from page 1 and qualifies any read of more than one page. The same applies to `GET /api/v1/pets/{petId}/care-records` (ordered by record date, creation time, then id).
 - Ordered by `dueDate`, then creation time, then id.
 - `derivedStatus` uses the Malaysia calendar day (`overdue`, `due-soon` within 30 days, `upcoming`).
 - The per-pet history list above is unchanged.
@@ -785,7 +786,34 @@ Rules:
 - Both records always carry a `documents` array (possibly empty). Clients reject a record without one: an omitted collection is not proof of no attachments.
 - Both records carry their attached documents by stored media id. A client settling a lost save compares those ids, as a set, with the ids its request carried; matching text alone never proves the attachments were saved.
 - Disappearing from pending care is never reported as `completed`.
-- There is no request idempotency key. Two saves for one unchanged item cannot both be active (one active completing record per item); a save validated before the item changed can still land afterwards, which the precedence above reports.
+- Every care write for a pet (create, update, archive, complete) holds that pet's care-write lock (a transaction-scoped SQL Server application lock) from its first check to its commit, so a save validated before an item changed can no longer land afterwards: the other write waits and then runs against what the first committed. The precedence above still reports any such state left by earlier data.
+
+### POST `/api/v1/care-records/{recordId}/complete`
+
+Purpose: log one pending due item as done in one step, safely repeatable.
+
+Auth: owner (JWT subject). Another owner's or a deleted item returns `404`.
+
+Request: `idempotencyKey` (GUID, required, generated once per completion by the client and reused on every retry of it), `completedOn` (Malaysia calendar day, required, not in the future), `nextDueDate` (optional, on or after `completedOn`), `provider` (optional, ≤ 160), `notes` (optional, ≤ 2000).
+
+The completing record copies the item's type, title and care name, is dated `completedOn`, carries `nextDueDate` as its own due date, links to the item, and is **Private**. No documents are copied.
+
+Responses (`data`: `outcome`, `completion` — a care record):
+
+- `201` `outcome: "created"`: this request wrote the record (`Location` points at it).
+- `200` `outcome: "replayed"`: an earlier request with the same key **and the same details** wrote it; this is that record as it is now. Safe after a lost response, a timeout or a double click.
+- `400` `validation_failed` with field errors (`idempotencyKey`, `completedOn`, `nextDueDate`).
+- `409` with a stable code, nothing written:
+  - `care_item_archived`, `care_item_pet_archived`, `care_item_no_due_date`, `care_item_completed` — the item can't be completed (same precedence as the completion status);
+  - `idempotency_key_conflict` — the key was used for a different request (other details, another item, or another owner);
+  - `completion_removed` — the record this key created has since been deleted; it is never re-created.
+- `503` `care_write_busy` when the pet's care-write lock can't be taken within 10 seconds.
+
+Guarantees: one active completing record per item (unique index, plus the per-pet lock); one record per key (unique filtered index on `CareRecords.CompletionIdempotencyKey`); the request fingerprint (`CompletionRequestFingerprint`) identifies a replay even after the record is edited. No Undo endpoint: correcting a completion uses ordinary edit or delete.
+
+- **Fingerprint:** SHA-256 (lowercase hex) of the UTF-8 bytes of the JSON array `["care-completion-v1", targetId (N format), completedOn, nextDueDate, provider, notes]`, with the text fields trimmed and empty stored as `null`. JSON quoting keeps each value inside its own field, so newline-containing text can't be read as another field. Text is compared exactly after trimming (no Unicode normalization).
+- **Replay of an edited record:** `replayed` returns the record as it is now. Its fulfilment link may have been changed or cleared since; the replay still acknowledges that the original request was saved.
+- **Pet archive** (`POST /api/v1/pets/{petId}/archive`) takes the same per-pet care-write lock, so a completion already validated commits before the archive, and one that starts after it sees the archived pet and is refused (`care_item_pet_archived`). It can also answer `503 care_write_busy`.
 
 ### POST `/api/v1/pets/{petId}/care-records`
 

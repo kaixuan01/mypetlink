@@ -13773,3 +13773,46 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020181228_AddCareCompletionIdempotency'
+)
+BEGIN
+    ALTER TABLE [CareRecords] ADD [CompletionIdempotencyKey] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020181228_AddCareCompletionIdempotency'
+)
+BEGIN
+    ALTER TABLE [CareRecords] ADD [CompletionRequestFingerprint] nvarchar(64) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020181228_AddCareCompletionIdempotency'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_CareRecords_CompletionIdempotencyKey] ON [CareRecords] ([CompletionIdempotencyKey]) WHERE [CompletionIdempotencyKey] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020181228_AddCareCompletionIdempotency'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020181228_AddCareCompletionIdempotency', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

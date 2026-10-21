@@ -369,6 +369,27 @@ export type CareCompletionState =
   | "no-due-date"
   | "pet-archived";
 
+/**
+ * Logging a due item as done in one step. `created`: this request wrote the
+ * completing record. `replayed`: an earlier request with the same key and the
+ * same details already had, and this is that record.
+ */
+export type CareCompletionResult = {
+  outcome: "created" | "replayed";
+  completion: CareRecord;
+};
+
+/** What the owner chose when logging a due item as done in one step. */
+export type CareCompletionInput = {
+  /** Generated once per completion and reused on every retry of it. */
+  idempotencyKey: string;
+  /** Malaysia calendar day it was done, YYYY-MM-DD. */
+  completedOn: string;
+  /** YYYY-MM-DD, or empty for no next date. */
+  nextDueDate?: string;
+  notes?: string;
+};
+
 export type CareCompletionStatus = {
   state: CareCompletionState;
   asOfDate: string;

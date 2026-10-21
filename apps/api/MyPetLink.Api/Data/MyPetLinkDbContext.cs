@@ -2307,6 +2307,10 @@ public sealed partial class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.FulfillsCareRecordId)
                 .IsUnique()
                 .HasFilter("[FulfillsCareRecordId] IS NOT NULL");
+            entity.Property(item => item.CompletionRequestFingerprint).HasMaxLength(64);
+            entity.HasIndex(item => item.CompletionIdempotencyKey)
+                .IsUnique()
+                .HasFilter("[CompletionIdempotencyKey] IS NOT NULL");
             entity.HasOne(item => item.Pet)
                 .WithMany(pet => pet.CareRecords)
                 .HasForeignKey(item => item.PetId)

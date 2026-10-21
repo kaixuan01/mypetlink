@@ -33,6 +33,13 @@ type PetRecordsOptions = {
   complete?: string;
 };
 
+type CareOptions = {
+  /** Narrows the planner to one pet. A filter, never authorization. */
+  petId?: string;
+  /** Opens the per-pet history picker instead of the planner. */
+  view?: "all";
+};
+
 type PetMomentsOptions = {
   edit?: "new" | string;
 };
@@ -49,6 +56,21 @@ export const ownerRoutes = {
   petNew: "/pets/new",
   moments: "/moments",
   records: "/records",
+  /** Care: the owner-wide planner, or the history picker with `view: "all"`. */
+  care: (options: CareOptions = {}) => {
+    const params = new URLSearchParams();
+
+    if (options.view) {
+      params.set("view", options.view);
+    }
+
+    if (options.petId) {
+      params.set("pet", options.petId);
+    }
+
+    const query = params.toString();
+    return `/records${query ? `?${query}` : ""}`;
+  },
   tags: "/tags",
   tagOrder: (options: TagOrderEntryOptions = {}) => {
     const params = new URLSearchParams();

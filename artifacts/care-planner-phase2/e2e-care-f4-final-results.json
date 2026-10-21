@@ -1,0 +1,42 @@
+[
+  {
+    "name": "seeded 150 due-soon items",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Planner: equal-total churn (total stays 150) leaves an exhausted list that carries the freshness note, Refresh, no counts",
+    "ok": true,
+    "detail": "total=150 shown=150 stale=5"
+  },
+  {
+    "name": "Planner: Refresh the list (by keyboard) shows the current 150",
+    "ok": true,
+    "detail": "after=150"
+  },
+  {
+    "name": "History: exhausted multi-page history shows the note and Reload records, usable by keyboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "320px: notes wrap, no sideways scroll",
+    "ok": true,
+    "detail": "button={\"x\":29,\"w\":262}"
+  },
+  {
+    "name": "390px: notes wrap, no sideways scroll",
+    "ok": true,
+    "detail": "button={\"x\":29,\"w\":332}"
+  },
+  {
+    "name": "768px: notes wrap, no sideways scroll",
+    "ok": true,
+    "detail": "button={\"x\":585,\"w\":146}"
+  },
+  {
+    "name": "1280px: notes wrap, no sideways scroll",
+    "ok": true,
+    "detail": "button={\"x\":1089,\"w\":146}"
+  }
+]

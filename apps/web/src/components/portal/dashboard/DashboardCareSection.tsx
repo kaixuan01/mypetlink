@@ -41,9 +41,9 @@ export function DashboardCareSection({
   singlePetId,
   onRetry,
 }: DashboardCareSectionProps) {
-  const viewAllHref = singlePetId
-    ? ownerRoutes.petRecords(singlePetId)
-    : ownerRoutes.records;
+  // The planner lists every pending date, page by page; a pet's history list
+  // is ordered by record date and stops at its first page.
+  const viewAllHref = ownerRoutes.care({ petId: singlePetId ?? undefined });
   const logCareHref = singlePetId
     ? ownerRoutes.petRecords(singlePetId, { create: true })
     : ownerRoutes.records;
@@ -318,13 +318,13 @@ function moreLabel(count: number) {
   return count === 1 ? "1 more care date" : `${count} more care dates`;
 }
 
-function statusTone(status: UpcomingCareItem["status"]) {
+export function statusTone(status: UpcomingCareItem["status"]) {
   if (status === "overdue") return "danger" as const;
   if (status === "due-soon") return "warm" as const;
   return "soft" as const;
 }
 
-function recordIcon(type: RecordType): IconName {
+export function recordIcon(type: RecordType): IconName {
   if (type === "Grooming") return "heart";
   if (type === "Vet Visit" || type === "Vaccine") return "shield";
   if (type === "Medication" || type === "Deworming") return "calendar";

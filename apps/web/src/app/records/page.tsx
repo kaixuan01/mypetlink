@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { GenericPetSection } from "@/components/portal/GenericPetSection";
+import { CareHome } from "@/components/portal/care/CareHome";
 
 export const metadata: Metadata = {
   title: "Care Records",
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function RecordsPage() {
   return (
     <AppLayout>
-      <GenericPetSection section="records" />
+      <CareHome />
     </AppLayout>
   );
 }

@@ -5,7 +5,7 @@ import {
   readStoredCollection,
   writeStoredCollection,
 } from "@/services/mockApi";
-import { apiRequest, isApiClientError } from "@/services/apiClient";
+import { ApiClientError, apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import { getPets } from "@/services/petService";
@@ -19,6 +19,7 @@ import {
   selectDashboardCareRecords,
 } from "@/lib/careRecordStatus";
 import {
+  parseCareCompletionResult,
   parseCareCompletionStatus,
   parseUpcomingCarePage,
   parseUpcomingCareSummary,
@@ -35,6 +36,7 @@ import type {
   BackendCareRecordPublicVisibility,
   BackendCareRecordType,
   BackendPublicPetProfile,
+  BackendCareCompletionResult,
   BackendCareCompletionStatus,
   BackendUpcomingCareRecord,
   BackendUpcomingCareRecords,
@@ -42,6 +44,8 @@ import type {
 } from "@/services/apiDtos";
 import type {
   ApiResponse,
+  CareCompletionInput,
+  CareCompletionResult,
   CareCompletionStatus,
   CareDocument,
   CareRecord,
@@ -173,6 +177,147 @@ export async function getUpcomingCarePage(
  * the response does not hold together, so the caller shows an error rather
  * than an answer built on defaults.
  */
+/**
+ * Logs one pending due item as done in one step. Safe to retry: send the same
+ * `idempotencyKey` with the same details after a lost response or a timeout,
+ * and the record that was written is returned (`replayed`) instead of a
+ * second one. Refusals arrive as `ApiClientError`s with a stable code —
+ * `care_item_completed`, `care_item_archived`, `care_item_no_due_date`,
+ * `care_item_pet_archived`, `completion_removed`, `idempotency_key_conflict`.
+ */
+export async function completeCareItem(
+  targetId: string,
+  input: CareCompletionInput
+): Promise<CareCompletionResult> {
+  if (canUseApi()) {
+    const response = await apiRequest<BackendCareCompletionResult>(
+      `/api/v1/care-records/${encodeURIComponent(targetId)}/complete`,
+      {
+        method: "POST",
+        body: {
+          idempotencyKey: input.idempotencyKey,
+          completedOn: input.completedOn,
+          nextDueDate: input.nextDueDate || null,
+          notes: input.notes?.trim() || null,
+        },
+      }
+    );
+    const result = parseCareCompletionResult(response.data, targetId);
+    return {
+      outcome: result.outcome as CareCompletionResult["outcome"],
+      completion: mapBackendRecord(result.completion),
+    };
+  }
+
+  return completeLocalCareItem(targetId, input);
+}
+
+const COMPLETION_KEY_STORAGE_KEY = "mypetlink_care_completion_keys";
+
+type LocalCompletionKey = { recordId: string; fingerprint: string; ownerPetId: string };
+
+/** The same rules as the service, applied to local data. */
+async function completeLocalCareItem(
+  targetId: string,
+  input: CareCompletionInput
+): Promise<CareCompletionResult> {
+  await mockDelay();
+  const today = getMalaysiaTodayIsoDate();
+  const errors: Record<string, string[]> = {};
+  if (!input.idempotencyKey) errors.idempotencyKey = ["A completion key is required."];
+  if (!input.completedOn) errors.completedOn = ["Choose the day this care was done."];
+  else if (input.completedOn > today) errors.completedOn = ["The day this care was done can't be in the future."];
+  if (input.completedOn && input.nextDueDate && input.nextDueDate < input.completedOn) {
+    errors.nextDueDate = ["The next due date can't be before the day it was done."];
+  }
+  if (Object.keys(errors).length) {
+    throw new ApiClientError(400, "validation_failed", "Please check the submitted fields.", errors);
+  }
+
+  const records = getRecordCollection();
+  const target = records.find((record) => record.id === targetId);
+  const pets = (await getPets()).data;
+  const pet = target ? pets.find((item) => item.id === target.petId) : undefined;
+  if (!target || !pet) {
+    throw new ApiClientError(404, "not_found", "Care record was not found.");
+  }
+
+  const fingerprint = JSON.stringify([
+    targetId,
+    input.completedOn,
+    input.nextDueDate || "",
+    input.notes?.trim() || "",
+  ]);
+  const keys = readStoredCollection<[string, LocalCompletionKey]>(COMPLETION_KEY_STORAGE_KEY, []);
+  const earlier = keys.find(([key]) => key === input.idempotencyKey)?.[1];
+  if (earlier) {
+    if (earlier.fingerprint !== fingerprint || earlier.ownerPetId !== pet.id) {
+      throw new ApiClientError(409, "idempotency_key_conflict", "This completion key was already used for a different request.");
+    }
+    const record = records.find((item) => item.id === earlier.recordId);
+    if (!record || record.archivedAt) {
+      throw new ApiClientError(409, "completion_removed", "This care was logged as done, but that record has since been deleted.");
+    }
+    return { outcome: "replayed", completion: record };
+  }
+
+  if (target.archivedAt) {
+    throw new ApiClientError(409, "care_item_archived", "This care item was deleted, so it can't be logged as done.");
+  }
+  if (pet.lifecycleStatus === "Archived") {
+    throw new ApiClientError(409, "care_item_pet_archived", "This pet's profile is archived, so care can't be logged for it right now.");
+  }
+  if (careDateScore(target.dueDate) === null) {
+    throw new ApiClientError(409, "care_item_no_due_date", "This care item no longer has a due date, so there is nothing to log as done.");
+  }
+  if (records.some((record) => record.fulfillsCareRecordId === targetId && !record.archivedAt)) {
+    throw new ApiClientError(409, "care_item_completed", "This care item was already logged as done.");
+  }
+
+  const created = await createRecord(target.petId, {
+    type: target.type,
+    title: target.title,
+    careName: target.careName,
+    date: toDisplayDate(input.completedOn),
+    dueDate: input.nextDueDate ? toDisplayDate(input.nextDueDate) : undefined,
+    provider: "",
+    notes: input.notes?.trim() || "No notes added.",
+    publicVisibility: "Private",
+    fulfillsCareRecordId: targetId,
+  });
+  const completion = created.data;
+  writeStoredCollection(COMPLETION_KEY_STORAGE_KEY, [
+    ...keys,
+    [input.idempotencyKey, { recordId: completion.id, fingerprint, ownerPetId: pet.id }],
+  ]);
+  return { outcome: "created", completion };
+}
+
+/**
+ * One page of a pet's care history, newest first, with the exact total —
+ * so the history can be read in full rather than stopping at its first page.
+ */
+export async function getPetRecordsPage(
+  petId: string,
+  page: number,
+  pageSize = 100
+): Promise<{ records: CareRecord[]; total: number }> {
+  if (canUseApi()) {
+    const response = await apiRequest<BackendCareRecord[]>(
+      `/api/v1/pets/${encodeURIComponent(petId)}/care-records?page=${page}&pageSize=${pageSize}`
+    );
+    const total = response.meta?.total;
+    if (typeof total !== "number" || !Number.isInteger(total) || total < 0) {
+      throw new Error("Care records came back without a total.");
+    }
+    return { records: (response.data ?? []).map(mapBackendRecord), total };
+  }
+
+  await mockDelay();
+  const all = getRecordCollection().filter((record) => record.petId === petId);
+  return { records: all.slice((page - 1) * pageSize, page * pageSize), total: all.length };
+}
+
 export async function getUpcomingCareSummary(): Promise<UpcomingCareSummary> {
   if (canUseApi()) {
     const response = await apiRequest<BackendUpcomingCareSummary>(

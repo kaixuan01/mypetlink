@@ -488,6 +488,13 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<Guid?>("CompletionIdempotencyKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CompletionRequestFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -532,6 +539,10 @@ namespace MyPetLink.Api.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CompletionIdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("[CompletionIdempotencyKey] IS NOT NULL");
 
                     b.HasIndex("FulfillsCareRecordId")
                         .IsUnique()

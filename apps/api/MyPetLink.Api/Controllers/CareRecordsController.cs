@@ -115,6 +115,34 @@ public sealed class CareRecordsController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    /// <summary>
+    /// Logs this pending due item as done in one step. Safe to retry with the
+    /// same idempotency key: 201 when this request wrote the record, 200 when
+    /// an earlier request with the same key already had.
+    /// </summary>
+    [HttpPost("care-records/{recordId:guid}/complete")]
+    public async Task<IActionResult> Complete(
+        Guid recordId,
+        [FromBody] CompleteCareRecordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _careRecordService.CompleteAsync(
+            _currentUserService.Current.UserId,
+            recordId,
+            request,
+            cancellationToken);
+
+        if (response.Outcome == "replayed")
+        {
+            return Ok(ApiEnvelope.Ok(response, HttpContext));
+        }
+
+        return CreatedAtAction(
+            nameof(Get),
+            new { recordId = response.Completion.Id },
+            ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpGet("care-records/{recordId:guid}")]
     public async Task<IActionResult> Get(Guid recordId, CancellationToken cancellationToken)
     {

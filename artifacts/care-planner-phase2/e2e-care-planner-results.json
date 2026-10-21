@@ -1,0 +1,82 @@
+[
+  {
+    "name": "seeded 130 pending care dates across two pets",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "S1: first page shows 50, Show more reads all 130 without repeats",
+    "ok": true,
+    "detail": "first=50 all=130"
+  },
+  {
+    "name": "S1: exact overdue count from the server",
+    "ok": true,
+    "detail": "overdue=10"
+  },
+  {
+    "name": "S2: Done defaults to Malaysia's today",
+    "ok": true,
+    "detail": "doneOn=2026-10-21"
+  },
+  {
+    "name": "S2: one request, one keyed completion; overdue count refreshed to 9",
+    "ok": true,
+    "detail": "posts=1 completions=1"
+  },
+  {
+    "name": "S2: the next due date became a new pending item",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "S3: double click → one request, one completion",
+    "ok": true,
+    "detail": "posts=1"
+  },
+  {
+    "name": "S4: first request committed",
+    "ok": true,
+    "detail": "HTTP 201"
+  },
+  {
+    "name": "S4: details locked; the retry resends the same key and details",
+    "ok": true,
+    "detail": "locked=true posts=2"
+  },
+  {
+    "name": "S4: still exactly one completion",
+    "ok": true,
+    "detail": "completions=1"
+  },
+  {
+    "name": "S5: other tab won (201); this tab is told, with no second save",
+    "ok": true,
+    "detail": "other=201 completions=1"
+  },
+  {
+    "name": "S6: deleted item refused; nothing written",
+    "ok": true,
+    "detail": "delete=204"
+  },
+  {
+    "name": "S7: Mochi filter shows only Mochi's items",
+    "ok": true,
+    "detail": "rows=50"
+  },
+  {
+    "name": "S8: Dashboard View all opens the care planner",
+    "ok": true,
+    "detail": "href=/records"
+  },
+  {
+    "name": "S8: the full Log as done form still opens for documents and clinic",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "S9: 390px planner has no sideways scroll",
+    "ok": true,
+    "detail": ""
+  }
+]

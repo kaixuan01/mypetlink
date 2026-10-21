@@ -350,6 +350,12 @@ export type BackendUpcomingCareSummary = {
   scopes: BackendUpcomingCareScope[];
 };
 
+/** The one-step completion's answer: who wrote the record, and the record. */
+export type BackendCareCompletionResult = {
+  outcome: string;
+  completion: BackendCareRecord;
+};
+
 export type BackendCareCompletionStatus = {
   state: string;
   asOfDate: string;

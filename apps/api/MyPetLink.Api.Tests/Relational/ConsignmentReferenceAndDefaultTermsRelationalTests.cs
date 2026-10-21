@@ -16,6 +16,9 @@ namespace MyPetLink.Api.Tests.Relational;
 public sealed partial class ConsignmentRelationalTests
 {
     private const string ReferencesMigration = "20261019124347_AddConsignmentReferencesAndDefaultTerms";
+    // Added after the Consignment migrations; rolling back to any of them
+    // rolls this one back first.
+    private const string CareCompletionIdempotencyMigration = "20261020181228_AddCareCompletionIdempotency";
 
     /// <summary>
     /// The newest rollback guard refuses first while automatic references exist. Older rollback
@@ -306,7 +309,10 @@ public sealed partial class ConsignmentRelationalTests
                 .MigrateAsync(AgreementDocumentsMigration));
             Assert.Contains("51058", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+            // Migrations roll back newest first, each in its own transaction:
+            // the later care migration is undone before the guard stops the
+            // run, and no Consignment migration is.
+            Assert.Equal([CareCompletionIdempotencyMigration], await db.Database.GetPendingMigrationsAsync());
         }
         finally { MigratedSchema.Value = false; }
     }

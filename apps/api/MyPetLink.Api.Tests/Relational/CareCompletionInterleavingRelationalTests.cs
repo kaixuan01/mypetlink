@@ -14,13 +14,11 @@ namespace MyPetLink.Api.Tests.Relational;
 ///
 /// A save is paused after the service has validated it and immediately
 /// before it writes, while other connections change the due item or save
-/// again. These pin what the completion-status read reports at each point —
-/// which is everything the owner's screen can know about a save whose
-/// response was lost — and what is finally in the database.
-///
-/// The web recovery never writes while a save's outcome is unknown; these
-/// tests therefore perform no second write in those cases and assert that
-/// the database ends with one completing record.
+/// again. Every care write for a pet holds that pet's care-write lock from
+/// its first check to its commit, so those other writes now wait for the
+/// paused one and then run against what it committed. These pin what the
+/// completion-status read reports at each point and what is finally in the
+/// database.
 /// </summary>
 public sealed class CareCompletionInterleavingRelationalTests
 {
@@ -28,42 +26,40 @@ public sealed class CareCompletionInterleavingRelationalTests
     private static readonly Guid Milo = Guid.Parse("c2222222-2222-2222-2222-222222222221");
 
     [RelationalFact]
-    public async Task R2_TargetArchivedWhileAValidatedSaveIsPaused_IsNeverReportedAsCompleted()
+    public async Task R2_ArchivingWhileAValidatedSaveIsPaused_WaitsForIt_AndNeverReportsCompleted()
     {
         var pause = new PauseBeforeCareInsert();
         await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
         var targetId = await SeedTargetAsync(scope);
         pause.Arm();
 
-        // 1–2. The owner's save passes validation and pauses before writing.
+        // 1–2. The owner's save passes validation and pauses before writing,
+        //      holding the pet's care-write lock.
         var original = CreateCompletionAsync(scope, targetId, "Booster went well");
         await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
-        // 3. Another tab deletes the due item from the list.
-        await using (var db = scope.NewContext())
-        {
-            await new CareRecordService(db).ArchiveAsync(Owner, targetId);
-        }
+        // 3. Another tab deletes the due item. It can no longer slip in
+        //    between the save's checks and its write: it waits.
+        var archive = ArchiveAsync(scope, targetId);
+        await Task.Delay(TimeSpan.FromMilliseconds(750));
+        Assert.False(archive.IsCompleted);
 
-        // 4. What a recovery check sees: the item changed. Nothing completed.
+        // 4. A recovery check meanwhile still sees the item waiting.
         var during = await StatusAsync(scope, targetId);
-        Assert.Equal("archived", during.State);
+        Assert.Equal("pending", during.State);
         Assert.Null(during.Completion);
 
-        // 5. The web recovery for an unknown outcome on a changed item writes
-        //    nothing: Save stays locked and no unlinked copy is offered. So
-        //    this test performs no second save.
-
-        // 6. The original write finishes.
+        // 5. The save finishes first; the archive then runs on top of it and,
+        //    as archiving always does, unlinks the record that completed it.
         pause.Release.SetResult();
         var landed = await original;
+        await archive;
 
-        // 7. One new record exists; the status shows the late record but never
-        //    reports the deleted item as completed.
-        Assert.Equal(1, await ActiveCompletingLogsAsync(scope, targetId));
         var after = await StatusAsync(scope, targetId);
         Assert.Equal("archived", after.State);
-        Assert.Equal(landed.Id, after.Completion?.Id);
+        Assert.Null(after.Completion);
+        Assert.Equal(1, await ActiveCompletingLogsAsync(scope, targetId));
+        Assert.Equal(1, await ActiveRecordsWithIdAsync(scope, landed.Id));
     }
 
     [RelationalFact]
@@ -116,11 +112,10 @@ public sealed class CareCompletionInterleavingRelationalTests
     }
 
     [RelationalFact]
-    public async Task ALinkedRetryWhileTheOriginalIsPaused_LeavesOneCompletingRecord()
+    public async Task ALinkedRetryWhileTheOriginalIsPaused_WaitsForIt_AndIsRefused()
     {
-        // The limited protection that exists: while the due item is unchanged,
-        // one item accepts one active completing record, so the late original
-        // is refused. This is not request de-duplication.
+        // While the original holds the pet's care-write lock, a linked retry
+        // waits; once the original commits, the retry sees the item completed.
         var pause = new PauseBeforeCareInsert();
         await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
         var targetId = await SeedTargetAsync(scope);
@@ -128,14 +123,17 @@ public sealed class CareCompletionInterleavingRelationalTests
 
         var original = CreateCompletionAsync(scope, targetId, "First try");
         await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        var retry = await CreateCompletionAsync(scope, targetId, "Second try");
+        var retry = CreateCompletionAsync(scope, targetId, "Second try");
+        await Task.Delay(TimeSpan.FromMilliseconds(750));
+        Assert.False(retry.IsCompleted);
 
         pause.Release.SetResult();
-        var refused = await Assert.ThrowsAsync<ApiException>(() => original);
+        var landed = await original;
+        var refused = await Assert.ThrowsAsync<ApiException>(() => retry);
         Assert.Equal(StatusCodes.Status400BadRequest, refused.StatusCode);
 
         Assert.Equal(1, await ActiveCompletingLogsAsync(scope, targetId));
-        Assert.Equal(retry.Id, (await StatusAsync(scope, targetId)).Completion!.Id);
+        Assert.Equal(landed.Id, (await StatusAsync(scope, targetId)).Completion!.Id);
     }
 
     [RelationalFact]
@@ -157,7 +155,7 @@ public sealed class CareCompletionInterleavingRelationalTests
     }
 
     [RelationalFact]
-    public async Task DueDateRemovedWhileASaveIsPaused_ReadsNoDueDate_ThenTheLandedRecordIsReported()
+    public async Task RemovingTheDueDateWhileASaveIsPaused_WaitsForIt_AndIsThenRefused()
     {
         var pause = new PauseBeforeCareInsert();
         await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
@@ -166,97 +164,75 @@ public sealed class CareCompletionInterleavingRelationalTests
 
         var original = CreateCompletionAsync(scope, targetId, "Booster went well");
         await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        await using (var db = scope.NewContext())
-        {
-            await new CareRecordService(db).UpdateAsync(Owner, targetId, new UpdateCareRecordRequest(
-                Type: null, Title: null, Date: null, DueDate: null, Provider: null, Notes: null,
-                PublicVisibility: null, MediaFileIds: null, ClearDueDate: true));
-        }
-
-        var during = await StatusAsync(scope, targetId);
-        Assert.Equal("no-due-date", during.State);
-        Assert.Null(during.Completion);
+        var clear = ClearDueDateAsync(scope, targetId);
+        await Task.Delay(TimeSpan.FromMilliseconds(750));
+        Assert.False(clear.IsCompleted);
+        Assert.Equal("pending", (await StatusAsync(scope, targetId)).State);
 
         pause.Release.SetResult();
         var landed = await original;
 
-        // The undated item is never reported as an ordinary completion; the
-        // late record stays visible for the owner to inspect.
+        // Removing the date of a completed item is refused, so the item can
+        // never become "undated with a late completion".
+        var refusal = await Assert.ThrowsAsync<ApiException>(() => clear);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.NotNull(refusal.Details?["dueDate"]);
         var after = await StatusAsync(scope, targetId);
-        Assert.Equal("no-due-date", after.State);
-        Assert.Null(after.Target.DueDate);
+        Assert.Equal("completed", after.State);
+        Assert.NotNull(after.Target.DueDate);
         Assert.Equal(landed.Id, after.Completion?.Id);
         Assert.Equal(1, await ActiveCompletingLogsAsync(scope, targetId));
     }
 
     /// <summary>
-    /// G2, as the review ran it: request A passes validation and pauses; the
-    /// item changes; the page that sent A is reloaded, so A's state is gone;
-    /// a new page's linked request B is refused. B's refusal says nothing
-    /// about A, which then lands. The recovery flow offers no unlinked save,
-    /// so none is made here, and the database ends with A's record only.
+    /// G2: request A passes validation and pauses; the item is changed; the
+    /// page that sent A is reloaded; a new page's linked request B is sent.
+    /// Both the change and B now wait for A. Whatever order they then run in,
+    /// the database ends with A's record only, and B is refused.
     /// </summary>
     [RelationalTheory]
     [InlineData("archive")]
     [InlineData("clear-due-date")]
-    public async Task G2_ANewPagesRefusedSave_DoesNotSettleAnEarlierSaveStillRunning(string change)
+    public async Task G2_ANewPagesSave_WaitsForAnEarlierSaveStillRunning_AndIsRefused(string change)
     {
         var pause = new PauseBeforeCareInsert();
         await using var scope = await RelationalDatabase.CreateAsync(pause, enableRetryOnFailure: true);
         var targetId = await SeedTargetAsync(scope);
         pause.Arm();
 
-        // 1–2. A validates and pauses before persistence.
         var requestA = CreateCompletionAsync(scope, targetId, "Booster went well");
         await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
-        // 3. Another connection changes the due item.
-        await using (var db = scope.NewContext())
-        {
-            var service = new CareRecordService(db);
-            if (change == "archive")
-            {
-                await service.ArchiveAsync(Owner, targetId);
-            }
-            else
-            {
-                await service.UpdateAsync(Owner, targetId, new UpdateCareRecordRequest(
-                    Type: null, Title: null, Date: null, DueDate: null, Provider: null, Notes: null,
-                    PublicVisibility: null, MediaFileIds: null, ClearDueDate: true));
-            }
-        }
+        var changing = change == "archive" ? ArchiveAsync(scope, targetId) : ClearDueDateAsync(scope, targetId);
+        var requestB = CreateCompletionAsync(scope, targetId, "Booster went well");
+        await Task.Delay(TimeSpan.FromMilliseconds(750));
+        Assert.False(changing.IsCompleted);
+        Assert.False(requestB.IsCompleted);
 
-        // 4–6. A reloaded page knows nothing of A. Its linked request B gets
-        //      the service's real fulfilment refusal.
-        var refusal = await Assert.ThrowsAsync<ApiException>(() =>
-            CreateCompletionAsync(scope, targetId, "Booster went well"));
-        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
-        Assert.NotNull(refusal.Details?["fulfillsCareRecordId"]);
-
-        var expected = change == "archive" ? "archived" : "no-due-date";
-        var whileRunning = await StatusAsync(scope, targetId);
-        Assert.Equal(expected, whileRunning.State);
-        Assert.Null(whileRunning.Completion);
-
-        // 7. No unlinked recovery save exists in the flow, so none is made.
-        // 8. A finishes after B's refusal.
         pause.Release.SetResult();
         var landed = await requestA;
 
-        // 9. One record: A's, linked to the changed item and reported as
-        //    changed, never as an ordinary completion.
-        Assert.Equal(1, await ActiveCompletingLogsAsync(scope, targetId));
-        await using (var db = scope.NewContext())
+        var refusal = await Assert.ThrowsAsync<ApiException>(() => requestB);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.NotNull(refusal.Details?["fulfillsCareRecordId"]);
+
+        if (change == "archive")
         {
-            var linked = await db.CareRecords
-                .Where(record => record.FulfillsCareRecordId == targetId)
-                .Select(record => record.Id)
-                .ToListAsync();
-            Assert.Equal([landed.Id], linked);
+            await changing;
+            var final = await StatusAsync(scope, targetId);
+            Assert.Equal("archived", final.State);
+            Assert.Null(final.Completion);
         }
-        var final = await StatusAsync(scope, targetId);
-        Assert.Equal(expected, final.State);
-        Assert.Equal(landed.Id, final.Completion?.Id);
+        else
+        {
+            await Assert.ThrowsAsync<ApiException>(() => changing);
+            var final = await StatusAsync(scope, targetId);
+            Assert.Equal("completed", final.State);
+            Assert.Equal(landed.Id, final.Completion?.Id);
+        }
+
+        Assert.Equal(1, await ActiveCompletingLogsAsync(scope, targetId));
+        Assert.Equal(1, await ActiveRecordsWithIdAsync(scope, landed.Id));
     }
 
     [RelationalFact]
@@ -381,6 +357,27 @@ public sealed class CareCompletionInterleavingRelationalTests
             CareRecordPublicVisibility.Private,
             mediaFileIds,
             FulfillsCareRecordId: targetId));
+    }
+
+    private static async Task ArchiveAsync(RelationalScope scope, Guid recordId)
+    {
+        await using var db = scope.NewContext();
+        await new CareRecordService(db).ArchiveAsync(Owner, recordId);
+    }
+
+    private static async Task ClearDueDateAsync(RelationalScope scope, Guid recordId)
+    {
+        await using var db = scope.NewContext();
+        await new CareRecordService(db).UpdateAsync(Owner, recordId, new UpdateCareRecordRequest(
+            Type: null, Title: null, Date: null, DueDate: null, Provider: null, Notes: null,
+            PublicVisibility: null, MediaFileIds: null, ClearDueDate: true));
+    }
+
+    private static async Task<int> ActiveRecordsWithIdAsync(RelationalScope scope, Guid recordId)
+    {
+        await using var db = scope.NewContext();
+        return await db.CareRecords.CountAsync(record =>
+            record.Id == recordId && record.ArchivedAt == null && record.DeletedAt == null);
     }
 
     private static async Task<CareRecordCompletionStatusResponse> StatusAsync(RelationalScope scope, Guid targetId)

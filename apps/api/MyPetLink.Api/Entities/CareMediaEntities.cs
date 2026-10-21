@@ -111,6 +111,22 @@ public sealed class CareRecord : AuditableEntity
     public DateTimeOffset? ArchivedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
 
+    /// <summary>
+    /// The client's key for the one-step completion that created this record,
+    /// kept so a retried request returns this record instead of writing again.
+    /// Null for records created any other way. Never cleared: an archived
+    /// record still answers a late retry of the request that created it.
+    /// </summary>
+    public Guid? CompletionIdempotencyKey { get; set; }
+
+    /// <summary>
+    /// A fingerprint of what that completion request asked for (target, dates,
+    /// provider and notes), so a retry is recognised as the same request even
+    /// after the record is edited, and a different request reusing the key is
+    /// refused.
+    /// </summary>
+    public string? CompletionRequestFingerprint { get; set; }
+
     public Pet Pet { get; set; } = null!;
     public CareRecord? FulfillsCareRecord { get; set; }
 }

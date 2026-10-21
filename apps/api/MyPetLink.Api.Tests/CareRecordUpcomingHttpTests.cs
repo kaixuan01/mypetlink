@@ -145,6 +145,109 @@ public sealed class CareRecordUpcomingHttpTests
         Assert.Equal(HttpStatusCode.NotFound, strangers.StatusCode);
     }
 
+    // ---- One-step completion ------------------------------------------------
+
+    private static StringContent CompletionBody(Guid key, string completedOn, string? nextDueDate = null, string? notes = null) =>
+        new(
+            JsonSerializer.Serialize(new { idempotencyKey = key, completedOn, nextDueDate, notes }),
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+    private static string MalaysiaToday() =>
+        DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)).ToString("yyyy-MM-dd");
+
+    [Fact]
+    public async Task Complete_RequiresASignedInOwner()
+    {
+        await using var factory = await SeededFactory.CreateAsync();
+
+        var response = await factory.As(null).PostAsync(
+            $"/api/v1/care-records/{OwnerRecord}/complete",
+            CompletionBody(Guid.NewGuid(), MalaysiaToday()));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Complete_CreatesOnce_ThenReplaysTheSameRequest()
+    {
+        await using var factory = await SeededFactory.CreateAsync();
+        var key = Guid.NewGuid();
+        var client = factory.As(Owner);
+
+        var first = await client.PostAsync($"/api/v1/care-records/{OwnerRecord}/complete", CompletionBody(key, MalaysiaToday(), notes: "Done at the clinic"));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        using var created = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+        var completion = created.RootElement.GetProperty("data").GetProperty("completion");
+        Assert.Equal("created", created.RootElement.GetProperty("data").GetProperty("outcome").GetString());
+        Assert.Equal(OwnerRecord, completion.GetProperty("fulfillsCareRecordId").GetGuid());
+        Assert.Equal("Private", completion.GetProperty("publicVisibility").GetString());
+        Assert.Equal("Rabies booster", completion.GetProperty("title").GetString());
+
+        // The response was lost; the client retries with the same key.
+        var retry = await client.PostAsync($"/api/v1/care-records/{OwnerRecord}/complete", CompletionBody(key, MalaysiaToday(), notes: "Done at the clinic"));
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        using var replayed = JsonDocument.Parse(await retry.Content.ReadAsStringAsync());
+        Assert.Equal("replayed", replayed.RootElement.GetProperty("data").GetProperty("outcome").GetString());
+        Assert.Equal(
+            completion.GetProperty("id").GetGuid(),
+            replayed.RootElement.GetProperty("data").GetProperty("completion").GetProperty("id").GetGuid());
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MyPetLinkDbContext>();
+        Assert.Equal(1, await db.CareRecords.CountAsync(record => record.FulfillsCareRecordId == OwnerRecord));
+    }
+
+    [Fact]
+    public async Task Complete_TheSameKeyForADifferentRequest_IsAConflict()
+    {
+        await using var factory = await SeededFactory.CreateAsync();
+        var key = Guid.NewGuid();
+        var client = factory.As(Owner);
+        await client.PostAsync($"/api/v1/care-records/{OwnerRecord}/complete", CompletionBody(key, MalaysiaToday()));
+
+        var conflicting = await client.PostAsync(
+            $"/api/v1/care-records/{OwnerRecord}/complete",
+            CompletionBody(key, MalaysiaToday(), nextDueDate: DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)).AddYears(1).ToString("yyyy-MM-dd")));
+
+        Assert.Equal(HttpStatusCode.Conflict, conflicting.StatusCode);
+        Assert.Contains("idempotency_key_conflict", await conflicting.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Complete_AStrangersItem_IsNotFound_AndWritesNothing()
+    {
+        await using var factory = await SeededFactory.CreateAsync();
+
+        var response = await factory.As(Owner).PostAsync(
+            $"/api/v1/care-records/{StrangerRecord}/complete",
+            CompletionBody(Guid.NewGuid(), MalaysiaToday()));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MyPetLinkDbContext>();
+        Assert.False(await db.CareRecords.AnyAsync(record => record.FulfillsCareRecordId == StrangerRecord));
+    }
+
+    [Fact]
+    public async Task Complete_InvalidFields_AreNamedInTheEnvelope()
+    {
+        await using var factory = await SeededFactory.CreateAsync();
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)).AddDays(1).ToString("yyyy-MM-dd");
+
+        var future = await factory.As(Owner).PostAsync(
+            $"/api/v1/care-records/{OwnerRecord}/complete",
+            CompletionBody(Guid.NewGuid(), tomorrow));
+        var noKey = await factory.As(Owner).PostAsync(
+            $"/api/v1/care-records/{OwnerRecord}/complete",
+            CompletionBody(Guid.Empty, MalaysiaToday()));
+
+        Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
+        Assert.Contains("completedOn", await future.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, noKey.StatusCode);
+        Assert.Contains("idempotencyKey", await noKey.Content.ReadAsStringAsync());
+    }
+
     private sealed class SeededFactory : WebApplicationFactory<Program>
     {
         private readonly string _database = $"care-upcoming-http-{Guid.NewGuid():N}";

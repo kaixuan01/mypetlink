@@ -1,5 +1,6 @@
 import { careDateScore } from "@/lib/careRecordStatus";
 import type {
+  BackendCareCompletionResult,
   BackendCareCompletionStatus,
   BackendCareRecord,
   BackendUpcomingCareRecord,
@@ -323,6 +324,35 @@ function parseCareRecordShape(raw: unknown, label: string): BackendCareRecord {
   );
   if (new Set(ids).size !== ids.length) fail(`The ${label} record repeats a document.`);
   return raw as BackendCareRecord;
+}
+
+/**
+ * Validates the one-step completion's answer for the item that was completed.
+ *
+ * - `created`: this request just wrote the record, so it must complete this
+ *   item.
+ * - `replayed`: an acknowledgement that an earlier request with this key was
+ *   saved. The record is returned as it is now, and the owner may since have
+ *   edited or unlinked it, so its current link is not checked — the request's
+ *   own record is what matters.
+ *
+ * Either way the record is active and isn't the item itself.
+ */
+export function parseCareCompletionResult(
+  raw: unknown,
+  targetId: string
+): BackendCareCompletionResult {
+  if (!isRecord(raw)) fail("The completion was not returned.");
+  if (raw.outcome !== "created" && raw.outcome !== "replayed") {
+    fail("The completion outcome is unknown.");
+  }
+  const completion = parseCareRecordShape(raw.completion, "completing");
+  if (completion.id === targetId) fail("A record cannot complete itself.");
+  if (raw.outcome === "created" && completion.fulfillsCareRecordId !== targetId) {
+    fail("The completing record belongs to another due item.");
+  }
+  if (completion.archivedAt) fail("The completing record is not active.");
+  return { outcome: raw.outcome, completion };
 }
 
 /**

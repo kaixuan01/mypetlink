@@ -379,24 +379,48 @@ public sealed class PetService : SkeletonService, IPetService
         return ToDetail(pet);
     }
 
+    /// <summary>
+    /// Archives the pet. Archiving stops care being written for it, so it runs
+    /// under the pet's care-write lock (<see cref="PetCareWriteLock"/>): a care
+    /// write already validated against the active pet commits first, and one
+    /// that starts later sees the archived pet and is refused.
+    /// </summary>
     public async Task<PetDetailResponse> ArchiveAsync(
         Guid? currentUserId,
         Guid petId,
         CancellationToken cancellationToken = default)
     {
-        var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: true, cancellationToken);
-
-        if (pet.LifecycleStatus != PetLifecycleStatus.Archived)
+        // Ownership first, so nobody can hold the lock for another owner's pet.
+        var userId = RequireUserId(currentUserId);
+        var owned = await _dbContext.Pets.AnyAsync(
+            pet => pet.Id == petId && pet.OwnerUserId == userId && pet.DeletedAt == null,
+            cancellationToken);
+        if (!owned)
         {
-            pet.PreviousLifecycleStatus = pet.LifecycleStatus;
-            pet.LifecycleStatus = PetLifecycleStatus.Archived;
+            // The same answer as the load below would give.
+            await LoadOwnedPetAsync(currentUserId, petId, trackChanges: false, cancellationToken);
         }
 
-        pet.ArchivedAt ??= DateTimeOffset.UtcNow;
-        pet.LostModeEnabled = false;
+        return await PetCareWriteLock.RunAsync(
+            _dbContext,
+            petId,
+            async () =>
+            {
+                var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: true, cancellationToken);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ToDetail(pet);
+                if (pet.LifecycleStatus != PetLifecycleStatus.Archived)
+                {
+                    pet.PreviousLifecycleStatus = pet.LifecycleStatus;
+                    pet.LifecycleStatus = PetLifecycleStatus.Archived;
+                }
+
+                pet.ArchivedAt ??= DateTimeOffset.UtcNow;
+                pet.LostModeEnabled = false;
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                return ToDetail(pet);
+            },
+            cancellationToken);
     }
 
     public async Task<PetDetailResponse> UpdateLostModeAsync(

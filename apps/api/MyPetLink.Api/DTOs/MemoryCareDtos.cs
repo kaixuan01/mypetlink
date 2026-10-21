@@ -204,6 +204,30 @@ public sealed record UpcomingCareScopeResponse(
 /// when a write validated earlier landed late — and never for
 /// <c>pending</c>.
 /// </summary>
+/// <summary>
+/// Log one pending due item as done in a single step.
+/// <c>IdempotencyKey</c> is generated once by the client for this completion
+/// and reused on every retry of it; the same key with the same request
+/// returns the record it created instead of writing again.
+/// <c>CompletedOn</c> is the Malaysia day it was done (not in the future);
+/// <c>NextDueDate</c>, when given, is on or after it.
+/// </summary>
+public sealed record CompleteCareRecordRequest(
+    Guid? IdempotencyKey,
+    DateOnly? CompletedOn,
+    DateOnly? NextDueDate = null,
+    [MaxLength(160)] string? Provider = null,
+    [MaxLength(2000)] string? Notes = null);
+
+/// <summary>
+/// The outcome of a one-step completion. <c>Outcome</c> is <c>created</c>
+/// when this request wrote the record, or <c>replayed</c> when an earlier
+/// request with the same key and the same details had already written it.
+/// </summary>
+public sealed record CareCompletionResultResponse(
+    string Outcome,
+    CareRecordResponse Completion);
+
 public sealed record CareRecordCompletionStatusResponse(
     string State,
     DateOnly AsOfDate,

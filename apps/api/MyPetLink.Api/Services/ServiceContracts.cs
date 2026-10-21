@@ -677,6 +677,12 @@ public interface ICareRecordService : ISkeletonService
         Guid recordId,
         CancellationToken cancellationToken = default);
 
+    Task<CareCompletionResultResponse> CompleteAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CompleteCareRecordRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<CareRecordResponse> CreateAsync(
         Guid? currentUserId,
         Guid petId,

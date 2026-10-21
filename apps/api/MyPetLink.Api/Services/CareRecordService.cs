@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
@@ -70,6 +72,8 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         var records = await query
             .OrderByDescending(record => record.RecordDate)
             .ThenByDescending(record => record.CreatedAt)
+            // A final unique key keeps pages stable when timestamps tie.
+            .ThenBy(record => record.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -456,6 +460,33 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         CancellationToken cancellationToken = default)
     {
         var userId = RequireUserId(currentUserId);
+        return await RunCareWriteAsync(
+            petId,
+            async () =>
+            {
+                var record = await CreateRecordCoreAsync(
+                    userId,
+                    petId,
+                    request,
+                    stamp: null,
+                    cancellationToken);
+                return await ToResponseAsync(record, cancellationToken);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Validates and writes one new care record. Callers run it inside
+    /// <see cref="RunCareWriteAsync"/>, so the fulfilment checks and the
+    /// insert see no other care write for this pet in between.
+    /// </summary>
+    private async Task<CareRecord> CreateRecordCoreAsync(
+        Guid userId,
+        Guid petId,
+        CreateCareRecordRequest request,
+        Action<CareRecord>? stamp,
+        CancellationToken cancellationToken)
+    {
         var pet = await LoadOwnedPetAsync(userId, petId, cancellationToken);
 
         if (pet.LifecycleStatus == PetLifecycleStatus.Archived)
@@ -481,6 +512,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
                 request.PublicVisibility ?? CareRecordPublicVisibility.Private),
             FulfillsCareRecordId = request.FulfillsCareRecordId
         };
+        stamp?.Invoke(record);
 
         await ValidateFulfillmentAsync(userId, record, cancellationToken);
 
@@ -496,7 +528,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
                 "This care record has already been fulfilled by another record.");
         }
 
-        return await ToResponseAsync(record, cancellationToken);
+        return record;
     }
 
     public async Task<CareRecordResponse> GetAsync(
@@ -513,6 +545,19 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         Guid recordId,
         UpdateCareRecordRequest request,
         CancellationToken cancellationToken = default)
+    {
+        var petId = await OwnedRecordPetIdAsync(currentUserId, recordId, cancellationToken);
+        return await RunCareWriteAsync(
+            petId,
+            () => UpdateRecordCoreAsync(currentUserId, recordId, request, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<CareRecordResponse> UpdateRecordCoreAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        UpdateCareRecordRequest request,
+        CancellationToken cancellationToken)
     {
         var record = await LoadOwnedRecordAsync(currentUserId, recordId, trackChanges: true, cancellationToken);
 
@@ -617,6 +662,22 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         Guid recordId,
         CancellationToken cancellationToken = default)
     {
+        var petId = await OwnedRecordPetIdAsync(currentUserId, recordId, cancellationToken);
+        await RunCareWriteAsync(
+            petId,
+            async () =>
+            {
+                await ArchiveRecordCoreAsync(currentUserId, recordId, cancellationToken);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    private async Task ArchiveRecordCoreAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CancellationToken cancellationToken)
+    {
         var record = await LoadOwnedRecordAsync(currentUserId, recordId, trackChanges: true, cancellationToken);
         var fulfillingRecord = await _dbContext.CareRecords
             .SingleOrDefaultAsync(
@@ -645,6 +706,265 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Logs one pending due item as done in a single step, safely repeatable.
+    ///
+    /// The client sends a key it generated once for this completion. The same
+    /// key with the same request returns the record it created (200,
+    /// <c>replayed</c>) — after a lost response, a timeout or a double click —
+    /// instead of writing again. The same key with a different request, for
+    /// another item or by another owner, is refused (409). A key whose record
+    /// was later deleted is refused too (409 <c>completion_removed</c>): it is
+    /// never silently re-created.
+    ///
+    /// The completing record copies the item's type, title and care name, is
+    /// dated <paramref name="request"/>.CompletedOn (Malaysia day, not in the
+    /// future), may carry the next due date, and is private. It runs under the
+    /// pet's care-write lock, like every other care write, so the item can't
+    /// be completed, edited or archived by another request between the checks
+    /// and the insert.
+    /// </summary>
+    public async Task<CareCompletionResultResponse> CompleteAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CompleteCareRecordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireUserId(currentUserId);
+        if (request.IdempotencyKey is not { } key || key == Guid.Empty)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                ["idempotencyKey"] = ["A completion key is required."]
+            });
+        }
+
+        var completionErrors = new Dictionary<string, string[]>();
+        if (!request.CompletedOn.HasValue)
+        {
+            completionErrors["completedOn"] = ["Choose the day this care was done."];
+        }
+        else if (request.CompletedOn.Value > GetMalaysiaToday())
+        {
+            completionErrors["completedOn"] = ["The day this care was done can't be in the future."];
+        }
+
+        if (request.CompletedOn.HasValue
+            && request.NextDueDate.HasValue
+            && request.NextDueDate.Value < request.CompletedOn.Value)
+        {
+            completionErrors["nextDueDate"] = ["The next due date can't be before the day it was done."];
+        }
+
+        if (completionErrors.Count > 0)
+        {
+            throw ValidationFailed(completionErrors);
+        }
+
+        var petId = await OwnedRecordPetIdAsync(userId, recordId, cancellationToken);
+        var fingerprint = CompletionFingerprint(recordId, request);
+
+        return await RunCareWriteAsync(
+            petId,
+            async () =>
+            {
+                var replay = await ReplayCompletionAsync(userId, key, fingerprint, cancellationToken);
+                if (replay is not null)
+                {
+                    return replay;
+                }
+
+                var target = await _dbContext.CareRecords
+                    .AsNoTracking()
+                    .Where(record =>
+                        record.Id == recordId
+                        && record.Pet.OwnerUserId == userId
+                        && record.Pet.DeletedAt == null
+                        && record.DeletedAt == null)
+                    .Select(record => new
+                    {
+                        record.Id,
+                        record.PetId,
+                        record.Type,
+                        record.Title,
+                        record.CareName,
+                        record.DueDate,
+                        record.ArchivedAt,
+                        PetArchived = record.Pet.ArchivedAt != null
+                            || record.Pet.LifecycleStatus == PetLifecycleStatus.Archived,
+                        Completed = _dbContext.CareRecords.Any(fulfiller =>
+                            fulfiller.FulfillsCareRecordId == record.Id
+                            && fulfiller.DeletedAt == null
+                            && fulfiller.ArchivedAt == null)
+                    })
+                    .SingleOrDefaultAsync(cancellationToken)
+                    ?? throw NotFound("Care record was not found.");
+
+                // The same precedence as the completion status.
+                if (target.ArchivedAt.HasValue)
+                {
+                    throw Conflict("care_item_archived", "This care item was deleted, so it can't be logged as done.");
+                }
+
+                if (target.PetArchived)
+                {
+                    throw Conflict("care_item_pet_archived", "This pet's profile is archived, so care can't be logged for it right now.");
+                }
+
+                if (!target.DueDate.HasValue)
+                {
+                    throw Conflict("care_item_no_due_date", "This care item no longer has a due date, so there is nothing to log as done.");
+                }
+
+                if (target.Completed)
+                {
+                    throw Conflict("care_item_completed", "This care item was already logged as done.");
+                }
+
+                var create = new CreateCareRecordRequest(
+                    target.Type,
+                    target.Title,
+                    request.CompletedOn,
+                    request.NextDueDate,
+                    request.Provider,
+                    request.Notes,
+                    CareRecordPublicVisibility.Private,
+                    MediaFileIds: null,
+                    CareName: target.CareName,
+                    FulfillsCareRecordId: target.Id);
+
+                CareRecord record;
+                try
+                {
+                    record = await CreateRecordCoreAsync(
+                        userId,
+                        target.PetId,
+                        create,
+                        stamp: created =>
+                        {
+                            created.CompletionIdempotencyKey = key;
+                            created.CompletionRequestFingerprint = fingerprint;
+                        },
+                        cancellationToken);
+                }
+                catch (DbUpdateException exception) when (IsUniqueViolation(exception, CompletionKeyIndexName))
+                {
+                    // Only a key already used for another pet's item can get
+                    // here: the same pet's requests are serialized above.
+                    throw IdempotencyConflict();
+                }
+
+                return new CareCompletionResultResponse(
+                    "created",
+                    await ToResponseAsync(record, cancellationToken));
+            },
+            cancellationToken);
+    }
+
+    private const string CompletionKeyIndexName = "IX_CareRecords_CompletionIdempotencyKey";
+
+    /// <summary>
+    /// The earlier answer to this completion key, if there is one: the record
+    /// it created when the request matches; a refusal when it doesn't, when
+    /// it belongs to someone else, or when that record has since been deleted.
+    /// </summary>
+    private async Task<CareCompletionResultResponse?> ReplayCompletionAsync(
+        Guid userId,
+        Guid key,
+        string fingerprint,
+        CancellationToken cancellationToken)
+    {
+        var earlier = await _dbContext.CareRecords
+            .AsNoTracking()
+            .Include(record => record.Pet)
+            .SingleOrDefaultAsync(record => record.CompletionIdempotencyKey == key, cancellationToken);
+
+        if (earlier is null)
+        {
+            return null;
+        }
+
+        if (earlier.Pet.OwnerUserId != userId
+            || earlier.Pet.DeletedAt != null
+            || !string.Equals(earlier.CompletionRequestFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            throw IdempotencyConflict();
+        }
+
+        if (earlier.ArchivedAt.HasValue || earlier.DeletedAt.HasValue)
+        {
+            throw Conflict(
+                "completion_removed",
+                "This care was logged as done, but that record has since been deleted.");
+        }
+
+        return new CareCompletionResultResponse("replayed", await ToResponseAsync(earlier, cancellationToken));
+    }
+
+    /// <summary>
+    /// What a completion request asked for: the item, both dates and the
+    /// optional text as it is stored (trimmed, empty as null). Two requests
+    /// with the same key and the same fingerprint are the same request.
+    ///
+    /// The fields are encoded as a versioned JSON array — each value quoted
+    /// and escaped, null kept distinct from text — so no value can spill into
+    /// its neighbour (a newline in the provider is not the start of the
+    /// notes). SHA-256 over its UTF-8 bytes, as lowercase hex.
+    /// </summary>
+    internal static string CompletionFingerprint(Guid targetId, CompleteCareRecordRequest request)
+    {
+        var canonical = System.Text.Json.JsonSerializer.Serialize(new string?[]
+        {
+            CompletionFingerprintVersion,
+            targetId.ToString("N"),
+            request.CompletedOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            request.NextDueDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            NormalizeOptional(request.Provider),
+            NormalizeOptional(request.Notes)
+        });
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Names the fingerprint encoding. A future change to the fields gets a
+    /// new version rather than changing what an existing version means.
+    /// </summary>
+    private const string CompletionFingerprintVersion = "care-completion-v1";
+
+    /// <summary>
+    /// Runs one care write for a pet as a single unit. On SQL Server it holds
+    /// a transaction-scoped application lock per pet from before the first
+    /// read to the commit, so every care write that can touch a fulfilment
+    /// link — create, update, archive and complete — validates and writes
+    /// with no other care write for that pet in between, whatever the
+    /// database's read isolation. Retried as a whole on a transient failure,
+    /// starting again from an empty change tracker.
+    /// </summary>
+    private Task<T> RunCareWriteAsync<T>(
+        Guid petId,
+        Func<Task<T>> write,
+        CancellationToken cancellationToken) =>
+        PetCareWriteLock.RunAsync(_dbContext, petId, write, cancellationToken);
+
+    private async Task<Guid> OwnedRecordPetIdAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId(currentUserId);
+        var petId = await _dbContext.CareRecords
+            .AsNoTracking()
+            .Where(record =>
+                record.Id == recordId
+                && record.Pet.OwnerUserId == userId
+                && record.Pet.DeletedAt == null
+                && record.DeletedAt == null)
+            .Select(record => (Guid?)record.PetId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return petId ?? throw NotFound("Care record was not found.");
     }
 
     private async Task<Pet> LoadOwnedPetAsync(
@@ -1229,6 +1549,25 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         {
             ["fulfillsCareRecordId"] = [message]
         });
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException exception, string indexName)
+    {
+        return exception.InnerException is Microsoft.Data.SqlClient.SqlException sql
+            && sql.Number is 2601 or 2627
+            && sql.Message.Contains(indexName, StringComparison.Ordinal);
+    }
+
+    private static ApiException Conflict(string code, string message)
+    {
+        return new ApiException(StatusCodes.Status409Conflict, code, message);
+    }
+
+    private static ApiException IdempotencyConflict()
+    {
+        return Conflict(
+            "idempotency_key_conflict",
+            "This completion key was already used for a different request.");
     }
 
     private static bool IsFulfillmentUniqueViolation(DbUpdateException exception)

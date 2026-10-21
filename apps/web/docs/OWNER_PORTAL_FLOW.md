@@ -319,6 +319,55 @@ appears once the order is `Payment Confirmed`, `Preparing`, `Shipped`, or
 
 ---
 
+## 6a. Care planner (`/records`)
+
+- **Upcoming** (default) is the owner-wide planner; **All records** (`?view=all`)
+  is the per-pet history picker. `?pet=<id>` narrows the planner; both live in
+  the address and Back restores them.
+- The planner shows 50 more items per "Show more care dates". Every read —
+  first load, Show more, **Refresh**, a completion, the window regaining
+  focus — re-reads the whole shown window from page 1 (100 per request) with
+  the summary, rather than appending pages at old offsets. Each read carries
+  a generation and the pet filter it was made for; a filter change, a newer
+  read or leaving the page retires it, and nothing it returns is applied.
+- **Best-effort live list.** The pages and the summary are separate requests,
+  not one snapshot, and nothing proves they describe the same set of items:
+  a completion that creates a next due date keeps every total the same while
+  shifting items between pages. The planner detects some changes (a total
+  or Malaysia day that moved, a repeat, a gap, counts that don't fit) and
+  reads again; if they persist it shows the rows without counts under
+  "Some care dates changed while loading. Refresh to check again." A list
+  read in more than one request is always shown with "Care dates may change
+  while you're browsing. Refresh to check the latest list." and a **Refresh
+  the list** button, and without counts — including when there is nothing
+  more to load. **Refresh** is always available. A list read in one request
+  shows the summary's counts when they agree. Rows it has received are
+  never hidden behind an empty state, and "No pending care dates" appears
+  only when the list read and summary agree on it. No read claims the list
+  stays current afterwards.
+- **Done** opens "Mark as done": Done on (Malaysia today, not in the future),
+  Next due date (optional, from the vet card), Note (optional). It calls
+  `POST /api/v1/care-records/{id}/complete`. The attempt — its key and, once
+  sent, its frozen details — belongs to the page, not the dialog. While
+  sending, nothing can dismiss the dialog and the full-form link is
+  disabled. After an unknown outcome the details lock and **Try again**
+  resends exactly the same request; closing keeps the attempt on the page
+  ("isn't confirmed yet" with **Review** and **Discard**, kept until the page
+  is left or reloaded — leaving doesn't cancel a sent request). Reopening
+  Done for the item reopens the same attempt. Refusals (already logged,
+  deleted, undated, archived pet) are explained with no save offered.
+  **Add documents or a clinic** opens the Phase 1 full form; with details
+  already entered it first says they won't carry over.
+- **Open** goes to the pet's care records. The history there pages too:
+  **Show older records** re-reads the history from page 1 one page further
+  and replaces what was shown. A detected disagreement replaces nothing and
+  says the records changed while loading. Once more than one page is shown,
+  the history always carries "Records may change while you browse. Reload to
+  check again." with **Reload records** (which re-reads the same window), even
+  when there are no older records left to show.
+- Empty, loading, error and "more to load" states are distinct; a failed read
+  is never shown as nothing due.
+
 ## 6. Dashboard
 
 `/dashboard` is pets first. In order: the Lost Mode notice (when any pet is
@@ -342,6 +391,9 @@ card; the header Add menu stays the global create entry point.
   incomplete summary (more than 1000 pending items) says so. Neither is ever
   shown as "nothing due". A complete read distinguishes "No care records
   yet", "No pending care dates" and "Nothing due through {date}".
+- **View all** (and "N more care dates") opens the **Care planner** at
+  `ownerRoutes.care({ petId })` — `/records`, narrowed to the pet when one is
+  in view — which lists every pending date page by page.
 - **Log as done** links to `ownerRoutes.petRecords(petId, { complete: id })`.
   The id is consumed once from the address; `RecordsManager` reads the item's
   completion status (`GET /api/v1/care-records/{id}/completion`) through the

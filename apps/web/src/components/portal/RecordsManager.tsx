@@ -49,6 +49,7 @@ import {
   getCareCompletionStatus,
   getFriendlyRecordErrorMessage,
   getPetRecords,
+  getPetRecordsPage,
   updateRecord,
 } from "@/services/recordService";
 import { isApiClientError } from "@/services/apiClient";
@@ -194,6 +195,14 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       : newCareRecordTypes;
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<CareRecord | null>(null);
+  // History is read a page at a time: the exact total says whether more
+  // records exist beyond what is shown.
+  const [historyTotal, setHistoryTotal] = useState<number | null>(null);
+  const [historyPages, setHistoryPages] = useState(1);
+  const [historyMoreState, setHistoryMoreState] = useState<"idle" | "loading" | "error" | "changed">("idle");
+  // Each history read has a generation; a newer read or a reload retires
+  // older ones, whose results are then ignored.
+  const historyReadRef = useRef(0);
   const autoOpenKeyRef = useRef("");
   const completionAttemptRef = useRef(0);
   // The completion target can sit beyond the first page of history, so it is
@@ -297,6 +306,12 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       .then((response) => {
         if (active) {
           setRecords(response.data);
+          historyReadRef.current += 1;
+          setHistoryPages(1);
+          setHistoryMoreState("idle");
+          setHistoryTotal(
+            typeof response.meta?.total === "number" ? response.meta.total : null
+          );
         }
       })
       .catch((caught) => {
@@ -579,10 +594,71 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   async function viewCareRecords() {
     closeEditor();
     try {
-      setRecords((await getPetRecords(petId)).data);
+      const response = await getPetRecords(petId);
+      setRecords(response.data);
+      historyReadRef.current += 1;
+      setHistoryPages(1);
+      setHistoryMoreState("idle");
+      setHistoryTotal(typeof response.meta?.total === "number" ? response.meta.total : null);
     } catch {
       // The list keeps what it had; the held save is still reviewable.
     }
+  }
+
+  /**
+   * Reads the first `pages` pages of history again, from page 1, and shows
+   * them in place of what was shown — never appended at old positions. A
+   * newer read, a full reload or another pet retires it. When the pages
+   * visibly disagree (another total, a short page, a record twice) nothing
+   * is replaced and the owner is told the records changed while loading.
+   * Agreeing pages are still separate reads, not one snapshot, so a history
+   * of more than one page is always shown with a note and Reload records.
+   */
+  async function readHistory(pages: number) {
+    const generation = ++historyReadRef.current;
+    setHistoryMoreState("loading");
+    try {
+      const read: CareRecord[] = [];
+      const totals = new Set<number>();
+      let consistent = true;
+      for (let page = 1; page <= pages; page += 1) {
+        const result = await getPetRecordsPage(petId, page);
+        if (generation !== historyReadRef.current) return;
+        totals.add(result.total);
+        const expected = Math.min(100, Math.max(0, result.total - (page - 1) * 100));
+        if (result.records.length !== expected) consistent = false;
+        read.push(...result.records);
+        if (page * 100 >= result.total) break;
+      }
+      const total = [...totals][0] ?? 0;
+      if (
+        totals.size !== 1 ||
+        new Set(read.map((record) => record.id)).size !== read.length ||
+        read.length !== Math.min(total, pages * 100)
+      ) {
+        consistent = false;
+      }
+      if (!consistent) {
+        setHistoryMoreState("changed");
+        return;
+      }
+      setRecords(read);
+      setHistoryPages(pages);
+      setHistoryTotal(total);
+      setHistoryMoreState("idle");
+    } catch {
+      if (generation === historyReadRef.current) setHistoryMoreState("error");
+    }
+  }
+
+  /** One page further back. */
+  function loadMoreHistory() {
+    void readHistory(historyPages + 1);
+  }
+
+  /** The same window again (or, after a changed read, the one that was asked for). */
+  function reloadHistory() {
+    void readHistory(historyMoreState === "changed" ? historyPages + 1 : historyPages);
   }
 
   function validate() {
@@ -718,6 +794,9 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
               )
             : [savedRecord, ...current]
         );
+        if (!editingRecord) {
+          setHistoryTotal((total) => (total === null ? total : total + 1));
+        }
       }
 
       saveAttemptRef.current = null;
@@ -912,6 +991,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
         setRecords((current) =>
           current.filter((item) => item.id !== deleteTarget.id)
         );
+        setHistoryTotal((total) => (total === null ? total : Math.max(0, total - 1)));
         setActionError("");
         setSuccess("Record deleted.");
       }
@@ -1073,6 +1153,51 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
               </div>
             </section>
           ))}
+          {historyMoreState === "changed" ? (
+            <div className="grid justify-items-start gap-2" data-care-history-changed role="status">
+              <p className="text-sm font-semibold text-[#8f3025]">
+                Your care records changed while they were loading, so this list may be out of date.
+              </p>
+              <CTAButton onClick={reloadHistory} variant="secondary">
+                Reload records
+              </CTAButton>
+            </div>
+          ) : historyPages > 1 ? (
+            // Read across pages: a best-effort list, whether or not more remain.
+            <div
+              className="flex flex-col gap-2 rounded-[1.25rem] border border-pet-border bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+              data-care-history-freshness
+            >
+              <p className="text-sm font-semibold leading-6 text-pet-muted">
+                Records may change while you browse. Reload to check again.
+              </p>
+              <CTAButton
+                disabled={historyMoreState === "loading"}
+                onClick={reloadHistory}
+                variant="secondary"
+              >
+                Reload records
+              </CTAButton>
+            </div>
+          ) : null}
+          {historyMoreState !== "changed" && historyTotal !== null && records.length < historyTotal ? (
+            <div className="grid justify-items-start gap-2" data-care-history-more>
+              <CTAButton
+                disabled={historyMoreState === "loading"}
+                onClick={loadMoreHistory}
+                variant="secondary"
+              >
+                {historyMoreState === "loading"
+                  ? "Loading..."
+                  : `Show older records (${historyTotal - records.length} more)`}
+              </CTAButton>
+              {historyMoreState === "error" ? (
+                <p className="text-sm font-semibold text-[#a63c2e]" role="alert">
+                  We couldn&apos;t load more records right now. Try again in a moment.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
 
