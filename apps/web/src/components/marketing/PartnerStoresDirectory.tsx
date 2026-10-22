@@ -10,6 +10,7 @@ import { getCallLink, getWhatsAppLink } from "@/lib/phone";
 import { marketingRoutes } from "@/lib/routes";
 
 const navigationButton = "inline-flex min-h-11 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-teal hover:bg-pet-cream disabled:opacity-50";
+const storeActionButton = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border px-3 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2";
 const comparableName = (name: string) => name.normalize("NFKC").toLocaleLowerCase("en-MY").replace(/[^\p{L}\p{N}]/gu, "");
 
 function StoreLocationDetails({ location, showName = true, multiple = false }: {
@@ -26,10 +27,10 @@ function StoreLocationDetails({ location, showName = true, multiple = false }: {
     </div>
     {location.businessHours && <p className="whitespace-pre-line text-sm text-pet-muted [overflow-wrap:anywhere]">Hours: {location.businessHours}</p>}
     <div className="flex flex-wrap gap-2">
-      {location.googleMapsUrl && <a className={navigationButton} href={location.googleMapsUrl} target="_blank" rel="noopener noreferrer">Google Maps</a>}
-      {location.wazeUrl && <a className={navigationButton} href={location.wazeUrl} target="_blank" rel="noopener noreferrer">Waze</a>}
+      {location.googleMapsUrl && <a className={`${storeActionButton} border-[#1769E9] bg-[#1769E9] text-white hover:bg-[#1257C4] focus-visible:outline-[#1769E9]`} href={location.googleMapsUrl} target="_blank" rel="noopener noreferrer"><Icon name="pin" className="h-4 w-4 shrink-0" />Google Maps</a>}
+      {location.wazeUrl && <a className={`${storeActionButton} border-slate-300 bg-white text-pet-ink hover:bg-pet-cream focus-visible:outline-pet-ink`} href={location.wazeUrl} target="_blank" rel="noopener noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0"><path d="m21 3-6.5 18-4-7.5L3 9.5 21 3Z" /></svg>Waze</a>}
       {location.contactPhone && <a className={navigationButton} href={getCallLink(location.contactPhone)}>Call store</a>}
-      {location.whatsApp && <a className={navigationButton} href={getWhatsAppLink(location.whatsApp)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+      {location.whatsApp && <a className={`${storeActionButton} border-[#27AA65] bg-white text-pet-sage hover:bg-green-50 focus-visible:outline-pet-sage`} href={getWhatsAppLink(location.whatsApp)} target="_blank" rel="noopener noreferrer"><Icon name="comment" className="h-4 w-4 shrink-0" />WhatsApp</a>}
     </div>
   </div>;
 }
