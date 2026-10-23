@@ -7,6 +7,7 @@ const featureEnvKeys = [
   "NEXT_PUBLIC_TAG_ORDERS_ENABLED",
   "NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED",
   "NEXT_PUBLIC_SOCIAL_ENABLED",
+  "NEXT_PUBLIC_WEEKLY_RECAP_ENABLED",
 ] as const;
 
 afterEach(() => {
@@ -57,7 +58,20 @@ describe("owner product availability", () => {
       tagOrdersEnabled: false,
       socialEnabled: false,
     });
+    expect(features.weeklyRecapEnabled).toBe(false);
     expect(features.smartTagOrderingEnabled).toBe(false);
+  });
+
+  it("keeps the Weekly Recap off unless it is exactly true", async () => {
+    for (const value of ["", "TRUE", "1", "yes", "false"]) {
+      vi.stubEnv("NEXT_PUBLIC_WEEKLY_RECAP_ENABLED", value);
+      vi.resetModules();
+      expect((await import("./features")).weeklyRecapEnabled).toBe(false);
+    }
+
+    vi.stubEnv("NEXT_PUBLIC_WEEKLY_RECAP_ENABLED", "true");
+    vi.resetModules();
+    expect((await import("./features")).weeklyRecapEnabled).toBe(true);
   });
 
   it("can restore owner UI without changing route implementations", async () => {
@@ -75,6 +89,7 @@ describe("owner product availability", () => {
       tagOrdersEnabled: true,
       socialEnabled: true,
     });
+    expect(features.weeklyRecapEnabled).toBe(true);
     expect(features.smartTagOrderingEnabled).toBe(true);
   });
 

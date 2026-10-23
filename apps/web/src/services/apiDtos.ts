@@ -350,6 +350,63 @@ export type BackendUpcomingCareSummary = {
   scopes: BackendUpcomingCareScope[];
 };
 
+/** GET /api/v1/pets/{petId}/weekly-recap — owner only, never cached. */
+export type BackendWeeklyRecap = {
+  petId: string;
+  petName: string;
+  weekStart: string;
+  weekEnd: string;
+  asOfDate: string;
+  isCurrentWeek: boolean;
+  earliestWeekStart: string;
+  latestWeekStart: string;
+  moments: {
+    total: number;
+    sharedPubliclyCount: number;
+    onlyMeCount: number;
+    items: BackendWeeklyRecapMoment[];
+  };
+  care: {
+    hasCareRecords: boolean;
+    logged: { total: number; items: BackendWeeklyRecapLoggedCare[] };
+    stillDue: { total: number; items: BackendWeeklyRecapDueCare[] };
+    overdueTotal: number;
+    comingUp: { total: number; items: BackendWeeklyRecapDueCare[] };
+  };
+};
+
+export type BackendWeeklyRecapMoment = {
+  id: string;
+  primaryPetId: string;
+  primaryPetName: string;
+  isPrimary: boolean;
+  title: string;
+  date: string;
+  type?: string | null;
+  visibility: BackendMemoryVisibility | string;
+  hiddenByMyPetLink: boolean;
+  preview?: { id: string; type: "image" | "video" | string; url: string } | null;
+  mediaCount: number;
+};
+
+export type BackendWeeklyRecapLoggedCare = {
+  id: string;
+  type: BackendCareRecordType | string;
+  title: string;
+  careName?: string | null;
+  recordDate: string;
+  loggedAsDone: boolean;
+};
+
+export type BackendWeeklyRecapDueCare = {
+  id: string;
+  type: BackendCareRecordType | string;
+  title: string;
+  careName?: string | null;
+  dueDate: string;
+  status: "overdue" | "due-today" | "due-soon" | "upcoming" | string;
+};
+
 /** The one-step completion's answer: who wrote the record, and the record. */
 export type BackendCareCompletionResult = {
   outcome: string;

@@ -448,6 +448,7 @@ builder.Services.AddScoped<ISocialDiscoveryService, SocialDiscoveryService>();
 builder.Services.AddScoped<IOwnerHandleService, OwnerHandleService>();
 builder.Services.AddSingleton<IImageDerivativeGenerator, ImageDerivativeGenerator>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();
+builder.Services.AddScoped<IPetWeeklyRecapService, PetWeeklyRecapService>();
 builder.Services.AddScoped<IMediaService, MediaService>();
 builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
 builder.Services.AddScoped<ITagScanService, TagScanService>();
@@ -569,6 +570,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseMiddleware<PrivateNoStoreMiddleware>();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseRateLimiter();

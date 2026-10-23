@@ -33,12 +33,18 @@ import {
 import {
   apiRequest,
   isApiClientError,
+  sessionChangedError,
 } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import {
   getOwnerSession,
   isOwnerAuthenticated,
 } from "@/services/authService";
+import {
+  getAuthSessionKey,
+  isAuthSessionCurrent,
+  type AuthSessionKey,
+} from "@/services/authStorage";
 import type {
   BackendPetDetail,
   BackendPetListItem,
@@ -990,15 +996,35 @@ function getDefaultOwner(): Pet["owner"] {
 // Sharing the in-flight request collapses those concurrent calls into one
 // network fetch; the promise is cleared as soon as it settles, so later
 // calls (e.g. after a mutation) always fetch fresh data.
-let inFlightPetsRequest: Promise<ApiResponse<PetListItem[]>> | null = null;
+//
+// The shared request belongs to the sign-in that started it. A call made
+// for another sign-in — another account, or the same person signed out and
+// back in — starts its own request and never receives this one's pets, and
+// an answer that arrives after its sign-in ended is not handed to anyone.
+let inFlightPetsRequest: {
+  key: AuthSessionKey | null;
+  promise: Promise<ApiResponse<PetListItem[]>>;
+} | null = null;
 
 export async function getPets(): Promise<ApiResponse<PetListItem[]>> {
   if (canUseApi()) {
-    inFlightPetsRequest ??= (async () => {
+    const key = getAuthSessionKey();
+    if (inFlightPetsRequest?.key === key) {
+      return inFlightPetsRequest.promise;
+    }
+
+    // The entry is created first so the request's own cleanup can tell
+    // whether it is still the shared one.
+    const entry = { key } as NonNullable<typeof inFlightPetsRequest>;
+    entry.promise = (async () => {
       try {
         const response = await apiRequest<BackendPetListItem[]>(
           "/api/v1/pets?lifecycleStatus=All&page=1&pageSize=100"
         );
+
+        if (key !== null && !isAuthSessionCurrent(key)) {
+          throw sessionChangedError();
+        }
 
         return apiResponse(
           {
@@ -1008,11 +1034,15 @@ export async function getPets(): Promise<ApiResponse<PetListItem[]>> {
           []
         );
       } finally {
-        inFlightPetsRequest = null;
+        // Only this request's own entry: a newer sign-in's must survive.
+        if (inFlightPetsRequest === entry) {
+          inFlightPetsRequest = null;
+        }
       }
     })();
+    inFlightPetsRequest = entry;
 
-    return inFlightPetsRequest;
+    return entry.promise;
   }
 
   await mockDelay();

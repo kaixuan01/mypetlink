@@ -10,7 +10,8 @@ import {
   freePlanLimits,
   getEffectivePlanLimits,
 } from "@/lib/planLimits";
-import { apiRequest } from "@/services/apiClient";
+import { apiRequest, sessionChangedError } from "@/services/apiClient";
+import { getAuthSessionKey, isAuthSessionCurrent } from "@/services/authStorage";
 import { canUseApi } from "@/services/apiConfig";
 import type { BackendOwnerProfile } from "@/services/apiDtos";
 import type { ApiResponse } from "@/types";
@@ -23,7 +24,13 @@ export async function getOwnerProfileSettings(): Promise<ApiResponse<OwnerSettin
     };
   }
 
+  const key = getAuthSessionKey();
   const response = await apiRequest<BackendOwnerProfile>("/api/v1/owner/profile");
+  // The owner's name and numbers are cached in this browser; never cache them
+  // for a sign-in that ended while the answer was on its way.
+  if (key !== null && !isAuthSessionCurrent(key)) {
+    throw sessionChangedError();
+  }
   adoptServerPlanLimits(response.data?.plan);
   const settings = mapOwnerProfileToSettings(response.data);
   writeOwnerSettings(settings);
@@ -48,6 +55,7 @@ export async function updateOwnerProfileSettings(
     };
   }
 
+  const key = getAuthSessionKey();
   const expectedPhoneNumber = normalizeOptionalContactNumber(settings.phoneNumber);
   const expectedWhatsappNumber = normalizeOptionalContactNumber(
     settings.whatsappNumber
@@ -62,6 +70,9 @@ export async function updateOwnerProfileSettings(
       marketingEmailOptIn: settings.marketingEmailOptIn,
     },
   });
+  if (key !== null && !isAuthSessionCurrent(key)) {
+    throw sessionChangedError();
+  }
   adoptServerPlanLimits(response.data?.plan);
   const updatedSettings = mapOwnerProfileToSettings(response.data);
 

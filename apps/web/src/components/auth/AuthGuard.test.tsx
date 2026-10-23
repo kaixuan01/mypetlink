@@ -46,6 +46,7 @@ vi.mock("@/services/ownerProfileService", () => ({
 }));
 vi.mock("@/services/apiConfig", () => ({
   canUseApi: (...args: unknown[]) => mocks.canUseApi(...args),
+  isApiConfigured: (...args: unknown[]) => mocks.canUseApi(...args),
   getFrontendResilienceConfig: () => ({
     maxAttempts: 6,
     maximumWaitMs: 45_000,
@@ -65,6 +66,7 @@ class FakeApiError extends Error {
 
 vi.mock("@/services/apiClient", () => ({
   isApiClientError: (error: unknown) => error instanceof FakeApiError,
+  SESSION_CHANGED_CODE: "session_changed",
 }));
 
 const {
@@ -108,6 +110,18 @@ async function advance(ms: number) {
 
 beforeEach(() => {
   window.history.replaceState({}, "", "/dashboard");
+  // The signed-in owner's stored sign-in: the guard's checks belong to it.
+  window.localStorage.setItem(
+    "mypetlink_api_auth_session",
+    JSON.stringify({
+      accessToken: "access",
+      refreshToken: "refresh",
+      expiresAt: Date.now() + 3_600_000,
+      sessionId: "guard-test",
+      user: { id: "owner", email: "owner@example.test", displayName: "Owner", roles: ["Owner"], status: "Active" },
+      ownerProfile: null,
+    })
+  );
   vi.useFakeTimers();
   resetOwnerSessionVerificationForTests();
   mocks.replace.mockReset();
@@ -123,6 +137,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.useRealTimers();
   // restoreAllMocks resets the navigator.onLine spy; clearAllMocks resets call
   // history on the module mocks (implementations are re-set in beforeEach).

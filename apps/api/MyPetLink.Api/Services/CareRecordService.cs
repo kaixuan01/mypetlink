@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.SqlTypes;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -164,6 +165,137 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         return (
             new UpcomingCareRecordsResponse(today, petIdsWithCareRecords, items),
             total);
+    }
+
+    public const int WeeklyRecapLoggedItemLimit = 20;
+    public const int WeeklyRecapStillDueItemLimit = 10;
+    public const int WeeklyRecapComingUpItemLimit = 3;
+
+    /// <summary>
+    /// The care half of one pet's Weekly Recap, read with the same "active",
+    /// "pending" and Malaysia-day rules as the planner.
+    ///
+    /// Three lists, and an item is in at most one due list: <b>still due</b>
+    /// is pending and due inside the week but before <paramref name="today"/>
+    /// (overdue); <b>coming up</b> is pending and due today or later. A logged
+    /// record is never given a due status here.
+    ///
+    /// <b>One read.</b> The records logged in the week and every pending item
+    /// of the pet come back in a single statement, each row marked pending or
+    /// not by the planner's own rule, and every list and total is taken from
+    /// that rowset. Separate COUNT and list statements could each see a
+    /// different moment, so an item archived or completed between them left a
+    /// "still due" total above the overdue total, or a list shorter than its
+    /// total for no reason. One statement cannot. The rowset is one pet's
+    /// pending dates plus one week's logs. The caller has already confirmed
+    /// the pet is the actor's and active.
+    /// </summary>
+    public async Task<WeeklyRecapCareResponse> GetWeeklyRecapCareAsync(
+        Guid userId,
+        Guid petId,
+        DateOnly weekStart,
+        DateOnly weekEnd,
+        DateOnly today,
+        CancellationToken cancellationToken = default)
+    {
+        var activeRecords = OwnedActiveRecords(userId).Where(record => record.PetId == petId);
+        var pendingIds = PendingOnly(activeRecords).Select(record => record.Id);
+        // Record dates cannot be in the future; the bound keeps that true
+        // here even for a record written before the rule existed.
+        var lastLoggedDay = weekEnd < today ? weekEnd : today;
+
+        var rowset = await activeRecords
+            .Where(record =>
+                (record.RecordDate != null
+                    && record.RecordDate >= weekStart
+                    && record.RecordDate <= lastLoggedDay)
+                || pendingIds.Contains(record.Id))
+            .Select(record => new
+            {
+                record.Id,
+                record.Type,
+                record.Title,
+                record.CareName,
+                record.RecordDate,
+                record.DueDate,
+                record.CreatedAt,
+                LoggedAsDone = record.FulfillsCareRecordId != null,
+                Pending = pendingIds.Contains(record.Id)
+            })
+            .ToListAsync(cancellationToken);
+        var rows = rowset.DistinctBy(row => row.Id).ToArray();
+
+        // A pet with nothing logged this week and nothing pending may still
+        // have older history; only then is that asked separately.
+        var hasCareRecords = rows.Length > 0 || await activeRecords.AnyAsync(cancellationToken);
+
+        var logged = rows
+            .Where(row =>
+                row.RecordDate != null
+                && row.RecordDate >= weekStart
+                && row.RecordDate <= lastLoggedDay)
+            .OrderByDescending(row => row.RecordDate)
+            .ThenByDescending(row => row.CreatedAt)
+            .ThenBy(row => new SqlGuid(row.Id))
+            .ToArray();
+        // Ordered as the planner's SQL orders them: due date, creation time,
+        // then id in SQL Server's own uniqueidentifier order.
+        var pending = rows
+            .Where(row => row.Pending && row.DueDate != null)
+            .OrderBy(row => row.DueDate)
+            .ThenBy(row => row.CreatedAt)
+            .ThenBy(row => new SqlGuid(row.Id))
+            .ToArray();
+        var stillDue = pending
+            .Where(row => row.DueDate >= weekStart && row.DueDate <= weekEnd && row.DueDate < today)
+            .ToArray();
+        var comingUp = pending.Where(row => row.DueDate >= today).ToArray();
+
+        WeeklyRecapDueCareResponse Due(DateOnly dueDate, Guid id, CareRecordType type, string title, string? careName) =>
+            new(id, type, title, careName, dueDate, DeriveWeeklyRecapStatus(dueDate, today));
+
+        return new WeeklyRecapCareResponse(
+            hasCareRecords,
+            new WeeklyRecapCareListResponse<WeeklyRecapLoggedCareResponse>(
+                logged.Length,
+                logged
+                    .Take(WeeklyRecapLoggedItemLimit)
+                    .Select(row => new WeeklyRecapLoggedCareResponse(
+                        row.Id, row.Type, row.Title, row.CareName, row.RecordDate!.Value, row.LoggedAsDone))
+                    .ToArray()),
+            new WeeklyRecapCareListResponse<WeeklyRecapDueCareResponse>(
+                stillDue.Length,
+                stillDue
+                    .Take(WeeklyRecapStillDueItemLimit)
+                    .Select(row => Due(row.DueDate!.Value, row.Id, row.Type, row.Title, row.CareName))
+                    .ToArray()),
+            pending.Count(row => row.DueDate < today),
+            new WeeklyRecapCareListResponse<WeeklyRecapDueCareResponse>(
+                comingUp.Length,
+                comingUp
+                    .Take(WeeklyRecapComingUpItemLimit)
+                    .Select(row => Due(row.DueDate!.Value, row.Id, row.Type, row.Title, row.CareName))
+                    .ToArray()));
+    }
+
+    /// <summary>
+    /// The one status a recap's due item shows. Overdue is strictly before
+    /// today; an item due today is "due today", never overdue and never
+    /// merely "due soon".
+    /// </summary>
+    public static string DeriveWeeklyRecapStatus(DateOnly dueDate, DateOnly malaysiaToday)
+    {
+        if (dueDate < malaysiaToday)
+        {
+            return "overdue";
+        }
+
+        if (dueDate == malaysiaToday)
+        {
+            return "due-today";
+        }
+
+        return dueDate <= malaysiaToday.AddDays(DueSoonDays) ? "due-soon" : "upcoming";
     }
 
     /// <summary>

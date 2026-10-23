@@ -1,5 +1,6 @@
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import { isApiConfigured } from "@/services/apiConfig";
+import { getAuthSessionKey, subscribeAuthSession } from "@/services/authStorage";
 import type { Pet, PublicPetProfile } from "@/types";
 
 export const OWNER_SETTINGS_STORAGE_KEY = "mypetlink_owner_settings";
@@ -63,6 +64,24 @@ function fallbackOwnerSettings(): OwnerSettings {
   return isApiConfigured() ? defaultOwnerSettings : sampleOwnerSettings;
 }
 
+// The cached owner details are stamped with the sign-in they were read for.
+// Under any other sign-in — another account, the same person signed in again,
+// or a session changed while nothing was listening — they read as empty, so
+// they can never cross from one sign-in to the next. A token refresh keeps
+// the sign-in, and so keeps them. The local preview has no sign-in to stamp.
+//
+// Ownership needs a real sign-in on both sides: with nobody signed in, or a
+// missing, null, empty or malformed stamp, nobody owns the details. A public
+// page read while signed out therefore never gets a cached owner's identity
+// or numbers, and such details are never written in the first place.
+const SESSION_STAMP = "sessionKey";
+
+/** Whether cached details with this stamp belong to the sign-in stored now. */
+function ownedByCurrentSession(stamp: unknown) {
+  const current = getAuthSessionKey();
+  return current !== null && typeof stamp === "string" && stamp !== "" && stamp === current;
+}
+
 export function readOwnerSettings(): OwnerSettings {
   if (typeof window === "undefined") {
     return defaultOwnerSettings;
@@ -75,7 +94,11 @@ export function readOwnerSettings(): OwnerSettings {
   }
 
   try {
-    return normalizeOwnerSettings(JSON.parse(value));
+    const parsed = JSON.parse(value);
+    if (isApiConfigured() && !ownedByCurrentSession(parsed?.[SESSION_STAMP])) {
+      return defaultOwnerSettings;
+    }
+    return normalizeOwnerSettings(parsed);
   } catch {
     window.localStorage.removeItem(OWNER_SETTINGS_STORAGE_KEY);
     return fallbackOwnerSettings();
@@ -89,12 +112,64 @@ export function writeOwnerSettings(settings: OwnerSettings) {
     return;
   }
 
+  const sessionKey = getAuthSessionKey();
+  if (isApiConfigured() && sessionKey === null) {
+    // No sign-in to own them: private details are not kept.
+    return;
+  }
+
   window.localStorage.setItem(
     OWNER_SETTINGS_STORAGE_KEY,
-    JSON.stringify(normalizeOwnerSettings(settings))
+    JSON.stringify({
+      ...normalizeOwnerSettings(settings),
+      [SESSION_STAMP]: sessionKey,
+    })
   );
 
   ownerSettingsListeners.forEach((listener) => listener());
+}
+
+/**
+ * Forgets the owner details cached in this browser — name, email and contact
+ * numbers — when the sign-in they belong to ends. Everything showing them
+ * (the portal sidebar) is told, here and in other tabs.
+ */
+export function clearOwnerSettings() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(OWNER_SETTINGS_STORAGE_KEY);
+  ownerSettingsListeners.forEach((listener) => listener());
+}
+
+/**
+ * Removes cached owner details that the current sign-in does not own: stamped
+ * for another sign-in, unstamped, or held while nobody is signed in. They
+ * already read as empty; this also takes them off the device, for a sign-in
+ * change that happened while nothing was listening. Details stamped for the
+ * sign-in stored now (including one a newer tab just made) are kept.
+ */
+export function forgetOwnerSettingsOfOtherSessions() {
+  if (typeof window === "undefined" || !isApiConfigured()) {
+    return;
+  }
+
+  const value = window.localStorage.getItem(OWNER_SETTINGS_STORAGE_KEY);
+  if (!value) {
+    return;
+  }
+
+  let stamp: unknown = undefined;
+  try {
+    stamp = JSON.parse(value)?.[SESSION_STAMP];
+  } catch {
+    // Unreadable: not the current sign-in's.
+  }
+
+  if (!ownedByCurrentSession(stamp)) {
+    clearOwnerSettings();
+  }
 }
 
 /**
@@ -111,10 +186,13 @@ export function subscribeOwnerSettings(callback: () => void): () => void {
   }
 
   window.addEventListener("storage", handleStorage);
+  // A sign-in change changes what the cache reads as, even untouched.
+  const unsubscribeSession = subscribeAuthSession(() => callback());
 
   return () => {
     ownerSettingsListeners.delete(callback);
     window.removeEventListener("storage", handleStorage);
+    unsubscribeSession();
   };
 }
 

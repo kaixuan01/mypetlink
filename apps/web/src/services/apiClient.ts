@@ -3,9 +3,12 @@ import {
   getFrontendResilienceConfig,
 } from "@/services/apiConfig";
 import {
-  clearStoredAuthSession,
+  authSessionKey,
+  clearStoredAuthSessionIfCurrent,
+  isAuthSessionCurrent,
   readStoredAuthSession,
   updateStoredAuthTokens,
+  type AuthSessionKey,
 } from "@/services/authStorage";
 import {
   createWakeUpRequestId,
@@ -95,6 +98,7 @@ async function request<T>(
   const hasBody = options.body !== undefined;
   const session = options.auth === false ? null : readStoredAuthSession();
   const accessTokenUsed = session?.accessToken;
+  const sessionKey = authSessionKey(session);
 
   if (hasBody) {
     headers.set("Content-Type", "application/json");
@@ -116,9 +120,13 @@ async function request<T>(
   if (response.status === 401 && options.auth !== false) {
     if (options.retryOnUnauthorized === false) {
       // A request already retried with the latest access token. Do not refresh
-      // recursively or leave an invalid session behind.
-      clearStoredAuthSession();
+      // recursively or leave an invalid session behind, but only forget the
+      // session this request was made for, never one signed in since.
+      clearStoredAuthSessionIfCurrent(sessionKey);
     } else {
+      // A request made for one sign-in is never retried as another: its
+      // answer would be another session's data under this caller.
+      throwIfSessionChanged(sessionKey);
       const latestAccessToken = readStoredAuthSession()?.accessToken;
       const anotherRequestAlreadyRefreshed =
         Boolean(accessTokenUsed) &&
@@ -127,8 +135,9 @@ async function request<T>(
 
       if (
         anotherRequestAlreadyRefreshed ||
-        (await refreshAccessToken(baseUrl))
+        (await refreshAccessToken(baseUrl, sessionKey))
       ) {
+        throwIfSessionChanged(sessionKey);
         // Re-enter request() so Authorization is rebuilt from storage. Reusing
         // the original Headers instance would resend the expired token.
         return request<T>(baseUrl, path, {
@@ -136,6 +145,7 @@ async function request<T>(
           retryOnUnauthorized: false,
         });
       }
+      throwIfSessionChanged(sessionKey);
     }
   }
 
@@ -200,6 +210,7 @@ async function requestBlob(
   const headers = new Headers();
   const session = options.auth === false ? null : readStoredAuthSession();
   const accessTokenUsed = session?.accessToken;
+  const sessionKey = authSessionKey(session);
 
   if (session?.accessToken) {
     headers.set("Authorization", `Bearer ${session.accessToken}`);
@@ -213,8 +224,9 @@ async function requestBlob(
 
   if (response.status === 401 && options.auth !== false) {
     if (options.retryOnUnauthorized === false) {
-      clearStoredAuthSession();
+      clearStoredAuthSessionIfCurrent(sessionKey);
     } else {
+      throwIfSessionChanged(sessionKey);
       const latestAccessToken = readStoredAuthSession()?.accessToken;
       const anotherRequestAlreadyRefreshed =
         Boolean(accessTokenUsed) &&
@@ -223,13 +235,15 @@ async function requestBlob(
 
       if (
         anotherRequestAlreadyRefreshed ||
-        (await refreshAccessToken(baseUrl))
+        (await refreshAccessToken(baseUrl, sessionKey))
       ) {
+        throwIfSessionChanged(sessionKey);
         return requestBlob(baseUrl, path, {
           ...options,
           retryOnUnauthorized: false,
         });
       }
+      throwIfSessionChanged(sessionKey);
     }
   }
 
@@ -302,7 +316,7 @@ async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   }
 }
 
-let inFlightRefresh: Promise<boolean> | null = null;
+let inFlightRefresh: { key: AuthSessionKey | null; promise: Promise<boolean> } | null = null;
 
 // Single-flight token refresh: when several authenticated requests receive 401
 // at the same time (common on the Admin Portal, which loads its access check and
@@ -311,18 +325,28 @@ let inFlightRefresh: Promise<boolean> | null = null;
 // same token would let one rotate it and the rest present a now-revoked token —
 // which previously cleared the freshly-issued session and produced the
 // intermittent "couldn't confirm your access" error.
-function refreshAccessToken(baseUrl: string): Promise<boolean> {
-  inFlightRefresh ??= performTokenRefresh(baseUrl).finally(() => {
-    inFlightRefresh = null;
-  });
+//
+// The single flight belongs to one sign-in. A refresh started for one session
+// is never shared with, written into, or allowed to sign out another, even
+// the same person signed in again.
+function refreshAccessToken(baseUrl: string, key: AuthSessionKey | null): Promise<boolean> {
+  if (inFlightRefresh?.key === key) {
+    return inFlightRefresh.promise;
+  }
 
-  return inFlightRefresh;
+  const promise = performTokenRefresh(baseUrl, key).finally(() => {
+    if (inFlightRefresh?.promise === promise) {
+      inFlightRefresh = null;
+    }
+  });
+  inFlightRefresh = { key, promise };
+  return promise;
 }
 
-async function performTokenRefresh(baseUrl: string): Promise<boolean> {
+async function performTokenRefresh(baseUrl: string, key: AuthSessionKey | null): Promise<boolean> {
   const session = readStoredAuthSession();
 
-  if (!session?.refreshToken) {
+  if (!session?.refreshToken || authSessionKey(session) !== key) {
     return false;
   }
 
@@ -361,7 +385,7 @@ async function performTokenRefresh(baseUrl: string): Promise<boolean> {
     }
 
     if (response.status === 400 || response.status === 401) {
-      clearStoredAuthSession();
+      clearStoredAuthSessionIfCurrent(key);
       return false;
     }
 
@@ -376,12 +400,39 @@ async function performTokenRefresh(baseUrl: string): Promise<boolean> {
   }
 
   if (!envelope.data?.accessToken || !envelope.data.refreshToken) {
-    clearStoredAuthSession();
+    clearStoredAuthSessionIfCurrent(key);
+    return false;
+  }
+
+  // Signed out or replaced while the refresh was out: these tokens belong to
+  // a session that is no longer stored, so they are not kept.
+  if (!isAuthSessionCurrent(key)) {
     return false;
   }
 
   updateStoredAuthTokens(envelope.data);
   return true;
+}
+
+export const SESSION_CHANGED_CODE = "session_changed";
+
+/**
+ * The sign-in a piece of work was started for has ended or been replaced.
+ * Reported as a 401 so every caller treats it as the end of that session,
+ * and its result is never shown under whoever is signed in now.
+ */
+export function sessionChangedError() {
+  return new ApiClientError(
+    401,
+    SESSION_CHANGED_CODE,
+    "Your sign-in changed. Please try again."
+  );
+}
+
+function throwIfSessionChanged(key: AuthSessionKey | null) {
+  if (key !== null && !isAuthSessionCurrent(key)) {
+    throw sessionChangedError();
+  }
 }
 
 const fallbackRetryDelaysMs = [2000, 4000, 7000, 10000];

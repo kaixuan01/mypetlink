@@ -159,7 +159,8 @@ export function getActiveOwnerNavItemId(
     return "pets";
   }
 
-  if (pathname === ownerRoutes.dashboard) {
+  // A pet's Weekly Recap is reached from Home and belongs to it.
+  if (pathname === ownerRoutes.dashboard || pathname === ownerRoutes.weeklyRecap()) {
     return "dashboard";
   }
 

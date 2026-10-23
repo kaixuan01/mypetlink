@@ -24,6 +24,9 @@
 /records
   X-Robots-Tag: noindex, nofollow
 
+/recap
+  X-Robots-Tag: noindex, nofollow
+
 /moments
   X-Robots-Tag: noindex, nofollow
 

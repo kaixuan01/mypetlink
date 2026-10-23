@@ -1,9 +1,12 @@
 "use client";
 
-import { apiRequest } from "@/services/apiClient";
+import { apiRequest, sessionChangedError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import {
+  beginStoredAuthSession,
   clearStoredAuthSession,
+  getAuthSessionKey,
+  isAuthSessionCurrent,
   readStoredAuthSession,
   writeStoredAuthSession,
   type StoredAuthSession,
@@ -22,6 +25,7 @@ import {
   clearStoredReferral,
   readStoredReferral,
 } from "@/lib/referralAttribution";
+import { clearOwnerSettings } from "@/lib/ownerSettings";
 
 const OWNER_KEY = "mypetlink_mock_owner";
 const ADMIN_KEY = "mypetlink_mock_admin";
@@ -115,6 +119,9 @@ export function logoutOwner() {
     }
 
     clearStoredAuthSession();
+    // The owner's name and numbers are cached for the portal; they belong to
+    // the session that just ended.
+    clearOwnerSettings();
     return;
   }
 
@@ -251,7 +258,14 @@ export async function loginAsDevelopmentAdmin() {
 }
 
 export async function getCurrentOwnerSession() {
+  const key = getAuthSessionKey();
   const response = await apiRequest<BackendCurrentUser>("/api/v1/auth/me");
+
+  // An answer about a sign-in that has since ended or been replaced is not
+  // written into whoever is stored now.
+  if (key !== null && !isAuthSessionCurrent(key)) {
+    throw sessionChangedError();
+  }
 
   if (response.data) {
     const current = readStoredAuthSession();
@@ -283,5 +297,5 @@ function storeBackendSession(response: BackendAuthTokenResponse) {
     ownerProfile: response.ownerProfile,
   };
 
-  writeStoredAuthSession(session);
+  beginStoredAuthSession(session);
 }

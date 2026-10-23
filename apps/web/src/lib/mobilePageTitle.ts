@@ -30,6 +30,7 @@ const rules: TitleRule[] = [
 
   // My Pets.
   { path: ownerRoutes.dashboard, title: "Home" },
+  { path: ownerRoutes.weeklyRecap(), title: "Weekly recap" },
   { path: ownerRoutes.petNew, title: "Add pet" },
   { path: ownerRoutes.pets, title: "Pets" },
   { path: ownerRoutes.records, title: "Care records" },

@@ -646,6 +646,27 @@ public interface IMemoryService : ISkeletonService
         Guid? currentUserId,
         Guid memoryId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The Moments half of a Weekly Recap. The caller has already authorized
+    /// the actor for an active pet and chosen the week and Malaysia's today.
+    /// </summary>
+    Task<WeeklyRecapMomentsResponse> GetWeeklyRecapMomentsAsync(
+        Guid userId,
+        Guid petId,
+        DateOnly weekStart,
+        DateOnly weekEnd,
+        DateOnly today,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPetWeeklyRecapService
+{
+    Task<WeeklyRecapResponse> GetAsync(
+        Guid? currentUserId,
+        Guid petId,
+        DateOnly? weekStart,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ICareRecordService : ISkeletonService
@@ -670,6 +691,18 @@ public interface ICareRecordService : ISkeletonService
 
     Task<UpcomingCareSummaryResponse> GetUpcomingSummaryAsync(
         Guid? currentUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The care half of a Weekly Recap. The caller has already authorized the
+    /// actor for an active pet and chosen the week and Malaysia's today.
+    /// </summary>
+    Task<WeeklyRecapCareResponse> GetWeeklyRecapCareAsync(
+        Guid userId,
+        Guid petId,
+        DateOnly weekStart,
+        DateOnly weekEnd,
+        DateOnly today,
         CancellationToken cancellationToken = default);
 
     Task<CareRecordCompletionStatusResponse> GetCompletionStatusAsync(

@@ -102,6 +102,24 @@ public sealed class SmartTagRateLimitingTests
             (await Activate(second, "MPL-ACTIVATE-LIMIT")).StatusCode);
     }
 
+    /// <summary>
+    /// The scheduling delay that made this class fail in a busy full run: a
+    /// pause longer than the old five-second test window between the second
+    /// and third request. The limit must still hold.
+    /// </summary>
+    [Fact]
+    public async Task Activation_LimitHoldsAcrossASlowRun()
+    {
+        await using var factory = new RateLimitFactory();
+        using var client = CreateClient(factory, "198.51.100.41");
+        client.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString());
+
+        Assert.Equal(HttpStatusCode.NotFound, (await Activate(client, "MPL-ACTIVATE-SLOW")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Activate(client, "MPL-ACTIVATE-SLOW")).StatusCode);
+        await Task.Delay(TimeSpan.FromSeconds(5.5));
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await Activate(client, "MPL-ACTIVATE-SLOW")).StatusCode);
+    }
+
     [Fact]
     public async Task Activation_UnauthenticatedRequestsUseIpPartition()
     {
@@ -176,11 +194,17 @@ public sealed class SmartTagRateLimitingTests
                         ["Jwt:Audience"] = "MyPetLink.RateLimit.Client",
                         ["Jwt:SigningKey"] = SigningKey,
                         ["DevAuth:Enabled"] = "false",
+                        // A window far longer than any test takes, so the third
+                        // request always lands in the same window as the first
+                        // two. With 5 seconds, a slow machine or a busy full run
+                        // let the window reset in between and the 429 became a
+                        // 404 — a false failure, not a limiter fault. Nothing
+                        // here waits for a window to end.
                         ["RateLimiting:PublicTagScan:PermitLimit"] = "2",
-                        ["RateLimiting:PublicTagScan:WindowSeconds"] = "5",
+                        ["RateLimiting:PublicTagScan:WindowSeconds"] = "600",
                         ["RateLimiting:PublicTagScan:QueueLimit"] = "0",
                         ["RateLimiting:TagActivation:PermitLimit"] = "2",
-                        ["RateLimiting:TagActivation:WindowSeconds"] = "5",
+                        ["RateLimiting:TagActivation:WindowSeconds"] = "600",
                         ["RateLimiting:TagActivation:QueueLimit"] = "0"
                     }));
             builder.ConfigureServices(services =>

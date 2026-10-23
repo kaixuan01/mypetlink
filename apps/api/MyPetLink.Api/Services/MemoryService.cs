@@ -383,6 +383,171 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public const int WeeklyRecapMomentItemLimit = 50;
+
+    /// <summary>
+    /// The Moments half of one pet's Weekly Recap.
+    ///
+    /// <b>Which Moments.</b> The owner's active Moments whose main pet is this
+    /// pet, or that include it as one of the owner's own extra pets. Another
+    /// household's collaboration never adds a Moment here. Each Moment
+    /// appears once, however many subject rows it has.
+    ///
+    /// <b>Which week.</b> The day a Moment is about (<c>MomentDate</c>) decides;
+    /// publishing or editing it later never moves it. An undated older
+    /// Moment falls back to the Malaysia day it was written. Days after
+    /// <paramref name="today"/> are never counted, so a future-dated Moment
+    /// is not part of any finished or running week.
+    ///
+    /// <b>One read.</b> The week's Moments are read by a single statement,
+    /// projected to the few columns the recap needs, and every total, the
+    /// audience split and the capped list come from that one rowset. Separate
+    /// COUNT and list statements could each see a different moment — a
+    /// Moment published, archived or added in between made the totals
+    /// contradict each other and the list. One statement cannot. The rowset
+    /// is one pet's week, so it stays small without a cap, and it is what
+    /// lets an undated older Moment's fallback day be applied <i>before</i>
+    /// the cap, so the newest Moments are always the ones listed.
+    ///
+    /// The media for the listed Moments is a second, batched read; it only
+    /// decorates Moments already chosen and never changes a count.
+    /// </summary>
+    public async Task<WeeklyRecapMomentsResponse> GetWeeklyRecapMomentsAsync(
+        Guid userId,
+        Guid petId,
+        DateOnly weekStart,
+        DateOnly weekEnd,
+        DateOnly today,
+        CancellationToken cancellationToken = default)
+    {
+        var lastDay = weekEnd < today ? weekEnd : today;
+        var startUtc = MalaysiaCalendar.StartOfDayUtc(weekStart);
+        var endUtc = MalaysiaCalendar.StartOfDayUtc(lastDay.AddDays(1));
+
+        var rowset = await _dbContext.PetMemories
+            .AsNoTracking()
+            .Where(memory =>
+                memory.DeletedAt == null
+                && memory.ArchivedAt == null
+                && memory.Pet.OwnerUserId == userId
+                && memory.Pet.DeletedAt == null
+                && (memory.PetId == petId
+                    || memory.MomentPets.Any(subject =>
+                        subject.PetId == petId && subject.CollaborationId == null))
+                && ((memory.MomentDate != null
+                        && memory.MomentDate >= weekStart
+                        && memory.MomentDate <= lastDay)
+                    || (memory.MomentDate == null
+                        && memory.CreatedAt >= startUtc
+                        && memory.CreatedAt < endUtc)))
+            .Select(memory => new
+            {
+                memory.Id,
+                memory.PetId,
+                PrimaryPetName = memory.Pet.Name,
+                memory.Title,
+                memory.MomentDate,
+                memory.CreatedAt,
+                memory.Type,
+                memory.Visibility,
+                memory.ModeratedAt,
+                memory.CoverMediaFileId
+            })
+            .ToListAsync(cancellationToken);
+
+        // A row read twice while it moved in the index under locking
+        // READ COMMITTED is still one Moment.
+        var week = rowset
+            .DistinctBy(row => row.Id)
+            .Select(row => (Row: row, Date: EffectiveMomentDate(row.MomentDate, row.CreatedAt)))
+            .ToArray();
+        var total = week.Length;
+        var sharedPublicly = week.Count(entry =>
+            MemoryVisibilityPolicy.IsPublic(entry.Row.Visibility));
+
+        // The day it is about, then newest written, then id — the same order
+        // as the web's local preview, so both list the same capped Moments.
+        var listed = week
+            .OrderByDescending(entry => entry.Date)
+            .ThenByDescending(entry => entry.Row.CreatedAt)
+            .ThenBy(entry => entry.Row.Id.ToString("D"), StringComparer.Ordinal)
+            .Take(WeeklyRecapMomentItemLimit)
+            .ToArray();
+
+        var momentIds = listed.Select(entry => entry.Row.Id).ToArray();
+        var links = momentIds.Length == 0
+            ? []
+            : await _dbContext.MediaFileLinks
+                .AsNoTracking()
+                .Include(link => link.MediaFile)
+                .Where(link =>
+                    momentIds.Contains(link.OwnerId)
+                    && link.OwnerType == MediaOwnerType.PetMemory
+                    && link.ArchivedAt == null
+                    && link.MediaFile.UploadStatus == MediaUploadStatus.Ready
+                    && link.MediaFile.DeletedAt == null)
+                .OrderBy(link => link.SortOrder)
+                .ToListAsync(cancellationToken);
+        var linksByMoment = links
+            .GroupBy(link => link.OwnerId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
+        var items = listed
+            .Select(entry =>
+            {
+                var row = entry.Row;
+                var momentLinks = linksByMoment.TryGetValue(row.Id, out var found)
+                    ? found
+                    : Array.Empty<MediaFileLink>();
+
+                return new WeeklyRecapMomentResponse(
+                    row.Id,
+                    row.PetId,
+                    row.PrimaryPetName,
+                    row.PetId == petId,
+                    row.Title,
+                    entry.Date,
+                    row.Type,
+                    MemoryVisibilityPolicy.Normalize(row.Visibility),
+                    row.ModeratedAt != null,
+                    ResolveWeeklyRecapPreview(momentLinks, row.CoverMediaFileId),
+                    momentLinks.Length);
+            })
+            .ToArray();
+
+        return new WeeklyRecapMomentsResponse(total, sharedPublicly, total - sharedPublicly, items);
+    }
+
+    /// <summary>
+    /// The day a Moment is about; for an undated older Moment, the Malaysia
+    /// calendar day it was written.
+    /// </summary>
+    private static DateOnly EffectiveMomentDate(DateOnly? momentDate, DateTimeOffset createdAt) =>
+        momentDate ?? DateOnly.FromDateTime(createdAt.ToOffset(MalaysiaCalendar.UtcOffset).DateTime);
+
+    private WeeklyRecapMediaPreviewResponse? ResolveWeeklyRecapPreview(
+        IReadOnlyCollection<MediaFileLink> links,
+        Guid? coverMediaFileId)
+    {
+        var candidates = links
+            .Where(link => link.MediaFile.MediaType is MediaFileType.Image or MediaFileType.Video)
+            .ToArray();
+        var chosen = candidates.FirstOrDefault(link => link.MediaFileId == coverMediaFileId)
+            ?? candidates.FirstOrDefault();
+        if (chosen is null)
+        {
+            return null;
+        }
+
+        var url = MediaDerivatives.ResolveListUrl(chosen.MediaFile, _r2Options.PublicBaseUrl);
+        return string.IsNullOrWhiteSpace(url)
+            ? null
+            : new WeeklyRecapMediaPreviewResponse(
+                chosen.MediaFileId,
+                chosen.MediaFile.MediaType == MediaFileType.Video ? "video" : "image",
+                url);
+    }
+
     private async Task<User> LoadOwnerUserAsync(Guid? currentUserId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId(currentUserId);

@@ -9,6 +9,7 @@ import {
 } from "@/lib/ownerSettings";
 import { newPetVisibilityDefaults } from "@/lib/petVisibility";
 import type { BackendOwnerProfile } from "@/services/apiDtos";
+import { SESSION_STORAGE_KEY, storedSession } from "@/services/sessionTestFetch";
 
 const mocks = vi.hoisted(() => ({
   apiRequest: vi.fn(),
@@ -85,6 +86,12 @@ function profile(
 
 beforeEach(() => {
   window.localStorage.clear();
+  // Owner details are only ever read or saved for a signed-in owner; the
+  // cache keeps them only for the sign-in that read them.
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    storedSession("owner", { sessionId: "owner-profile-test" })
+  );
   mocks.apiRequest.mockReset();
 });
 

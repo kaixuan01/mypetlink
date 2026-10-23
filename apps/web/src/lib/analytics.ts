@@ -26,6 +26,9 @@ export const AnalyticsEvent = {
   MomentLiked: "moment_liked",
   MomentUnliked: "moment_unliked",
   SafetyToPublicProfileClicked: "safety_to_public_profile_clicked",
+  WeeklyRecapOpened: "weekly_recap_opened",
+  WeeklyRecapWeekChanged: "weekly_recap_week_changed",
+  WeeklyRecapAction: "weekly_recap_action",
 } as const;
 
 /**
@@ -61,6 +64,23 @@ export type AnalyticsCountBucket = "0" | "1_5" | "6_plus";
 export type AnalyticsQueryLengthBucket = "2_3" | "4_8" | "9_plus";
 
 export type AnalyticsLostModeState = "on" | "off";
+
+/** How the owner reached a Weekly Recap. Never which pet or which week. */
+export type AnalyticsRecapSource = "dashboard" | "pet_hub" | "direct";
+
+/**
+ * What the recap showed when it opened. "unavailable" covers a pet that has
+ * no recap (memorial, archived, not found); "error" a failed read.
+ */
+export type AnalyticsRecapState = "has_activity" | "quiet" | "error" | "unavailable";
+
+/** The next step an owner took from a recap — the habit loop it is for. */
+export type AnalyticsRecapAction =
+  | "add_moment"
+  | "open_moment"
+  | "log_care"
+  | "log_as_done"
+  | "view_planner";
 
 export function toAnalyticsCountBucket(count: number): AnalyticsCountBucket {
   if (count <= 0) return "0";
@@ -172,6 +192,14 @@ type AnalyticsPayloads = {
     source: "safety";
     lost_mode: AnalyticsLostModeState;
   };
+
+  /** Once per visit, when the first read settles. */
+  weekly_recap_opened: {
+    source: AnalyticsRecapSource;
+    recap_state: AnalyticsRecapState;
+  };
+  weekly_recap_week_changed: { direction: "previous" | "next" };
+  weekly_recap_action: { recap_action: AnalyticsRecapAction };
 };
 
 type AnalyticsEventName = keyof AnalyticsPayloads;
@@ -195,6 +223,17 @@ const allowedValues = {
     "search",
     "direct",
     "safety",
+    "dashboard",
+    "pet_hub",
+  ]),
+  recap_state: new Set(["has_activity", "quiet", "error", "unavailable"]),
+  direction: new Set(["previous", "next"]),
+  recap_action: new Set([
+    "add_moment",
+    "open_moment",
+    "log_care",
+    "log_as_done",
+    "view_planner",
   ]),
   profile_type: new Set(["pet", "owner"]),
   result_tab: new Set(["pets", "pet_parents"]),
@@ -262,14 +301,40 @@ const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
   moment_liked: ["source"],
   moment_unliked: ["source"],
   safety_to_public_profile_clicked: ["source", "lost_mode"],
+  weekly_recap_opened: ["source", "recap_state"],
+  weekly_recap_week_changed: ["direction"],
+  weekly_recap_action: ["recap_action"],
 };
 
-export function getAnalyticsMeasurementId(
-  value = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
-) {
+function parseMeasurementId(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed && measurementIdPattern.test(trimmed)
     ? trimmed.toUpperCase()
+    : null;
+}
+
+/**
+ * The GA4 stream analytics may send to, or null — and null unless a person
+ * has checked that stream's own settings.
+ *
+ * This file controls only what the app itself sends. Google's tag also
+ * collects on its own, by the stream's Enhanced Measurement settings: page
+ * views on every history change (with the full address and query), outbound
+ * link clicks (a WhatsApp link carries the owner's number and the pet's name),
+ * site search terms, file downloads and form interactions. None of that
+ * passes through the allowlist below. So analytics fails closed: it runs
+ * only when `NEXT_PUBLIC_GA_PRIVACY_VERIFIED_ID` names the same measurement
+ * id, set after those settings were checked as
+ * `docs/operations/product-analytics.md` describes. A new or changed stream
+ * id needs its own check.
+ */
+export function getAnalyticsMeasurementId(
+  value = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+  verifiedValue = process.env.NEXT_PUBLIC_GA_PRIVACY_VERIFIED_ID
+) {
+  const measurementId = parseMeasurementId(value);
+  return measurementId && parseMeasurementId(verifiedValue) === measurementId
+    ? measurementId
     : null;
 }
 
@@ -288,9 +353,37 @@ export function sanitizeAnalyticsPath(pathname: string) {
     segments[1] = `[${labels[segments[0]]}]`;
   } else if (segments[0] === "pets" && segments[1] && segments[1] !== "new") {
     segments[1] = "[pet]";
+  } else if (segments[0] === "u" && segments[1]) {
+    segments[1] = "[handle]";
+  } else if (segments[0] === "moments" && segments[1]) {
+    // `/moments` alone is the owner's Moments page; anything below it is one
+    // Moment's public page and its id.
+    segments[1] = "[moment]";
+  } else if (segments[0] === "social" && segments[1] === "pets" && segments[2]) {
+    segments[2] = "[profile]";
   }
 
   return segments.length ? `/${segments.join("/")}` : "/";
+}
+
+/**
+ * The referrer as the provider may see it: another site by its origin only,
+ * and MyPetLink's own pages by their sanitized path. A referrer is a full URL
+ * and would otherwise carry the slugs, codes and query strings that page
+ * paths never do.
+ */
+export function sanitizeAnalyticsReferrer(referrer: string, origin: string) {
+  let url: URL;
+  try {
+    url = new URL(referrer);
+  } catch {
+    return "";
+  }
+
+  if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+  return url.origin === origin
+    ? `${url.origin}${sanitizeAnalyticsPath(url.pathname)}`
+    : url.origin;
 }
 
 export function toAnalyticsRecordType(value: string): AnalyticsRecordType {
@@ -308,15 +401,30 @@ export function initializeAnalytics() {
   }
 
   window.dataLayer ??= [];
-  window.gtag ??= function gtag(...args: unknown[]) {
-    window.dataLayer?.push(args);
+  // Google's tag runs a queued entry as a command only when it is the
+  // function's own `arguments` object, as in Google's install snippet. A rest
+  // array is read as a data-layer push instead, so every config and event
+  // would be ignored without any error.
+  window.gtag ??= function gtag() {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer?.push(arguments);
   };
+  const initialPath = sanitizeAnalyticsPath(window.location.pathname);
   sendToProvider("js", new Date());
   sendToProvider("config", measurementId, {
     send_page_view: false,
     allow_google_signals: false,
     allow_ad_personalization_signals: false,
     anonymize_ip: true,
+    // Without these the tag reads the raw address bar and referrer for every
+    // hit, slugs and query strings included.
+    // The document title carries pet and owner names; the path stands in.
+    page_location: `${window.location.origin}${initialPath}`,
+    page_title: initialPath,
+    page_referrer: sanitizeAnalyticsReferrer(
+      document.referrer,
+      window.location.origin
+    ),
   });
   window.__myPetLinkGaMeasurementId = measurementId;
   return true;
@@ -324,7 +432,14 @@ export function initializeAnalytics() {
 
 export function trackPageView(pathname: string) {
   if (!initializeAnalytics()) return;
-  sendToProvider("event", AnalyticsEvent.PageView, pageContext(pathname));
+  const context = pageContext(pathname);
+  // Events the tag sends by itself (engagement, session start) take the
+  // current page from here, not from the address bar or the title.
+  sendToProvider("set", {
+    page_location: context.page_location,
+    page_title: context.page_title,
+  });
+  sendToProvider("event", AnalyticsEvent.PageView, context);
 }
 
 export function trackEvent<EventName extends AnalyticsEventName>(

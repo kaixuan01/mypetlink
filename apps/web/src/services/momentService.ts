@@ -738,7 +738,7 @@ function fromBackendVisibility(
   return visibility === "Public" ? "Public" : "Private";
 }
 
-function fromBackendMomentType(type?: string | null): MomentType {
+export function fromBackendMomentType(type?: string | null): MomentType {
   switch (type) {
     case "Birthday":
     case "Adoption Day":

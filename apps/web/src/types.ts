@@ -357,6 +357,77 @@ export type UpcomingCareSummary = {
 };
 
 /**
+ * One pet's week for its owner: Monday to Sunday on Malaysia's calendar,
+ * computed from the records on every read. Every date is YYYY-MM-DD. Totals
+ * are exact; item lists may be shorter. Carries no notes, providers,
+ * documents, captions or anything about people.
+ */
+export type WeeklyRecap = {
+  petId: string;
+  petName: string;
+  weekStart: string;
+  weekEnd: string;
+  /** Malaysia's today, which every status was derived for. */
+  asOfDate: string;
+  /** The week is still running; its contents are "so far". */
+  isCurrentWeek: boolean;
+  earliestWeekStart: string;
+  latestWeekStart: string;
+  moments: {
+    total: number;
+    sharedPubliclyCount: number;
+    onlyMeCount: number;
+    items: WeeklyRecapMoment[];
+  };
+  care: {
+    hasCareRecords: boolean;
+    logged: { total: number; items: WeeklyRecapLoggedCare[] };
+    /** Due in this week, before today, and never logged as done. */
+    stillDue: { total: number; items: WeeklyRecapDueCare[] };
+    /** Every pending item due before today, this week's included. */
+    overdueTotal: number;
+    /** Due today or later, as of `asOfDate`, whichever week is shown. */
+    comingUp: { total: number; items: WeeklyRecapDueCare[] };
+  };
+};
+
+export type WeeklyRecapMoment = {
+  id: string;
+  primaryPetId: string;
+  primaryPetName: string;
+  /** False when this pet is one of the Moment's extra pets. */
+  isPrimary: boolean;
+  title: string;
+  date: string;
+  type: MomentType;
+  visibility: "Public" | "Private";
+  hiddenByMyPetLink: boolean;
+  preview?: { id: string; type: MomentMediaType; url: string };
+  mediaCount: number;
+};
+
+export type WeeklyRecapCareStatus = "overdue" | "due-today" | "due-soon" | "upcoming";
+
+export type WeeklyRecapLoggedCare = {
+  id: string;
+  type: RecordType;
+  title: string;
+  careName?: string;
+  recordDate: string;
+  /** This record completed an earlier due item. */
+  loggedAsDone: boolean;
+};
+
+export type WeeklyRecapDueCare = {
+  id: string;
+  type: RecordType;
+  title: string;
+  careName?: string;
+  dueDate: string;
+  status: WeeklyRecapCareStatus;
+};
+
+/**
  * Whether one due item has been completed, read from the records themselves.
  * `completed` means an active record fulfils the target, and `completion` is
  * that record. A target that merely stopped being pending is one of the other

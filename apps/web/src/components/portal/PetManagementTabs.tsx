@@ -50,6 +50,7 @@ import {
   smartTagOrderingEnabled,
   smartTagsEnabled,
   tagOrdersEnabled,
+  weeklyRecapEnabled,
 } from "@/lib/features";
 import { ownerRoutes, ownerSocialProfilePath, tagQrPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
@@ -341,7 +342,7 @@ function OverviewTab({
         ) : (
           <p className="text-sm text-pet-muted">No Moments yet.</p>
         )}
-        <div className="mt-auto pt-1">
+        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
           <CTAButton
             disabled={!memoryLimit.canCreate}
             href={memoryLimit.canCreate ? ownerRoutes.petMomentCreate(pet.id) : undefined}
@@ -350,6 +351,16 @@ function OverviewTab({
           >
             {memoryLimit.canCreate ? "Add Moment" : "Moment Limit Reached"}
           </CTAButton>
+          {weeklyRecapEnabled && isActiveProfile ? (
+            <Link
+              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
+              data-pet-weekly-recap-link
+              href={ownerRoutes.weeklyRecap(pet.id, { from: "pet_hub" })}
+            >
+              <Icon aria-hidden="true" className="h-4 w-4" name="calendar" />
+              {`See ${pet.name}'s week`}
+            </Link>
+          ) : null}
         </div>
       </OverviewSummaryCard>
 

@@ -11,6 +11,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import { OWNER_SETTINGS_STORAGE_KEY } from "@/lib/ownerSettings";
+import { getAuthSessionKey } from "@/services/authStorage";
+import { SESSION_STORAGE_KEY, storedSession } from "@/services/sessionTestFetch";
 import { selectDashboardCareRecords } from "@/lib/careRecordStatus";
 import type {
   PetListItem,
@@ -173,7 +175,20 @@ beforeEach(() => {
     value: undefined,
   });
   window.localStorage.clear();
+  // The Dashboard is a portal page: its owner is signed in.
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    storedSession("owner", { sessionId: "dashboard-test" })
+  );
 });
+
+/** The signed-in owner's cached contact details, stamped as the app writes them. */
+function seedOwnerContact(details: { phoneNumber: string; whatsappNumber: string }) {
+  window.localStorage.setItem(
+    OWNER_SETTINGS_STORAGE_KEY,
+    JSON.stringify({ ...details, sessionKey: getAuthSessionKey() })
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -790,17 +805,11 @@ describe("Next step", () => {
   // Finder contact outranks every other next step, so the remaining cases
   // start from an owner whose contact details are already in place.
   beforeEach(() => {
-    window.localStorage.setItem(
-      OWNER_SETTINGS_STORAGE_KEY,
-      JSON.stringify({ phoneNumber: "+60123456789", whatsappNumber: "" })
-    );
+    seedOwnerContact({ phoneNumber: "+60123456789", whatsappNumber: "" });
   });
 
   it("shows the contact reminder as the one next step when contact is missing", async () => {
-    window.localStorage.setItem(
-      OWNER_SETTINGS_STORAGE_KEY,
-      JSON.stringify({ phoneNumber: "", whatsappNumber: "" })
-    );
+    seedOwnerContact({ phoneNumber: "", whatsappNumber: "" });
     mocks.getPets.mockResolvedValue({
       data: [{ ...milo, breed: "Not set", bio: "", personalityTags: [] }],
     });
@@ -816,10 +825,7 @@ describe("Next step", () => {
   });
 
   it("hides the contact reminder once contact details exist", async () => {
-    window.localStorage.setItem(
-      OWNER_SETTINGS_STORAGE_KEY,
-      JSON.stringify({ phoneNumber: "+60123456789", whatsappNumber: "" })
-    );
+    seedOwnerContact({ phoneNumber: "+60123456789", whatsappNumber: "" });
     renderDashboard();
 
     await screen.findByRole("link", { name: "Manage Milo" });

@@ -44,6 +44,13 @@ type PetMomentsOptions = {
   edit?: "new" | string;
 };
 
+type WeeklyRecapOptions = {
+  /** A Monday, YYYY-MM-DD. Without it the recap opens on its default week. */
+  week?: string;
+  /** Which entry point opened it, for analytics only. Never authorization. */
+  from?: "dashboard" | "pet_hub";
+};
+
 export type PetEditTab = "basic" | "appearance" | "public" | "contact";
 
 type PetEditOptions = {
@@ -56,6 +63,31 @@ export const ownerRoutes = {
   petNew: "/pets/new",
   moments: "/moments",
   records: "/records",
+  /**
+   * One pet's Weekly Recap. A fixed page with the pet and week in the query,
+   * as orderDetail does, so it works for any pet under static export and
+   * never sits beneath /moments/, which belongs to public Moment pages. The
+   * pet id is navigation context only; the page loads it through the owner's
+   * session.
+   */
+  weeklyRecap: (petId?: string, options: WeeklyRecapOptions = {}) => {
+    const params = new URLSearchParams();
+
+    if (petId) {
+      params.set("pet", petId);
+    }
+
+    if (options.week) {
+      params.set("week", options.week);
+    }
+
+    if (options.from) {
+      params.set("from", options.from);
+    }
+
+    const query = params.toString();
+    return `/recap${query ? `?${query}` : ""}`;
+  },
   /** Care: the owner-wide planner, or the history picker with `view: "all"`. */
   care: (options: CareOptions = {}) => {
     const params = new URLSearchParams();

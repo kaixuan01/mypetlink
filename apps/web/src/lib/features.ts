@@ -82,6 +82,18 @@ export const socialEnabled = readPublicBoolean(
 );
 
 /**
+ * The owner's Weekly Pet Recap: the pet-hub and Dashboard links and the
+ * /recap page itself. Not a navigation item, so not part of
+ * ownerProductFeatures. Off by default; the read it uses is owner-only on the
+ * server whatever this says, so this decides only whether the product offers
+ * it.
+ */
+export const weeklyRecapEnabled = readPublicBoolean(
+  process.env.NEXT_PUBLIC_WEEKLY_RECAP_ENABLED,
+  false
+);
+
+/**
  * Shared owner-product availability used by navigation and tests. All values
  * are resolved once at build time, which keeps the static export and client
  * hydration consistent.

@@ -20,6 +20,7 @@ const sent: unknown[][] = [];
 beforeEach(() => {
   sent.length = 0;
   vi.stubEnv("NEXT_PUBLIC_GA_MEASUREMENT_ID", "G-TEST123456");
+  vi.stubEnv("NEXT_PUBLIC_GA_PRIVACY_VERIFIED_ID", "G-TEST123456");
 
   window.__myPetLinkGaMeasurementId = undefined;
   window.dataLayer = [];

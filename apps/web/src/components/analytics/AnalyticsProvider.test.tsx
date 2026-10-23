@@ -19,6 +19,7 @@ function pageViewCalls() {
 describe("AnalyticsProvider", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_GA_MEASUREMENT_ID", "G-TEST12345");
+    vi.stubEnv("NEXT_PUBLIC_GA_PRIVACY_VERIFIED_ID", "G-TEST12345");
     state.pathname = "/pets/private-one";
     delete window.dataLayer;
     delete window.gtag;

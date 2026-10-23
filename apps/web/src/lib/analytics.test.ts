@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AnalyticsEvent,
   sanitizeAnalyticsPath,
+  sanitizeAnalyticsReferrer,
   trackEvent,
   trackPageView,
 } from "./analytics";
@@ -15,6 +16,7 @@ function analyticsCalls() {
 describe("product analytics privacy boundary", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_GA_MEASUREMENT_ID", "G-TEST12345");
+    vi.stubEnv("NEXT_PUBLIC_GA_PRIVACY_VERIFIED_ID", "G-TEST12345");
     delete window.dataLayer;
     delete window.gtag;
     delete window.__myPetLinkGaMeasurementId;
@@ -33,8 +35,53 @@ describe("product analytics privacy boundary", () => {
     ["/pets/private-pet-id/moments", "/pets/[pet]/moments"],
     ["/orders/view?order=MPL-ORD-PRIVATE", "/orders/view"],
     ["/pets/new?from=private", "/pets/new"],
+    ["/u/private-handle", "/u/[handle]"],
+    ["/u/private-handle/followers", "/u/[handle]/followers"],
+    ["/moments/private-moment-id?from=feed", "/moments/[moment]"],
+    ["/moments", "/moments"],
+    ["/social/pets/milo-secret-code", "/social/pets/[profile]"],
+    ["/social/pets/milo-secret-code/moments", "/social/pets/[profile]/moments"],
+    ["/recap?pet=private-pet-id&week=2026-10-12", "/recap"],
   ])("sanitizes %s", (input, expected) => {
     expect(sanitizeAnalyticsPath(input)).toBe(expected);
+  });
+
+  it.each([
+    ["https://l.facebook.com/l.php?u=private", "https://l.facebook.com"],
+    ["http://localhost:3000/p/milo-secret-code?share=1", "http://localhost:3000/p/[profile]"],
+    ["http://localhost:3000/login?redirect=%2Fpets%2Fprivate-pet-id", "http://localhost:3000/login"],
+    ["", ""],
+    ["not a url", ""],
+    ["android-app://com.whatsapp/", ""],
+  ])("reduces the referrer %s", (input, expected) => {
+    expect(sanitizeAnalyticsReferrer(input, "http://localhost:3000")).toBe(expected);
+  });
+
+  it("queues each command as an arguments object, as the Google tag requires", () => {
+    trackEvent(AnalyticsEvent.MomentCreated, { source: "owner_portal" });
+
+    expect(window.dataLayer?.length).toBeGreaterThanOrEqual(3);
+    for (const entry of window.dataLayer ?? []) {
+      expect(Object.prototype.toString.call(entry)).toBe("[object Arguments]");
+    }
+    expect(analyticsCalls().map((call) => call[0])).toEqual([
+      "js",
+      "config",
+      "event",
+    ]);
+  });
+
+  it("gives the provider a sanitized location and referrer, never the raw address", () => {
+    trackPageView(window.location.pathname);
+    const config = analyticsCalls().find((call) => call[0] === "config");
+
+    expect(config?.[2]).toEqual(
+      expect.objectContaining({
+        page_location: "http://localhost:3000/pets/[pet]/edit",
+        page_referrer: "",
+      })
+    );
+    expect(JSON.stringify(analyticsCalls())).not.toMatch(/private-pet-id|tab=contact/);
   });
 
   it("emits the canonical event name and drops non-allowlisted or invalid metadata", () => {
@@ -148,5 +195,28 @@ describe("product analytics privacy boundary", () => {
       (call) => call[1] === "share_card_shared"
     );
     expect(event?.[2]).not.toHaveProperty("card_variant");
+  });
+  it("records a Weekly Recap visit by source and state only", () => {
+    window.history.replaceState({}, "", "/recap?pet=private-pet-id&week=2026-10-12&from=dashboard");
+    trackEvent(AnalyticsEvent.WeeklyRecapOpened, {
+      source: "dashboard",
+      recap_state: "quiet",
+      pet_name: "Milo",
+      week: "2026-10-12",
+    } as never);
+    trackEvent(AnalyticsEvent.WeeklyRecapWeekChanged, { direction: "previous" });
+    trackEvent(AnalyticsEvent.WeeklyRecapAction, { recap_action: "log_as_done" });
+    trackEvent(AnalyticsEvent.WeeklyRecapAction, { recap_action: "share_card" } as never);
+
+    const recapEvents = analyticsCalls().filter(
+      (call) => call[0] === "event" && String(call[1]).startsWith("weekly_recap")
+    );
+    expect(recapEvents.map((call) => call[2])).toEqual([
+      expect.objectContaining({ source: "dashboard", recap_state: "quiet", page_path: "/recap" }),
+      expect.objectContaining({ direction: "previous" }),
+      expect.objectContaining({ recap_action: "log_as_done" }),
+      expect.not.objectContaining({ recap_action: expect.anything() }),
+    ]);
+    expect(JSON.stringify(analyticsCalls())).not.toMatch(/private-pet-id|2026-10-12|Milo/);
   });
 });

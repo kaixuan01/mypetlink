@@ -101,6 +101,7 @@ export const seoRouteRules: readonly SeoRouteRule[] = [
   { route: "/dashboard", indexing: "noindex-nofollow", servedBy: "static" },
   { route: "/pets", indexing: "noindex-nofollow", servedBy: "static", includeDescendants: true },
   { route: "/records", indexing: "noindex-nofollow", servedBy: "static" },
+  { route: "/recap", indexing: "noindex-nofollow", servedBy: "static" },
   { route: "/moments", indexing: "noindex-nofollow", servedBy: "static" },
   { route: "/tags", indexing: "noindex-nofollow", servedBy: "static", includeDescendants: true },
   { route: "/orders", indexing: "noindex-nofollow", servedBy: "static", includeDescendants: true },

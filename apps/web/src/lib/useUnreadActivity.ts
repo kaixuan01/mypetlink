@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAuthSessionKey, subscribeAuthSession } from "@/services/authStorage";
 import { getUnreadActivityCount } from "@/services/socialNotificationService";
 
 /**
@@ -14,6 +15,10 @@ import { getUnreadActivityCount } from "@/services/socialNotificationService";
  *
  * The number is allowed to be a little stale. It is a nudge towards a screen,
  * not a figure anybody acts on, and that screen corrects it on arrival.
+ *
+ * It is never another sign-in's number: the cache belongs to the session that
+ * read it, is forgotten when the sign-in changes, and an answer that arrives
+ * after its sign-in ended is not published.
  */
 
 const freshForMs = 60_000;
@@ -21,6 +26,8 @@ const freshForMs = 60_000;
 let cachedCount = 0;
 let cachedAt = 0;
 let inFlight: Promise<number> | null = null;
+let cachedFor: string | null = null;
+let watchingSessions = false;
 
 const listeners = new Set<(count: number) => void>();
 
@@ -30,21 +37,42 @@ function publish(count: number) {
   listeners.forEach((listener) => listener(count));
 }
 
+function forgetForNewSession() {
+  cachedCount = 0;
+  cachedAt = 0;
+  inFlight = null;
+  cachedFor = getAuthSessionKey();
+  listeners.forEach((listener) => listener(0));
+}
+
+function watchSessions() {
+  if (watchingSessions || typeof window === "undefined") return;
+  watchingSessions = true;
+  subscribeAuthSession(forgetForNewSession);
+}
+
 function refresh(): Promise<number> {
-  inFlight ??= getUnreadActivityCount()
+  const key = getAuthSessionKey();
+  if (key !== cachedFor) forgetForNewSession();
+  if (inFlight) return inFlight;
+
+  const request: Promise<number> = getUnreadActivityCount()
     .then((count) => {
+      if (getAuthSessionKey() !== key) return 0;
       publish(count);
       return count;
     })
     .catch(() => {
       // A badge is the last thing that should produce an error message.
-      return cachedCount;
+      return getAuthSessionKey() === key ? cachedCount : 0;
     })
     .finally(() => {
-      inFlight = null;
+      // Only this request's own slot: a newer sign-in may have started one.
+      if (inFlight === request) inFlight = null;
     });
+  inFlight = request;
 
-  return inFlight;
+  return request;
 }
 
 /** Call after marking activity read, so every badge on screen drops at once. */
@@ -62,9 +90,10 @@ export function useUnreadActivity(enabled: boolean) {
       return undefined;
     }
 
+    watchSessions();
     listeners.add(setCount);
 
-    if (Date.now() - cachedAt > freshForMs) {
+    if (getAuthSessionKey() !== cachedFor || Date.now() - cachedAt > freshForMs) {
       void refresh();
     }
 
@@ -81,5 +110,6 @@ export function resetUnreadActivityCache() {
   cachedCount = 0;
   cachedAt = 0;
   inFlight = null;
+  cachedFor = null;
   listeners.clear();
 }

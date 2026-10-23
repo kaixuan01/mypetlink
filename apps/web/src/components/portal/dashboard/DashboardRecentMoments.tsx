@@ -9,6 +9,7 @@ import {
   selectRecentMoments,
   type PetMomentsLoad,
 } from "@/lib/dashboardHome";
+import { weeklyRecapEnabled } from "@/lib/features";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { ownerRoutes } from "@/lib/routes";
 import type { PetListItem, PetMoment } from "@/types";
@@ -84,7 +85,42 @@ export function DashboardRecentMoments({
         showPetName={!singlePetId}
         state={state}
       />
+      {state.status === "ready" ? (
+        <WeeklyRecapLink pets={pets} singlePetId={singlePetId} />
+      ) : null}
     </DashboardPanel>
+  );
+}
+
+/**
+ * The way into a pet's Weekly Recap. It names no count and claims nothing is
+ * "ready": the Dashboard has not read any week, and a link that promised a
+ * busy week could open a quiet one. A pet in Lost Mode gets no prompt here —
+ * Home is about finding it — though its recap stays open from its own page.
+ */
+function WeeklyRecapLink({
+  pets,
+  singlePetId,
+}: {
+  pets: PetListItem[];
+  singlePetId?: string;
+}) {
+  if (!weeklyRecapEnabled) return null;
+  const single = singlePetId ? pets.find((pet) => pet.id === singlePetId) : undefined;
+  if (single?.lostModeEnabled) return null;
+
+  return (
+    <div className="mt-3 border-t border-pet-border/70 pt-2">
+      <Link
+        className={`${panelLinkClass} gap-1.5`}
+        data-dashboard-weekly-recap-link
+        href={ownerRoutes.weeklyRecap(single?.id, { from: "dashboard" })}
+      >
+        <Icon aria-hidden="true" className="h-4 w-4" name="calendar" />
+        {single ? `See ${single.name}'s week` : "Weekly recap"}
+        <span aria-hidden="true">&rarr;</span>
+      </Link>
+    </div>
   );
 }
 

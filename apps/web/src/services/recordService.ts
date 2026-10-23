@@ -1158,7 +1158,7 @@ function toBackendRecordType(type: RecordType): BackendCareRecordType {
   }
 }
 
-function fromBackendRecordType(type: string): RecordType {
+export function fromBackendRecordType(type: string): RecordType {
   switch (type) {
     case "VetVisit":
       return "Vet Visit";
