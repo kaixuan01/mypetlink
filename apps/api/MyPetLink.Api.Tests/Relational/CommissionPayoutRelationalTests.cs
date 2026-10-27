@@ -268,7 +268,7 @@ public sealed class CommissionPayoutRelationalTests
             {
                 await Service(db).MarkPaidAsync(seed.ActorUserId, prepared.Summary.Id,
                     new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                        CommissionPayoutPaymentMethod.BankTransfer, "BANK-SAME"));
+                        CommissionPayoutPaymentMethod.BankTransfer, "BANK-SAME", TransferredOn: DateOnly.FromDateTime(DateTime.UtcNow)));
                 return "success";
             }
             catch (ApiException exception) { return exception.Code; }
@@ -306,7 +306,7 @@ public sealed class CommissionPayoutRelationalTests
             {
                 await Service(db).MarkPaidAsync(seed.ActorUserId, prepared.Summary.Id,
                     new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                        CommissionPayoutPaymentMethod.BankTransfer, "BANK-RACE"));
+                        CommissionPayoutPaymentMethod.BankTransfer, "BANK-RACE", TransferredOn: DateOnly.FromDateTime(DateTime.UtcNow)));
                 return "paid";
             }
             catch (ApiException exception) { return exception.Code; }

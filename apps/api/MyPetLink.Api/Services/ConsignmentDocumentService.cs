@@ -38,6 +38,18 @@ public sealed class ConsignmentDocumentService(MyPetLinkDbContext db, Consignmen
         await Record(actor,id,"dispatch-note",ct);
         return new OrderDocumentResult(d.IssuedDocumentContent,d.DispatchNumber + ".pdf");
     }
+    /// <summary>The issued Delivery Order exactly as stored. Downloading again never re-renders or renumbers it.</summary>
+    public async Task<OrderDocumentResult> DeliveryOrderPdfAsync(Guid? actor, Guid id, CancellationToken ct)
+    {
+        var order = await db.ConsignmentDeliveryOrders.AsNoTracking().Where(x => x.DispatchId == id)
+            .Select(x => new { x.Content, x.FileName, x.DeliveryOrderNumber }).SingleOrDefaultAsync(ct);
+        if (order is null)
+            throw await db.ConsignmentDispatches.AnyAsync(x => x.Id == id, ct)
+                ? new ApiException(409,"consignment_delivery_order_not_issued","No Delivery Order has been generated for this delivery yet.")
+                : new ApiException(404,"consignment_not_found","This dispatch could not be found.");
+        await Record(actor,id,"delivery-order:" + order.DeliveryOrderNumber,ct);
+        return new OrderDocumentResult(order.Content,order.FileName);
+    }
     internal static byte[] RenderIssued(ConsignmentDispatch d)
     {
         var s = d.Seller;

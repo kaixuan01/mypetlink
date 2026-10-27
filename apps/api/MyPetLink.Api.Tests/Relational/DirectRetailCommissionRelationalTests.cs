@@ -60,6 +60,75 @@ public sealed class DirectRetailCommissionRelationalTests
         Assert.Equal(PaymentStatus.Confirmed, storedOrder.PaymentStatus);
     }
 
+    [RelationalFact]
+    public async Task CancellingAnOrderWhoseCommissionIsInAPreparedPayoutIsRefusedUntilThePayoutIsCancelled()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        var orderId = await SeedAsync(db);
+        var identity = await db.BusinessIdentitySettings.SingleAsync(item => item.Id == BusinessIdentityService.SettingsId);
+        identity.LegalBusinessName = "GBB Software Solutions"; identity.BusinessRegistrationNumber = "AS0515813-P";
+        identity.RegisteredAddressLine1 = "12 Jalan Teknologi"; identity.RegisteredPostcode = "57000"; identity.RegisteredCity = "Kuala Lumpur";
+        identity.RegisteredState = "Kuala Lumpur"; identity.RegisteredCountry = "Malaysia"; identity.SupportEmail = "support@mypetlink.com.my";
+        await db.SaveChangesAsync();
+        await Admin(db).ConfirmPaymentAsync(AdminUserId, orderId);
+        var commission = await db.SalesCommissions.AsNoTracking().SingleAsync();
+        var audit = new AuditLogService(db, new HttpContextAccessor());
+        var clock = new FixedTimeProvider(Now);
+        var payouts = new CommissionPayoutService(db, new DocumentNumberService(db), new BusinessIdentityService(db, audit, clock), audit, clock);
+        var prepared = await payouts.PrepareAsync(AdminUserId, new([commission.Id], commission.SalespersonId,
+            Now.AddDays(-1), Now.AddDays(1), commission.CommissionAmount, "retail-cancel-guard"));
+
+        // The reserved commission makes the cancellation refuse as a whole: the order, its tags and the payout are unchanged.
+        var refused = await Assert.ThrowsAsync<ApiException>(() => Admin(db).CancelOrderAsync(AdminUserId, orderId, "Customer changed their mind"));
+        Assert.Equal(("commission_reserved_for_payout", 409), (refused.Code, refused.StatusCode));
+        Assert.Contains(prepared.Summary.PayoutNumber, refused.Message);
+        db.ChangeTracker.Clear();
+        Assert.NotEqual(OrderStatus.Cancelled, (await db.TagOrders.AsNoTracking().SingleAsync(item => item.Id == orderId)).Status);
+        Assert.Equal(SalesCommissionStatus.Payable, (await db.SalesCommissions.AsNoTracking().SingleAsync()).Status);
+        var stillPrepared = await payouts.GetAsync(prepared.Summary.Id);
+        Assert.Equal("Prepared", stillPrepared.Summary.Status);
+
+        await payouts.CancelAsync(AdminUserId, prepared.Summary.Id, new(stillPrepared.Summary.ConcurrencyToken, "Order is being cancelled"));
+        await Admin(db).CancelOrderAsync(AdminUserId, orderId, "Customer changed their mind");
+        db.ChangeTracker.Clear();
+        var reversed = await db.SalesCommissions.AsNoTracking().SingleAsync();
+        Assert.Equal(SalesCommissionStatus.Reversed, reversed.Status);
+        Assert.Equal(OrderStatus.Cancelled, (await db.TagOrders.AsNoTracking().SingleAsync(item => item.Id == orderId)).Status);
+    }
+
+    [RelationalFact]
+    public async Task CancellingAnOrderWaitsForAPayoutHoldingItsCommissionAndDecidesOnThePayoutsResult()
+    {
+        // A payout holds exactly the row lock it takes before reserving or paying commission, and
+        // records the commission paid. The cancellation must wait for that lock and decide (and
+        // audit) from the committed row, not from a read that slipped past the lock through an index.
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid orderId, commissionId;
+        await using (var db = scope.NewContext())
+        {
+            orderId = await SeedAsync(db);
+            await Admin(db).ConfirmPaymentAsync(AdminUserId, orderId);
+            commissionId = (await db.SalesCommissions.AsNoTracking().SingleAsync()).Id;
+        }
+        await using var payoutSide = scope.NewContext();
+        await using (var tx = await payoutSide.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable))
+        {
+            await payoutSide.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM [SalesCommissions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {commissionId}");
+            await using var cancelSide = scope.NewContext();
+            var cancel = Admin(cancelSide).CancelOrderAsync(AdminUserId, orderId, "Customer changed their mind");
+            var finishedWhileLocked = await Task.WhenAny(cancel, Task.Delay(TimeSpan.FromSeconds(4))) == cancel;
+            await payoutSide.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE [SalesCommissions] SET [Status] = 'Paid', [PaidAt] = SYSDATETIMEOFFSET() WHERE [Id] = {commissionId}");
+            await tx.CommitAsync();
+            Assert.False(finishedWhileLocked, "The cancellation finished while a payout held the commission row.");
+            await cancel;
+        }
+        await using var check = scope.NewContext();
+        var reversal = await check.AuditLogs.AsNoTracking().SingleAsync(item => item.Action == "sales-commission.reversed" && item.EntityId == commissionId);
+        Assert.Contains("\"status\":\"Paid\"", reversal.OldValue);
+    }
+
     private static async Task<Guid> SeedAsync(MyPetLinkDbContext db)
     {
         var admin = new User

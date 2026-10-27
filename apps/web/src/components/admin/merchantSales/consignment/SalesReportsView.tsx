@@ -55,8 +55,10 @@ export function SalesReportsView({ context, reportId }: { context: ConsignmentCo
   return (
     <div className="grid gap-4">
       <Callout tone="info">
-        Partners report sales by SKU every half month. Reports start unverified; verifying one moves the sold quantities off the
-        shelf. Reported sales never create invoices, payments or commission records, and no Tag Code is marked sold.
+        Partners report sales by SKU every half month. Recording a report changes nothing financial. Verifying it moves the sold
+        quantities off the shelf, records what the partner owes for the period, and adds any sales commission as pending: a
+        fixed amount per eligible sold tag. That commission becomes ready to pay once the partner has paid the period in full.
+        No invoice is created and no Tag Code is marked sold.
       </Callout>
       <StockPositionPanel context={context} />
       <AdminSection
@@ -235,7 +237,7 @@ function SalesReportDetail({ context, reportId, onBack }: { context: Consignment
     lateLinks.current = { links: [], problem: r.lateReport ? lateLinkProblem(r.lateReport, {}) : "" };
     actions.request({
       title: "Verify this sales report?",
-      message: `${r.merchantName} · ${period} · ${r.unitsSold} sold${r.unitsRefunded ? `, ${r.unitsRefunded} refunded` : ""}. Verifying moves these quantities off the partner’s shelf stock. It creates no invoice, payment or commission, and marks no Tag Code as sold.`,
+      message: `${r.merchantName} · ${period} · ${r.unitsSold} sold${r.unitsRefunded ? `, ${r.unitsRefunded} refunded` : ""}. Verifying moves these quantities off the partner’s shelf stock and records what the partner owes for this period. Any sales commission waits until the partner has paid the period in full. It creates no invoice or payment, and marks no Tag Code as sold.`,
       details:
         r.evidenceLevel === "Summary" || r.lateReport ? (
           <>
@@ -531,8 +533,8 @@ function SalesReportDetail({ context, reportId, onBack }: { context: Consignment
           ) : null}
         </dl>
         <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500 sm:px-5">
-          Reported sales never create invoices, payments or commission records. Values stay exactly as the partner reported them;
-          a correction is a new version.
+          Values stay exactly as the partner reported them; a correction is a new version. Only a verified report counts towards
+          the partner&apos;s settlement and sales commission.
         </p>
       </section>
     </div>

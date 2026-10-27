@@ -362,7 +362,7 @@ public sealed partial class ConsignmentRelationalTests
             await using var db = empty.NewContext();
             await db.Database.MigrateAsync();
             await db.GetService<IMigrator>().MigrateAsync(StocktakeMigration);
-            Assert.Equal([HardeningMigration, AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([HardeningMigration, AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
             // The previous, weaker trigger is back exactly as it was.
             var definition = await db.Database.SqlQueryRaw<string>("SELECT OBJECT_DEFINITION(OBJECT_ID('TR_ConsignmentStocktakeLines_Frozen')) AS Value").SingleAsync();
             Assert.DoesNotContain("51052", definition);
@@ -380,7 +380,7 @@ public sealed partial class ConsignmentRelationalTests
             Assert.Contains("51053", blocked.ToString());
             db.ChangeTracker.Clear();
             // Only the empty agreement-document migration above it rolled back.
-            Assert.Equal([AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentStocktakes.CountAsync(s => s.CountedAt != null));
         }
         finally { MigratedSchema.Value = false; }

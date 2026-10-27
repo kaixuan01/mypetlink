@@ -154,6 +154,27 @@ public sealed class AdminConsignmentController(ConsignmentService service, Consi
         var file = await documents.PdfAsync(current.Current.UserId,id,ct);
         return File(file.Content,file.ContentType,file.FileName);
     }
+    // Generating takes the next Delivery Order number once; repeating it returns the same document.
+    // The body is optional: without one, or without a confirmed signature, the copy is unsigned.
+    [HttpPost("dispatches/{id:guid}/delivery-order")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentDispatch)]
+    public async Task<IActionResult> IssueDeliveryOrder(Guid id,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] ConsignmentDeliveryOrderSigningRequest? r,
+        CancellationToken ct) =>
+        Ok(ApiEnvelope.Ok(await service.IssueDeliveryOrderAsync(current.Current.UserId,id,r,ct),HttpContext));
+    // A watermarked draft of the Delivery Order as it would be issued now. No number is taken and nothing is kept.
+    // signatureId shows the caller's own signature in place; previewing never signs anything.
+    [HttpGet("dispatches/{id:guid}/delivery-order/preview.pdf")]
+    [Authorize(Policy = AdminCapabilities.ConsignmentDispatch)]
+    public async Task<IActionResult> PreviewDeliveryOrder(Guid id,[FromQuery] Guid? signatureId,CancellationToken ct) {
+        var file = await service.PreviewDeliveryOrderAsync(current.Current.UserId,id,signatureId,ct);
+        return File(file.Content,file.ContentType,file.FileName);
+    }
+    [HttpGet("dispatches/{id:guid}/delivery-order.pdf")]
+    public async Task<IActionResult> DeliveryOrderPdf(Guid id,CancellationToken ct) {
+        var file = await documents.DeliveryOrderPdfAsync(current.Current.UserId,id,ct);
+        return File(file.Content,file.ContentType,file.FileName);
+    }
     [HttpGet("reconciliation.csv")]
     [Authorize(Policy = AdminCapabilities.ConsignmentManifestExport)]
     public async Task<IActionResult> Reconciliation([FromQuery] DateTimeOffset from,[FromQuery] DateTimeOffset to,CancellationToken ct) =>

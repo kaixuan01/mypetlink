@@ -27,6 +27,7 @@ public interface IDocumentNumberService
     Task<string> NextMerchantDeliveryOrderNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextConsignmentDispatchNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextCommissionPayoutNumberAsync(DateTimeOffset preparedAtUtc, CancellationToken cancellationToken);
+    Task<string> NextConsignmentSettlementNumberAsync(DateTimeOffset openedAtUtc, CancellationToken cancellationToken);
 
     /// <summary>{PREFIX}-CONS-{yyyy}-{nnn}, counted per merchant prefix and Malaysian calendar year.</summary>
     Task<string> NextConsignmentAgreementReferenceAsync(string prefix, DateTimeOffset createdAtUtc, CancellationToken cancellationToken);
@@ -122,6 +123,13 @@ public sealed class DocumentNumberService : IDocumentNumberService
         var day = DayKey(preparedAtUtc);
         var value = await NextAsync($"commission-payout:{day}", cancellationToken);
         return $"MPL-PAYOUT-{day}-{value:0000}";
+    }
+
+    public async Task<string> NextConsignmentSettlementNumberAsync(DateTimeOffset openedAtUtc, CancellationToken cancellationToken)
+    {
+        var day = DayKey(openedAtUtc);
+        var value = await NextAsync($"consignment-settlement:{day}", cancellationToken);
+        return $"MPL-CSET-{day}-{value:0000}";
     }
 
     public async Task<string> NextConsignmentAgreementReferenceAsync(

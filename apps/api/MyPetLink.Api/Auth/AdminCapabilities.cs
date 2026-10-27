@@ -148,6 +148,18 @@ public static class AdminCapabilities
     public const string PayoutsManage = "payouts.manage";
     public const string PayoutsSettle = "payouts.settle";
 
+    /// <summary>
+    /// Consignment settlement statements: what each partner branch owes for a
+    /// verified period, what arrived, and the sales commission it carries.
+    /// Granted to no built-in role template, so only Super Admin holds the
+    /// three settlement capabilities until somebody is given them.
+    /// </summary>
+    public const string ConsignmentSettlementsView = "consignment_settlements.view";
+    /// <summary>Recording, and voiding by mistake, money a partner remitted.</summary>
+    public const string ConsignmentSettlementsRecordReceipt = "consignment_settlements.record_receipt";
+    /// <summary>Confirming who earns a period's commission when it can't be decided automatically, and recalculating.</summary>
+    public const string ConsignmentSettlementsResolve = "consignment_settlements.resolve";
+
     // --- Marketing ------------------------------------------------------------
     public const string MarketingView = "marketing.view";
     public const string MarketingManage = "marketing.manage";
@@ -160,6 +172,15 @@ public static class AdminCapabilities
     public const string EmailTemplatesManage = "email_templates.manage";
     public const string SampleExperienceView = "sample_experience.view";
     public const string SampleExperienceManage = "sample_experience.manage";
+
+    /// <summary>
+    /// Keeping your own signature image on file and, after confirming each time,
+    /// applying it to a document you issue yourself. Strictly personal: the
+    /// holder manages and applies only the signature registered to their own
+    /// account, never another administrator's. Granted to no built-in role
+    /// template, so only Super Admin holds it until somebody is given it.
+    /// </summary>
+    public const string DocumentSignatureManage = "document_signature.manage";
 
     // --- System ---------------------------------------------------------------
     public const string OperationalStatusView = "operational_status.view";

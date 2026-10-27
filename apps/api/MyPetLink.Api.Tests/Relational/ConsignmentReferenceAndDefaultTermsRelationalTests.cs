@@ -19,6 +19,8 @@ public sealed partial class ConsignmentRelationalTests
     // Added after the Consignment migrations; rolling back to any of them
     // rolls this one back first.
     private const string CareCompletionIdempotencyMigration = "20261020181228_AddCareCompletionIdempotency";
+    private const string DeliveryOrdersMigration = "20261023171109_AddConsignmentDeliveryOrders";
+    private const string DocumentSignaturesMigration = "20261024151533_AddDocumentSignatures";
 
     /// <summary>
     /// The newest rollback guard refuses first while automatic references exist. Older rollback
@@ -312,7 +314,7 @@ public sealed partial class ConsignmentRelationalTests
             // Migrations roll back newest first, each in its own transaction:
             // the later care migration is undone before the guard stops the
             // run, and no Consignment migration is.
-            Assert.Equal([CareCompletionIdempotencyMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
         }
         finally { MigratedSchema.Value = false; }
     }

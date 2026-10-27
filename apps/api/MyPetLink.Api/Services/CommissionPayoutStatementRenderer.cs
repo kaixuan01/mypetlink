@@ -19,7 +19,8 @@ internal sealed record CommissionPayoutRecoveryLine(
     string SourceOrderNumber,
     decimal ReversedAmount,
     DateTimeOffset? ReversedAt,
-    string? Reason);
+    string? Reason,
+    string Event = "Reversed");
 
 internal sealed record CommissionPayoutStatementModel(
     string PayoutNumber,
@@ -40,7 +41,9 @@ internal sealed record CommissionPayoutStatementModel(
     string? Notes,
     IReadOnlyCollection<CommissionPayoutStatementLine> Items,
     IReadOnlyCollection<CommissionPayoutRecoveryLine> RecoveryItems,
-    DateTimeOffset GeneratedAt);
+    DateTimeOffset GeneratedAt,
+    // The bank's transfer date. Blank for payouts recorded before it was captured.
+    DateOnly? TransferredOn = null);
 
 internal static class CommissionPayoutStatementRenderer
 {
@@ -136,6 +139,7 @@ internal static class CommissionPayoutStatementRenderer
             [
                 ("Method", PaymentMethod(model.PaymentMethod)),
                 ("Reference", model.PaymentReference ?? "—"),
+                ("Transferred on", model.TransferredOn?.ToString("dd MMM yyyy") ?? "Not recorded"),
                 ("Paid amount", Money(model.Currency, model.PreparedAmount)),
             ], 90));
         }
@@ -271,7 +275,7 @@ internal static class CommissionPayoutStatementRenderer
                     row.RelativeItem().Column(detail =>
                     {
                         detail.Item().Text(item.SourceOrderNumber).Bold();
-                        detail.Item().Text($"Reversed {DateTime(item.ReversedAt)} · {item.Reason ?? "Reason not recorded"}")
+                        detail.Item().Text($"{item.Event} {DateTime(item.ReversedAt)} · {item.Reason ?? "Reason not recorded"}")
                             .FontSize(8).FontColor(DocumentTheme.Muted);
                     });
                     row.AutoItem().Text(Money(model.Currency, item.ReversedAmount)).Bold()

@@ -15,6 +15,7 @@ import {
   statusLabel,
   unitReference,
 } from "./model";
+import { GenerateDeliveryOrderDialog } from "./GenerateDeliveryOrderDialog";
 import { BackLink, Callout, dangerButton, SelectField, StatusPill, TextField, WorkflowStepper } from "./ui";
 
 type Movement = "return" | "release" | "external-handover" | "correct-handover" | "reverse-handover" | "write-off";
@@ -107,6 +108,7 @@ export function DispatchDetail({
   });
   const [attribution, setAttribution] = useState<api.HandoverAttribution | "">("");
   const [returnBucket, setReturnBucket] = useState<"Sellable" | "Unsellable">("Sellable");
+  const [generatingDeliveryOrder, setGeneratingDeliveryOrder] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -290,6 +292,15 @@ export function DispatchDetail({
   return (
     <div className="grid gap-4">
       <BackLink label="All deliveries" onClick={onBack} />
+      {generatingDeliveryOrder ? (
+        <GenerateDeliveryOrderDialog
+          actions={actions}
+          dispatch={d}
+          onClose={() => setGeneratingDeliveryOrder(false)}
+          onIssued={(order) => setRecord((current) => (current && current.id === d.id ? { ...current, deliveryOrder: order } : current))}
+          open
+        />
+      ) : null}
 
       <section aria-labelledby="dispatch-title" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-4 p-4 sm:p-5">
@@ -305,6 +316,21 @@ export function DispatchDetail({
               </div>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
+              {d.deliveryOrder ? (
+                <button
+                  className={secondaryButton}
+                  disabled={busy}
+                  onClick={() => void actions.work(async () => { await api.downloadConsignment(d.id, "delivery-order.pdf"); }, `Delivery Order ${d.deliveryOrder?.deliveryOrderNumber} downloaded.`, { refresh: false })}
+                  title="Download the Delivery Order for signing"
+                  type="button"
+                >
+                  Download DO
+                </button>
+              ) : sent && can.dispatch ? (
+                <button className={secondaryButton} disabled={busy} onClick={() => setGeneratingDeliveryOrder(true)} title="Generate the Delivery Order for signing" type="button">
+                  Generate DO
+                </button>
+              ) : null}
               {d.hasIssuedDocument ? (
                 <button
                   className={secondaryButton}
@@ -347,6 +373,15 @@ export function DispatchDetail({
             <Info label="Dispatched">
               {d.dispatchedAt ? `${dateTime(d.dispatchedAt)}${d.shipmentReference ? ` · ${d.shipmentReference}` : ""}` : "Not yet"}
             </Info>
+            {d.deliveryOrder ? (
+              <Info label="Delivery Order">
+                {d.deliveryOrder.deliveryOrderNumber} · {d.deliveryOrder.deliveredQuantity}{" "}
+                {d.deliveryOrder.deliveredQuantity === 1 ? "tag" : "tags"} · generated {dateTime(d.deliveryOrder.issuedAt)}
+                {d.deliveryOrder.signatoryName
+                  ? ` · Delivered By signed by ${d.deliveryOrder.signatoryName}${d.deliveryOrder.signatoryPosition ? `, ${d.deliveryOrder.signatoryPosition}` : ""}`
+                  : " · unsigned"}
+              </Info>
+            ) : null}
             {d.recipientName || d.partnerReceivedAt ? (
               <Info label="Partner receipt">
                 {[d.recipientName, d.partnerReceivedAt ? dateTime(d.partnerReceivedAt) : null].filter(Boolean).join(" · ")}

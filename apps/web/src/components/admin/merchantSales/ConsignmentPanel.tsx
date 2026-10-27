@@ -18,6 +18,7 @@ import { ReconciliationView } from "./consignment/ReconciliationView";
 import { ReserveStockDialog } from "./consignment/ReserveStockDialog";
 import { SettingsView } from "./consignment/SettingsView";
 import { SalesReportsView } from "./consignment/SalesReportsView";
+import { SettlementsView } from "./consignment/SettlementsView";
 import { SalesReportWizard, type SalesReportRequest } from "./consignment/SalesReportWizard";
 import { AgreementTermsSummary } from "./consignment/AgreementTermsSummary";
 import {
@@ -63,6 +64,8 @@ export function ConsignmentPanel() {
     resolveDiscrepancies: can(caps.consignmentDiscrepanciesResolve),
   };
   const canListMerchants = permissions.manage || can(caps.salesView);
+  // Settlements carry partner money and sales earnings, so they need their own permission.
+  const canViewSettlements = can(caps.consignmentSettlementsView);
   const location = useConsignmentLocation();
 
   const [policy, setPolicy] = useState<api.ApprovalPolicy | null>(null);
@@ -274,8 +277,10 @@ export function ConsignmentPanel() {
         <div className="min-w-0">
           <h2 className="text-xl font-black text-slate-950">Consignment</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-            Partner agreements, stock held by partners, and reconciliation with the agreed external tracker. Consignment
-            records custody only — it never creates a sale, invoice, commission or payment.
+            Partner agreements, stock held by partners, verified partner sales and what each partner owes. Delivering stock
+            only moves it into the partner&apos;s care. Verifying a sales report records what the partner owes for that period,
+            and any sales commission waits as Pending. Partner payments are recorded separately; commission is ready to pay
+            only once that period is paid in full. Nothing here creates an invoice or records money received on its own.
           </p>
         </div>
         {permissions.manage || permissions.allocate || permissions.recordSales ? (
@@ -301,7 +306,7 @@ export function ConsignmentPanel() {
 
       <nav aria-label="Consignment sections" className="-mx-1 overflow-x-auto px-1 pb-1">
         <div className="flex min-w-max gap-1 rounded-xl bg-slate-100/80 p-1">
-          {consignmentViews.map((view) => {
+          {consignmentViews.filter((view) => view.id !== "settlements" || canViewSettlements).map((view) => {
             const current = location.view === view.id;
             const count = counts[view.id];
             return (
@@ -352,6 +357,7 @@ export function ConsignmentPanel() {
       {location.view === "agreements" ? <AgreementsView agreementId={location.agreementId} context={context} /> : null}
       {location.view === "custody" ? <CustodyView context={context} dispatchId={location.dispatchId} /> : null}
       {location.view === "sales" ? <SalesReportsView context={context} reportId={location.reportId} /> : null}
+      {location.view === "settlements" && canViewSettlements ? <SettlementsView /> : null}
       {location.view === "reconciliation" ? <ReconciliationView context={context} stocktakeId={location.stocktakeId} /> : null}
       {location.view === "settings" ? <SettingsView context={context} onPolicyChange={setPolicy} /> : null}
 

@@ -8,9 +8,10 @@ using MyPetLink.Api.Entities;
 namespace MyPetLink.Api.Services;
 
 // Partner sales reports by SKU, approved selling prices and the per-branch stock
-// position. Reported sales are operational evidence only: nothing here creates an
-// invoice, receipt, payment, commission, payout or tax document, and no posting
-// changes a ConsignmentUnit or attributes an aggregate sale to a Tag Code.
+// position. Nothing here creates an invoice, receipt, payment, payout or tax document,
+// and no posting changes a ConsignmentUnit or attributes an aggregate sale to a Tag Code.
+// Verification also records the period's settlement statement and its pending sales
+// commission (ConsignmentService.Settlements.cs); nothing before verification does.
 public sealed partial class ConsignmentService
 {
     private static readonly TimeSpan MalaysiaOffset = TimeSpan.FromHours(8);
@@ -460,6 +461,9 @@ public sealed partial class ConsignmentService
             report.VerifiedAt = time.GetUtcNow(); report.ReviewMode = review.ReviewMode;
             audit.Append(admin, ActorType.Admin, "consignment.sales-report-verified", SalesReportSubject, report.Id, null,
                 new { report.PartnerReference, report.Version, review.ReviewMode, warnings });
+            // The verified figures become the period's settlement statement and its pending sales commission,
+            // in this same transaction: a verified report never exists without its settlement, or the reverse.
+            await SettleVerifiedReportAsync(report, replaced, verifiedAncestor is not null, admin, ct);
         }, ct);
         return await SalesReportAsync(id, true, ct);
     }

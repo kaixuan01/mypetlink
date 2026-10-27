@@ -4,19 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsignmentPanel } from "./ConsignmentPanel";
 import { allAdminCapabilities, adminCapabilities, noAdminAccess } from "@/lib/adminCapabilities";
 import type { Agreement, ConsignmentDispatch } from "@/services/adminConsignmentService";
-const mocks=vi.hoisted(()=>({defaults:vi.fn(),saveDefaults:vi.fn(),prefix:vi.fn(),savePrefix:vi.fn(),policy:vi.fn(),agreements:vi.fn(),dispatches:vi.fn(),get:vi.fn(),save:vi.fn(),act:vi.fn(),approve:vi.fn(),download:vi.fn(),access:vi.fn(),reserve:vi.fn(),catalog:vi.fn(),listing:vi.fn(),reconciliation:vi.fn(),reviewLog:vi.fn(),positions:vi.fn(),priceTerms:vi.fn(),salesReports:vi.fn(),salesReport:vi.fn(),saveReport:vi.fn(),reportAction:vi.fn(),savePrice:vi.fn(),priceAction:vi.fn(),startTracking:vi.fn(),copyPrices:vi.fn()}));
+const mocks=vi.hoisted(()=>({issueDeliveryOrder:vi.fn(),previewDeliveryOrder:vi.fn(),signatureStatus:vi.fn(),signatureImage:vi.fn(),defaults:vi.fn(),saveDefaults:vi.fn(),prefix:vi.fn(),savePrefix:vi.fn(),policy:vi.fn(),agreements:vi.fn(),dispatches:vi.fn(),get:vi.fn(),save:vi.fn(),act:vi.fn(),approve:vi.fn(),download:vi.fn(),access:vi.fn(),reserve:vi.fn(),catalog:vi.fn(),listing:vi.fn(),reconciliation:vi.fn(),reviewLog:vi.fn(),positions:vi.fn(),priceTerms:vi.fn(),salesReports:vi.fn(),salesReport:vi.fn(),saveReport:vi.fn(),reportAction:vi.fn(),savePrice:vi.fn(),priceAction:vi.fn(),startTracking:vi.fn(),copyPrices:vi.fn()}));
 vi.mock("@/services/authService",()=>({getAdminCapabilities:mocks.access}));
 vi.mock("@/services/adminMerchantSalesService",()=>({listMerchants:vi.fn(async()=>({items:[{id:"merchant",legalBusinessName:"First Pet Shop",tradingName:null}],total:1}))}));
 vi.mock("@/services/merchantDirectoryService",()=>({getMerchantListing:mocks.listing}));
 vi.mock("@/services/tagCatalogService",()=>({listAdminTagCatalogOptions:mocks.catalog}));
-vi.mock("@/services/adminConsignmentService",()=>({getAgreementDocument:vi.fn(()=>new Promise(()=>{})),getApprovalPolicy:mocks.policy,listAgreements:mocks.agreements,listDispatches:mocks.dispatches,getDispatch:mocks.get,saveAgreement:mocks.save,getDefaultTerms:mocks.defaults,saveDefaultTerms:mocks.saveDefaults,getAgreementPrefix:mocks.prefix,saveAgreementPrefix:mocks.savePrefix,custodyAction:mocks.act,agreementAction:mocks.approve,downloadConsignment:mocks.download,reserveConsignment:mocks.reserve,downloadReconciliation:mocks.reconciliation,downloadReviewLog:mocks.reviewLog,listStockPositions:mocks.positions,listPriceTerms:mocks.priceTerms,listSalesReports:mocks.salesReports,getSalesReport:mocks.salesReport,saveSalesReport:mocks.saveReport,salesReportAction:mocks.reportAction,savePriceTerm:mocks.savePrice,priceTermAction:mocks.priceAction,startStockTracking:mocks.startTracking,copyPriceTerms:mocks.copyPrices,downloadSalesReports:vi.fn(),downloadStockLedger:vi.fn(),listStocktakes:vi.fn(async()=>({items:[],total:0})),listDiscrepancies:vi.fn(async()=>[]),getStocktake:vi.fn(),getStocktakeExpectation:vi.fn(),saveStocktake:vi.fn(),stocktakeAction:vi.fn(),resolveDiscrepancy:vi.fn(),downloadStocktakes:vi.fn()}));
+vi.mock("@/services/adminDocumentSignatureService",async(importOriginal)=>({...(await importOriginal<typeof import("@/services/adminDocumentSignatureService")>()),getDocumentSignature:mocks.signatureStatus,getDocumentSignatureImage:mocks.signatureImage}));
+vi.mock("@/services/adminConsignmentService",()=>({getAgreementDocument:vi.fn(()=>new Promise(()=>{})),getApprovalPolicy:mocks.policy,listAgreements:mocks.agreements,listDispatches:mocks.dispatches,getDispatch:mocks.get,saveAgreement:mocks.save,getDefaultTerms:mocks.defaults,saveDefaultTerms:mocks.saveDefaults,getAgreementPrefix:mocks.prefix,saveAgreementPrefix:mocks.savePrefix,custodyAction:mocks.act,agreementAction:mocks.approve,downloadConsignment:mocks.download,issueDeliveryOrder:mocks.issueDeliveryOrder,previewDeliveryOrder:mocks.previewDeliveryOrder,reserveConsignment:mocks.reserve,downloadReconciliation:mocks.reconciliation,downloadReviewLog:mocks.reviewLog,listStockPositions:mocks.positions,listPriceTerms:mocks.priceTerms,listSalesReports:mocks.salesReports,getSalesReport:mocks.salesReport,saveSalesReport:mocks.saveReport,salesReportAction:mocks.reportAction,savePriceTerm:mocks.savePrice,priceTermAction:mocks.priceAction,startStockTracking:mocks.startTracking,copyPriceTerms:mocks.copyPrices,downloadSalesReports:vi.fn(),downloadStockLedger:vi.fn(),listStocktakes:vi.fn(async()=>({items:[],total:0})),listDiscrepancies:vi.fn(async()=>[]),getStocktake:vi.fn(),getStocktakeExpectation:vi.fn(),saveStocktake:vi.fn(),stocktakeAction:vi.fn(),resolveDiscrepancy:vi.fn(),downloadStocktakes:vi.fn()}));
 const agreement: Agreement={id:"agreement",merchantId:"merchant",merchantName:"First Pet Shop",reference:"SHOP-1",version:1,status:"Draft",partnerCommissionPercentage:35,effectiveFrom:null,effectiveTo:null,durationTerms:null,settlementFrequency:null,paymentDeadlineDays:null,discountTerms:null,returnTerms:null,lossTerms:null,signedAgreementReference:null,externalTrackerReference:null,pendingTerms:["Duration","Payment deadline"],concurrencyToken:"agreement-token"};
 const dispatch: ConsignmentDispatch={id:"dispatch",agreementId:"agreement",dispatchNumber:"MPL-CS-TEST-1",merchantName:"First Pet Shop",agreementReference:"SHOP-1",agreementVersion:1,commissionPercentage:35,destination:"Shop branch",status:"Reserved",externalTrackerReference:"TRACKER-1",dispatchedAt:null,receivedAt:null,shipmentReference:null,receiptAcknowledgment:null,reserved:1,partnerHeld:0,returnedQuarantine:0,released:0,externalHandovers:0,writtenOff:0,activatedWithoutExternalReference:0,units:[{id:"unit",unitReference:"CU-UNIT",receivingState:"Unconfirmed",tagCode:null,sku:"SKU-1",productName:"Smart Tag",variant:"Standard",batch:"B-1",status:"Reserved",qaStatus:"Passed",isActivated:false,externalReference:null,currentHandoverRecordId:null}],history:[],concurrencyToken:"stock-token",merchantBranchId:null,hasOpenDiscrepancy:false,hasIssuedDocument:false,recipientName:null,partnerReceivedAt:null,receivedQuantity:null,reconciliation:[]};
 const ready={...agreement,pendingTerms:[],effectiveFrom:"2026-10-01T00:00:00Z",signedAgreementReference:"PARTNER-SIGNED-TERMS",durationTerms:"One year",settlementFrequency:"Monthly",paymentDeadlineDays:14,discountTerms:"None",returnTerms:"30 days",lossTerms:"Partner",externalTrackerReference:"TRACKER-1"};
 const inactiveDefaults={revision:1,isActive:false,terms:{partnerCommissionPercentage:35,trialDurationDays:60,durationTerms:"Suggested",settlementFrequency:null,paymentDeadlineDays:null,discountTerms:null,returnTerms:null,lossTerms:null},missing:["Settlement frequency"],updatedAt:null,updatedByName:null,concurrencyToken:"defaults-token",history:[]};
 const activeDefaults={...inactiveDefaults,revision:3,isActive:true,missing:[],updatedAt:"2026-10-19T00:00:00Z",updatedByName:"Synthetic Admin",terms:{partnerCommissionPercentage:30,trialDurationDays:60,durationTerms:"Synthetic 60-day trial",settlementFrequency:"Synthetic monthly",paymentDeadlineDays:7,discountTerms:"Synthetic approved prices",returnTerms:"Synthetic carry forward",lossTerms:"Synthetic evidence-based"}};
 const shopPrefix={merchantId:"merchant",prefix:null,suggestedPrefix:"FIRSTPET",locked:false,lockedAt:null,referencePattern:"FIRSTPET-CONS-2026-",concurrencyToken:""};
-beforeEach(()=>{mocks.policy.mockResolvedValue({mode:"Team",selfReviewerAdminUserId:null,selfReviewerName:null,canSelfReview:false,updatedByAdminUserId:null,updatedAt:null,concurrencyToken:"policy",eligibleReviewers:[],history:[]});window.history.replaceState(null,"","/");window.sessionStorage.clear();vi.clearAllMocks();mocks.access.mockReturnValue(allAdminCapabilities());mocks.catalog.mockResolvedValue([]);mocks.listing.mockResolvedValue({branches:[]});mocks.agreements.mockResolvedValue({items:[agreement],total:1});mocks.dispatches.mockResolvedValue({items:[dispatch],total:1});mocks.get.mockResolvedValue(dispatch);mocks.act.mockResolvedValue({...dispatch,status:"Dispatched"});mocks.positions.mockResolvedValue([]);mocks.defaults.mockResolvedValue(inactiveDefaults);mocks.prefix.mockResolvedValue(shopPrefix);mocks.priceTerms.mockResolvedValue([]);mocks.salesReports.mockResolvedValue({items:[],total:0});});
+beforeEach(()=>{mocks.policy.mockResolvedValue({mode:"Team",selfReviewerAdminUserId:null,selfReviewerName:null,canSelfReview:false,updatedByAdminUserId:null,updatedAt:null,concurrencyToken:"policy",eligibleReviewers:[],history:[]});window.history.replaceState(null,"","/");window.sessionStorage.clear();vi.clearAllMocks();mocks.access.mockReturnValue(allAdminCapabilities());mocks.signatureStatus.mockResolvedValue({signature:null,maxUploadBytes:2097152});mocks.signatureImage.mockResolvedValue(new Blob(["synthetic"],{type:"image/png"}));URL.createObjectURL=vi.fn(()=>"blob:synthetic-signature");URL.revokeObjectURL=vi.fn();mocks.catalog.mockResolvedValue([]);mocks.listing.mockResolvedValue({branches:[]});mocks.agreements.mockResolvedValue({items:[agreement],total:1});mocks.dispatches.mockResolvedValue({items:[dispatch],total:1});mocks.get.mockResolvedValue(dispatch);mocks.act.mockResolvedValue({...dispatch,status:"Dispatched"});mocks.positions.mockResolvedValue([]);mocks.defaults.mockResolvedValue(inactiveDefaults);mocks.prefix.mockResolvedValue(shopPrefix);mocks.priceTerms.mockResolvedValue([]);mocks.salesReports.mockResolvedValue({items:[],total:0});});
 afterEach(cleanup);
 
 const sections=()=>screen.getByRole("navigation",{name:"Consignment sections"});
@@ -25,6 +26,7 @@ async function openAgreement(name=/SHOP-1 v1/){goTo(/^Agreements/);fireEvent.cli
 async function openDispatch(){goTo(/^Dispatches/);fireEvent.click(await screen.findByRole("button",{name:/MPL-CS-TEST-1/}));}
 
 describe("Consignment operations",()=>{
+  it("explains that delivery moves stock and verification records money owed, not an invoice or payment",async()=>{render(<ConsignmentPanel/>);const header=(await screen.findByRole("heading",{name:"Consignment"})).closest("header")!;expect(header.textContent).toMatch(/Delivering stock only moves it into the partner.s care/);expect(header.textContent).toMatch(/records what the partner owes for that period, and any sales commission waits as Pending/);expect(header.textContent).toMatch(/ready to pay only once that period is paid in full/);expect(header.textContent).toMatch(/Nothing here creates an invoice or records money received on its own/);expect(header.textContent).not.toMatch(/only a verified sales report does/);});
   it("keeps unconfirmed terms pending and prevents approval",async()=>{render(<ConsignmentPanel/>);await openAgreement();await screen.findByText(/Pending: Duration, Payment deadline/);expect((screen.getByRole("button",{name:"Approve agreement"}) as HTMLButtonElement).disabled).toBe(true);expect(mocks.approve).not.toHaveBeenCalled();});
   it("does not reveal tag codes or mutations with view permission only",async()=>{mocks.access.mockReturnValue({...noAdminAccess,granted:new Set([adminCapabilities.consignmentView])});render(<ConsignmentPanel/>);await openDispatch();await screen.findByText("CU-UNIT");expect(screen.queryByRole("button",{name:"View Tag Codes"})).toBeNull();expect(screen.queryByRole("button",{name:"Confirm dispatch"})).toBeNull();expect(screen.queryByRole("button",{name:"New agreement"})).toBeNull();expect(screen.queryByRole("button",{name:"Reserve stock"})).toBeNull();expect(mocks.get).toHaveBeenCalledWith("dispatch");});
   it("requires confirmation and submits current token without financial fields",async()=>{render(<ConsignmentPanel/>);await openDispatch();fireEvent.change(await screen.findByLabelText("Courier or shipment reference"),{target:{value:"SHIP-1"}});fireEvent.click(screen.getByRole("button",{name:"Confirm dispatch"}));expect(mocks.act).not.toHaveBeenCalled();expect(screen.getByText(/creates no invoice, sale or commission/)).toBeTruthy();fireEvent.click(screen.getByRole("button",{name:/^Confirm$/}));await waitFor(()=>expect(mocks.act).toHaveBeenCalledWith(dispatch,"dispatch","SHIP-1",[],{}));});
@@ -50,6 +52,84 @@ describe("Consignment operations",()=>{
     mocks.access.mockReturnValue({...noAdminAccess,granted:new Set([adminCapabilities.consignmentView])});mocks.get.mockResolvedValue({...dispatch,hasIssuedDocument:true,status:"Dispatched"});
     render(<ConsignmentPanel/>);await openDispatch();fireEvent.click(await screen.findByRole("button",{name:"Download Dispatch Note"}));
     await waitFor(()=>expect(mocks.download).toHaveBeenCalledWith("dispatch","dispatch-note.pdf"));expect(screen.queryByRole("button",{name:"View Tag Codes"})).toBeNull();
+  });
+  it("generates a Delivery Order once for a dispatched delivery and then offers it for download",async()=>{
+    const shipped={...dispatch,status:"Dispatched",dispatchedAt:"2026-10-23T02:00:00Z",hasIssuedDocument:true,units:[{...dispatch.units[0],status:"Dispatched"}]};
+    const order={id:"do",deliveryOrderNumber:"MPL-DO-261023-0001",issuedAt:"2026-10-23T03:00:00Z",deliveredQuantity:1,fileName:"MyPetLink_Delivery_Order_MPL-DO-261023-0001.pdf",issuedByName:"Synthetic Admin"};
+    mocks.get.mockResolvedValue(shipped);mocks.issueDeliveryOrder.mockResolvedValue(order);
+    render(<ConsignmentPanel/>);await openDispatch();
+    fireEvent.click(await screen.findByRole("button",{name:"Generate DO"}));
+    expect(mocks.issueDeliveryOrder).not.toHaveBeenCalled();expect(screen.getByText(/No stock is moved/)).toBeTruthy();
+    mocks.get.mockResolvedValue({...shipped,deliveryOrder:order});
+    const buttons=screen.getAllByRole("button",{name:"Generate DO"});fireEvent.click(buttons[buttons.length-1]);
+    await waitFor(()=>expect(mocks.issueDeliveryOrder).toHaveBeenCalledWith("dispatch"));
+    await waitFor(()=>expect(mocks.download).toHaveBeenCalledWith("dispatch","delivery-order.pdf"));
+    await screen.findByText("Delivery Order MPL-DO-261023-0001 generated and downloaded.");
+    expect(await screen.findByRole("button",{name:"Download DO"})).toBeTruthy();expect(screen.queryByRole("button",{name:"Generate DO"})).toBeNull();
+    expect(screen.getByText(/MPL-DO-261023-0001 · 1 tag · generated/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button",{name:"Download DO"}));
+    await waitFor(()=>expect(mocks.download).toHaveBeenCalledTimes(2));expect(mocks.issueDeliveryOrder).toHaveBeenCalledTimes(1);
+  });
+  it("signs Delivered By with the operator's own signature only after a preview and explicit confirmation",async()=>{
+    const shipped={...dispatch,status:"Dispatched",dispatchedAt:"2026-10-23T02:00:00Z",units:[{...dispatch.units[0],status:"Dispatched"}]};
+    const order={id:"do",deliveryOrderNumber:"MPL-DO-261024-0001",issuedAt:"2026-10-24T03:00:00Z",deliveredQuantity:1,fileName:"x.pdf",issuedByName:"Synthetic Admin",signatoryName:"Synthetic Signatory",signatoryPosition:"Director",signedAt:"2026-10-24T03:00:00Z"};
+    mocks.signatureStatus.mockResolvedValue({signature:{id:"sig",signatoryName:"Synthetic Signatory",signatoryPosition:"Director",imageWidth:300,imageHeight:100,savedAt:"2026-10-24T01:00:00Z"},maxUploadBytes:2097152});
+    mocks.get.mockResolvedValue(shipped);mocks.issueDeliveryOrder.mockResolvedValue(order);mocks.previewDeliveryOrder.mockResolvedValue(undefined);
+    render(<ConsignmentPanel/>);await openDispatch();
+    fireEvent.click(await screen.findByRole("button",{name:"Generate DO"}));
+    const sign=await screen.findByRole("radio",{name:/Sign Delivered By with my signature/}) as HTMLInputElement;
+    await waitFor(()=>expect(sign.disabled).toBe(false));
+    // Unsigned is the default every time the dialog opens.
+    expect((screen.getByRole("radio",{name:/Leave unsigned/}) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(sign);
+    expect(screen.getByRole("img",{name:"Your signature"})).toBeTruthy();
+    expect((screen.getByRole("button",{name:"Sign and generate DO"}) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button",{name:"Preview signed DO"}));
+    await waitFor(()=>expect(mocks.previewDeliveryOrder).toHaveBeenCalledWith("dispatch","sig"));
+    expect(mocks.issueDeliveryOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("checkbox",{name:/I, Synthetic Signatory, am signing this Delivery Order as Director/}));
+    mocks.get.mockResolvedValue({...shipped,deliveryOrder:order});
+    fireEvent.click(screen.getByRole("button",{name:"Sign and generate DO"}));
+    await waitFor(()=>expect(mocks.issueDeliveryOrder).toHaveBeenCalledWith("dispatch",{signatureId:"sig",confirmed:true}));
+    await screen.findByText("Delivery Order MPL-DO-261024-0001 signed, generated and downloaded.");
+    expect(screen.getByText(/Delivered By signed by Synthetic Signatory, Director/)).toBeTruthy();
+    expect(mocks.issueDeliveryOrder).toHaveBeenCalledTimes(1);
+  });
+  it("generates unsigned when no signature is on file or signing is not permitted",async()=>{
+    const shipped={...dispatch,status:"Dispatched",dispatchedAt:"2026-10-23T02:00:00Z",units:[{...dispatch.units[0],status:"Dispatched"}]};
+    const order={id:"do",deliveryOrderNumber:"MPL-DO-261024-0002",issuedAt:"2026-10-24T03:00:00Z",deliveredQuantity:1,fileName:"x.pdf",issuedByName:null};
+    mocks.get.mockResolvedValue(shipped);mocks.issueDeliveryOrder.mockResolvedValue(order);mocks.previewDeliveryOrder.mockResolvedValue(undefined);
+    render(<ConsignmentPanel/>);await openDispatch();
+    fireEvent.click(await screen.findByRole("button",{name:"Generate DO"}));
+    await screen.findByText(/You don’t have a signature on file/);
+    expect((screen.getByRole("radio",{name:/Sign Delivered By with my signature/}) as HTMLInputElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button",{name:"Preview DO"}));
+    await waitFor(()=>expect(mocks.previewDeliveryOrder).toHaveBeenCalledWith("dispatch",undefined));
+    cleanup();vi.clearAllMocks();
+    // Dispatching without the signing permission: no signing choice at all, and no signature is looked up.
+    mocks.access.mockReturnValue({...noAdminAccess,granted:new Set([adminCapabilities.consignmentView,adminCapabilities.consignmentDispatch])});
+    mocks.policy.mockResolvedValue({mode:"Team",selfReviewerAdminUserId:null,selfReviewerName:null,canSelfReview:false,updatedByAdminUserId:null,updatedAt:null,concurrencyToken:"policy",eligibleReviewers:[],history:[]});
+    mocks.agreements.mockResolvedValue({items:[agreement],total:1});mocks.dispatches.mockResolvedValue({items:[dispatch],total:1});mocks.positions.mockResolvedValue([]);
+    mocks.get.mockResolvedValue(shipped);mocks.issueDeliveryOrder.mockResolvedValue(order);
+    render(<ConsignmentPanel/>);await openDispatch();
+    fireEvent.click(await screen.findByRole("button",{name:"Generate DO"}));
+    await screen.findByText(/left blank for both parties to sign by hand/);
+    expect(screen.queryByRole("radio",{name:/Sign Delivered By/})).toBeNull();expect(mocks.signatureStatus).not.toHaveBeenCalled();
+    const buttons=screen.getAllByRole("button",{name:"Generate DO"});fireEvent.click(buttons[buttons.length-1]);
+    await waitFor(()=>expect(mocks.issueDeliveryOrder).toHaveBeenCalledWith("dispatch"));
+  });
+  it("never offers a Delivery Order for a reservation, and only dispatchers can generate one",async()=>{
+    render(<ConsignmentPanel/>);await openDispatch();await screen.findByText("CU-UNIT");
+    expect(screen.queryByRole("button",{name:"Generate DO"})).toBeNull();expect(screen.queryByRole("button",{name:"Download DO"})).toBeNull();
+    cleanup();
+    mocks.access.mockReturnValue({...noAdminAccess,granted:new Set([adminCapabilities.consignmentView])});
+    const shipped={...dispatch,status:"Dispatched",dispatchedAt:"2026-10-23T02:00:00Z"};mocks.get.mockResolvedValue(shipped);
+    render(<ConsignmentPanel/>);await openDispatch();await screen.findByText("CU-UNIT");
+    expect(screen.queryByRole("button",{name:"Generate DO"})).toBeNull();
+    cleanup();
+    mocks.get.mockResolvedValue({...shipped,deliveryOrder:{id:"do",deliveryOrderNumber:"MPL-DO-261023-0002",issuedAt:"2026-10-23T03:00:00Z",deliveredQuantity:1,fileName:"x.pdf",issuedByName:null}});
+    render(<ConsignmentPanel/>);await openDispatch();fireEvent.click(await screen.findByRole("button",{name:"Download DO"}));
+    await waitFor(()=>expect(mocks.download).toHaveBeenCalledWith("dispatch","delivery-order.pdf"));expect(mocks.issueDeliveryOrder).not.toHaveBeenCalled();
   });
   it("restores an open dispatch from its link and retains a pending discrepancy",async()=>{
     window.history.replaceState(null,"","/?tab=consignment&dispatch=dispatch");mocks.get.mockResolvedValue({...dispatch,status:"Dispatched",hasOpenDiscrepancy:true});

@@ -74,7 +74,9 @@ public sealed record CommissionAccountingMetrics(
     decimal Reversed,
     decimal CashPaidDuringPeriod,
     decimal ReversedDuringPeriod,
-    string Currency);
+    string Currency,
+    // Consignment commission accrued on verified sales whose settlement is not yet fully received.
+    decimal Pending = 0m);
 
 public sealed record CommissionFinancialReportResponse(
     SalesReportRange Range,

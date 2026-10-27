@@ -72,7 +72,8 @@ describe("Sales reports workspace", () => {
     const table = await screen.findByRole("table", { name: /Paws Corner stock by SKU/ });
     const row = within(table).getByText("PAWSOME-LW").closest("tr")!;
     expect(row.textContent).toContain("40"); expect(row.textContent).toContain("32"); expect(within(row).getByText("Balanced")).toBeTruthy();
-    expect(screen.getByText(/never create invoices, payments or commission records/)).toBeTruthy();
+    expect(screen.getByText(/Recording a report changes nothing financial/)).toBeTruthy();
+    expect(screen.getByText(/fixed amount per eligible sold tag/)).toBeTruthy();
     expect(await screen.findByRole("button", { name: /Open sales report 2026-10-A/ })).toBeTruthy();
   });
 

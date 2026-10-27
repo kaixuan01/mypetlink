@@ -31,17 +31,21 @@ export type CommissionPayoutSummary = {
   paymentMethod: CommissionPayoutPaymentMethod | null;
   paymentReference: string | null;
   concurrencyToken: string;
+  /** The date the money left the bank. Null on payouts recorded before it was captured. */
+  transferredOn?: string | null;
 };
 
 export type CommissionPayoutItem = {
   id: string;
   salesCommissionId: string;
-  sourceType: "MerchantOrder" | "TagOrder";
+  sourceType: "MerchantOrder" | "TagOrder" | "ConsignmentSettlement";
   commissionType:
     | "MerchantOrderPercentage"
     | "DirectRetailPercentage"
     | "ResellerAcquisitionBonus"
-    | "ResellerRepeatPercentage";
+    | "ResellerRepeatPercentage"
+    | "ConsignmentStandardPerUnit"
+    | "ConsignmentPromotionPerUnit";
   merchantOrderId: string | null;
   tagOrderId: string | null;
   sourceOrderNumber: string;
@@ -51,12 +55,15 @@ export type CommissionPayoutItem = {
   commissionFixedAmount: number | null;
   currency: string;
   calculatedAt: string;
-  currentCommissionStatus: "Payable" | "Paid" | "Reversed" | "Missing";
+  currentCommissionStatus: "Pending" | "Payable" | "Paid" | "Reversed" | "Missing";
   reversedAt: string | null;
   reversalReason: string | null;
   releasedAt: string | null;
   releaseReason: string | null;
   requiresRecovery: boolean;
+  consignmentSettlementId?: string | null;
+  /** Paid consignment commission a later correction or refund took away, still to be recovered. */
+  recoveryAmount?: number;
 };
 
 export type PayoutSellerSnapshot = {
@@ -148,6 +155,8 @@ export async function markCommissionPayoutPaid(
     concurrencyToken: string;
     paymentMethod: CommissionPayoutPaymentMethod;
     paymentReference: string;
+    /** yyyy-mm-dd, the bank's transfer date. */
+    transferredOn: string;
   }
 ) {
   const response = await apiRequest<CommissionPayout>(`${base}/${id}/mark-paid`, {

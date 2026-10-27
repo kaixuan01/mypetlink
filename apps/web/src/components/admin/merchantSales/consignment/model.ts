@@ -6,13 +6,14 @@ import { shortDate } from "../shared";
 // business rule: the server still validates every save, approval and custody
 // action. These helpers only describe the records it returned.
 
-export type ConsignmentView = "overview" | "agreements" | "custody" | "sales" | "reconciliation" | "settings";
+export type ConsignmentView = "overview" | "agreements" | "custody" | "sales" | "settlements" | "reconciliation" | "settings";
 
 export const consignmentViews: { id: ConsignmentView; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "agreements", label: "Agreements" },
   { id: "custody", label: "Dispatches" },
   { id: "sales", label: "Sales reports" },
+  { id: "settlements", label: "Settlements" },
   { id: "reconciliation", label: "Stocktake & reconciliation" },
   { id: "settings", label: "Settings" },
 ];

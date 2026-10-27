@@ -143,7 +143,7 @@ public sealed class SalesReportingService : ISalesReportingService
             Revenue = group.Sum(item => item.CommissionBaseAmount)
         }).SingleOrDefaultAsync(cancellationToken);
         var lifetime = 0m;
-        if (channel != ReportChannel.Retail)
+        if (channel is ReportChannel.All or ReportChannel.Merchant)
         {
             var lifetimePayments = _db.MerchantPayments.AsNoTracking()
                 .Where(payment => payment.MerchantOrder!.Merchant!.AcquiredBySalespersonId == salespersonId);
@@ -248,11 +248,12 @@ public sealed class SalesReportingService : ISalesReportingService
     {
         var filtered = CommissionLedger(query);
         var total = await filtered.CountAsync(cancellationToken);
-        var entities = await filtered.Include(item => item.Merchant).Include(item => item.MerchantOrder).Include(item => item.TagOrder)
+        var entities = await filtered.Include(item => item.Merchant).Include(item => item.MerchantOrder).Include(item => item.TagOrder).Include(item => item.ConsignmentSettlement)
             .Include(item => item.PayoutItems).ThenInclude(item => item.CommissionPayout)
             .OrderByDescending(item => item.CalculatedAt).ThenByDescending(item => item.Id)
             .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToListAsync(cancellationToken);
-        var rows = entities.Select(CommissionResponse).ToArray();
+        var recovering = await RecoveringCommissionIdsAsync(entities, cancellationToken);
+        var rows = entities.Select(item => CommissionResponse(item, recovering)).ToArray();
         return (rows, total);
     }
 
@@ -263,10 +264,11 @@ public sealed class SalesReportingService : ISalesReportingService
         var filtered = CommissionLedger(query);
         var count = await filtered.CountAsync(cancellationToken);
         if (count > MaxExportRows) throw ExportLimit();
-        var entities = await filtered.Include(item => item.Merchant).Include(item => item.MerchantOrder).Include(item => item.TagOrder)
+        var entities = await filtered.Include(item => item.Merchant).Include(item => item.MerchantOrder).Include(item => item.TagOrder).Include(item => item.ConsignmentSettlement)
             .Include(item => item.PayoutItems).ThenInclude(item => item.CommissionPayout)
             .OrderBy(item => item.CalculatedAt).ThenBy(item => item.Id).ToListAsync(cancellationToken);
-        var rows = entities.Select(CommissionResponse).ToArray();
+        var recovering = await RecoveringCommissionIdsAsync(entities, cancellationToken);
+        var rows = entities.Select(item => CommissionResponse(item, recovering)).ToArray();
         var headers = new[] { "Earned At (UTC)", "Seller Code", "Seller", "Channel", "Commission Type", "Status", "Source Number", "Merchant", "Eligible Base", "Percentage Snapshot", "Fixed Amount Snapshot", "Commission", "Currency", "Paid At (UTC)", "Reversed At (UTC)", "Reversal Reason", "Payout Claim State", "Payout Number", "Recovery Required", "Legacy Individual Payment" };
         var csvRows = rows.Select(item => new[]
         {
@@ -347,13 +349,14 @@ public sealed class SalesReportingService : ISalesReportingService
         if (!string.IsNullOrEmpty(search))
             result = result.Where(item =>
                 (item.MerchantOrder != null && item.MerchantOrder.MerchantOrderNumber.Contains(search))
-                || (item.TagOrder != null && item.TagOrder.OrderNumber.Contains(search)));
+                || (item.TagOrder != null && item.TagOrder.OrderNumber.Contains(search))
+                || (item.ConsignmentSettlement != null && item.ConsignmentSettlement.SettlementNumber.Contains(search)));
         return result;
     }
 
     private async Task<RetailPerformanceMetrics> RetailMetricsAsync(SalesReportRange range, Guid? salespersonId, ReportChannel channel, CancellationToken token)
     {
-        if (channel == ReportChannel.Merchant) return new(0, 0, 0m, 0, 0, 0m);
+        if (channel is ReportChannel.Merchant or ReportChannel.Consignment) return new(0, 0, 0m, 0, 0, 0m);
         var orders = RetailOrders(range, salespersonId, channel);
         if (await orders.AnyAsync(item => item.Currency != MerchantSalesConstants.Currency, token))
             throw UnsupportedCurrency();
@@ -387,13 +390,13 @@ public sealed class SalesReportingService : ISalesReportingService
             order.PaymentStatus == PaymentStatus.Confirmed && order.PaymentConfirmedAt >= range.From
             && order.PaymentConfirmedAt < range.ToExclusive && order.SalespersonId != null);
         if (salespersonId.HasValue) orders = orders.Where(order => order.SalespersonId == salespersonId.Value);
-        if (channel == ReportChannel.Merchant) orders = orders.Where(_ => false);
+        if (channel is ReportChannel.Merchant or ReportChannel.Consignment) orders = orders.Where(_ => false);
         return orders;
     }
 
     private async Task<MerchantPerformanceMetrics> MerchantMetricsAsync(SalesReportRange range, Guid? salespersonId, ReportChannel channel, CancellationToken token)
     {
-        if (channel == ReportChannel.Retail) return new(0, 0m, 0);
+        if (channel is ReportChannel.Retail or ReportChannel.Consignment) return new(0, 0m, 0);
         var payments = _db.MerchantPayments.AsNoTracking().Where(payment => payment.PaymentDate >= range.From && payment.PaymentDate < range.ToExclusive);
         if (salespersonId.HasValue)
             payments = payments.Where(payment => payment.MerchantOrder!.Merchant!.CommissionPlan == MerchantCommissionPlan.AcquisitionAndRepeat
@@ -414,13 +417,13 @@ public sealed class SalesReportingService : ISalesReportingService
     {
         var merchants = _db.Merchants.AsNoTracking().Where(item => item.FirstQualifyingPaidOrderAt >= range.From && item.FirstQualifyingPaidOrderAt < range.ToExclusive && item.AcquiredBySalespersonId != null);
         if (salespersonId.HasValue) merchants = merchants.Where(item => item.AcquiredBySalespersonId == salespersonId.Value);
-        if (channel == ReportChannel.Retail) merchants = merchants.Where(_ => false);
+        if (channel is ReportChannel.Retail or ReportChannel.Consignment) merchants = merchants.Where(_ => false);
         return merchants;
     }
 
     private async Task<ResellerRelationshipMetrics> RelationshipMetricsAsync(Guid? salespersonId, ReportChannel channel, CancellationToken token)
     {
-        if (channel == ReportChannel.Retail) return new(0, 0, 0, 0, 0);
+        if (channel is ReportChannel.Retail or ReportChannel.Consignment) return new(0, 0, 0, 0, 0);
         var now = _time.GetUtcNow(); var soon = now + EndingSoonWindow;
         var merchants = _db.Merchants.AsNoTracking().Where(item => item.AcquiredBySalespersonId != null);
         if (salespersonId.HasValue) merchants = merchants.Where(item => item.AcquiredBySalespersonId == salespersonId.Value);
@@ -442,6 +445,7 @@ public sealed class SalesReportingService : ISalesReportingService
         if (salespersonId.HasValue) query = query.Where(item => item.SalespersonId == salespersonId.Value);
         if (channel == ReportChannel.Retail) query = query.Where(item => item.SourceType == SalesCommissionSourceType.TagOrder);
         if (channel == ReportChannel.Merchant) query = query.Where(item => item.SourceType == SalesCommissionSourceType.MerchantOrder);
+        if (channel == ReportChannel.Consignment) query = query.Where(item => item.SourceType == SalesCommissionSourceType.ConsignmentSettlement);
         if (type.HasValue) query = query.Where(item => item.CommissionType == type.Value);
         return query;
     }
@@ -458,6 +462,7 @@ public sealed class SalesReportingService : ISalesReportingService
             Gross = group.Sum(item => item.CommissionAmount),
             Valid = group.Where(item => item.Status != SalesCommissionStatus.Reversed).Sum(item => item.CommissionAmount),
             Payable = group.Where(item => item.Status == SalesCommissionStatus.Payable).Sum(item => item.CommissionAmount),
+            Pending = group.Where(item => item.Status == SalesCommissionStatus.Pending).Sum(item => item.CommissionAmount),
             Paid = group.Where(item => item.Status == SalesCommissionStatus.Paid).Sum(item => item.CommissionAmount),
             Reversed = group.Where(item => item.Status == SalesCommissionStatus.Reversed).Sum(item => item.CommissionAmount)
         }).SingleOrDefaultAsync(token);
@@ -466,7 +471,8 @@ public sealed class SalesReportingService : ISalesReportingService
         var reversals = await dimensions.Where(item => item.ReversedAt >= range.From && item.ReversedAt < range.ToExclusive)
             .SumAsync(item => (decimal?)item.CommissionAmount, token) ?? 0m;
         return new(current?.Gross ?? 0m, current?.Valid ?? 0m, current?.Payable ?? 0m,
-            current?.Paid ?? 0m, current?.Reversed ?? 0m, cashPaid, reversals, MerchantSalesConstants.Currency);
+            current?.Paid ?? 0m, current?.Reversed ?? 0m, cashPaid, reversals, MerchantSalesConstants.Currency,
+            current?.Pending ?? 0m);
     }
 
     private IQueryable<Merchant> PortfolioMerchants(Guid salespersonId, ResellerPortfolioQuery query)
@@ -497,7 +503,17 @@ public sealed class SalesReportingService : ISalesReportingService
         return merchant.RepeatCommissionEligibleUntil <= now + EndingSoonWindow ? "EndingSoon" : "Active";
     }
 
-    private static SalesCommissionResponse CommissionResponse(SalesCommission item)
+    /// <summary>Paid consignment rows with a current recovery obligation: part of their cash is owed back.</summary>
+    private async Task<HashSet<Guid>> RecoveringCommissionIdsAsync(IReadOnlyCollection<SalesCommission> rows, CancellationToken token)
+    {
+        var ids = rows.Where(item => item.SourceType == SalesCommissionSourceType.ConsignmentSettlement).Select(item => item.Id).ToArray();
+        if (ids.Length == 0) return [];
+        return (await _db.ConsignmentCommissionRecoveries.AsNoTracking()
+            .Where(item => ids.Contains(item.OriginCommissionId) && item.SettlementRevision == item.Settlement!.Revision)
+            .Select(item => item.OriginCommissionId).Distinct().ToListAsync(token)).ToHashSet();
+    }
+
+    private static SalesCommissionResponse CommissionResponse(SalesCommission item, IReadOnlySet<Guid> recovering)
     {
         var claim = item.PayoutItems
             .Where(entry => entry.ReleasedAt == null)
@@ -511,21 +527,25 @@ public sealed class SalesReportingService : ISalesReportingService
             _ => "Unclaimed",
         };
         var requiresRecovery = claim?.CommissionPayout?.Status == CommissionPayoutStatus.Paid
-            && item.Status == SalesCommissionStatus.Reversed;
+            && (item.Status == SalesCommissionStatus.Reversed || recovering.Contains(item.Id));
         return new(
         item.Id, item.SourceType.ToString(), item.CommissionType.ToString(), item.MerchantOrderId,
         item.MerchantPaymentId, item.TagOrderId, item.MerchantId,
         item.Merchant != null ? item.Merchant.TradingName ?? item.Merchant.LegalBusinessName : null,
-        item.SourceType == SalesCommissionSourceType.MerchantOrder
-            ? item.MerchantOrder?.MerchantOrderNumber ?? ""
-            : item.TagOrder?.OrderNumber ?? "",
+        item.SourceType switch
+        {
+            SalesCommissionSourceType.MerchantOrder => item.MerchantOrder?.MerchantOrderNumber ?? "",
+            SalesCommissionSourceType.ConsignmentSettlement => item.ConsignmentSettlement?.SettlementNumber ?? "",
+            _ => item.TagOrder?.OrderNumber ?? "",
+        },
         item.SalespersonId, item.SalespersonCodeSnapshot, item.SalespersonNameSnapshot,
         item.CommissionPercentageSnapshot, item.CommissionFixedAmountSnapshot, item.CommissionBaseAmount,
         item.CommissionAmount, item.Currency, item.CommissionRuleId, item.CommissionRuleEffectiveFromSnapshot,
         item.Status.ToString(), item.CalculatedAt, item.PaidAt, item.PaidByAdminUserId, item.ReversedAt,
         item.ReversedByAdminUserId, item.ReversalReason, item.InternalNote, claimState,
         claim?.CommissionPayoutId, claim?.CommissionPayout?.PayoutNumber, requiresRecovery,
-        Convert.ToBase64String(item.RowVersion));
+        Convert.ToBase64String(item.RowVersion), item.QualifiedQuantity, item.PolicyCode, item.PayableAt,
+        item.ConsignmentSettlementId);
     }
 
     private static SalesReportRange ValidateRange(SalesReportQuery query)
@@ -543,7 +563,8 @@ public sealed class SalesReportingService : ISalesReportingService
         null or "" or "all" => ReportChannel.All,
         "retail" or "tagorder" => ReportChannel.Retail,
         "merchant" or "merchantorder" => ReportChannel.Merchant,
-        _ => throw Validation("channel", "Choose retail, merchant, or all channels.")
+        "consignment" => ReportChannel.Consignment,
+        _ => throw Validation("channel", "Choose retail, merchant, consignment, or all channels.")
     };
     private static SalesCommissionType? ParseCommissionType(string? value) => string.IsNullOrWhiteSpace(value) ? null
         : Enum.TryParse<SalesCommissionType>(value, true, out var parsed) ? parsed
@@ -577,5 +598,5 @@ public sealed class SalesReportingService : ISalesReportingService
     private static ApiException ExportLimit() => Validation("filters", $"Narrow the filters to {MaxExportRows} rows or fewer before exporting.");
     private static ApiException UnsupportedCurrency() => new(409, "unsupported_report_currency", "This report contains a currency that is not supported yet.");
     private static ApiException Validation(string key, string message) => new(400, "validation_failed", "Please check the submitted fields.", new Dictionary<string, string[]> { [key] = [message] });
-    private enum ReportChannel { All, Retail, Merchant }
+    private enum ReportChannel { All, Retail, Merchant, Consignment }
 }

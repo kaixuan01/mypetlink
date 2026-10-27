@@ -108,6 +108,7 @@ public sealed class MerchantDirectoryRelationalTests
             ALTER TABLE [ConsignmentSalesReports] DROP CONSTRAINT [FK_ConsignmentSalesReports_MerchantBranches_MerchantBranchId];
             ALTER TABLE [ConsignmentStocktakes] DROP CONSTRAINT [FK_ConsignmentStocktakes_MerchantBranches_MerchantBranchId];
             ALTER TABLE [ConsignmentStockDiscrepancies] DROP CONSTRAINT [FK_ConsignmentStockDiscrepancies_MerchantBranches_MerchantBranchId];
+            ALTER TABLE [ConsignmentSettlements] DROP CONSTRAINT [FK_ConsignmentSettlements_MerchantBranches_MerchantBranchId];
             DROP TABLE [MerchantBranches];
             DROP INDEX [IX_Merchants_DirectoryPublicCode] ON [Merchants];
             DROP INDEX [IX_Merchants_ShowOnWebsite_IsActive] ON [Merchants];
@@ -131,6 +132,8 @@ public sealed class MerchantDirectoryRelationalTests
             ALTER TABLE [ConsignmentStocktakes] ADD CONSTRAINT [FK_ConsignmentStocktakes_MerchantBranches_MerchantBranchId]
                 FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
             ALTER TABLE [ConsignmentStockDiscrepancies] ADD CONSTRAINT [FK_ConsignmentStockDiscrepancies_MerchantBranches_MerchantBranchId]
+                FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
+            ALTER TABLE [ConsignmentSettlements] ADD CONSTRAINT [FK_ConsignmentSettlements_MerchantBranches_MerchantBranchId]
                 FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]);
             """);
         db.ChangeTracker.Clear();

@@ -73,7 +73,13 @@ public sealed record ConsignmentDispatchResponse(Guid Id, Guid AgreementId, stri
     /// clients; decisions about a handover use each unit's own <see cref="ConsignmentUnitResponse.StockTracked"/>.
     /// </summary>
     public bool StockTracked { get; init; }
+    /// <summary>The Delivery Order issued for this delivery, if any. Metadata only, never the file.</summary>
+    public ConsignmentDeliveryOrderSummary? DeliveryOrder { get; init; }
 }
+// The signatory fields are set only when the issuer signed Delivered By with their own signature.
+public sealed record ConsignmentDeliveryOrderSummary(Guid Id, string DeliveryOrderNumber, DateTimeOffset IssuedAt,
+    int DeliveredQuantity, string FileName, string? IssuedByName,
+    string? SignatoryName = null, string? SignatoryPosition = null, DateTimeOffset? SignedAt = null);
 // No account, pet or finder-contact data crosses this projection.
 public sealed record ConsignmentUnitResponse(Guid Id, string? TagCode, string Sku, string ProductName,
     string Variant, string? Batch, string Status, string QaStatus, bool IsActivated,

@@ -143,6 +143,13 @@ No verification, tax, commission, invoice, receipt, settlement or bank posting i
 
 ## External sales and settlement reconciliation
 
+> **Updated by Phase 1A (October 2026).** A verified sales report now records the
+> period's settlement statement, partner payments and the responsible salesperson's
+> pending commission inside MyPetLink. See
+> [`docs/operations/consignment-settlement-and-commission.md`](../operations/consignment-settlement-and-commission.md).
+> The steps below still apply to custody reconciliation and to periods verified
+> before that release, which are never back-filled.
+
 1. Export the controlled reservation manifest and physically verify every SKU, variant,
    batch and Tag Code. Retain it in restricted business storage; arrange a second count.
 2. Add dispatch number and unit IDs/Tag Codes to the external tracker. Confirm physical
@@ -480,3 +487,118 @@ Rollback of `AddConsignmentReferencesAndDefaultTerms` is refused (51058) once a 
 a draft used a creation key or default revision, or the defaults were revised. Default-term revisions
 are append-only in EF and SQL Server (51057). The migration refuses to start (51056) if two merchants
 already share a reference and version.
+
+## Delivery Order (24 October 2026)
+
+A consignment delivery can produce a **Delivery Order / Handover** form: the document both parties sign
+when stock changes hands, laid out like the paper form used for the first consignment handover. It is a
+document about an existing `ConsignmentDispatch`, never a second delivery workflow.
+
+- **When.** Only once stock is dispatched (`Dispatched` or `Received`, `DispatchedAt` set). Reserved and
+  cancelled deliveries are refused (`consignment_delivery_order_unavailable`). Historical deliveries,
+  including ones already received, can generate one at any time.
+- **Content.** Built from stored records only: the seller identity frozen on the dispatch, the partner's
+  legal/trading name and registration number, the branch name, the dispatch's destination snapshot,
+  the merchant contact person and the branch phone (else the merchant phone), the agreement reference
+  and version snapshots, the dispatch number and date, and delivered quantities grouped by the units'
+  SKU, product and variant snapshots. Delivered means every unit that left on the dispatch, never only
+  what was counted. Tag Codes, commission and the free-text shipment reference are not printed. Missing
+  optional details stay blank write-in lines; nothing is invented.
+- **Receipt.** Issuing before receipt is allowed: the count, condition and receiver fields are then
+  blank for handwriting, and later receiving evidence is recorded through receiving, never on the DO.
+  When receiving was already recorded, the DO rebuilds it from the retained receiving events
+  (`receive` / `record-discrepancy` evidence and their per-unit records), not from the units' current
+  states or the dispatch's latest-receipt fields. Each unit's first receiving finding is what was found
+  at receipt: counted = good + damaged, per SKU, across every receipt event. Later discrepancy
+  resolutions (for example a damaged unit returned to MyPetLink) are listed separately and dated, and
+  never reduce what was counted. Units with no unit-level receiving record (awaiting confirmation, under
+  review, or received before unit-level receiving) are shown as unverified.
+- **Confirmations.** A box is ticked only when the stored evidence shows it. All units counted: every
+  delivered unit was counted good or damaged at a recorded receipt. No visible damage: additionally,
+  every one was recorded good. Partial count: some, not all, were counted. Count pending: any unit is
+  unverified. Nil/Short: only once every unit has a recorded finding (Short = units recorded missing).
+  Damage / exceptions: damage or a shortage was recorded. Sealed packs only and Excess are never ticked
+  by the system. A missing unit is not a counted unit, and the absence of a damage finding is not a
+  recorded inspection.
+- **Signers.** Unsigned by default: the confirming dispatcher's name is pre-printed in Delivered By and
+  both parties sign the printed copies by hand. Received By shows a receiver only when exactly one
+  receipt event counted units; several receipts are listed instead. Received By is never signed by the
+  system: partner signing evidence is recorded separately through receiving.
+- **Signing Delivered By (24 October 2026).** The administrator generating the DO may sign Delivered By
+  with their own signature on file (see *Document signatures* below). They choose to sign, may preview
+  the signed form, and must confirm (`confirmed: true`) before generating; otherwise the DO is issued
+  unsigned. The signer is always the issuer (the JWT subject): the API refuses another administrator's
+  signature (`403 signature_not_yours`), a replaced or removed one (`409 signature_changed`), an
+  unconfirmed request (`400 signature_not_confirmed`) and anyone without `document_signature.manage`
+  (`403`). Every refusal happens before a number is taken. The signature image is drawn on the Delivered
+  By line with the signatory's name, position and the signing time (= issue time, Malaysia time). The
+  row records `SignatureId`, `SignedByAdminUserId` (= `IssuedByAdminUserId`), `SignedAt` (= `IssuedAt`),
+  the printed name and position, and the image's SHA-256; the snapshot carries the same without the
+  image. `CK_ConsignmentDeliveryOrder_Signature` makes SQL Server refuse anything else: a row is either
+  unsigned with every signing column empty, or signed in full, with every column present (each tested
+  `IS NOT NULL`, since a comparison with NULL would otherwise pass a check constraint), signer = issuer,
+  signing time = issue time, a name and position that aren't blank and a 64-character hexadecimal
+  fingerprint. The image exists only inside the frozen PDF, so replacing
+  or removing the signature later never changes an issued DO. A repeated identical request returns the
+  issued copy; asking to sign, unsign or re-sign an issued DO is refused (`409`). Audited as
+  `consignment.delivery-order-issued` (with the signing fields) and `document-signature.applied`.
+- **Preview.** `GET dispatches/{id}/delivery-order/preview.pdf[?signatureId=]` renders the DO as it would
+  be issued now, watermarked PREVIEW - NOT ISSUED, with no number. It takes no number, stores nothing,
+  moves nothing and is refused once a DO exists. A signed preview shows only the caller's own signature
+  (same ownership checks, no confirmation needed) and is audited as `document-signature.previewed`.
+- **Number.** Shares the existing Delivery Order series (`DocumentNumberCounters` key
+  `merchant-delivery-order:{yyMMdd}`, `MPL-DO-{yyMMdd}-{nnnn}`), so a consignment DO can never take the
+  number of a B2B sales DO. Allocated inside the issuing transaction under the consignment application
+  lock; a refused request burns no number. The B2B manual issue (`MerchantFulfilmentService.IssueDeliveryOrderAsync`)
+  allocates, saves and audits in one transaction too (24 October 2026), as shipping already did, so a
+  failed save or a losing concurrent attempt releases its number. Counter values already committed are
+  never reset or reused.
+- **Layout.** Each SKU row is one unbreakable line (SKU, design, size, delivered quantity and count
+  box) under a header repeated on every page; a row that does not fit moves whole to the next page.
+- **Frozen.** `ConsignmentDeliveryOrders` (one row per dispatch, unique dispatch and number) keeps the
+  snapshot JSON, the exact PDF bytes and their SHA-256. Generating again or downloading returns that same
+  copy; later merchant, branch, identity or receiving changes never alter it. Append-only in EF and SQL
+  Server (51059).
+- **Stock.** Generating and downloading write no unit, movement, handover or ledger row and leave the
+  dispatch row version unchanged. Issuing and each download are audited
+  (`consignment.delivery-order-issued`, `consignment.document-downloaded`).
+- **Access.** Generating needs `consignment.dispatch`; downloading an issued DO needs `consignment.view`,
+  like the dispatch note.
+
+The existing Consignment Dispatch Note is unchanged and still issued at dispatch.
+
+### Document signatures (24 October 2026)
+
+An administrator may keep **their own** signature on file to sign Delivery Orders they generate. It is
+not a company stamp and not an e-signature platform: there is no partner-side signing, certificate or
+automatic acknowledgement.
+
+- **Personal.** `api/v1/admin/document-signature` (`GET`, `PUT`, `POST remove`, `GET image`) always acts
+  on the caller's own signature; no request names an account. Requires `document_signature.manage`
+  (sensitive, in no built-in role template; Super Admin holds it through grant-all). Another
+  administrator can't see, replace, remove or apply it.
+- **Private storage.** The image is stored in `DocumentSignatures.Image` (SQL Server), never in public
+  media storage, and is served only to its owner with `Cache-Control: no-store, private`. Responses and
+  audit entries never contain the image.
+- **Validation.** PNG or JPEG, at most 2 MB, bytes matching the declared type, at most 6,000 pixels a side
+  and 16 megapixels (checked from the header before decoding), fully decodable, with visible dark ink
+  that is not most of the image. A JPEG is first turned the way its EXIF orientation says (all eight
+  values, mirrored ones included), exactly once and before cropping, so the kept copy is upright as the
+  browser showed it; the decoder returns the pixels as stored and never applies it. An orientation outside
+  1-8 or unreadable EXIF is treated as upright, as browsers do. PNG pixels are never turned. The kept
+  copy is redrawn from the decoded pixels: cropped to the ink,
+  paper made transparent, scaled to at most 1200 x 480 and encoded as a fresh PNG, so no metadata or
+  appended data survives. Name and position: 1-60 characters each, short enough for a signed form to
+  fit one page in ordinary use (at the maximum, the signature section moves whole to a second page).
+- **Versions.** Saving a new image or new wording creates a new version and retires the previous one;
+  removing retires the current one. Retiring erases the image and keeps the fingerprint, dates and who
+  ended it. SQL Server checks each version is complete: on file with an image and no ending, or retired
+  with no image, an end time, who ended it and a reason of exactly `Replaced` or `Removed` (compared as
+  bytes, so empty, blank, padded or lower-case reasons are refused); a name and position that aren't
+  blank; a 64-character hexadecimal fingerprint (`CK_DocumentSignature_Lifecycle`, `_Signatory`,
+  `_Image`). At most one signature on file per administrator (filtered unique index). Saved versions are
+  never edited or deleted (EF guard and trigger `TR_DocumentSignatures_History`, THROW 51061); a version
+  a DO was signed with is also held by that DO's foreign key. Changes from a stale page are refused
+  (`409 signature_changed`). Audited as `document-signature.saved` and `document-signature.removed`.
+- **Agreements unchanged.** Agreement documents never use a signature on file. Issued agreements stay
+  unsigned for wet or separate signing, and signed copies are still uploaded as evidence.

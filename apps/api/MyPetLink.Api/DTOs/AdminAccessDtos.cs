@@ -48,16 +48,18 @@ public sealed record AdminRoleMemberResponse(
     string DisplayName,
     bool IsActive);
 
+// Validation attributes target the constructor parameters. A [property:] target on a positional
+// record makes ASP.NET Core refuse the whole request with a server error before it is validated.
 public sealed record CreateAdminRoleRequest(
-    [property: Required, StringLength(120, MinimumLength = 2)] string Name,
-    [property: StringLength(600)] string? Description,
+    [Required, StringLength(120, MinimumLength = 2)] string Name,
+    [StringLength(600)] string? Description,
     IReadOnlyCollection<string>? Capabilities);
 
 public sealed record UpdateAdminRoleRequest(
-    [property: Required, StringLength(120, MinimumLength = 2)] string Name,
-    [property: StringLength(600)] string? Description,
+    [Required, StringLength(120, MinimumLength = 2)] string Name,
+    [StringLength(600)] string? Description,
     IReadOnlyCollection<string>? Capabilities,
-    [property: Required] string RowVersion);
+    [Required] string RowVersion);
 
 // --- Admin users -------------------------------------------------------------
 
@@ -91,10 +93,10 @@ public sealed record AdminAccessUserDetailResponse(
 
 public sealed record UpdateAdminUserRolesRequest(
     IReadOnlyCollection<Guid>? RoleIds,
-    [property: Required] string RowVersion);
+    [Required] string RowVersion);
 
 public sealed record SetAdminUserActiveRequest(
-    [property: Required] string RowVersion);
+    [Required] string RowVersion);
 
 /// <summary>
 /// What the signed-in operator may do, as resolved by the API. The Admin Portal

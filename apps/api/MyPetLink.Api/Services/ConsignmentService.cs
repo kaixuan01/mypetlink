@@ -210,7 +210,8 @@ public sealed partial class ConsignmentService(MyPetLinkDbContext db, IAuditLogS
         var tracked = (await db.ConsignmentStockLedgerEntries.Where(e => e.SourceType == ConsignmentLedgerSources.Unit
             && e.EntryType == ConsignmentLedgerEntryTypes.UnitCountedAtPartner && e.ReversesEntryId == null && unitIds.Contains(e.SourceLineId))
             .Select(e => e.SourceLineId).ToListAsync(ct)).ToHashSet();
-        return d with { StockTracked = tracked.Count > 0, Units = d.Units.Select(u => u with { StockTracked = tracked.Contains(u.Id) }).ToArray() };
+        return d with { StockTracked = tracked.Count > 0, Units = d.Units.Select(u => u with { StockTracked = tracked.Contains(u.Id) }).ToArray(),
+            DeliveryOrder = await DeliveryOrderSummaryAsync(id, ct) };
     }
 
     public async Task<ConsignmentDispatchResponse> ReserveAsync(Guid? actor, ReserveConsignmentRequest r, CancellationToken ct)

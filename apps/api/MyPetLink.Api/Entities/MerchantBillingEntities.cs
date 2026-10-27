@@ -234,6 +234,35 @@ public sealed class SalesCommission : AuditableEntity
     public Guid? TagOrderId { get; set; }
     public TagOrder? TagOrder { get; set; }
 
+    /// <summary>
+    /// Consignment source: the partner settlement, and the settlement revision
+    /// and verified sales-report version that produced this row. A revision
+    /// emits at most one row per salesperson, type and unit amount.
+    /// </summary>
+    public Guid? ConsignmentSettlementId { get; set; }
+    public ConsignmentSettlement? ConsignmentSettlement { get; set; }
+    public int? ConsignmentSettlementRevision { get; set; }
+    public Guid? ConsignmentSalesReportId { get; set; }
+    public Guid? MerchantBranchId { get; set; }
+
+    /// <summary>
+    /// Net verified sold units this row pays for. Set only for per-unit
+    /// commission, where CommissionFixedAmountSnapshot is the amount per unit.
+    /// </summary>
+    public int? QualifiedQuantity { get; set; }
+
+    /// <summary>
+    /// The commission policy the row was calculated under (for example
+    /// "v1.1"). Null for every commission calculated before policy versions.
+    /// </summary>
+    public string? PolicyCode { get; set; }
+
+    /// <summary>
+    /// When the row became payable. Wholesale and retail rows are payable from
+    /// CalculatedAt; consignment rows only once their settlement is received.
+    /// </summary>
+    public DateTimeOffset? PayableAt { get; set; }
+
     /// <summary>Set for every merchant-sourced commission; null for retail.</summary>
     public Guid? MerchantId { get; set; }
     public Merchant? Merchant { get; set; }
@@ -307,6 +336,13 @@ public sealed class CommissionPayout : AuditableEntity
     public AdminUser? PaidByAdminUser { get; set; }
     public CommissionPayoutPaymentMethod? PaymentMethod { get; set; }
     public string? PaymentReference { get; set; }
+
+    /// <summary>
+    /// The date the money actually left the bank, as the operator recorded it.
+    /// PaidAt is only when that was recorded. Null on payouts recorded before
+    /// the transfer date was captured.
+    /// </summary>
+    public DateOnly? TransferredOn { get; set; }
     public string? Notes { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
     public Guid? CancelledByAdminUserId { get; set; }
@@ -332,6 +368,7 @@ public sealed class CommissionPayoutItem : AuditableEntity
     public SalesCommissionType CommissionTypeSnapshot { get; set; }
     public Guid? MerchantOrderIdSnapshot { get; set; }
     public Guid? TagOrderIdSnapshot { get; set; }
+    public Guid? ConsignmentSettlementIdSnapshot { get; set; }
     public string SourceOrderNumberSnapshot { get; set; } = "";
     public decimal CommissionBaseAmountSnapshot { get; set; }
     public decimal CommissionAmountSnapshot { get; set; }
@@ -364,6 +401,10 @@ public sealed class CommissionRule : AuditableEntity
         Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b14");
     public static readonly Guid DefaultResellerRepeatRuleId =
         Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b20");
+    public static readonly Guid ConsignmentStandardV11RuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b31");
+    public static readonly Guid ConsignmentPromotionV11RuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b32");
 
     public SalesCommissionType CommissionType { get; set; }
     public Guid? SalespersonId { get; set; }
@@ -377,6 +418,13 @@ public sealed class CommissionRule : AuditableEntity
     public DateTimeOffset EffectiveFrom { get; set; }
     public DateTimeOffset? EffectiveTo { get; set; }
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// The commission policy this rule belongs to. Required for consignment
+    /// per-unit rules, which apply only to a salesperson holding a recorded
+    /// assignment to the same policy. Null for the pre-policy rule types.
+    /// </summary>
+    public string? PolicyCode { get; set; }
     public string? Notes { get; set; }
     public Guid? UpdatedByAdminUserId { get; set; }
     public AdminUser? UpdatedByAdminUser { get; set; }

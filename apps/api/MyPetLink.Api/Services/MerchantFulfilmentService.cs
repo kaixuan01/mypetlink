@@ -754,89 +754,101 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         Guid? actorUserId, Guid merchantOrderId,
         CancellationToken cancellationToken = default)
     {
-        var admin = await RequireAdminAsync(actorUserId, cancellationToken);
-        var order = await LoadOrderAsync(merchantOrderId, cancellationToken, track: true);
-
-        // Issuing again returns what already exists rather than numbering a
-        // second document for the same shipment.
-        var existing = await GetDeliveryOrderAsync(order.Id, cancellationToken);
-        if (existing is not null)
+        // The shared Delivery Order number, the document and its issue audit commit together or
+        // not at all. The counter increment runs inside this transaction, so a save that fails
+        // releases the number and the series shared with Consignment never skips one.
+        return await _dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            return existing;
-        }
+            _dbContext.ChangeTracker.Clear();
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+            var admin = await RequireAdminAsync(actorUserId, cancellationToken);
+            var order = await LoadOrderAsync(merchantOrderId, cancellationToken, track: true);
 
-        RequirePaymentConfirmed(order);
-        if (order.FulfilmentStatus is not (MerchantOrderFulfilmentStatus.ReadyToShip
-            or MerchantOrderFulfilmentStatus.Shipped
-            or MerchantOrderFulfilmentStatus.Delivered))
-        {
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "delivery_order_not_ready",
-                "Mark the order ready to ship before issuing its delivery order.");
-        }
-
-        var progress = await LoadProgressAsync(order, cancellationToken);
-        if (progress.Any(row => row.Allocated != row.Required))
-        {
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "allocation_incomplete",
-                "Every line must be fully allocated before the delivery order is issued.");
-        }
-
-        // The delivery order takes its own copy of the issuer identity the
-        // invoice already froze for this transaction. Copying it here means the
-        // document renders years later without consulting the settings table or
-        // the invoice, so a rebrand never rewrites paperwork that has already
-        // travelled with a parcel.
-        var invoiceSeller = await _dbContext.MerchantInvoices
-            .AsNoTracking()
-            .Where(invoice => invoice.MerchantOrderId == order.Id && invoice.Status != MerchantInvoiceStatus.Cancelled)
-            .OrderBy(invoice => invoice.IssuedAt)
-            .Select(invoice => invoice.Seller)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (invoiceSeller is null || string.IsNullOrWhiteSpace(invoiceSeller.LegalBusinessName))
-        {
-            // Merchant fulfilment is payment-first, so an invoice must already
-            // exist. Falling back to current settings would silently produce a
-            // document that rewrites itself later.
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "delivery_order_seller_unavailable",
-                "This order has no issued invoice, so its delivery order cannot record who "
-                + "issued it. Issue the invoice first.");
-        }
-
-        var now = _timeProvider.GetUtcNow();
-        // Built but not saved: the caller decides which transaction it
-        // rides, so shipping can create it alongside the shipment itself.
-        var document = await BuildDeliveryOrderAsync(
-            order, admin.Id, progress, now, cancellationToken);
-
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
-        {
-            // The unique filtered index caught a concurrent issue. Return the
-            // document that won rather than reporting a database failure.
-            _dbContext.Entry(document).State = EntityState.Detached;
-            var concurrent = await GetDeliveryOrderAsync(order.Id, cancellationToken);
-            if (concurrent is not null)
+            // Issuing again returns what already exists rather than numbering a
+            // second document for the same shipment.
+            var existing = await GetDeliveryOrderAsync(order.Id, cancellationToken);
+            if (existing is not null)
             {
-                return concurrent;
+                return existing;
             }
 
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "delivery_order_already_issued",
-                "A delivery order was already issued for this merchant order.");
-        }
+            RequirePaymentConfirmed(order);
+            if (order.FulfilmentStatus is not (MerchantOrderFulfilmentStatus.ReadyToShip
+                or MerchantOrderFulfilmentStatus.Shipped
+                or MerchantOrderFulfilmentStatus.Delivered))
+            {
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "delivery_order_not_ready",
+                    "Mark the order ready to ship before issuing its delivery order.");
+            }
 
-        return MapDeliveryOrder(document);
+            var progress = await LoadProgressAsync(order, cancellationToken);
+            if (progress.Any(row => row.Allocated != row.Required))
+            {
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "allocation_incomplete",
+                    "Every line must be fully allocated before the delivery order is issued.");
+            }
+
+            // The delivery order takes its own copy of the issuer identity the
+            // invoice already froze for this transaction. Copying it here means the
+            // document renders years later without consulting the settings table or
+            // the invoice, so a rebrand never rewrites paperwork that has already
+            // travelled with a parcel.
+            var invoiceSeller = await _dbContext.MerchantInvoices
+                .AsNoTracking()
+                .Where(invoice => invoice.MerchantOrderId == order.Id && invoice.Status != MerchantInvoiceStatus.Cancelled)
+                .OrderBy(invoice => invoice.IssuedAt)
+                .Select(invoice => invoice.Seller)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (invoiceSeller is null || string.IsNullOrWhiteSpace(invoiceSeller.LegalBusinessName))
+            {
+                // Merchant fulfilment is payment-first, so an invoice must already
+                // exist. Falling back to current settings would silently produce a
+                // document that rewrites itself later.
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "delivery_order_seller_unavailable",
+                    "This order has no issued invoice, so its delivery order cannot record who "
+                    + "issued it. Issue the invoice first.");
+            }
+
+            var now = _timeProvider.GetUtcNow();
+            // Built but not saved: the caller decides which transaction it
+            // rides, so shipping can create it alongside the shipment itself.
+            var document = await BuildDeliveryOrderAsync(
+                order, admin.Id, progress, now, cancellationToken);
+
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+            {
+                // The unique filtered index caught a concurrent issue. Roll back this
+                // attempt, its number included, and return the document that won rather
+                // than reporting a database failure.
+                if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
+                _dbContext.ChangeTracker.Clear();
+                var concurrent = await GetDeliveryOrderAsync(order.Id, cancellationToken);
+                if (concurrent is not null)
+                {
+                    return concurrent;
+                }
+
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "delivery_order_already_issued",
+                    "A delivery order was already issued for this merchant order.");
+            }
+
+            return MapDeliveryOrder(document);
+        });
     }
 
     /// <summary>

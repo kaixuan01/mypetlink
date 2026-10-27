@@ -13816,3 +13816,1152 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    CREATE TABLE [ConsignmentDeliveryOrders] (
+        [Id] uniqueidentifier NOT NULL,
+        [DispatchId] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [DeliveryOrderNumber] nvarchar(48) NOT NULL,
+        [DeliveredQuantity] int NOT NULL,
+        [SnapshotJson] nvarchar(max) NOT NULL,
+        [Content] varbinary(max) NOT NULL,
+        [ContentSha256] nvarchar(64) NOT NULL,
+        [FileName] nvarchar(200) NOT NULL,
+        [IssuedAt] datetimeoffset NOT NULL,
+        [IssuedByAdminUserId] uniqueidentifier NOT NULL,
+        CONSTRAINT [PK_ConsignmentDeliveryOrders] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentDeliveryOrder_Quantity] CHECK ([DeliveredQuantity] > 0),
+        CONSTRAINT [FK_ConsignmentDeliveryOrders_AdminUsers_IssuedByAdminUserId] FOREIGN KEY ([IssuedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentDeliveryOrders_ConsignmentDispatches_DispatchId] FOREIGN KEY ([DispatchId]) REFERENCES [ConsignmentDispatches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentDeliveryOrders_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentDeliveryOrders_DeliveryOrderNumber] ON [ConsignmentDeliveryOrders] ([DeliveryOrderNumber]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentDeliveryOrders_DispatchId] ON [ConsignmentDeliveryOrders] ([DispatchId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDeliveryOrders_IssuedByAdminUserId] ON [ConsignmentDeliveryOrders] ([IssuedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDeliveryOrders_MerchantId] ON [ConsignmentDeliveryOrders] ([MerchantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_ConsignmentDeliveryOrders_AppendOnly ON ConsignmentDeliveryOrders
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        THROW 51059, ''Issued consignment Delivery Orders are append-only.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261023171109_AddConsignmentDeliveryOrders'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261023171109_AddConsignmentDeliveryOrders', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD [SignatoryName] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD [SignatoryPosition] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD [SignatureId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD [SignatureImageSha256] nvarchar(64) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD [SignedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD [SignedByAdminUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    CREATE TABLE [DocumentSignatures] (
+        [Id] uniqueidentifier NOT NULL,
+        [SignatoryAdminUserId] uniqueidentifier NOT NULL,
+        [SignatoryName] nvarchar(120) NOT NULL,
+        [SignatoryPosition] nvarchar(120) NOT NULL,
+        [Image] varbinary(max) NULL,
+        [ImageSha256] nvarchar(64) NOT NULL,
+        [ImageWidth] int NOT NULL,
+        [ImageHeight] int NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [EndedAt] datetimeoffset NULL,
+        [EndReason] nvarchar(16) NULL,
+        [EndedByAdminUserId] uniqueidentifier NULL,
+        CONSTRAINT [PK_DocumentSignatures] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_DocumentSignature_Image] CHECK ([ImageWidth] > 0 AND [ImageHeight] > 0 AND LEN([ImageSha256]) = 64 AND [ImageSha256] NOT LIKE N'%[^0-9A-Fa-f]%'),
+        CONSTRAINT [CK_DocumentSignature_Lifecycle] CHECK (([EndedAt] IS NULL AND [EndReason] IS NULL AND [EndedByAdminUserId] IS NULL AND [Image] IS NOT NULL) OR ([EndedAt] IS NOT NULL AND [EndReason] IS NOT NULL AND [EndedByAdminUserId] IS NOT NULL AND [Image] IS NULL AND CAST([EndReason] AS varbinary(32)) IN (CAST(N'Replaced' AS varbinary(32)), CAST(N'Removed' AS varbinary(32))))),
+        CONSTRAINT [CK_DocumentSignature_Signatory] CHECK (LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryName], CHAR(9), N''), CHAR(10), N''), CHAR(13), N''), NCHAR(160), N'')) > 0 AND LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryPosition], CHAR(9), N''), CHAR(10), N''), CHAR(13), N''), NCHAR(160), N'')) > 0),
+        CONSTRAINT [FK_DocumentSignatures_AdminUsers_EndedByAdminUserId] FOREIGN KEY ([EndedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_DocumentSignatures_AdminUsers_SignatoryAdminUserId] FOREIGN KEY ([SignatoryAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDeliveryOrders_SignatureId] ON [ConsignmentDeliveryOrders] ([SignatureId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDeliveryOrders_SignedByAdminUserId] ON [ConsignmentDeliveryOrders] ([SignedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [ConsignmentDeliveryOrders] ADD CONSTRAINT [CK_ConsignmentDeliveryOrder_Signature] CHECK (([SignatureId] IS NULL AND [SignedByAdminUserId] IS NULL AND [SignedAt] IS NULL AND [SignatoryName] IS NULL AND [SignatoryPosition] IS NULL AND [SignatureImageSha256] IS NULL) OR ([SignatureId] IS NOT NULL AND [SignedByAdminUserId] IS NOT NULL AND [SignedAt] IS NOT NULL AND [SignatoryName] IS NOT NULL AND [SignatoryPosition] IS NOT NULL AND [SignatureImageSha256] IS NOT NULL AND [SignedByAdminUserId] = [IssuedByAdminUserId] AND [SignedAt] = [IssuedAt] AND LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryName], CHAR(9), N''''), CHAR(10), N''''), CHAR(13), N''''), NCHAR(160), N'''')) > 0 AND LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryPosition], CHAR(9), N''''), CHAR(10), N''''), CHAR(13), N''''), NCHAR(160), N'''')) > 0 AND LEN([SignatureImageSha256]) = 64 AND [SignatureImageSha256] NOT LIKE N''%[^0-9A-Fa-f]%''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    CREATE INDEX [IX_DocumentSignatures_EndedByAdminUserId] ON [DocumentSignatures] ([EndedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_DocumentSignatures_SignatoryAdminUserId] ON [DocumentSignatures] ([SignatoryAdminUserId]) WHERE [EndedAt] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD CONSTRAINT [FK_ConsignmentDeliveryOrders_AdminUsers_SignedByAdminUserId] FOREIGN KEY ([SignedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD CONSTRAINT [FK_ConsignmentDeliveryOrders_DocumentSignatures_SignatureId] FOREIGN KEY ([SignatureId]) REFERENCES [DocumentSignatures] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    EXEC(N'CREATE TRIGGER TR_DocumentSignatures_History ON DocumentSignatures
+    AFTER UPDATE, DELETE AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF EXISTS(SELECT 1 FROM deleted d LEFT JOIN inserted i ON i.Id = d.Id
+            WHERE i.Id IS NULL OR d.EndedAt IS NOT NULL
+                OR i.SignatoryAdminUserId <> d.SignatoryAdminUserId OR i.SignatoryName <> d.SignatoryName
+                OR i.SignatoryPosition <> d.SignatoryPosition OR i.ImageSha256 <> d.ImageSha256
+                OR i.ImageWidth <> d.ImageWidth OR i.ImageHeight <> d.ImageHeight OR i.CreatedAt <> d.CreatedAt
+                OR (i.Image IS NOT NULL AND (d.Image IS NULL OR i.Image <> d.Image)))
+            THROW 51061, ''Saved signatures are never edited or deleted: save a new version instead.'', 1;
+    END;');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261024151533_AddDocumentSignatures'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261024151533_AddDocumentSignatures', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] DROP CONSTRAINT [CK_SalesCommissions_SourceCommissionType];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] DROP CONSTRAINT [CK_SalesCommissions_SourceShape];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [CommissionRules] DROP CONSTRAINT [CK_CommissionRules_CommissionTypeShape];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [CommissionPayoutItems] DROP CONSTRAINT [CK_CommissionPayoutItems_SourceCommissionType];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [CommissionPayoutItems] DROP CONSTRAINT [CK_CommissionPayoutItems_SourceShape];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [ConsignmentSalesReportId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [ConsignmentSettlementId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [ConsignmentSettlementRevision] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [MerchantBranchId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [PayableAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [PolicyCode] nvarchar(16) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [QualifiedQuantity] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [CommissionRules] ADD [PolicyCode] nvarchar(16) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [CommissionPayouts] ADD [TransferredOn] date NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [CommissionPayoutItems] ADD [ConsignmentSettlementIdSnapshot] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE TABLE [MerchantServicingAssignments] (
+        [Id] uniqueidentifier NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [SalespersonId] uniqueidentifier NOT NULL,
+        [SalespersonCodeSnapshot] nvarchar(32) NOT NULL,
+        [SalespersonNameSnapshot] nvarchar(160) NOT NULL,
+        [EffectiveFrom] datetimeoffset NOT NULL,
+        [EffectiveToExclusive] datetimeoffset NULL,
+        [Source] nvarchar(16) NOT NULL,
+        [RecordedByAdminUserId] uniqueidentifier NULL,
+        [RecordedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_MerchantServicingAssignments] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_MerchantServicingAssignment_Range] CHECK ([EffectiveToExclusive] IS NULL OR [EffectiveToExclusive] >= [EffectiveFrom]),
+        CONSTRAINT [CK_MerchantServicingAssignment_Source] CHECK ([Source] IS NOT NULL AND [Source] IN ('Rollout','MerchantEdit')),
+        CONSTRAINT [FK_MerchantServicingAssignments_AdminUsers_RecordedByAdminUserId] FOREIGN KEY ([RecordedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MerchantServicingAssignments_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MerchantServicingAssignments_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE TABLE [SalespersonPolicyAssignments] (
+        [Id] uniqueidentifier NOT NULL,
+        [SalespersonId] uniqueidentifier NOT NULL,
+        [PolicyCode] nvarchar(16) NOT NULL,
+        [AcceptedAt] datetimeoffset NOT NULL,
+        [EffectiveFrom] datetimeoffset NOT NULL,
+        [EffectiveToExclusive] datetimeoffset NULL,
+        [AgreementReference] nvarchar(200) NOT NULL,
+        [Notes] nvarchar(2000) NULL,
+        [CreatedByAdminUserId] uniqueidentifier NOT NULL,
+        [EndedAt] datetimeoffset NULL,
+        [EndedByAdminUserId] uniqueidentifier NULL,
+        [EndReason] nvarchar(1000) NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_SalespersonPolicyAssignments] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_SalespersonPolicyAssignment_Dates] CHECK ([AcceptedAt] IS NOT NULL AND [EffectiveFrom] IS NOT NULL AND [EffectiveFrom] >= [AcceptedAt] AND ([EffectiveToExclusive] IS NULL OR [EffectiveToExclusive] > [EffectiveFrom])),
+        CONSTRAINT [CK_SalespersonPolicyAssignment_EndShape] CHECK (([EndedAt] IS NULL AND [EndedByAdminUserId] IS NULL AND [EndReason] IS NULL) OR ([EndedAt] IS NOT NULL AND [EndedByAdminUserId] IS NOT NULL AND [EndReason] IS NOT NULL AND [EffectiveToExclusive] IS NOT NULL)),
+        CONSTRAINT [CK_SalespersonPolicyAssignment_Policy] CHECK ([PolicyCode] IS NOT NULL AND [PolicyCode] = 'v1.1'),
+        CONSTRAINT [CK_SalespersonPolicyAssignment_Reference] CHECK ([AgreementReference] IS NOT NULL AND LEN([AgreementReference]) >= 3),
+        CONSTRAINT [FK_SalespersonPolicyAssignments_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_SalespersonPolicyAssignments_AdminUsers_EndedByAdminUserId] FOREIGN KEY ([EndedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_SalespersonPolicyAssignments_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSettlements] (
+        [Id] uniqueidentifier NOT NULL,
+        [SettlementNumber] nvarchar(40) NOT NULL,
+        [MerchantId] uniqueidentifier NOT NULL,
+        [MerchantBranchId] uniqueidentifier NOT NULL,
+        [AgreementId] uniqueidentifier NOT NULL,
+        [PeriodStart] datetimeoffset NOT NULL,
+        [PeriodEndExclusive] datetimeoffset NOT NULL,
+        [SalesReportId] uniqueidentifier NOT NULL,
+        [SalesReportVersion] int NOT NULL,
+        [Revision] int NOT NULL,
+        [AttributionStatus] nvarchar(24) NOT NULL,
+        [AttributionIssue] nvarchar(500) NULL,
+        [AttributionSource] nvarchar(32) NULL,
+        [SalespersonId] uniqueidentifier NULL,
+        [SalespersonCodeSnapshot] nvarchar(32) NULL,
+        [SalespersonNameSnapshot] nvarchar(160) NULL,
+        [CommissionPolicyCode] nvarchar(16) NULL,
+        [PolicyAssignmentId] uniqueidentifier NULL,
+        [AttributionResolvedAt] datetimeoffset NULL,
+        [AttributionResolvedByAdminUserId] uniqueidentifier NULL,
+        [AttributionResolutionReason] nvarchar(1000) NULL,
+        [StandardQuantity] int NOT NULL,
+        [StandardSales] decimal(18,2) NOT NULL,
+        [PromotionQuantity] int NOT NULL,
+        [PromotionSales] decimal(18,2) NOT NULL,
+        [RefundQuantity] int NOT NULL,
+        [RefundAmount] decimal(18,2) NOT NULL,
+        [EligibleSales] decimal(18,2) NOT NULL,
+        [MerchantCommission] decimal(18,2) NOT NULL,
+        [ExpectedRemittance] decimal(18,2) NOT NULL,
+        [ReceivedAmount] decimal(18,2) NOT NULL,
+        [SalesCommissionTarget] decimal(18,2) NOT NULL,
+        [CommissionRecoveryRequired] decimal(18,2) NOT NULL,
+        [CommissionNote] nvarchar(500) NULL,
+        [Status] nvarchar(24) NOT NULL,
+        [SettledAt] datetimeoffset NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentSettlements] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSettlement_Attribution] CHECK (([AttributionStatus] = 'NeedsResolution' AND [AttributionIssue] IS NOT NULL AND [AttributionSource] IS NULL AND [SalespersonId] IS NULL AND [CommissionPolicyCode] IS NULL) OR ([AttributionStatus] = 'Resolved' AND [AttributionSource] IS NOT NULL AND [AttributionSource] IN ('ServicingAssignment','OperatorResolution') AND ([CommissionPolicyCode] IS NULL OR [SalespersonId] IS NOT NULL))),
+        CONSTRAINT [CK_ConsignmentSettlement_Money] CHECK ([StandardSales] >= 0 AND [PromotionSales] >= 0 AND [RefundAmount] >= 0 AND [ReceivedAmount] >= 0 AND [SalesCommissionTarget] >= 0 AND [CommissionRecoveryRequired] >= 0 AND [EligibleSales] = [StandardSales] + [PromotionSales] - [RefundAmount] AND [ExpectedRemittance] = [EligibleSales] - [MerchantCommission]),
+        CONSTRAINT [CK_ConsignmentSettlement_Period] CHECK ([PeriodEndExclusive] > [PeriodStart]),
+        CONSTRAINT [CK_ConsignmentSettlement_Quantities] CHECK ([StandardQuantity] >= 0 AND [PromotionQuantity] >= 0 AND [RefundQuantity] >= 0 AND [Revision] > 0 AND [SalesReportVersion] > 0),
+        CONSTRAINT [CK_ConsignmentSettlement_Status] CHECK (([Status] = 'Settled' AND [SettledAt] IS NOT NULL) OR ([Status] IN ('AwaitingPayment','PartiallyReceived','CreditDue') AND [Status] IS NOT NULL)),
+        CONSTRAINT [FK_ConsignmentSettlements_AdminUsers_AttributionResolvedByAdminUserId] FOREIGN KEY ([AttributionResolvedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlements_ConsignmentAgreements_AgreementId] FOREIGN KEY ([AgreementId]) REFERENCES [ConsignmentAgreements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlements_ConsignmentSalesReports_SalesReportId] FOREIGN KEY ([SalesReportId]) REFERENCES [ConsignmentSalesReports] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlements_MerchantBranches_MerchantBranchId] FOREIGN KEY ([MerchantBranchId]) REFERENCES [MerchantBranches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlements_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlements_SalespersonPolicyAssignments_PolicyAssignmentId] FOREIGN KEY ([PolicyAssignmentId]) REFERENCES [SalespersonPolicyAssignments] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlements_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSettlementReceipts] (
+        [Id] uniqueidentifier NOT NULL,
+        [SettlementId] uniqueidentifier NOT NULL,
+        [ReceivedOn] date NOT NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [Method] nvarchar(32) NOT NULL,
+        [Reference] nvarchar(200) NOT NULL,
+        [Notes] nvarchar(2000) NULL,
+        [IdempotencyKey] nvarchar(80) NOT NULL,
+        [RequestFingerprint] nvarchar(128) NOT NULL,
+        [RecordedByAdminUserId] uniqueidentifier NOT NULL,
+        [RecordedAt] datetimeoffset NOT NULL,
+        [VoidedAt] datetimeoffset NULL,
+        [VoidedByAdminUserId] uniqueidentifier NULL,
+        [VoidReason] nvarchar(1000) NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentSettlementReceipts] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSettlementReceipt_Amount] CHECK ([Amount] > 0),
+        CONSTRAINT [CK_ConsignmentSettlementReceipt_Reference] CHECK ([Reference] IS NOT NULL AND LEN([Reference]) >= 3),
+        CONSTRAINT [CK_ConsignmentSettlementReceipt_VoidShape] CHECK (([VoidedAt] IS NULL AND [VoidedByAdminUserId] IS NULL AND [VoidReason] IS NULL) OR ([VoidedAt] IS NOT NULL AND [VoidedByAdminUserId] IS NOT NULL AND [VoidReason] IS NOT NULL)),
+        CONSTRAINT [FK_ConsignmentSettlementReceipts_AdminUsers_RecordedByAdminUserId] FOREIGN KEY ([RecordedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementReceipts_AdminUsers_VoidedByAdminUserId] FOREIGN KEY ([VoidedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementReceipts_ConsignmentSettlements_SettlementId] FOREIGN KEY ([SettlementId]) REFERENCES [ConsignmentSettlements] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSettlementRevisions] (
+        [Id] uniqueidentifier NOT NULL,
+        [SettlementId] uniqueidentifier NOT NULL,
+        [Revision] int NOT NULL,
+        [SalesReportId] uniqueidentifier NOT NULL,
+        [SalesReportVersion] int NOT NULL,
+        [Reason] nvarchar(500) NOT NULL,
+        [StandardQuantity] int NOT NULL,
+        [StandardSales] decimal(18,2) NOT NULL,
+        [PromotionQuantity] int NOT NULL,
+        [PromotionSales] decimal(18,2) NOT NULL,
+        [RefundQuantity] int NOT NULL,
+        [RefundAmount] decimal(18,2) NOT NULL,
+        [EligibleSales] decimal(18,2) NOT NULL,
+        [MerchantCommission] decimal(18,2) NOT NULL,
+        [ExpectedRemittance] decimal(18,2) NOT NULL,
+        [SalespersonId] uniqueidentifier NULL,
+        [CommissionPolicyCode] nvarchar(16) NULL,
+        [SalesCommissionTarget] decimal(18,2) NOT NULL,
+        [CommissionRecoveryRequired] decimal(18,2) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedByAdminUserId] uniqueidentifier NOT NULL,
+        CONSTRAINT [PK_ConsignmentSettlementRevisions] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSettlementRevision_Values] CHECK ([Revision] > 0 AND [SalesReportVersion] > 0 AND [StandardQuantity] >= 0 AND [PromotionQuantity] >= 0 AND [RefundQuantity] >= 0 AND [SalesCommissionTarget] >= 0 AND [CommissionRecoveryRequired] >= 0 AND [EligibleSales] = [StandardSales] + [PromotionSales] - [RefundAmount] AND [ExpectedRemittance] = [EligibleSales] - [MerchantCommission]),
+        CONSTRAINT [FK_ConsignmentSettlementRevisions_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementRevisions_ConsignmentSalesReports_SalesReportId] FOREIGN KEY ([SalesReportId]) REFERENCES [ConsignmentSalesReports] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementRevisions_ConsignmentSettlements_SettlementId] FOREIGN KEY ([SettlementId]) REFERENCES [ConsignmentSettlements] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE TABLE [ConsignmentSettlementLines] (
+        [Id] uniqueidentifier NOT NULL,
+        [RevisionId] uniqueidentifier NOT NULL,
+        [SourceReportLineId] uniqueidentifier NOT NULL,
+        [LineType] nvarchar(8) NOT NULL,
+        [ProductVariantId] uniqueidentifier NOT NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [PriceTermId] uniqueidentifier NOT NULL,
+        [PriceKind] nvarchar(16) NOT NULL,
+        [UnitPrice] decimal(18,2) NOT NULL,
+        [Quantity] int NOT NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [MerchantCommissionPercentage] decimal(5,2) NOT NULL,
+        [RefundOfPeriodStart] datetimeoffset NULL,
+        [CommissionSalespersonId] uniqueidentifier NULL,
+        [CommissionUnitAmount] decimal(18,2) NULL,
+        [CommissionRuleId] uniqueidentifier NULL,
+        CONSTRAINT [PK_ConsignmentSettlementLines] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentSettlementLine_Commission] CHECK (([CommissionSalespersonId] IS NULL AND [CommissionUnitAmount] IS NULL AND [CommissionRuleId] IS NULL) OR ([CommissionSalespersonId] IS NOT NULL AND [CommissionUnitAmount] IS NOT NULL AND [CommissionUnitAmount] >= 0)),
+        CONSTRAINT [CK_ConsignmentSettlementLine_Values] CHECK ([Quantity] > 0 AND [UnitPrice] >= 0 AND [MerchantCommissionPercentage] BETWEEN 0 AND 100 AND (([LineType] = 'Sale' AND [Amount] >= 0 AND [RefundOfPeriodStart] IS NULL) OR ([LineType] = 'Refund' AND [Amount] <= 0 AND [RefundOfPeriodStart] IS NOT NULL))),
+        CONSTRAINT [FK_ConsignmentSettlementLines_CommissionRules_CommissionRuleId] FOREIGN KEY ([CommissionRuleId]) REFERENCES [CommissionRules] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementLines_ConsignmentPriceTerms_PriceTermId] FOREIGN KEY ([PriceTermId]) REFERENCES [ConsignmentPriceTerms] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementLines_ConsignmentSalesReportLines_SourceReportLineId] FOREIGN KEY ([SourceReportLineId]) REFERENCES [ConsignmentSalesReportLines] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementLines_ConsignmentSettlementRevisions_RevisionId] FOREIGN KEY ([RevisionId]) REFERENCES [ConsignmentSettlementRevisions] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentSettlementLines_Salespersons_CommissionSalespersonId] FOREIGN KEY ([CommissionSalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CommissionType', N'CreatedAt', N'Currency', N'EffectiveFrom', N'EffectiveTo', N'EligibilityMonths', N'FixedAmount', N'IsActive', N'MaxQuantity', N'MinQuantity', N'Notes', N'Percentage', N'PolicyCode', N'SalespersonId', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[CommissionRules]'))
+        SET IDENTITY_INSERT [CommissionRules] ON;
+    EXEC(N'INSERT INTO [CommissionRules] ([Id], [CommissionType], [CreatedAt], [Currency], [EffectiveFrom], [EffectiveTo], [EligibilityMonths], [FixedAmount], [IsActive], [MaxQuantity], [MinQuantity], [Notes], [Percentage], [PolicyCode], [SalespersonId], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b31'', N''ConsignmentStandardPerUnit'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, 4.5, CAST(1 AS bit), NULL, NULL, N''v1.1 consignment commission per verified sold tag at a Standard price'', NULL, N''v1.1'', NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b32'', N''ConsignmentPromotionPerUnit'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, 4.0, CAST(1 AS bit), NULL, NULL, N''v1.1 consignment commission per verified sold tag at a Promotion price'', NULL, N''v1.1'', NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CommissionType', N'CreatedAt', N'Currency', N'EffectiveFrom', N'EffectiveTo', N'EligibilityMonths', N'FixedAmount', N'IsActive', N'MaxQuantity', N'MinQuantity', N'Notes', N'Percentage', N'PolicyCode', N'SalespersonId', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[CommissionRules]'))
+        SET IDENTITY_INSERT [CommissionRules] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_SalesCommissions_ConsignmentSalesReportId] ON [SalesCommissions] ([ConsignmentSalesReportId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_SalesCommissions_ConsignmentRevisionGroup] ON [SalesCommissions] ([ConsignmentSettlementId], [ConsignmentSettlementRevision], [SalespersonId], [CommissionType], [CommissionFixedAmountSnapshot]) WHERE [ConsignmentSettlementId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_PendingSource] CHECK ([Status] <> ''Pending'' OR ([SourceType] = ''ConsignmentSettlement'' AND [PaidAt] IS NULL AND [PayableAt] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_SourceCommissionType] CHECK (([CommissionType] = ''MerchantOrderPercentage'' AND [SourceType] = ''MerchantOrder'') OR ([CommissionType] = ''DirectRetailPercentage'' AND [SourceType] = ''TagOrder'') OR ([CommissionType] IN (''ResellerAcquisitionBonus'',''ResellerRepeatPercentage'') AND [SourceType] = ''MerchantOrder'') OR ([CommissionType] IN (''ConsignmentStandardPerUnit'',''ConsignmentPromotionPerUnit'') AND [SourceType] = ''ConsignmentSettlement'' AND [CommissionFixedAmountSnapshot] IS NOT NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_SourceShape] CHECK (([SourceType] = ''MerchantOrder'' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL AND [ConsignmentSettlementId] IS NULL) OR ([SourceType] = ''TagOrder'' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL AND [ConsignmentSettlementId] IS NULL) OR ([SourceType] = ''ConsignmentSettlement'' AND [MerchantId] IS NOT NULL AND [ConsignmentSettlementId] IS NOT NULL AND [ConsignmentSettlementRevision] IS NOT NULL AND [ConsignmentSalesReportId] IS NOT NULL AND [MerchantBranchId] IS NOT NULL AND [QualifiedQuantity] IS NOT NULL AND [QualifiedQuantity] > 0 AND [PolicyCode] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL AND [TagOrderId] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [CommissionRules] ADD CONSTRAINT [CK_CommissionRules_CommissionTypeShape] CHECK (([CommissionType] = ''DirectRetailPercentage'' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = ''ResellerAcquisitionBonus'' AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NOT NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = ''ResellerRepeatPercentage'' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0) OR ([CommissionType] IN (''ConsignmentStandardPerUnit'',''ConsignmentPromotionPerUnit'') AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [CommissionRules] ADD CONSTRAINT [CK_CommissionRules_PolicyCode] CHECK (([CommissionType] IN (''ConsignmentStandardPerUnit'',''ConsignmentPromotionPerUnit'') AND [PolicyCode] IS NOT NULL AND [PolicyCode] = ''v1.1'') OR ([CommissionType] NOT IN (''ConsignmentStandardPerUnit'',''ConsignmentPromotionPerUnit'') AND [PolicyCode] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [CommissionPayouts] ADD CONSTRAINT [CK_CommissionPayouts_TransferredOn] CHECK ([TransferredOn] IS NULL OR [Status] = ''Paid'')');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [CommissionPayoutItems] ADD CONSTRAINT [CK_CommissionPayoutItems_SourceCommissionType] CHECK (([CommissionTypeSnapshot] = ''MerchantOrderPercentage'' AND [SourceTypeSnapshot] = ''MerchantOrder'') OR ([CommissionTypeSnapshot] = ''DirectRetailPercentage'' AND [SourceTypeSnapshot] = ''TagOrder'') OR ([CommissionTypeSnapshot] IN (''ResellerAcquisitionBonus'',''ResellerRepeatPercentage'') AND [SourceTypeSnapshot] = ''MerchantOrder'') OR ([CommissionTypeSnapshot] IN (''ConsignmentStandardPerUnit'',''ConsignmentPromotionPerUnit'') AND [SourceTypeSnapshot] = ''ConsignmentSettlement''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [CommissionPayoutItems] ADD CONSTRAINT [CK_CommissionPayoutItems_SourceShape] CHECK (([SourceTypeSnapshot] = ''MerchantOrder'' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL AND [ConsignmentSettlementIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = ''TagOrder'' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL AND [ConsignmentSettlementIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = ''ConsignmentSettlement'' AND [ConsignmentSettlementIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL AND [TagOrderIdSnapshot] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementLines_CommissionRuleId] ON [ConsignmentSettlementLines] ([CommissionRuleId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementLines_CommissionSalespersonId] ON [ConsignmentSettlementLines] ([CommissionSalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementLines_PriceTermId] ON [ConsignmentSettlementLines] ([PriceTermId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementLines_ProductVariantId_LineType] ON [ConsignmentSettlementLines] ([ProductVariantId], [LineType]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentSettlementLines_RevisionId_SourceReportLineId] ON [ConsignmentSettlementLines] ([RevisionId], [SourceReportLineId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementLines_SourceReportLineId] ON [ConsignmentSettlementLines] ([SourceReportLineId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentSettlementReceipts_IdempotencyKey] ON [ConsignmentSettlementReceipts] ([IdempotencyKey]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementReceipts_RecordedByAdminUserId] ON [ConsignmentSettlementReceipts] ([RecordedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementReceipts_SettlementId_ReceivedOn] ON [ConsignmentSettlementReceipts] ([SettlementId], [ReceivedOn]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementReceipts_VoidedByAdminUserId] ON [ConsignmentSettlementReceipts] ([VoidedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementRevisions_CreatedByAdminUserId] ON [ConsignmentSettlementRevisions] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlementRevisions_SalesReportId] ON [ConsignmentSettlementRevisions] ([SalesReportId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentSettlementRevisions_SettlementId_Revision] ON [ConsignmentSettlementRevisions] ([SettlementId], [Revision]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_AgreementId] ON [ConsignmentSettlements] ([AgreementId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_AttributionResolvedByAdminUserId] ON [ConsignmentSettlements] ([AttributionResolvedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_ConsignmentSettlements_AttributionStatus] ON [ConsignmentSettlements] ([AttributionStatus]) WHERE [AttributionStatus] = ''NeedsResolution''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentSettlements_MerchantBranchId_PeriodStart] ON [ConsignmentSettlements] ([MerchantBranchId], [PeriodStart]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_MerchantId_PeriodStart] ON [ConsignmentSettlements] ([MerchantId], [PeriodStart]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_PolicyAssignmentId] ON [ConsignmentSettlements] ([PolicyAssignmentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_SalespersonId] ON [ConsignmentSettlements] ([SalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_SalesReportId] ON [ConsignmentSettlements] ([SalesReportId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentSettlements_SettlementNumber] ON [ConsignmentSettlements] ([SettlementNumber]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentSettlements_Status_PeriodStart] ON [ConsignmentSettlements] ([Status], [PeriodStart]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_MerchantServicingAssignments_MerchantId_EffectiveFrom] ON [MerchantServicingAssignments] ([MerchantId], [EffectiveFrom]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_MerchantServicingAssignments_RecordedByAdminUserId] ON [MerchantServicingAssignments] ([RecordedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_MerchantServicingAssignments_SalespersonId] ON [MerchantServicingAssignments] ([SalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_MerchantServicingAssignments_Open] ON [MerchantServicingAssignments] ([MerchantId]) WHERE [EffectiveToExclusive] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_SalespersonPolicyAssignments_CreatedByAdminUserId] ON [SalespersonPolicyAssignments] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE INDEX [IX_SalespersonPolicyAssignments_EndedByAdminUserId] ON [SalespersonPolicyAssignments] ([EndedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_SalespersonPolicyAssignments_SalespersonId_EffectiveFrom] ON [SalespersonPolicyAssignments] ([SalespersonId], [EffectiveFrom]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_ConsignmentSalesReports_ConsignmentSalesReportId] FOREIGN KEY ([ConsignmentSalesReportId]) REFERENCES [ConsignmentSalesReports] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_ConsignmentSettlements_ConsignmentSettlementId] FOREIGN KEY ([ConsignmentSettlementId]) REFERENCES [ConsignmentSettlements] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    INSERT INTO [MerchantServicingAssignments]
+        ([Id], [MerchantId], [SalespersonId], [SalespersonCodeSnapshot], [SalespersonNameSnapshot],
+         [EffectiveFrom], [EffectiveToExclusive], [Source], [RecordedByAdminUserId], [RecordedAt])
+    SELECT NEWID(), m.[Id], s.[Id], s.[SalespersonCode], LEFT(s.[Name], 160),
+           TODATETIMEOFFSET(SYSUTCDATETIME(), 0), NULL, 'Rollout', NULL, TODATETIMEOFFSET(SYSUTCDATETIME(), 0)
+    FROM [Merchants] m
+    JOIN [Salespersons] s ON s.[Id] = m.[AssignedSalespersonId]
+    WHERE NOT EXISTS (SELECT 1 FROM [MerchantServicingAssignments] a
+                      WHERE a.[MerchantId] = m.[Id] AND a.[EffectiveToExclusive] IS NULL);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261026071019_AddConsignmentSettlementsAndCommissionPolicies', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    CREATE TABLE [ConsignmentCommissionRecoveries] (
+        [Id] uniqueidentifier NOT NULL,
+        [SettlementId] uniqueidentifier NOT NULL,
+        [SettlementRevision] int NOT NULL,
+        [CausedBySettlementId] uniqueidentifier NOT NULL,
+        [SalespersonId] uniqueidentifier NOT NULL,
+        [OriginCommissionId] uniqueidentifier NOT NULL,
+        [CommissionPayoutId] uniqueidentifier NULL,
+        [Quantity] int NOT NULL,
+        [UnitAmount] decimal(18,2) NOT NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ConsignmentCommissionRecoveries] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ConsignmentCommissionRecovery_Values] CHECK ([SettlementRevision] > 0 AND [Quantity] > 0 AND [UnitAmount] > 0 AND [Amount] > 0 AND [Amount] = [Quantity] * [UnitAmount]),
+        CONSTRAINT [FK_ConsignmentCommissionRecoveries_CommissionPayouts_CommissionPayoutId] FOREIGN KEY ([CommissionPayoutId]) REFERENCES [CommissionPayouts] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentCommissionRecoveries_ConsignmentSettlements_CausedBySettlementId] FOREIGN KEY ([CausedBySettlementId]) REFERENCES [ConsignmentSettlements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentCommissionRecoveries_ConsignmentSettlements_SettlementId] FOREIGN KEY ([SettlementId]) REFERENCES [ConsignmentSettlements] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentCommissionRecoveries_SalesCommissions_OriginCommissionId] FOREIGN KEY ([OriginCommissionId]) REFERENCES [SalesCommissions] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_ConsignmentCommissionRecoveries_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentCommissionRecoveries_CausedBySettlementId] ON [ConsignmentCommissionRecoveries] ([CausedBySettlementId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentCommissionRecoveries_CommissionPayoutId] ON [ConsignmentCommissionRecoveries] ([CommissionPayoutId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentCommissionRecoveries_OriginCommissionId] ON [ConsignmentCommissionRecoveries] ([OriginCommissionId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentCommissionRecoveries_SalespersonId] ON [ConsignmentCommissionRecoveries] ([SalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ConsignmentCommissionRecoveries_SettlementId_SettlementRevision_OriginCommissionId_CausedBySettlementId] ON [ConsignmentCommissionRecoveries] ([SettlementId], [SettlementRevision], [OriginCommissionId], [CausedBySettlementId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261026144016_AddConsignmentCommissionRecoveries'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261026144016_AddConsignmentCommissionRecoveries', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

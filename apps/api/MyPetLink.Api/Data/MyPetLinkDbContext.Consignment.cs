@@ -19,6 +19,7 @@ public sealed partial class MyPetLinkDbContext
     public DbSet<ConsignmentDefaultTermsRevision> ConsignmentDefaultTermsRevisions => Set<ConsignmentDefaultTermsRevision>();
     public DbSet<ConsignmentAgreementDocument> ConsignmentAgreementDocuments => Set<ConsignmentAgreementDocument>();
     public DbSet<ConsignmentSignedAgreement> ConsignmentSignedAgreements => Set<ConsignmentSignedAgreement>();
+    public DbSet<ConsignmentDeliveryOrder> ConsignmentDeliveryOrders => Set<ConsignmentDeliveryOrder>();
 
     private void EnforceConsignmentReviewHistory()
     {
@@ -28,6 +29,8 @@ public sealed partial class MyPetLinkDbContext
         if(ChangeTracker.Entries().Any(e=>e.Entity is ConsignmentAgreementDocument or ConsignmentSignedAgreement or ConsignmentDefaultTermsRevision
             && e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Issued and signed consignment agreements are append-only.");
+        if(ChangeTracker.Entries<ConsignmentDeliveryOrder>().Any(e=>e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Issued consignment Delivery Orders are append-only.");
         EnforceConsignmentStockLedger();
     }
     private static void ConfigureConsignment(ModelBuilder model)
@@ -248,6 +251,37 @@ public sealed partial class MyPetLinkDbContext
             e.HasOne<Merchant>().WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.IssuedDocument).WithMany().HasForeignKey(x => x.IssuedDocumentId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.UploadedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ConsignmentDeliveryOrder>(e =>
+        {
+            e.ToTable("ConsignmentDeliveryOrders", t =>
+            {
+                t.HasCheckConstraint("CK_ConsignmentDeliveryOrder_Quantity", "[DeliveredQuantity] > 0");
+                // Signed in full or not at all, and only ever by the administrator who issued it. Every
+                // signed column is tested IS NOT NULL first: a comparison with NULL is unknown, and a
+                // CHECK constraint lets unknown through.
+                t.HasCheckConstraint("CK_ConsignmentDeliveryOrder_Signature",
+                    "([SignatureId] IS NULL AND [SignedByAdminUserId] IS NULL AND [SignedAt] IS NULL AND [SignatoryName] IS NULL "
+                    + "AND [SignatoryPosition] IS NULL AND [SignatureImageSha256] IS NULL) "
+                    + "OR ([SignatureId] IS NOT NULL AND [SignedByAdminUserId] IS NOT NULL AND [SignedAt] IS NOT NULL "
+                    + "AND [SignatoryName] IS NOT NULL AND [SignatoryPosition] IS NOT NULL AND [SignatureImageSha256] IS NOT NULL "
+                    + "AND [SignedByAdminUserId] = [IssuedByAdminUserId] AND [SignedAt] = [IssuedAt] "
+                    + $"AND {NotBlankSql("SignatoryName")} AND {NotBlankSql("SignatoryPosition")} AND {Sha256Sql("SignatureImageSha256")})");
+            });
+            e.Property(x => x.DeliveryOrderNumber).HasMaxLength(48);
+            e.Property(x => x.ContentSha256).HasMaxLength(64);
+            e.Property(x => x.FileName).HasMaxLength(200);
+            e.Property(x => x.SignatoryName).HasMaxLength(120);
+            e.Property(x => x.SignatoryPosition).HasMaxLength(120);
+            e.Property(x => x.SignatureImageSha256).HasMaxLength(64);
+            e.HasOne<DocumentSignature>().WithMany().HasForeignKey(x => x.SignatureId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.SignedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+            // One Delivery Order per delivery, and a number never reused.
+            e.HasIndex(x => x.DispatchId).IsUnique();
+            e.HasIndex(x => x.DeliveryOrderNumber).IsUnique();
+            e.HasOne(x => x.Dispatch).WithMany().HasForeignKey(x => x.DispatchId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Merchant>().WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.IssuedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
         });
         ConfigureConsignmentStocktake(model);
         ConfigureConsignmentSales(model);

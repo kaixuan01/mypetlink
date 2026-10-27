@@ -66,7 +66,8 @@ public sealed class CommissionPayoutServiceTests
         var mismatch = await Assert.ThrowsAsync<ApiException>(() => h.PrepareAsync([first.Id, mixed.Id], 12m, "mixed"));
         Assert.Equal("payout_salesperson_mismatch", mismatch.Code);
 
-        first.Currency = "USD";
+        // The service starts every attempt from a clean tracker, so edit the stored row, not the earlier instance.
+        (await h.Db.SalesCommissions.SingleAsync(item => item.Id == first.Id)).Currency = "USD";
         await h.Db.SaveChangesAsync();
         var currency = await Assert.ThrowsAsync<ApiException>(() => h.PrepareAsync([first.Id], 10m, "currency"));
         Assert.Equal("unsupported_payout_currency", currency.Code);
@@ -98,10 +99,10 @@ public sealed class CommissionPayoutServiceTests
 
         var paid = await h.Service.MarkPaidAsync(h.ActorUserId, prepared.Summary.Id,
             new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                CommissionPayoutPaymentMethod.BankTransfer, "BANK-20260909-1"));
+                CommissionPayoutPaymentMethod.BankTransfer, "BANK-20260909-1", TransferredOn: new DateOnly(2026, 9, 9)));
         var replay = await h.Service.MarkPaidAsync(h.ActorUserId, prepared.Summary.Id,
             new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                CommissionPayoutPaymentMethod.BankTransfer, "BANK-20260909-1"));
+                CommissionPayoutPaymentMethod.BankTransfer, "BANK-20260909-1", TransferredOn: new DateOnly(2026, 9, 9)));
 
         Assert.Equal("Paid", paid.Summary.Status);
         Assert.Equal(paid.Summary.Id, replay.Summary.Id);
@@ -112,7 +113,7 @@ public sealed class CommissionPayoutServiceTests
         var changedRetry = await Assert.ThrowsAsync<ApiException>(() => h.Service.MarkPaidAsync(
             h.ActorUserId, prepared.Summary.Id,
             new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                CommissionPayoutPaymentMethod.Cash, "DIFFERENT")));
+                CommissionPayoutPaymentMethod.Cash, "DIFFERENT", TransferredOn: new DateOnly(2026, 9, 9))));
         Assert.Equal("payout_already_paid", changedRetry.Code);
         var cancelPaid = await Assert.ThrowsAsync<ApiException>(() => h.Service.CancelAsync(
             h.ActorUserId, prepared.Summary.Id,
@@ -126,15 +127,17 @@ public sealed class CommissionPayoutServiceTests
         using var h = await Harness.CreateAsync();
         var commission = await h.CommissionAsync(10m, Now.AddDays(-1));
         var prepared = await h.PrepareAsync([commission.Id], 10m, "reconcile");
-        commission.Status = SalesCommissionStatus.Reversed;
-        commission.ReversedAt = Now;
-        commission.ReversalReason = "Injected inconsistency";
+        // The service starts every attempt from a clean tracker, so edit the stored row, not the earlier instance.
+        var stored = await h.Db.SalesCommissions.SingleAsync(item => item.Id == commission.Id);
+        stored.Status = SalesCommissionStatus.Reversed;
+        stored.ReversedAt = Now;
+        stored.ReversalReason = "Injected inconsistency";
         await h.Db.SaveChangesAsync();
 
         var exception = await Assert.ThrowsAsync<ApiException>(() => h.Service.MarkPaidAsync(
             h.ActorUserId, prepared.Summary.Id,
             new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                CommissionPayoutPaymentMethod.BankTransfer, "BANK-1")));
+                CommissionPayoutPaymentMethod.BankTransfer, "BANK-1", TransferredOn: new DateOnly(2026, 9, 9))));
 
         Assert.Equal("payout_reconciliation_failed", exception.Code);
         Assert.Equal(CommissionPayoutStatus.Prepared,
@@ -160,7 +163,7 @@ public sealed class CommissionPayoutServiceTests
         var payCancelled = await Assert.ThrowsAsync<ApiException>(() => h.Service.MarkPaidAsync(
             h.ActorUserId, cancelled.Summary.Id,
             new MarkCommissionPayoutPaidRequest(cancelled.Summary.ConcurrencyToken,
-                CommissionPayoutPaymentMethod.BankTransfer, "BANK-CANCELLED")));
+                CommissionPayoutPaymentMethod.BankTransfer, "BANK-CANCELLED", TransferredOn: new DateOnly(2026, 9, 9))));
         Assert.Equal("payout_cancelled", payCancelled.Code);
     }
 
@@ -188,7 +191,7 @@ public sealed class CommissionPayoutServiceTests
         var prepared = await h.PrepareAsync([commission.Id], 10m, "recovery");
         var paid = await h.Service.MarkPaidAsync(h.ActorUserId, prepared.Summary.Id,
             new MarkCommissionPayoutPaidRequest(prepared.Summary.ConcurrencyToken,
-                CommissionPayoutPaymentMethod.BankTransfer, "BANK-RECOVERY"));
+                CommissionPayoutPaymentMethod.BankTransfer, "BANK-RECOVERY", TransferredOn: new DateOnly(2026, 9, 9)));
 
         var reversed = await h.Billing.ReverseCommissionAsync(null, commission.Id,
             new ReverseSalesCommissionRequest("Customer refund"), default);

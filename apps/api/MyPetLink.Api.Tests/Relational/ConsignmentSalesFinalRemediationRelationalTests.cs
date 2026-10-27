@@ -389,7 +389,7 @@ public sealed partial class ConsignmentRelationalTests
             db.ChangeTracker.Clear();
             // Downgrades aren't atomic: the empty stocktake and agreement-document migrations rolled back before 51047 refused.
             Assert.Equal(["20261019025050_AddConsignmentStocktakeAndCarryForward", "20261019060824_HardenConsignmentStocktakeReconciliation",
-                AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration], await db.Database.GetPendingMigrationsAsync());
+                AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentPriceTerms.CountAsync());
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());

@@ -107,6 +107,38 @@ Investigate each discrepancy until it is resolved with new evidence. When a late
 closed month, link it to what that count found only where the partner's records show it accounts for
 it. Ship the API, web and both Phase 1B migrations together with the three Phase 1A migrations.
 
+Migration 20261023171109_AddConsignmentDeliveryOrders is additive. It adds ConsignmentDeliveryOrders
+(one issued Delivery Order per dispatch: unique dispatch, unique number, delivered quantity > 0, the
+snapshot, PDF bytes and hash) with an append-only trigger (51059). Nothing is seeded or backfilled:
+historical deliveries get a Delivery Order only when an operator generates one. Its Down step refuses
+(THROW 51060) once any Delivery Order exists. No new capability or configuration: generating uses
+consignment.dispatch and downloading consignment.view. Ship the migration, then API, then web.
+
+Migration 20261024151533_AddDocumentSignatures is additive and ships with the Delivery Order. It adds
+DocumentSignatures (each administrator's own signature versions: at most one on file per administrator,
+image erased when retired, history trigger TR_DocumentSignatures_History THROW 51061) and six nullable
+signing columns on ConsignmentDeliveryOrders (signature, signer, signing time, printed name and
+position, image SHA-256) with a check constraint that a signed Delivery Order is signed in full, by its
+issuer, at its issue time. Check constraints also require every retired signature version to record
+exactly Replaced or Removed, and every name, position and fingerprint to be present and well formed.
+They are created with the tables, so they validate existing rows: existing Delivery Orders are unsigned
+and pass. Nothing is seeded; existing rows stay unsigned. Its Down step refuses
+(THROW 51062) once any signature has been saved or any Delivery Order signed. It adds one capability,
+document_signature.manage, which no built-in role template grants: after deployment, grant it only to
+the administrators who will sign (Super Admin already holds it). Each signer then adds their own
+signature under Configuration > My Signature. Generating a signed Delivery Order also needs
+consignment.dispatch. No configuration value or storage bucket is involved: images stay in SQL Server.
+
+Operating decisions (approved 24 October 2026):
+- The first consignment handover on 23 October 2026 keeps its paper Delivery Order MPL-DO-2026-000001
+  as the original record. Do not generate a system Delivery Order for that dispatch; there is no legacy
+  reference import.
+- A Delivery Order may be generated after dispatch and before receipt. Unconfirmed counts, inspection
+  confirmations and signatures stay blank or marked unverified. The issued copy never changes: record
+  later receiving evidence through receiving, and keep the signed paper or scanned copy in controlled
+  business storage. A downloaded Delivery Order is not proof of signing.
+- The shared Delivery Order series keeps its format. Numbers already committed are never reset or reused.
+
 Use sqlcmd -I (QUOTED_IDENTIFIER ON) for deployment and manual support scripts;
 filtered indexes require the correct SQL session settings. Never use a script that
 changes production data without separately approved scope.

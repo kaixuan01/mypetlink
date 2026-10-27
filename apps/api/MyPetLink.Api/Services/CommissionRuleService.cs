@@ -85,6 +85,8 @@ public sealed class CommissionRuleService : ICommissionRuleService
         var strategy = _dbContext.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
+            // Each retry starts from the committed rows, not the abandoned attempt's tracked changes.
+            _dbContext.ChangeTracker.Clear();
             await using var transaction = _dbContext.Database.IsRelational()
                 ? await _dbContext.Database.BeginTransactionAsync(
                     IsolationLevel.Serializable, cancellationToken)
@@ -101,6 +103,8 @@ public sealed class CommissionRuleService : ICommissionRuleService
                         "That commission rule no longer exists.");
                 ApplyConcurrency(rule, request.ConcurrencyToken);
                 before = Snapshot(rule);
+                if (await IsUsedAsync(rule.Id, cancellationToken))
+                    RejectTermChange(rule, request, type);
             }
             else
             {
@@ -160,8 +164,31 @@ public sealed class CommissionRuleService : ICommissionRuleService
             || type == SalesCommissionType.MerchantOrderPercentage)
         {
             throw Validation("commissionType",
-                "Choose direct retail, reseller acquisition or reseller repeat commission.");
+                "Choose direct retail, reseller acquisition, reseller repeat or consignment per-tag commission.");
         }
+        if (IsPerUnit(type))
+        {
+            // A consignment rate is a fixed amount per verified sold tag, under a named policy.
+            if (!CommissionPolicyCodes.IsKnown(request.PolicyCode?.Trim()))
+                throw Validation("policyCode", "Choose the commission policy this rate belongs to.");
+            if (request.Percentage.HasValue)
+                throw Validation("percentage", "A per-tag rate uses a fixed amount, not a percentage.");
+            if (!request.FixedAmount.HasValue || request.FixedAmount < 0m)
+                throw Validation("fixedAmount", "Enter the amount per sold tag, zero or more.");
+            if (decimal.Round(request.FixedAmount.Value, 2, MidpointRounding.AwayFromZero) != request.FixedAmount.Value)
+                throw Validation("fixedAmount", "Use no more than two decimal places.");
+            if (request.MinQuantity.HasValue || request.MaxQuantity.HasValue || request.EligibilityMonths.HasValue)
+                throw Validation("minQuantity", "A per-tag rate has no quantity tiers or eligibility period.");
+            if (!string.Equals(request.Currency?.Trim(), MerchantSalesConstants.Currency, StringComparison.OrdinalIgnoreCase))
+                throw Validation("currency", "Commission rules must use MYR.");
+            if (request.EffectiveFrom == default)
+                throw Validation("effectiveFrom", "Choose when this rule takes effect.");
+            if (request.EffectiveTo.HasValue && request.EffectiveTo <= request.EffectiveFrom)
+                throw Validation("effectiveTo", "The end must be after the start.");
+            return type;
+        }
+        if (!string.IsNullOrWhiteSpace(request.PolicyCode))
+            throw Validation("policyCode", "Only consignment per-tag rates belong to a named policy.");
         var usesPercentage = type is SalesCommissionType.DirectRetailPercentage
             or SalesCommissionType.ResellerRepeatPercentage;
         if (usesPercentage
@@ -263,9 +290,10 @@ public sealed class CommissionRuleService : ICommissionRuleService
             or SalesCommissionType.ResellerRepeatPercentage
                 ? request.Percentage
                 : null;
-        rule.FixedAmount = type == SalesCommissionType.ResellerAcquisitionBonus
+        rule.FixedAmount = type == SalesCommissionType.ResellerAcquisitionBonus || IsPerUnit(type)
             ? request.FixedAmount
             : null;
+        rule.PolicyCode = IsPerUnit(type) ? request.PolicyCode!.Trim() : null;
         rule.MinQuantity = request.MinQuantity;
         rule.MaxQuantity = request.MaxQuantity;
         rule.EligibilityMonths = type == SalesCommissionType.ResellerRepeatPercentage
@@ -278,6 +306,35 @@ public sealed class CommissionRuleService : ICommissionRuleService
         rule.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         rule.UpdatedByAdminUserId = actorId;
         rule.UpdatedAt = _timeProvider.GetUtcNow();
+    }
+
+    private static bool IsPerUnit(SalesCommissionType type) =>
+        type is SalesCommissionType.ConsignmentStandardPerUnit or SalesCommissionType.ConsignmentPromotionPerUnit;
+
+    /// <summary>
+    /// A rule that has calculated any commission is part of that history. Its terms stay as they
+    /// were; it can only be ended, switched off or annotated, and new terms start as a new rule.
+    /// </summary>
+    private async Task<bool> IsUsedAsync(Guid ruleId, CancellationToken cancellationToken) =>
+        await _dbContext.SalesCommissions.AnyAsync(item => item.CommissionRuleId == ruleId, cancellationToken)
+        || await _dbContext.Merchants.AnyAsync(item => item.RepeatCommissionRuleIdSnapshot == ruleId, cancellationToken)
+        || await _dbContext.ConsignmentSettlementLines.AnyAsync(item => item.CommissionRuleId == ruleId, cancellationToken);
+
+    private static void RejectTermChange(CommissionRule rule, UpsertCommissionRuleRequest request, SalesCommissionType type)
+    {
+        var policy = IsPerUnit(type) ? request.PolicyCode?.Trim() : null;
+        var same = rule.CommissionType == type
+            && rule.SalespersonId == request.SalespersonId
+            && rule.Percentage == request.Percentage
+            && rule.FixedAmount == request.FixedAmount
+            && rule.MinQuantity == request.MinQuantity
+            && rule.MaxQuantity == request.MaxQuantity
+            && rule.EligibilityMonths == request.EligibilityMonths
+            && rule.EffectiveFrom == request.EffectiveFrom.ToUniversalTime()
+            && rule.PolicyCode == policy;
+        if (!same)
+            throw new ApiException(409, "commission_rule_in_use",
+                "This rule has already calculated commission, so its terms can't change. End it, then add a new rule with the new terms.");
     }
 
     private void ApplyConcurrency(CommissionRule rule, string? token)
@@ -310,7 +367,8 @@ public sealed class CommissionRuleService : ICommissionRuleService
         item.UpdatedByAdminUserId,
         item.CreatedAt,
         item.UpdatedAt,
-        Convert.ToBase64String(item.RowVersion));
+        Convert.ToBase64String(item.RowVersion),
+        item.PolicyCode);
 
     private static object Snapshot(CommissionRule item) => new
     {
@@ -325,6 +383,7 @@ public sealed class CommissionRuleService : ICommissionRuleService
         item.EffectiveFrom,
         item.EffectiveTo,
         item.IsActive,
+        item.PolicyCode,
         item.Notes,
         item.UpdatedByAdminUserId
     };

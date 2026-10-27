@@ -61,15 +61,18 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
             .OrderByDescending(item => item.PreparedAt).ThenByDescending(item => item.Id)
             .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
             .ToListAsync(cancellationToken);
-        return (entities.Select(ToSummary).ToArray(), total);
+        var recoveries = await ConsignmentRecoveriesAsync(entities.Select(item => item.Id), cancellationToken);
+        return (entities.Select(item => ToSummary(item, recoveries)).ToArray(), total);
     }
 
     public async Task<CommissionPayoutResponse> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
-        ToResponse(await RequirePayoutAsync(id, tracked: false, cancellationToken));
+        await ResponseAsync(await RequirePayoutAsync(id, tracked: false, cancellationToken), cancellationToken);
 
     public async Task<CommissionPayoutResponse> PrepareAsync(Guid? actorUserId,
         PrepareCommissionPayoutRequest request, CancellationToken cancellationToken = default)
     {
+        // Read without tracking and outside the transaction, as before: the retry below clears the
+        // tracker, and reading the admin row inside the serializable transaction would add a lock.
         var admin = await RequireAdminAsync(actorUserId, cancellationToken);
         var input = ValidatePrepare(request);
         var fingerprint = Fingerprint(input);
@@ -86,6 +89,10 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
         {
             return await strategy.ExecuteAsync(async () =>
             {
+                // A retry re-runs this whole block after SQL rolled the attempt back, so it must start
+                // from the database alone: the payout, its claims and the audit added by the abandoned
+                // attempt would otherwise still be tracked and read back as if they were committed.
+                _db.ChangeTracker.Clear();
                 await using var transaction = _db.Database.IsRelational()
                     ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
                     : null;
@@ -107,7 +114,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
 
                 await LockCommissionsAsync(input.CommissionIds, cancellationToken);
                 var commissions = await _db.SalesCommissions
-                    .Include(item => item.MerchantOrder).Include(item => item.TagOrder)
+                    .Include(item => item.MerchantOrder).Include(item => item.TagOrder).Include(item => item.ConsignmentSettlement)
                     .Include(item => item.PayoutItems.Where(claim => claim.ReleasedAt == null))
                     .Where(item => input.CommissionIds.Contains(item.Id))
                     .OrderBy(item => item.Id).ToListAsync(cancellationToken);
@@ -124,6 +131,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
                     throw Conflict("commission_already_claimed", "One or more selected commissions already belong to an active payout.");
                 if (commissions.Any(item => item.CalculatedAt < input.PeriodFrom || item.CalculatedAt >= input.PeriodToExclusive))
                     throw Conflict("commission_outside_payout_period", "Every selected commission must have been earned inside the payout period.");
+                await RequireSettledConsignmentAsync(commissions, cancellationToken);
 
                 var authoritativeTotal = commissions.Sum(item => item.CommissionAmount);
                 if (authoritativeTotal != input.ExpectedTotal)
@@ -162,6 +170,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
                         CommissionTypeSnapshot = commission.CommissionType,
                         MerchantOrderIdSnapshot = commission.MerchantOrderId,
                         TagOrderIdSnapshot = commission.TagOrderId,
+                        ConsignmentSettlementIdSnapshot = commission.ConsignmentSettlementId,
                         SourceOrderNumberSnapshot = SourceOrderNumber(commission),
                         CommissionBaseAmountSnapshot = commission.CommissionBaseAmount,
                         CommissionAmountSnapshot = commission.CommissionAmount,
@@ -178,7 +187,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
                     "CommissionPayout", payout.Id, null, AuditSnapshot(payout));
                 await _db.SaveChangesAsync(cancellationToken);
                 if (transaction is not null) await transaction.CommitAsync(cancellationToken);
-                return ToResponse(await RequirePayoutAsync(payout.Id, tracked: false, cancellationToken));
+                return await ResponseAsync(await RequirePayoutAsync(payout.Id, tracked: false, cancellationToken), cancellationToken);
             });
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
@@ -193,16 +202,24 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
 
     public Task<CommissionPayoutResponse> MarkPaidAsync(Guid? actorUserId, Guid id,
         MarkCommissionPayoutPaidRequest request, CancellationToken cancellationToken = default) =>
-        MutateAsync(actorUserId, id, (payout, admin, now) =>
+        MutateAsync(actorUserId, id, (payout, admin, now, settledConsignment) =>
         {
             var reference = Trimmed(request.PaymentReference);
             if (reference is null) throw Validation("paymentReference", "Enter the payout payment reference.");
             if (reference.Length > 200) throw Validation("paymentReference", "Keep the payment reference to 200 characters or fewer.");
             if (!Enum.IsDefined(request.PaymentMethod))
                 throw Validation("paymentMethod", "Choose a valid payout payment method.");
+            if (request.TransferredOn is not DateOnly transferredOn)
+                throw Validation("transferredOn", "Enter the date the money was transferred.");
+            // The transfer date is the bank's date, kept apart from PaidAt, which is only when it was recorded.
+            if (transferredOn > DateOnly.FromDateTime(now.ToOffset(MalaysiaOffset).DateTime))
+                throw Validation("transferredOn", "The transfer date can't be in the future.");
+            if (transferredOn < DateOnly.FromDateTime(payout.PeriodFrom.ToOffset(MalaysiaOffset).DateTime))
+                throw Validation("transferredOn", "The transfer date can't be before the payout period starts.");
             if (payout.Status == CommissionPayoutStatus.Paid)
             {
-                if (payout.PaymentMethod == request.PaymentMethod && payout.PaymentReference == reference)
+                if (payout.PaymentMethod == request.PaymentMethod && payout.PaymentReference == reference
+                    && (payout.TransferredOn is null || payout.TransferredOn == transferredOn))
                     return false;
                 throw Conflict("payout_already_paid", "This payout is already paid with different payment details.");
             }
@@ -222,6 +239,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
                 || !MatchesSnapshot(payout, item, item.SalesCommission)))
                 throw Conflict("payout_reconciliation_failed", "One or more reserved commissions are no longer eligible for payment.");
 
+            RequireSettledConsignment(active.Select(item => item.SalesCommission!), settledConsignment);
             var before = AuditSnapshot(payout);
             foreach (var item in active)
                 SalesCommissionTransitions.MarkPaid(item.SalesCommission!, admin.Id, now);
@@ -230,6 +248,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
             payout.PaidByAdminUserId = admin.Id;
             payout.PaymentMethod = request.PaymentMethod;
             payout.PaymentReference = reference;
+            payout.TransferredOn = transferredOn;
             payout.UpdatedAt = now;
             _audit.Append(actorUserId, ActorType.Admin, "commission-payout.paid",
                 "CommissionPayout", payout.Id, before, AuditSnapshot(payout));
@@ -238,7 +257,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
 
     public Task<CommissionPayoutResponse> CancelAsync(Guid? actorUserId, Guid id,
         CancelCommissionPayoutRequest request, CancellationToken cancellationToken = default) =>
-        MutateAsync(actorUserId, id, (payout, admin, now) =>
+        MutateAsync(actorUserId, id, (payout, admin, now, settledConsignment) =>
         {
             var reason = Trimmed(request.Reason);
             if (reason is null) throw Validation("reason", "Enter why this payout is being cancelled.");
@@ -276,20 +295,32 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
         }, cancellationToken);
 
     private async Task<CommissionPayoutResponse> MutateAsync(Guid? actorUserId, Guid id,
-        Func<CommissionPayout, AdminUser, DateTimeOffset, bool> mutation,
+        Func<CommissionPayout, AdminUser, DateTimeOffset, ISet<Guid>, bool> mutation,
         CancellationToken cancellationToken)
     {
         var admin = await RequireAdminAsync(actorUserId, cancellationToken);
         var strategy = _db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
+            // A retry re-runs this whole block after SQL rolled the attempt back. Without a clean
+            // tracker the next attempt reloads the abandoned attempt's in-memory Paid or Cancelled
+            // payout, takes it for an already-recorded result and skips the save. Every attempt
+            // therefore decides from the committed rows only, which is also what makes a retry after
+            // an ambiguous commit return the recorded result instead of applying the change twice.
+            _db.ChangeTracker.Clear();
             await using var transaction = _db.Database.IsRelational()
                 ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
                 : null;
             await LockPayoutAsync(id, cancellationToken);
             var payout = await RequirePayoutAsync(id, tracked: true, cancellationToken);
             await LockCommissionsAsync(payout.Items.Select(item => item.SalesCommissionId).OrderBy(value => value).ToArray(), cancellationToken);
-            var changed = mutation(payout, admin, _time.GetUtcNow());
+            var settlementIds = payout.Items.Select(item => item.SalesCommission?.ConsignmentSettlementId)
+                .OfType<Guid>().Distinct().ToArray();
+            var settledConsignment = (await _db.ConsignmentSettlements.AsNoTracking()
+                .Where(item => settlementIds.Contains(item.Id)
+                    && (item.Status == ConsignmentSettlementStatus.Settled || item.Status == ConsignmentSettlementStatus.CreditDue))
+                .Select(item => item.Id).ToListAsync(cancellationToken)).ToHashSet();
+            var changed = mutation(payout, admin, _time.GetUtcNow(), settledConsignment);
             if (changed)
             {
                 try { await _db.SaveChangesAsync(cancellationToken); }
@@ -297,7 +328,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
             }
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             _db.ChangeTracker.Clear();
-            return ToResponse(await RequirePayoutAsync(id, tracked: false, cancellationToken));
+            return await ResponseAsync(await RequirePayoutAsync(id, tracked: false, cancellationToken), cancellationToken);
         });
     }
 
@@ -334,13 +365,13 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
     {
         if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
             throw Conflict("idempotency_key_conflict", "This request key was already used for a different payout.");
-        return ToResponse(await RequirePayoutAsync(existing.Id, tracked: false, token));
+        return await ResponseAsync(await RequirePayoutAsync(existing.Id, tracked: false, token), token);
     }
 
     private async Task<AdminUser> RequireAdminAsync(Guid? actorUserId, CancellationToken token)
     {
         if (!actorUserId.HasValue) throw new ApiException(401, "unauthorized", "Authentication is required.");
-        return await _db.AdminUsers.SingleOrDefaultAsync(item => item.UserId == actorUserId.Value
+        return await _db.AdminUsers.AsNoTracking().SingleOrDefaultAsync(item => item.UserId == actorUserId.Value
                 && item.IsActive && item.DisabledAt == null, token)
             ?? throw new ApiException(403, "forbidden", "Admin access is required.");
     }
@@ -400,6 +431,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
     {
         SalesCommissionSourceType.MerchantOrder => commission.MerchantOrder?.MerchantOrderNumber ?? "",
         SalesCommissionSourceType.TagOrder => commission.TagOrder?.OrderNumber ?? "",
+        SalesCommissionSourceType.ConsignmentSettlement => commission.ConsignmentSettlement?.SettlementNumber ?? "",
         _ => "",
     };
 
@@ -410,6 +442,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
         && commission.CommissionType == item.CommissionTypeSnapshot
         && commission.MerchantOrderId == item.MerchantOrderIdSnapshot
         && commission.TagOrderId == item.TagOrderIdSnapshot
+        && commission.ConsignmentSettlementId == item.ConsignmentSettlementIdSnapshot
         && commission.CommissionBaseAmount == item.CommissionBaseAmountSnapshot
         && commission.CommissionAmount == item.CommissionAmountSnapshot
         && commission.CommissionPercentageSnapshot == item.CommissionPercentageSnapshot
@@ -419,22 +452,71 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
         && commission.CalculatedAt >= payout.PeriodFrom
         && commission.CalculatedAt < payout.PeriodToExclusive;
 
-    private static CommissionPayoutSummaryResponse ToSummary(CommissionPayout payout)
+    private static CommissionPayoutSummaryResponse ToSummary(CommissionPayout payout,
+        IReadOnlyDictionary<(Guid Payout, Guid Commission), decimal> consignmentRecovery)
     {
+        // Reversed rows are recovered in full; consignment rows stay Paid and carry their own
+        // recovery obligation for only the part a correction or refund took away.
         var recovery = payout.Status == CommissionPayoutStatus.Paid
             ? payout.Items.Where(item => item.SalesCommission?.Status == SalesCommissionStatus.Reversed)
                 .Sum(item => item.CommissionAmountSnapshot)
+              + payout.Items.Sum(item => consignmentRecovery.GetValueOrDefault((payout.Id, item.SalesCommissionId)))
             : 0m;
         return new(payout.Id, payout.PayoutNumber, payout.SalespersonId,
             payout.SalespersonCodeSnapshot, payout.SalespersonNameSnapshot,
             payout.PeriodFrom, payout.PeriodToExclusive, payout.Currency, payout.PreparedAmount,
             payout.Status.ToString(), payout.Items.Count, recovery, payout.PreparedAt,
             payout.PaidAt, payout.CancelledAt, payout.PaymentMethod?.ToString(),
-            payout.PaymentReference, Convert.ToBase64String(payout.RowVersion));
+            payout.PaymentReference, Convert.ToBase64String(payout.RowVersion), payout.TransferredOn);
     }
 
-    private static CommissionPayoutResponse ToResponse(CommissionPayout payout) => new(
-        ToSummary(payout), payout.Seller, payout.PreparedByAdminUserId,
+    private async Task<CommissionPayoutResponse> ResponseAsync(CommissionPayout payout, CancellationToken token) =>
+        ToResponse(payout, await ConsignmentRecoveriesAsync([payout.Id], token));
+
+    /// <summary>
+    /// The consignment recovery obligations in force for these payouts, per payout and paid commission:
+    /// the rows written with each owning settlement's latest revision.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<(Guid Payout, Guid Commission), decimal>> ConsignmentRecoveriesAsync(
+        IEnumerable<Guid> payoutIds, CancellationToken token)
+    {
+        var ids = payoutIds.Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<(Guid, Guid), decimal>();
+        var rows = await _db.ConsignmentCommissionRecoveries.AsNoTracking()
+            .Where(item => item.CommissionPayoutId != null && ids.Contains(item.CommissionPayoutId.Value)
+                && item.SettlementRevision == item.Settlement!.Revision)
+            .GroupBy(item => new { Payout = item.CommissionPayoutId!.Value, item.OriginCommissionId })
+            .Select(group => new { group.Key.Payout, group.Key.OriginCommissionId, Amount = group.Sum(item => item.Amount) })
+            .ToListAsync(token);
+        return rows.ToDictionary(item => (item.Payout, item.OriginCommissionId), item => item.Amount);
+    }
+
+    /// <summary>
+    /// Consignment commission is payable only while its settlement is fully received. The settlement
+    /// workflow keeps that true; this check makes the payout refuse it independently.
+    /// </summary>
+    private async Task RequireSettledConsignmentAsync(IEnumerable<SalesCommission> commissions, CancellationToken token)
+    {
+        var settlementIds = commissions.Where(item => item.ConsignmentSettlementId != null)
+            .Select(item => item.ConsignmentSettlementId!.Value).Distinct().ToArray();
+        if (settlementIds.Length == 0) return;
+        var settled = await _db.ConsignmentSettlements.AsNoTracking()
+            .Where(item => settlementIds.Contains(item.Id)
+                && (item.Status == ConsignmentSettlementStatus.Settled || item.Status == ConsignmentSettlementStatus.CreditDue))
+            .Select(item => item.Id).ToListAsync(token);
+        RequireSettledConsignment(commissions, settled.ToHashSet());
+    }
+
+    private static void RequireSettledConsignment(IEnumerable<SalesCommission> commissions, ISet<Guid> settled)
+    {
+        if (commissions.Any(item => item.ConsignmentSettlementId is Guid id && !settled.Contains(id)))
+            throw Conflict("commission_settlement_not_received",
+                "A selected consignment commission's partner payment is no longer complete, so it can't be paid yet. Refresh the ledger and try again.");
+    }
+
+    private static CommissionPayoutResponse ToResponse(CommissionPayout payout,
+        IReadOnlyDictionary<(Guid Payout, Guid Commission), decimal> consignmentRecovery) => new(
+        ToSummary(payout, consignmentRecovery), payout.Seller, payout.PreparedByAdminUserId,
         AdminName(payout.PreparedByAdminUser) ?? "Administrator", payout.PaidByAdminUserId,
         AdminName(payout.PaidByAdminUser), payout.PaymentMethod?.ToString(),
         payout.PaymentReference, payout.Notes, payout.CancelledByAdminUserId,
@@ -450,7 +532,12 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
                 item.SalesCommission?.ReversedAt, item.SalesCommission?.ReversalReason,
                 item.ReleasedAt, item.ReleaseReason,
                 payout.Status == CommissionPayoutStatus.Paid
-                    && item.SalesCommission?.Status == SalesCommissionStatus.Reversed)).ToArray());
+                    && (item.SalesCommission?.Status == SalesCommissionStatus.Reversed
+                        || consignmentRecovery.ContainsKey((payout.Id, item.SalesCommissionId))),
+                item.ConsignmentSettlementIdSnapshot,
+                payout.Status == CommissionPayoutStatus.Paid
+                    ? consignmentRecovery.GetValueOrDefault((payout.Id, item.SalesCommissionId))
+                    : 0m)).ToArray());
 
     private static string? AdminName(AdminUser? admin) =>
         admin?.User?.DisplayName?.Trim() is { Length: > 0 } name ? name : null;
@@ -461,7 +548,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
         payout.PeriodFrom, payout.PeriodToExclusive, payout.PreparedAmount, payout.Currency,
         Status = payout.Status.ToString(), payout.PreparedAt, payout.PreparedByAdminUserId,
         payout.PaidAt, payout.PaidByAdminUserId, PaymentMethod = payout.PaymentMethod?.ToString(),
-        payout.PaymentReference,
+        payout.PaymentReference, payout.TransferredOn,
         payout.CancelledAt, payout.CancelledByAdminUserId, payout.CancellationReason,
         CommissionIds = payout.Items.Select(item => item.SalesCommissionId).OrderBy(id => id).ToArray(),
     };
@@ -477,6 +564,7 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
         new(400, "validation_failed", "Please check the submitted fields.",
             new Dictionary<string, string[]> { [field] = [message] });
     private static ApiException Conflict(string code, string message) => new(409, code, message);
+    private static readonly TimeSpan MalaysiaOffset = TimeSpan.FromHours(8);
     private sealed record PreparedInput(Guid[] CommissionIds, Guid SalespersonId,
         DateTimeOffset PeriodFrom, DateTimeOffset PeriodToExclusive, decimal ExpectedTotal,
         string IdempotencyKey, string? Notes);

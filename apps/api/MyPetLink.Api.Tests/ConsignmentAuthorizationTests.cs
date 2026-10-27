@@ -15,6 +15,8 @@ public sealed class ConsignmentAuthorizationTests
     [InlineData("Approve",AdminCapabilities.ConsignmentAgreementsApprove)]
     [InlineData("Reserve",AdminCapabilities.ConsignmentAllocate)]
     [InlineData("Dispatch",AdminCapabilities.ConsignmentDispatch)]
+    [InlineData("IssueDeliveryOrder",AdminCapabilities.ConsignmentDispatch)]
+    [InlineData("PreviewDeliveryOrder",AdminCapabilities.ConsignmentDispatch)]
     [InlineData("Receive",AdminCapabilities.ConsignmentReconcile)]
     [InlineData("Return",AdminCapabilities.ConsignmentReturn)]
     [InlineData("Release",AdminCapabilities.ConsignmentRelease)]

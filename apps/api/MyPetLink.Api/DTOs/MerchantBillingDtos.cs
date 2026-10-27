@@ -123,7 +123,11 @@ public sealed record SalesCommissionResponse(
     Guid? PayoutId,
     string? PayoutNumber,
     bool RequiresRecovery,
-    string ConcurrencyToken);
+    string ConcurrencyToken,
+    int? QualifiedQuantity = null,
+    string? PolicyCode = null,
+    DateTimeOffset? PayableAt = null,
+    Guid? ConsignmentSettlementId = null);
 
 public sealed record ReverseSalesCommissionRequest(
     string Reason,

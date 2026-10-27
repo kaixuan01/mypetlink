@@ -98,6 +98,9 @@ export const adminCapabilities = {
   payoutsView: "payouts.view",
   payoutsManage: "payouts.manage",
   payoutsSettle: "payouts.settle",
+  consignmentSettlementsView: "consignment_settlements.view",
+  consignmentSettlementsRecordReceipt: "consignment_settlements.record_receipt",
+  consignmentSettlementsResolve: "consignment_settlements.resolve",
 
   // Marketing
   marketingView: "marketing.view",
@@ -111,6 +114,7 @@ export const adminCapabilities = {
   emailTemplatesManage: "email_templates.manage",
   sampleExperienceView: "sample_experience.view",
   sampleExperienceManage: "sample_experience.manage",
+  documentSignatureManage: "document_signature.manage",
 
   // System
   operationalStatusView: "operational_status.view",

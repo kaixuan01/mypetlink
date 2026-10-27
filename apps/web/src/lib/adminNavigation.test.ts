@@ -53,7 +53,10 @@ describe("adminNavigation", () => {
       "Order Checkout",
       "Sample Experience",
       "Email Templates",
+      "My Signature",
     ]);
+    // Your own signature is personal: only the signing capability opens it, not general settings access.
+    expect(requiredCapabilitiesForPath("/admin/document-signature")).toEqual([adminCapabilities.documentSignatureManage]);
 
     // Operational status is read-only, so it sits outside Configuration.
     const system = adminNavGroups.find((group) => group.label === "System")!;

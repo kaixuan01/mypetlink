@@ -898,6 +898,29 @@ public sealed class AdminService : SkeletonService, IAdminService
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        // One transaction for the cancellation and its commission reversal. The reversal locks the
+        // commission row the way payout preparation does, so the two can never interleave.
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            // A retry re-runs this block after SQL rolled the attempt back; the abandoned attempt's
+            // cancelled order, reversed commission and audit entries must not survive into it.
+            _dbContext.ChangeTracker.Clear();
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            var response = await CancelOrderCoreAsync(admin, orderId, reason, cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            return response;
+        });
+    }
+
+    private async Task<AdminTagOrderResponse> CancelOrderCoreAsync(
+        AdminUser admin,
+        Guid orderId,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
         var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
 
         if (order.Status is OrderStatus.Shipped or OrderStatus.Delivered or OrderStatus.Cancelled)
@@ -1068,12 +1091,45 @@ public sealed class AdminService : SkeletonService, IAdminService
         DateTimeOffset reversedAt,
         CancellationToken cancellationToken)
     {
-        var commission = await _dbContext.SalesCommissions.SingleOrDefaultAsync(
+        // Lock the commission rows by key, in the order a payout locks them before reserving or paying
+        // commission. Locking "WHERE TagOrderId" directly can be answered from the (TagOrderId,
+        // CommissionType) index alone, which locks only that index's keys and never meets a payout's lock.
+        if (_dbContext.Database.IsSqlServer())
+        {
+            var ids = await _dbContext.SalesCommissions.AsNoTracking()
+                .Where(item => item.TagOrderId == orderId)
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken);
+            foreach (var id in ids.OrderBy(id => id))
+                await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT 1 FROM [SalesCommissions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}",
+                    cancellationToken);
+        }
+        var commission = await _dbContext.SalesCommissions
+            .Include(item => item.PayoutItems.Where(claim => claim.ReleasedAt == null))
+            .ThenInclude(claim => claim.CommissionPayout)
+            .SingleOrDefaultAsync(
             item => item.TagOrderId == orderId
                 && item.CommissionType == SalesCommissionType.DirectRetailPercentage
                 && item.Status != SalesCommissionStatus.Reversed,
             cancellationToken);
         if (commission is null) return;
+
+        // A commission reserved in a prepared payout is part of that payout's reconciled total.
+        // Reversing it here would leave the batch unpayable, so the payout is cancelled first:
+        // the operator then prepares a new batch without this commission. The whole
+        // cancellation is refused, so nothing is half-done.
+        var reservedIn = commission.PayoutItems
+            .Where(claim => claim.CommissionPayout?.Status == CommissionPayoutStatus.Prepared)
+            .Select(claim => claim.CommissionPayout!.PayoutNumber)
+            .FirstOrDefault();
+        if (reservedIn is not null)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "commission_reserved_for_payout",
+                $"This order's commission is reserved in payout {reservedIn}. Cancel that payout first, then cancel the order.");
+        }
 
         var before = SalesCommissionAuditSnapshot(commission);
         commission.Status = SalesCommissionStatus.Reversed;

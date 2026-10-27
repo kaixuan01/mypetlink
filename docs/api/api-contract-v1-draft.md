@@ -1560,6 +1560,10 @@ Rules:
 
 - Allowed before `Shipped`.
 - Linked unactivated tag is archived.
+- The order's direct retail commission is reversed in the same transaction.
+- `409 commission_reserved_for_payout` when that commission is reserved in a
+  prepared payout: nothing changes, and the message names the payout to cancel
+  first.
 
 ### GET `/api/v1/admin/payment-proofs`
 

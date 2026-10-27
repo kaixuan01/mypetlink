@@ -346,6 +346,7 @@ export const adminRoutes = {
   emailTemplates: "/admin/email-templates",
   orderCheckout: "/admin/order-checkout",
   sampleExperience: "/admin/sample-experience",
+  documentSignature: "/admin/document-signature",
   operationalStatus: "/admin/operational-status",
   accessUsers: "/admin/access/users",
   accessUser: (adminUserId: string) =>

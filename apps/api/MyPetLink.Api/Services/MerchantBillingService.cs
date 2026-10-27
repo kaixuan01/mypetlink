@@ -500,6 +500,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
                 : null;
             await LockCommissionAsync(commissionId, cancellationToken);
             var commission = await RequireCommissionForTransitionAsync(commissionId, cancellationToken);
+            RejectSettlementManagedCommission(commission);
             if (commission.PayoutItems.Any(item => item.ReleasedAt == null
                     && item.CommissionPayout?.Status == CommissionPayoutStatus.Prepared))
                 throw Conflict("commission_reserved_for_payout",
@@ -542,6 +543,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
                 : null;
             await LockCommissionAsync(commissionId, cancellationToken);
             var commission = await RequireCommissionForTransitionAsync(commissionId, cancellationToken);
+            RejectSettlementManagedCommission(commission);
             if (commission.PayoutItems.Any(item => item.ReleasedAt == null
                     && item.CommissionPayout?.Status == CommissionPayoutStatus.Prepared))
                 throw Conflict("commission_reserved_for_payout",
@@ -565,6 +567,17 @@ public sealed class MerchantBillingService : IMerchantBillingService
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             return ToResponse(commission);
         });
+    }
+
+    /// <summary>
+    /// Consignment commission follows its settlement: it is corrected by correcting the partner's
+    /// sales report, and paid only through a payout. A direct edit would desynchronise the two.
+    /// </summary>
+    private static void RejectSettlementManagedCommission(SalesCommission commission)
+    {
+        if (commission.SourceType == SalesCommissionSourceType.ConsignmentSettlement)
+            throw Conflict("commission_managed_by_settlement",
+                "Consignment commission changes only with its settlement. Correct the partner's sales report, or pay it through a payout.");
     }
 
     private async Task LockCommissionAsync(Guid commissionId, CancellationToken cancellationToken)

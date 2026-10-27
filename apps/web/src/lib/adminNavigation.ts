@@ -201,6 +201,12 @@ export const adminNavGroups: AdminNavGroup[] = [
         icon: "settings",
         requiredAnyCapabilities: [adminCapabilities.emailTemplatesView],
       },
+      {
+        href: adminRoutes.documentSignature,
+        label: "My Signature",
+        icon: "record",
+        requiredAnyCapabilities: [adminCapabilities.documentSignatureManage],
+      },
     ],
   },
   {

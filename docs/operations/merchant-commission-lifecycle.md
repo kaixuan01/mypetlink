@@ -1,5 +1,13 @@
 # Sales commission lifecycle
 
+> Consignment commission (per verified sold tag, `Pending` until the partner pays
+> the period in full) is described in
+> [`consignment-settlement-and-commission.md`](consignment-settlement-and-commission.md).
+> Since Phase 1A: a rule that has calculated commission keeps its terms; recording
+> a payout as paid requires the bank's transfer date; and cancelling a retail order
+> whose commission is reserved in a prepared payout is refused until that payout is
+> cancelled, instead of leaving the batch unpayable.
+
 `SalesCommissions` is the single internal, append-only financial ledger for
 legacy merchant-order, reseller, and direct retail commission. It does not
 change an invoice, payment, receipt, or order amount.

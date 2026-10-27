@@ -15,7 +15,8 @@ public sealed record UpsertCommissionRuleRequest(
     DateTimeOffset? EffectiveTo,
     bool IsActive,
     [MaxLength(2000)] string? Notes,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null,
+    [MaxLength(16)] string? PolicyCode = null);
 
 public sealed record CommissionRuleResponse(
     Guid Id,
@@ -36,4 +37,5 @@ public sealed record CommissionRuleResponse(
     Guid? UpdatedByAdminUserId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    string ConcurrencyToken);
+    string ConcurrencyToken,
+    string? PolicyCode = null);

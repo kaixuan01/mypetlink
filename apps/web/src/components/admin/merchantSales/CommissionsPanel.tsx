@@ -160,9 +160,9 @@ export function CommissionsPanel({
           <label className="grid gap-1 text-sm font-bold">From<input className={fieldClass} type="date" value={from} onChange={(event) => { setFrom(event.target.value); setCommissionPage(1); }} /></label>
           <label className="grid gap-1 text-sm font-bold">Through<input className={fieldClass} type="date" value={through} onChange={(event) => { setThrough(event.target.value); setCommissionPage(1); }} /></label>
           <label className="grid gap-1 text-sm font-bold">Seller<select className={fieldClass} value={salespersonId} onChange={(event) => { setSalespersonId(event.target.value); setCommissionPage(1); }}><option value="">All sellers</option>{salespersons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label className="grid gap-1 text-sm font-bold">Channel<select className={fieldClass} value={channel} onChange={(event) => { setChannel(event.target.value); setCommissionPage(1); }}><option value="">All channels</option><option value="retail">Direct retail</option><option value="merchant">Merchant</option></select></label>
-          <label className="grid gap-1 text-sm font-bold">Type<select className={fieldClass} value={commissionType} onChange={(event) => { setCommissionType(event.target.value); setCommissionPage(1); }}><option value="">All types</option><option value="DirectRetailPercentage">Direct retail</option><option value="MerchantOrderPercentage">Legacy merchant</option><option value="ResellerAcquisitionBonus">Acquisition bonus</option><option value="ResellerRepeatPercentage">Repeat reseller</option></select></label>
-          <label className="grid gap-1 text-sm font-bold">Status<select className={fieldClass} value={status} onChange={(event) => { setStatus(event.target.value); setCommissionPage(1); }}><option value="">All statuses</option><option value="Payable">Payable</option><option value="Paid">Paid</option><option value="Reversed">Reversed</option></select></label>
+          <label className="grid gap-1 text-sm font-bold">Channel<select className={fieldClass} value={channel} onChange={(event) => { setChannel(event.target.value); setCommissionPage(1); }}><option value="">All channels</option><option value="retail">Direct retail</option><option value="merchant">Merchant</option><option value="consignment">Consignment</option></select></label>
+          <label className="grid gap-1 text-sm font-bold">Type<select className={fieldClass} value={commissionType} onChange={(event) => { setCommissionType(event.target.value); setCommissionPage(1); }}><option value="">All types</option><option value="DirectRetailPercentage">Direct retail</option><option value="MerchantOrderPercentage">Legacy merchant</option><option value="ResellerAcquisitionBonus">Acquisition bonus</option><option value="ResellerRepeatPercentage">Repeat reseller</option><option value="ConsignmentStandardPerUnit">Consignment, standard price</option><option value="ConsignmentPromotionPerUnit">Consignment, promotion price</option></select></label>
+          <label className="grid gap-1 text-sm font-bold">Status<select className={fieldClass} value={status} onChange={(event) => { setStatus(event.target.value); setCommissionPage(1); }}><option value="">All statuses</option><option value="Pending">Waiting for partner payment</option><option value="Payable">Payable</option><option value="Paid">Paid</option><option value="Reversed">Reversed</option></select></label>
           <label className="grid gap-1 text-sm font-bold">Merchant<select className={fieldClass} value={merchantId} onChange={(event) => { setMerchantId(event.target.value); setCommissionPage(1); }}><option value="">All merchants</option>{merchants.map((item) => <option key={item.id} value={item.id}>{item.tradingName ?? item.legalBusinessName}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-bold">Order number<input className={fieldClass} value={search} onChange={(event) => { setSearch(event.target.value); setCommissionPage(1); }} /></label>
         </div>
@@ -199,9 +199,11 @@ export function CommissionsPanel({
                   <td className="px-4 py-3 align-top">
                     <p>{money(commission.currency, commission.commissionBaseAmount)} base</p>
                     <p className="text-xs text-slate-500">
-                      {commission.commissionPercentage == null
-                        ? `${money(commission.currency, commission.commissionFixedAmount ?? 0)} fixed`
-                        : `${commission.commissionPercentage}%`}
+                      {commission.commissionPercentage != null
+                        ? `${commission.commissionPercentage}%`
+                        : commission.qualifiedQuantity != null
+                          ? `${commission.qualifiedQuantity} sold tags × ${money(commission.currency, commission.commissionFixedAmount ?? 0)}`
+                          : `${money(commission.currency, commission.commissionFixedAmount ?? 0)} fixed`}
                     </p>
                     {commission.commissionRuleId ? (
                       <p className="text-xs text-slate-500">
@@ -238,7 +240,7 @@ export function CommissionsPanel({
                   </td>
                   <td className="px-4 py-3 align-top">
                     <div className="flex flex-wrap gap-2">
-                      {canReverse && commission.status !== "Reversed" ? (
+                      {canReverse && commission.status !== "Reversed" && commission.sourceType !== "ConsignmentSettlement" ? (
                         <button
                           className={secondaryButton}
                           disabled={busy}
@@ -390,10 +392,10 @@ function CommissionRuleEditor({
   const input = useMemo(() => ({
     commissionType,
     salespersonId: salespersonId || null,
-    percentage: commissionType === "ResellerAcquisitionBonus" ? null : Number(percentage),
-    fixedAmount: commissionType === "ResellerAcquisitionBonus" ? Number(fixedAmount) : null,
-    minQuantity: commissionType === "ResellerRepeatPercentage" ? null : minQuantity ? Number(minQuantity) : null,
-    maxQuantity: commissionType === "ResellerRepeatPercentage" ? null : maxQuantity ? Number(maxQuantity) : null,
+    percentage: commissionType === "ResellerAcquisitionBonus" || isPerTag(commissionType) ? null : Number(percentage),
+    fixedAmount: commissionType === "ResellerAcquisitionBonus" || isPerTag(commissionType) ? Number(fixedAmount) : null,
+    minQuantity: commissionType === "ResellerRepeatPercentage" || isPerTag(commissionType) ? null : minQuantity ? Number(minQuantity) : null,
+    maxQuantity: commissionType === "ResellerRepeatPercentage" || isPerTag(commissionType) ? null : maxQuantity ? Number(maxQuantity) : null,
     eligibilityMonths: commissionType === "ResellerRepeatPercentage" ? Number(eligibilityMonths) : null,
     currency: "MYR" as const,
     effectiveFrom: toIso(effectiveFrom),
@@ -401,6 +403,8 @@ function CommissionRuleEditor({
     isActive,
     notes: notes.trim() || null,
     concurrencyToken: rule?.concurrencyToken ?? null,
+    // Per-tag consignment rates belong to the v1.1 terms; they pay only salespeople with recorded v1.1 terms.
+    policyCode: isPerTag(commissionType) ? "v1.1" : null,
   }), [commissionType, effectiveFrom, effectiveTo, eligibilityMonths, fixedAmount, isActive, maxQuantity, minQuantity, notes, percentage, rule?.concurrencyToken, salespersonId]);
 
   return (
@@ -425,6 +429,8 @@ function CommissionRuleEditor({
             <option value="DirectRetailPercentage">Direct retail percentage</option>
             <option value="ResellerAcquisitionBonus">Reseller acquisition bonus</option>
             <option value="ResellerRepeatPercentage">Reseller repeat percentage</option>
+            <option value="ConsignmentStandardPerUnit">Consignment per sold tag, standard price (v1.1)</option>
+            <option value="ConsignmentPromotionPerUnit">Consignment per sold tag, promotion price (v1.1)</option>
           </select>
         </label>
         <label className="grid gap-1 text-sm font-bold text-pet-ink">
@@ -434,12 +440,16 @@ function CommissionRuleEditor({
             {salespersons.map((salesperson) => <option key={salesperson.id} value={salesperson.id}>{salesperson.name} · {salesperson.salespersonCode}</option>)}
           </select>
         </label>
-        {commissionType === "ResellerAcquisitionBonus" ? (
+        {isPerTag(commissionType) ? (
+          <Field label="Amount per sold tag (RM)" min="0" required step="0.01" value={fixedAmount} onChange={setFixedAmount} />
+        ) : commissionType === "ResellerAcquisitionBonus" ? (
           <Field label="Fixed bonus (RM)" min="0" required step="0.01" value={fixedAmount} onChange={setFixedAmount} />
         ) : (
           <Field label="Percentage" min="0" max="100" required step="0.01" value={percentage} onChange={setPercentage} />
         )}
-        {commissionType !== "ResellerRepeatPercentage" ? (
+        {isPerTag(commissionType) ? (
+          <p className="text-sm font-semibold text-slate-600 sm:col-span-2">Paid on verified sold tags only, and only to salespeople with recorded v1.1 commission terms for the period. Once a rate has calculated commission it can only be ended, not changed.</p>
+        ) : commissionType !== "ResellerRepeatPercentage" ? (
           <>
             <Field label="Minimum quantity" min="1" required={commissionType === "ResellerAcquisitionBonus"} step="1" value={minQuantity} onChange={setMinQuantity} />
             <Field label="Maximum quantity" min="1" step="1" value={maxQuantity} onChange={setMaxQuantity} />
@@ -470,6 +480,7 @@ function Field({ label, value, onChange, type = "number", min, max, step, requir
 }
 
 function sourceLabel(source: AdminSalesCommission["sourceType"]) {
+  if (source === "ConsignmentSettlement") return "Consignment";
   return source === "MerchantOrder" ? "Merchant" : "Direct retail";
 }
 
@@ -477,16 +488,25 @@ function typeLabel(type: AdminSalesCommission["commissionType"]) {
   if (type === "MerchantOrderPercentage") return "Merchant order percentage";
   if (type === "DirectRetailPercentage") return "Direct retail percentage";
   if (type === "ResellerAcquisitionBonus") return "Reseller acquisition bonus";
+  if (type === "ConsignmentStandardPerUnit") return "Per sold tag, standard price";
+  if (type === "ConsignmentPromotionPerUnit") return "Per sold tag, promotion price";
   return "Reseller repeat percentage";
 }
 
 function ruleTypeLabel(type: CommissionRuleType) {
   if (type === "DirectRetailPercentage") return "Direct retail percentage";
   if (type === "ResellerAcquisitionBonus") return "Reseller acquisition bonus";
+  if (type === "ConsignmentStandardPerUnit") return "Consignment per sold tag, standard price";
+  if (type === "ConsignmentPromotionPerUnit") return "Consignment per sold tag, promotion price";
   return "Reseller repeat percentage";
 }
 
+function isPerTag(type: CommissionRuleType) {
+  return type === "ConsignmentStandardPerUnit" || type === "ConsignmentPromotionPerUnit";
+}
+
 function ruleValueLabel(rule: AdminCommissionRule) {
+  if (isPerTag(rule.commissionType)) return `RM ${(rule.fixedAmount ?? 0).toFixed(2)} per sold tag · ${rule.policyCode ?? ""} terms`;
   if (rule.fixedAmount != null) return `RM ${rule.fixedAmount.toFixed(2)}`;
   const duration = rule.eligibilityMonths ? ` for ${rule.eligibilityMonths} months` : "";
   return `${rule.percentage ?? 0}%${duration}`;
@@ -506,6 +526,7 @@ function claimStateLabel(commission: AdminSalesCommission) {
   if (commission.payoutClaimState === "LegacyIndividualPaid") {
     return "Legacy individual payout";
   }
+  if (commission.status === "Pending") return "Waiting for the partner to pay this period";
   return commission.status === "Payable" ? "Payable / Unclaimed" : commission.status;
 }
 

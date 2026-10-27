@@ -129,6 +129,8 @@ public sealed partial class MyPetLinkDbContext : DbContext
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         EnforceConsignmentReviewHistory();
+        EnforceDocumentSignatureHistory();
+        EnforceCommissionSettlementHistory();
         StampAuditableEntities();
         AdvanceSmartTagAssignmentVersions();
         DeriveMemoryVisibilityCompatibilityFlag();
@@ -138,6 +140,8 @@ public sealed partial class MyPetLinkDbContext : DbContext
     public override int SaveChanges()
     {
         EnforceConsignmentReviewHistory();
+        EnforceDocumentSignatureHistory();
+        EnforceCommissionSettlementHistory();
         StampAuditableEntities();
         AdvanceSmartTagAssignmentVersions();
         DeriveMemoryVisibilityCompatibilityFlag();
@@ -147,6 +151,8 @@ public sealed partial class MyPetLinkDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigureConsignment(modelBuilder);
+        ConfigureDocumentSignatures(modelBuilder);
+        ConfigureCommissionSettlement(modelBuilder);
         ConfigureAccounts(modelBuilder);
         ConfigurePlans(modelBuilder);
         ConfigurePets(modelBuilder);
@@ -808,8 +814,12 @@ public sealed partial class MyPetLinkDbContext : DbContext
             {
                 table.HasCheckConstraint(
                     "CK_SalesCommissions_SourceShape",
-                    "([SourceType] = 'MerchantOrder' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR "
-                    + "([SourceType] = 'TagOrder' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL)");
+                    "([SourceType] = 'MerchantOrder' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL AND [ConsignmentSettlementId] IS NULL) OR "
+                    + "([SourceType] = 'TagOrder' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL AND [ConsignmentSettlementId] IS NULL) OR "
+                    + "([SourceType] = 'ConsignmentSettlement' AND [MerchantId] IS NOT NULL AND [ConsignmentSettlementId] IS NOT NULL "
+                    + "AND [ConsignmentSettlementRevision] IS NOT NULL AND [ConsignmentSalesReportId] IS NOT NULL AND [MerchantBranchId] IS NOT NULL "
+                    + "AND [QualifiedQuantity] IS NOT NULL AND [QualifiedQuantity] > 0 AND [PolicyCode] IS NOT NULL "
+                    + "AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL AND [TagOrderId] IS NULL)");
                 table.HasCheckConstraint(
                     "CK_SalesCommissions_ValueShape",
                     "([CommissionPercentageSnapshot] IS NOT NULL AND [CommissionFixedAmountSnapshot] IS NULL) OR "
@@ -818,10 +828,30 @@ public sealed partial class MyPetLinkDbContext : DbContext
                     "CK_SalesCommissions_SourceCommissionType",
                     "([CommissionType] = 'MerchantOrderPercentage' AND [SourceType] = 'MerchantOrder') OR "
                     + "([CommissionType] = 'DirectRetailPercentage' AND [SourceType] = 'TagOrder') OR "
-                    + "([CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceType] = 'MerchantOrder')");
+                    + "([CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceType] = 'MerchantOrder') OR "
+                    + "([CommissionType] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [SourceType] = 'ConsignmentSettlement' AND [CommissionFixedAmountSnapshot] IS NOT NULL)");
+                // Only consignment commission waits on a settlement; every other source is payable on creation.
+                table.HasCheckConstraint(
+                    "CK_SalesCommissions_PendingSource",
+                    "[Status] <> 'Pending' OR ([SourceType] = 'ConsignmentSettlement' AND [PaidAt] IS NULL AND [PayableAt] IS NULL)");
             });
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.SourceType).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.PolicyCode).HasMaxLength(16);
+            // Each settlement revision emits at most one row per salesperson, type and unit amount,
+            // so a retried or concurrent calculation can never post the same accrual twice.
+            entity.HasIndex(item => new { item.ConsignmentSettlementId, item.ConsignmentSettlementRevision, item.SalespersonId, item.CommissionType, item.CommissionFixedAmountSnapshot })
+                .IsUnique()
+                .HasFilter("[ConsignmentSettlementId] IS NOT NULL")
+                .HasDatabaseName("UX_SalesCommissions_ConsignmentRevisionGroup");
+            entity.HasOne(item => item.ConsignmentSettlement)
+                .WithMany()
+                .HasForeignKey(item => item.ConsignmentSettlementId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ConsignmentSalesReport>()
+                .WithMany()
+                .HasForeignKey(item => item.ConsignmentSalesReportId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.Property(item => item.CommissionType).HasConversion<string>().HasMaxLength(48);
             // A payment can participate in more commission types in a later
             // phase, but never twice for the same type.
@@ -899,6 +929,8 @@ public sealed partial class MyPetLinkDbContext : DbContext
                     "[PreparedAmount] >= 0");
                 table.HasCheckConstraint("CK_CommissionPayouts_Currency",
                     "[Currency] = 'MYR'");
+                table.HasCheckConstraint("CK_CommissionPayouts_TransferredOn",
+                    "[TransferredOn] IS NULL OR [Status] = 'Paid'");
                 table.HasCheckConstraint("CK_CommissionPayouts_StatusShape",
                     "([Status] = 'Prepared' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR "
                     + "([Status] = 'Paid' AND [PaidAt] IS NOT NULL AND [PaidByAdminUserId] IS NOT NULL AND [PaymentMethod] IN ('BankTransfer','DuitNow','Cheque','Cash','Other') AND [PaymentReference] IS NOT NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR "
@@ -941,9 +973,9 @@ public sealed partial class MyPetLinkDbContext : DbContext
                 table.HasCheckConstraint("CK_CommissionPayoutItems_ValueShape",
                     "([CommissionPercentageSnapshot] BETWEEN 0 AND 100 AND [CommissionFixedAmountSnapshot] IS NULL) OR ([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] >= 0)");
                 table.HasCheckConstraint("CK_CommissionPayoutItems_SourceShape",
-                    "([SourceTypeSnapshot] = 'MerchantOrder' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'TagOrder' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL)");
+                    "([SourceTypeSnapshot] = 'MerchantOrder' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL AND [ConsignmentSettlementIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'TagOrder' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL AND [ConsignmentSettlementIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'ConsignmentSettlement' AND [ConsignmentSettlementIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL AND [TagOrderIdSnapshot] IS NULL)");
                 table.HasCheckConstraint("CK_CommissionPayoutItems_SourceCommissionType",
-                    "([CommissionTypeSnapshot] = 'MerchantOrderPercentage' AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] = 'DirectRetailPercentage' AND [SourceTypeSnapshot] = 'TagOrder') OR ([CommissionTypeSnapshot] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceTypeSnapshot] = 'MerchantOrder')");
+                    "([CommissionTypeSnapshot] = 'MerchantOrderPercentage' AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] = 'DirectRetailPercentage' AND [SourceTypeSnapshot] = 'TagOrder') OR ([CommissionTypeSnapshot] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [SourceTypeSnapshot] = 'ConsignmentSettlement')");
                 table.HasCheckConstraint("CK_CommissionPayoutItems_Currency",
                     "[CurrencySnapshot] = 'MYR'");
                 table.HasCheckConstraint("CK_CommissionPayoutItems_ReleaseShape",
@@ -988,8 +1020,15 @@ public sealed partial class MyPetLinkDbContext : DbContext
                     "CK_CommissionRules_CommissionTypeShape",
                     "([CommissionType] = 'DirectRetailPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [EligibilityMonths] IS NULL) OR "
                     + "([CommissionType] = 'ResellerAcquisitionBonus' AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NOT NULL AND [EligibilityMonths] IS NULL) OR "
-                    + "([CommissionType] = 'ResellerRepeatPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0)");
+                    + "([CommissionType] = 'ResellerRepeatPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0) OR "
+                    + "([CommissionType] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] IS NULL)");
+                // Per-unit consignment rules always name a known policy; the pre-policy rule types never do.
+                table.HasCheckConstraint(
+                    "CK_CommissionRules_PolicyCode",
+                    "([CommissionType] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [PolicyCode] IS NOT NULL AND [PolicyCode] = 'v1.1') OR "
+                    + "([CommissionType] NOT IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [PolicyCode] IS NULL)");
             });
+            entity.Property(item => item.PolicyCode).HasMaxLength(16);
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.CommissionType).HasConversion<string>().HasMaxLength(48);
             entity.Property(item => item.Percentage).HasPrecision(5, 2);
@@ -3048,6 +3087,34 @@ public sealed partial class MyPetLinkDbContext : DbContext
                 EffectiveFrom = SeededAt,
                 IsActive = true,
                 Notes = "Default reseller repeat commission",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            // The v1.1 consignment rate card. It pays nobody by itself: a salesperson
+            // earns it only for periods covered by their recorded v1.1 policy assignment.
+            new CommissionRule
+            {
+                Id = CommissionRule.ConsignmentStandardV11RuleId,
+                CommissionType = SalesCommissionType.ConsignmentStandardPerUnit,
+                FixedAmount = 4.50m,
+                PolicyCode = CommissionPolicyCodes.V1_1,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "v1.1 consignment commission per verified sold tag at a Standard price",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new CommissionRule
+            {
+                Id = CommissionRule.ConsignmentPromotionV11RuleId,
+                CommissionType = SalesCommissionType.ConsignmentPromotionPerUnit,
+                FixedAmount = 4.00m,
+                PolicyCode = CommissionPolicyCodes.V1_1,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "v1.1 consignment commission per verified sold tag at a Promotion price",
                 CreatedAt = SeededAt,
                 UpdatedAt = SeededAt
             });

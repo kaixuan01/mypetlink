@@ -46,6 +46,7 @@ import {
   shortDate,
   money,
 } from "./shared";
+import { SalespersonCommissionTerms } from "./SalespersonCommissionTerms";
 
 const filterKeys = ["active"] as const;
 
@@ -325,6 +326,7 @@ export function SalespersonsPanel({
                 </div>
               </div>
             ) : null}
+            {canViewFinancial ? <SalespersonCommissionTerms salespersonId={open.id} /> : null}
             {open.referralCode ? (
               <button
                 className={`${secondaryButton} w-fit`}

@@ -60,7 +60,9 @@ export function PayoutsPanel({
   canMarkPaid: boolean;
 }) {
   const today = localDateInput(new Date());
-  const [salespersons, setSalespersons] = useState<AdminSalesperson[]>([]);
+  // null when the salesperson list could not be loaded for this operator.
+  const [salespersons, setSalespersons] = useState<AdminSalesperson[] | null>([]);
+  const [seenSalespersons, setSeenSalespersons] = useState<Map<string, string>>(new Map());
   const [rows, setRows] = useState<CommissionPayoutSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -78,28 +80,45 @@ export function PayoutsPanel({
 
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
 
+  // The salesperson list is a convenience for the filter and needs its own permission. Someone who
+  // may only view payouts still sees every payout; the filter then offers the salespeople named on
+  // the payouts already shown, which they are allowed to see anyway.
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      listCommissionPayouts(
-        {
-          page,
-          pageSize,
-          salespersonId: salespersonId || undefined,
-          status: status || undefined,
-          from: localDayStart(from),
-          toExclusive: localDayAfter(through),
-          payoutNumber: payoutNumber.trim() || undefined,
-        },
-        controller.signal
-      ),
-      listSalespersons({ page: 1, pageSize: 100 }, controller.signal),
-    ])
-      .then(([payouts, sellers]) => {
+    listSalespersons({ page: 1, pageSize: 100 }, controller.signal)
+      .then((sellers) => {
+        if (!controller.signal.aborted) setSalespersons(sellers.items);
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted || isAbortError(caught)) return;
+        setSalespersons(null);
+      });
+    return () => controller.abort();
+  }, [reloadKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listCommissionPayouts(
+      {
+        page,
+        pageSize,
+        salespersonId: salespersonId || undefined,
+        status: status || undefined,
+        from: localDayStart(from),
+        toExclusive: localDayAfter(through),
+        payoutNumber: payoutNumber.trim() || undefined,
+      },
+      controller.signal
+    )
+      .then((payouts) => {
         if (controller.signal.aborted) return;
         setRows(payouts.items);
         setTotal(payouts.total);
-        setSalespersons(sellers.items);
+        setSeenSalespersons((current) => {
+          const next = new Map(current);
+          payouts.items.forEach((item) => next.set(item.salespersonId, item.salespersonName));
+          return next;
+        });
         setError("");
       })
       .catch((caught) => {
@@ -129,6 +148,9 @@ export function PayoutsPanel({
     return () => controller.abort();
   }, [openId, reloadKey]);
 
+  const salespersonOptions = salespersons
+    ?? [...seenSalespersons].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <div className="grid gap-4">
       {message ? <StatusMessage message={message} /> : null}
@@ -136,7 +158,8 @@ export function PayoutsPanel({
 
       {preparing ? (
         <PreparePayout
-          salespersons={salespersons}
+          salespersons={salespersons ?? []}
+          salespersonsUnavailable={salespersons === null}
           onCancel={() => setPreparing(false)}
           onPrepared={(payout) => {
             setPreparing(false);
@@ -171,12 +194,12 @@ export function PayoutsPanel({
             </button>
           ) : undefined
         }
-        description="Prepared payouts reserve exact commission rows. Money is transferred separately and recorded only after confirmation."
+        description="A payout is one payment of earned commission to a salesperson. Preparing it reserves the commission; the money is transferred from the bank separately and recorded here only after it has gone."
         title="Commission payouts"
       >
         <div className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5">
           <Filter label="Payout number" value={payoutNumber} onChange={(value) => { setPayoutNumber(value); setPage(1); setLoading(true); }} />
-          <label className="grid gap-1 text-sm font-bold">Salesperson<select className={fieldClass} value={salespersonId} onChange={(event) => { setSalespersonId(event.target.value); setPage(1); setLoading(true); }}><option value="">All salespersons</option>{salespersons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="grid gap-1 text-sm font-bold">Salesperson<select className={fieldClass} value={salespersonId} onChange={(event) => { setSalespersonId(event.target.value); setPage(1); setLoading(true); }}><option value="">All salespersons</option>{salespersonOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-bold">Status<select className={fieldClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); setLoading(true); }}><option value="">All statuses</option><option value="Prepared">Prepared</option><option value="Paid">Paid</option><option value="Cancelled">Cancelled</option></select></label>
           <Filter label="Period from" type="date" value={from} onChange={(value) => { setFrom(value); setPage(1); setLoading(true); }} />
           <Filter label="Period through" type="date" value={through} onChange={(value) => { setThrough(value); setPage(1); setLoading(true); }} />
@@ -208,8 +231,9 @@ export function PayoutsPanel({
   );
 }
 
-function PreparePayout({ salespersons, onCancel, onPrepared }: {
+function PreparePayout({ salespersons, salespersonsUnavailable, onCancel, onPrepared }: {
   salespersons: AdminSalesperson[];
+  salespersonsUnavailable: boolean;
   onCancel: () => void;
   onPrepared: (payout: CommissionPayout) => void;
 }) {
@@ -314,9 +338,10 @@ function PreparePayout({ salespersons, onCancel, onPrepared }: {
   }
 
   return (
-    <AdminSection description="Choose one salesperson and the exact payable, unclaimed commission rows to reserve." title="Prepare commission payout">
+    <AdminSection description="Choose a salesperson and the commission that is ready to pay them. Consignment commission is ready only once the partner has paid that period in full." title="Prepare commission payout">
       <div className="grid gap-4 p-5">
         <InlineError message={error} />
+        {salespersonsUnavailable ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">You don’t have access to the salesperson list, so a payout can’t be prepared from this account. Ask an administrator who manages salespeople.</p> : null}
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="grid gap-1 text-sm font-bold">Salesperson<select className={fieldClass} value={salespersonId} onChange={(event) => resetScope(() => setSalespersonId(event.target.value), Boolean(event.target.value && from && through))}><option value="">Choose salesperson</option>{salespersons.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.salespersonCode}</option>)}</select></label>
           <Filter label="Earned from" type="date" value={from} onChange={(value) => resetScope(() => setFrom(value), Boolean(value && salespersonId && through))} />
@@ -326,7 +351,7 @@ function PreparePayout({ salespersons, onCancel, onPrepared }: {
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full min-w-[940px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3"><input aria-label="Select all commissions on this page" checked={allVisibleSelected} disabled={eligibleRows.length === 0} onChange={toggleVisible} type="checkbox" /></th><th className="px-4 py-3">Type / channel</th><th className="px-4 py-3">Order</th><th className="px-4 py-3">Merchant</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3 text-right">Base</th><th className="px-4 py-3">Rate / bonus</th><th className="px-4 py-3 text-right">Amount</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{eligibleRows.map((row) => <tr key={row.id}><td className="px-4 py-3"><input aria-label={`Select ${row.sourceOrderNumber}`} checked={selected.has(row.id)} onChange={() => toggle(row.id)} type="checkbox" /></td><td className="px-4 py-3"><p className="font-bold">{groupLabel(row.commissionType)}</p><p className="text-xs text-slate-500">{row.sourceType === "TagOrder" ? "Direct retail" : "Merchant"}</p></td><td className="px-4 py-3 font-mono text-xs font-bold">{row.sourceOrderNumber}</td><td className="px-4 py-3">{row.merchantName ?? "—"}</td><td className="px-4 py-3">{dateTime(row.calculatedAt)}</td><td className="px-4 py-3 text-right">{money(row.currency, row.commissionBaseAmount)}</td><td className="px-4 py-3">{rateLabel(row)}</td><td className="px-4 py-3 text-right font-black">{money(row.currency, row.commissionAmount)}</td></tr>)}</tbody>
+            <tbody className="divide-y divide-slate-100">{eligibleRows.map((row) => <tr key={row.id}><td className="px-4 py-3"><input aria-label={`Select ${row.sourceOrderNumber}`} checked={selected.has(row.id)} onChange={() => toggle(row.id)} type="checkbox" /></td><td className="px-4 py-3"><p className="font-bold">{groupLabel(row.commissionType)}</p><p className="text-xs text-slate-500">{row.sourceType === "TagOrder" ? "Direct retail" : row.sourceType === "ConsignmentSettlement" ? "Consignment" : "Merchant"}</p></td><td className="px-4 py-3 font-mono text-xs font-bold">{row.sourceOrderNumber}</td><td className="px-4 py-3">{row.merchantName ?? "—"}</td><td className="px-4 py-3">{dateTime(row.calculatedAt)}</td><td className="px-4 py-3 text-right">{money(row.currency, row.commissionBaseAmount)}</td><td className="px-4 py-3">{rateLabel(row)}</td><td className="px-4 py-3 text-right font-black">{money(row.currency, row.commissionAmount)}</td></tr>)}</tbody>
           </table>
           {loading && hasScope ? <p className="p-4 text-sm font-semibold text-slate-500">Loading eligible commissions…</p> : null}
           {!loading && hasScope && eligibleRows.length === 0 ? <AdminEmptyPanel compact icon="record" title="No payable, unclaimed commissions are available for this period." /> : null}
@@ -342,7 +367,7 @@ function PreparePayout({ salespersons, onCancel, onPrepared }: {
           <Review label="Preview total" value={money("MYR", expectedTotal)} />
           {grouped(selection).map(([label, items]) => <Review key={label} label={label} value={`${items.length} · ${money("MYR", roundMoney(items.reduce((sum, item) => sum + item.commissionAmount, 0)))}`} />)}
         </div>
-        <p className="text-xs font-semibold text-slate-500">Only the checked commission IDs will be submitted. The server revalidates eligibility, membership, and the authoritative total before reserving them.</p>
+        <p className="text-xs font-semibold text-slate-500">This reserves only the commissions you ticked for one payment to the salesperson. Before reserving, MyPetLink checks again that each one is still ready to pay and that the total matches.</p>
         <label className="grid gap-1 text-sm font-bold">Notes — Admin only<textarea className={`${fieldClass} min-h-20 py-3`} maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button className={secondaryButton} disabled={busy} onClick={onCancel} type="button">Cancel</button><button className={primaryButton} disabled={busy || !salespersonId || selection.length === 0} onClick={() => void submit()} type="button">{busy ? "Preparing…" : "Prepare payout"}</button></div>
       </div>
@@ -363,11 +388,12 @@ function PayoutDetail({ payout, canCancel, canMarkPaid, onClose, onChanged, onEr
   const [busy, setBusy] = useState(false);
   const [method, setMethod] = useState<CommissionPayoutPaymentMethod>("BankTransfer");
   const [reference, setReference] = useState("");
+  const [transferredOn, setTransferredOn] = useState(todayInMalaysia());
   const [reason, setReason] = useState("");
   const summary = payout.summary;
 
   async function markPaid() {
-    if (!reference.trim() || busy) return;
+    if (!reference.trim() || !transferredOn || busy) return;
     setBusy(true);
     onError("");
     try {
@@ -375,8 +401,15 @@ function PayoutDetail({ payout, canCancel, canMarkPaid, onClose, onChanged, onEr
         concurrencyToken: summary.concurrencyToken,
         paymentMethod: method,
         paymentReference: reference.trim(),
+        transferredOn,
       });
       setPaying(false);
+      // Announce a payment only when the returned record is actually paid.
+      if (changed.summary.status !== "Paid" || !changed.summary.paidAt) {
+        onChanged(changed, "");
+        onError("The payment wasn’t recorded. Reload this payout before trying again.");
+        return;
+      }
       onChanged(changed, `${summary.payoutNumber} marked paid at ${dateTime(changed.summary.paidAt)}.`);
     } catch (caught) {
       onError(getMerchantSalesError(caught, "We couldn’t mark this payout paid."));
@@ -404,7 +437,7 @@ function PayoutDetail({ payout, canCancel, canMarkPaid, onClose, onChanged, onEr
     <AdminSection action={<button className={secondaryButton} onClick={onClose} type="button">Close</button>} description={`${summary.salespersonName} · ${periodLabel(summary.periodFrom, summary.periodToExclusive)}`} title={summary.payoutNumber}>
       <div className="grid gap-4 p-5">
         <div className="flex flex-wrap items-center gap-2"><PayoutStatusBadge status={summary.status} />{summary.status === "Prepared" ? <span className="text-sm font-bold text-amber-800">No payment has been recorded.</span> : null}</div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Review label="Salesperson" value={`${summary.salespersonName} · ${summary.salespersonCode}`} /><Review label="Prepared amount" value={money(summary.currency, summary.preparedAmount)} /><Review label="Prepared by" value={payout.preparedBy} /><Review label="Prepared at" value={dateTime(summary.preparedAt)} /><Review label="Commission count" value={String(summary.itemCount)} /><Review label="Earned period" value={periodLabel(summary.periodFrom, summary.periodToExclusive)} />{summary.paidAt ? <><Review label="Paid at" value={dateTime(summary.paidAt)} /><Review label="Paid by" value={payout.paidBy ?? "Administrator"} /><Review label="Payment method" value={paymentMethodLabel(payout.paymentMethod)} /><Review label="Payment reference" value={payout.paymentReference ?? "—"} /></> : null}{summary.cancelledAt ? <><Review label="Cancelled at" value={dateTime(summary.cancelledAt)} /><Review label="Cancelled by" value={payout.cancelledBy ?? "Administrator"} /><Review label="Cancellation reason" value={payout.cancellationReason ?? "—"} /></> : null}</div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Review label="Salesperson" value={`${summary.salespersonName} · ${summary.salespersonCode}`} /><Review label="Prepared amount" value={money(summary.currency, summary.preparedAmount)} /><Review label="Prepared by" value={payout.preparedBy} /><Review label="Prepared at" value={dateTime(summary.preparedAt)} /><Review label="Commission count" value={String(summary.itemCount)} /><Review label="Earned period" value={periodLabel(summary.periodFrom, summary.periodToExclusive)} />{summary.paidAt ? <><Review label="Paid at" value={dateTime(summary.paidAt)} /><Review label="Paid by" value={payout.paidBy ?? "Administrator"} /><Review label="Payment method" value={paymentMethodLabel(payout.paymentMethod)} /><Review label="Payment reference" value={payout.paymentReference ?? "—"} /><Review label="Transferred on" value={summary.transferredOn ? shortDate(summary.transferredOn) : "Not recorded"} /></> : null}{summary.cancelledAt ? <><Review label="Cancelled at" value={dateTime(summary.cancelledAt)} /><Review label="Cancelled by" value={payout.cancelledBy ?? "Administrator"} /><Review label="Cancellation reason" value={payout.cancellationReason ?? "—"} /></> : null}</div>
 
         {summary.status === "Paid" && summary.recoveryExposure > 0 ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900"><p className="font-black">Recovery required: {money(summary.currency, summary.recoveryExposure)}</p><p className="mt-1 text-sm font-semibold">Paid amount remains {money(summary.currency, summary.preparedAmount)}. Post-payout reversals are tracked separately and are not deducted automatically.</p></div> : null}
         {payout.notes ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700"><strong>Notes:</strong> {payout.notes}</p> : null}
@@ -414,12 +447,12 @@ function PayoutDetail({ payout, canCancel, canMarkPaid, onClose, onChanged, onEr
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <button className={secondaryButton} disabled={busy} onClick={() => { setBusy(true); void downloadCommissionPayoutStatement(summary.id, summary.payoutNumber).catch((caught) => onError(getMerchantSalesError(caught, "We couldn’t generate the payout statement."))).finally(() => setBusy(false)); }} type="button">Download statement PDF</button>
           {summary.status === "Prepared" && canCancel ? <button className={secondaryButton} disabled={busy} onClick={() => { setReason(""); setCancelling(true); }} type="button">Cancel payout</button> : null}
-          {summary.status === "Prepared" && canMarkPaid ? <button className={primaryButton} disabled={busy} onClick={() => { setMethod("BankTransfer"); setReference(""); setPaying(true); }} type="button">Mark paid</button> : null}
+          {summary.status === "Prepared" && canMarkPaid ? <button className={primaryButton} disabled={busy} onClick={() => { setMethod("BankTransfer"); setReference(""); setTransferredOn(todayInMalaysia()); setPaying(true); }} type="button">Mark paid</button> : null}
         </div>
       </div>
 
-      <ConfirmDialog confirmDisabled={busy || !reference.trim()} confirmLabel={busy ? "Recording…" : "Confirm real payment"} message={`${summary.payoutNumber} · ${summary.salespersonName} · ${money(summary.currency, summary.preparedAmount)} across ${summary.itemCount} commissions. Confirm only after the external real-world payment has completed; this action does not transfer money.`} onCancel={() => setPaying(false)} onConfirm={() => void markPaid()} open={paying} title="Record payout as paid?">
-        <div className="grid gap-3"><label className="grid gap-1 text-sm font-bold">Payment method<select className={fieldClass} value={method} onChange={(event) => setMethod(event.target.value as CommissionPayoutPaymentMethod)}>{paymentMethods.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="grid gap-1 text-sm font-bold">Payment reference<input className={fieldClass} maxLength={200} required value={reference} onChange={(event) => setReference(event.target.value)} /></label></div>
+      <ConfirmDialog confirmDisabled={busy || !reference.trim() || !transferredOn} confirmLabel={busy ? "Recording…" : "Confirm real payment"} message={`${summary.payoutNumber} · ${summary.salespersonName} · ${money(summary.currency, summary.preparedAmount)} across ${summary.itemCount} commissions. Confirm only after the external real-world payment has completed; this action does not transfer money.`} onCancel={() => setPaying(false)} onConfirm={() => void markPaid()} open={paying} title="Record payout as paid?">
+        <div className="grid gap-3"><label className="grid gap-1 text-sm font-bold">Payment method<select className={fieldClass} value={method} onChange={(event) => setMethod(event.target.value as CommissionPayoutPaymentMethod)}>{paymentMethods.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="grid gap-1 text-sm font-bold">Payment reference<input className={fieldClass} maxLength={200} required value={reference} onChange={(event) => setReference(event.target.value)} /></label><label className="grid gap-1 text-sm font-bold">Date the money was transferred<input className={fieldClass} max={todayInMalaysia()} required type="date" value={transferredOn} onChange={(event) => setTransferredOn(event.target.value)} /><span className="text-xs font-semibold text-slate-500">The bank&apos;s date, which can be earlier than today.</span></label></div>
       </ConfirmDialog>
       <ConfirmDialog confirmDisabled={busy || !reason.trim()} confirmLabel={busy ? "Cancelling…" : "Cancel payout"} destructive message="The payout record and exact item history will remain. Its commissions will be released back to Payable so they can be selected for another payout; no financial history is deleted." onCancel={() => setCancelling(false)} onConfirm={() => void cancel()} open={cancelling} title={`Cancel ${summary.payoutNumber}?`}>
         <label className="grid gap-1 text-sm font-bold">Cancellation reason<textarea className={`${fieldClass} min-h-24 py-3`} maxLength={1000} required value={reason} onChange={(event) => setReason(event.target.value)} /></label>
@@ -429,7 +462,7 @@ function PayoutDetail({ payout, canCancel, canMarkPaid, onClose, onChanged, onEr
 }
 
 function PayoutItemGroup({ label, items }: { label: string; items: CommissionPayoutItem[] }) {
-  return <div className="overflow-x-auto rounded-xl border border-slate-200"><div className="flex items-center justify-between bg-slate-50 px-4 py-3"><h3 className="font-black text-slate-900">{label}</h3><span className="text-sm font-bold">{items.length} · {money(items[0]?.currency ?? "MYR", roundMoney(items.reduce((sum, item) => sum + item.commissionAmount, 0)))}</span></div><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-y border-slate-200 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Order</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3 text-right">Base</th><th className="px-4 py-3">Rate / bonus</th><th className="px-4 py-3 text-right">Commission</th><th className="px-4 py-3">Current state</th></tr></thead><tbody className="divide-y divide-slate-100">{items.map((item) => <tr key={item.id}><td className="px-4 py-3 font-mono text-xs font-bold">{item.sourceOrderNumber}</td><td className="px-4 py-3">{dateTime(item.calculatedAt)}</td><td className="px-4 py-3 text-right">{money(item.currency, item.commissionBaseAmount)}</td><td className="px-4 py-3">{item.commissionPercentage == null ? `${money(item.currency, item.commissionFixedAmount ?? 0)} fixed` : `${item.commissionPercentage}%`}</td><td className="px-4 py-3 text-right font-black">{money(item.currency, item.commissionAmount)}</td><td className="px-4 py-3"><Badge tone={item.requiresRecovery ? "danger" : item.releasedAt ? "soft" : "mint"}>{item.requiresRecovery ? "Recovery required" : item.releasedAt ? "Released after cancellation" : item.currentCommissionStatus}</Badge>{item.requiresRecovery ? <p className="mt-1 text-xs text-red-700">Reversed {dateTime(item.reversedAt)} · {item.reversalReason ?? "Reason not recorded"}</p> : null}{item.releasedAt ? <p className="mt-1 text-xs text-slate-500">{item.releaseReason}</p> : null}</td></tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto rounded-xl border border-slate-200"><div className="flex items-center justify-between bg-slate-50 px-4 py-3"><h3 className="font-black text-slate-900">{label}</h3><span className="text-sm font-bold">{items.length} · {money(items[0]?.currency ?? "MYR", roundMoney(items.reduce((sum, item) => sum + item.commissionAmount, 0)))}</span></div><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-y border-slate-200 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Order</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3 text-right">Base</th><th className="px-4 py-3">Rate / bonus</th><th className="px-4 py-3 text-right">Commission</th><th className="px-4 py-3">Current state</th></tr></thead><tbody className="divide-y divide-slate-100">{items.map((item) => <tr key={item.id}><td className="px-4 py-3 font-mono text-xs font-bold">{item.sourceOrderNumber}</td><td className="px-4 py-3">{dateTime(item.calculatedAt)}</td><td className="px-4 py-3 text-right">{money(item.currency, item.commissionBaseAmount)}</td><td className="px-4 py-3">{item.commissionPercentage == null ? `${money(item.currency, item.commissionFixedAmount ?? 0)} ${item.sourceType === "ConsignmentSettlement" ? "per tag" : "fixed"}` : `${item.commissionPercentage}%`}</td><td className="px-4 py-3 text-right font-black">{money(item.currency, item.commissionAmount)}</td><td className="px-4 py-3"><Badge tone={item.requiresRecovery ? "danger" : item.releasedAt ? "soft" : "mint"}>{item.requiresRecovery ? "Recovery required" : item.releasedAt ? "Released after cancellation" : item.currentCommissionStatus}</Badge>{item.requiresRecovery && item.currentCommissionStatus === "Reversed" ? <p className="mt-1 text-xs text-red-700">Reversed {dateTime(item.reversedAt)} · {item.reversalReason ?? "Reason not recorded"}</p> : null}{item.requiresRecovery && item.currentCommissionStatus !== "Reversed" ? <p className="mt-1 text-xs text-red-700">{money(item.currency, item.recoveryAmount ?? 0)} to recover: some paid tags were corrected or refunded later</p> : null}{item.releasedAt ? <p className="mt-1 text-xs text-slate-500">{item.releaseReason}</p> : null}</td></tr>)}</tbody></table></div>;
 }
 
 function PayoutStatusBadge({ status }: { status: CommissionPayoutStatus }) {
@@ -455,7 +488,7 @@ function grouped(items: AdminSalesCommission[]) {
 }
 
 function groupedItems(items: CommissionPayoutItem[]) {
-  const order = ["Direct Retail", "Reseller Acquisition Bonus", "Reseller Repeat", "Legacy Merchant Percentage"];
+  const order = ["Direct Retail", "Reseller Acquisition Bonus", "Reseller Repeat", "Legacy Merchant Percentage", "Consignment (Standard price)", "Consignment (Promotion price)"];
   const map = new Map<string, CommissionPayoutItem[]>();
   items.forEach((item) => map.set(groupLabel(item.commissionType), [...(map.get(groupLabel(item.commissionType)) ?? []), item]));
   return [...map.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
@@ -465,11 +498,16 @@ function groupLabel(type: AdminSalesCommission["commissionType"] | CommissionPay
   if (type === "DirectRetailPercentage") return "Direct Retail";
   if (type === "ResellerAcquisitionBonus") return "Reseller Acquisition Bonus";
   if (type === "ResellerRepeatPercentage") return "Reseller Repeat";
+  if (type === "ConsignmentStandardPerUnit") return "Consignment (Standard price)";
+  if (type === "ConsignmentPromotionPerUnit") return "Consignment (Promotion price)";
   return "Legacy Merchant Percentage";
 }
 
 function rateLabel(item: AdminSalesCommission) {
-  return item.commissionPercentage == null ? `${money(item.currency, item.commissionFixedAmount ?? 0)} fixed` : `${item.commissionPercentage}%`;
+  if (item.commissionPercentage != null) return `${item.commissionPercentage}%`;
+  if (item.sourceType === "ConsignmentSettlement")
+    return `${item.qualifiedQuantity ?? 0} sold tag${item.qualifiedQuantity === 1 ? "" : "s"} × ${money(item.currency, item.commissionFixedAmount ?? 0)}`;
+  return `${money(item.currency, item.commissionFixedAmount ?? 0)} fixed`;
 }
 
 function paymentMethodLabel(value: CommissionPayoutPaymentMethod | null) {
@@ -506,4 +544,9 @@ function roundMoney(value: number) {
 function createIdempotencyKey() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `payout-ui-${crypto.randomUUID()}`;
   return `payout-ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Today in Malaysia, as yyyy-mm-dd: the latest date a transfer can carry. */
+function todayInMalaysia() {
+  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 }

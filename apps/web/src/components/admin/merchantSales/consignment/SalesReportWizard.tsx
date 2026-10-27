@@ -636,7 +636,7 @@ export function SalesReportWizard({
             </div>
             <Callout tone="info" title="Recording doesn’t move stock or money">
               {agreement?.merchantName} · {periodText}: {totals.sold} sold, {totals.refunded} refunded, net {ringgit(totals.value)}. The
-              report stays unverified until you check it against the evidence. No invoice, payment or commission is created.
+              report stays unverified until you check it against the evidence. Nothing financial is recorded until then.
             </Callout>
             {unapproved ? (
               <Callout tone="warning">Some lines use a price that isn’t approved, so this report can’t be verified as it stands.</Callout>

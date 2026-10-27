@@ -84,12 +84,14 @@ export type AdminMerchantInvoice = {
 
 export type AdminSalesCommission = {
   id: string;
-  sourceType: "MerchantOrder" | "TagOrder";
+  sourceType: "MerchantOrder" | "TagOrder" | "ConsignmentSettlement";
   commissionType:
     | "MerchantOrderPercentage"
     | "DirectRetailPercentage"
     | "ResellerAcquisitionBonus"
-    | "ResellerRepeatPercentage";
+    | "ResellerRepeatPercentage"
+    | "ConsignmentStandardPerUnit"
+    | "ConsignmentPromotionPerUnit";
   merchantOrderId: string | null;
   merchantPaymentId: string | null;
   tagOrderId: string | null;
@@ -106,7 +108,8 @@ export type AdminSalesCommission = {
   currency: string;
   commissionRuleId: string | null;
   commissionRuleEffectiveFrom: string | null;
-  status: "Payable" | "Paid" | "Reversed";
+  /** Pending: consignment commission waiting for the partner to pay that period in full. */
+  status: "Pending" | "Payable" | "Paid" | "Reversed";
   calculatedAt: string;
   paidAt: string | null;
   paidByAdminUserId: string | null;
@@ -123,6 +126,11 @@ export type AdminSalesCommission = {
   payoutNumber: string | null;
   requiresRecovery: boolean;
   concurrencyToken: string;
+  /** Verified sold tags, for per-tag consignment commission. */
+  qualifiedQuantity?: number | null;
+  policyCode?: string | null;
+  payableAt?: string | null;
+  consignmentSettlementId?: string | null;
 };
 
 export type RecordPaymentResult = {
@@ -330,7 +338,9 @@ export async function reverseCommission(
 export type CommissionRuleType =
   | "DirectRetailPercentage"
   | "ResellerAcquisitionBonus"
-  | "ResellerRepeatPercentage";
+  | "ResellerRepeatPercentage"
+  | "ConsignmentStandardPerUnit"
+  | "ConsignmentPromotionPerUnit";
 
 export type AdminCommissionRule = {
   id: string;
@@ -352,6 +362,8 @@ export type AdminCommissionRule = {
   createdAt: string;
   updatedAt: string;
   concurrencyToken: string;
+  /** The named commission terms a per-tag consignment rate belongs to. */
+  policyCode?: string | null;
 };
 
 export type UpsertCommissionRuleInput = {
@@ -368,6 +380,7 @@ export type UpsertCommissionRuleInput = {
   isActive: boolean;
   notes: string | null;
   concurrencyToken?: string | null;
+  policyCode?: string | null;
 };
 
 export async function listCommissionRules(

@@ -656,6 +656,9 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<DateOnly?>("TransferredOn")
+                        .HasColumnType("date");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -686,6 +689,8 @@ namespace MyPetLink.Api.Migrations
                             t.HasCheckConstraint("CK_CommissionPayouts_Period", "[PeriodToExclusive] > [PeriodFrom]");
 
                             t.HasCheckConstraint("CK_CommissionPayouts_StatusShape", "([Status] = 'Prepared' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR ([Status] = 'Paid' AND [PaidAt] IS NOT NULL AND [PaidByAdminUserId] IS NOT NULL AND [PaymentMethod] IN ('BankTransfer','DuitNow','Cheque','Cash','Other') AND [PaymentReference] IS NOT NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR ([Status] = 'Cancelled' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NOT NULL AND [CancelledByAdminUserId] IS NOT NULL AND [CancellationReason] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CommissionPayouts_TransferredOn", "[TransferredOn] IS NULL OR [Status] = 'Paid'");
                         });
                 });
 
@@ -721,6 +726,9 @@ namespace MyPetLink.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(48)
                         .HasColumnType("nvarchar(48)");
+
+                    b.Property<Guid?>("ConsignmentSettlementIdSnapshot")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -781,9 +789,9 @@ namespace MyPetLink.Api.Migrations
 
                             t.HasCheckConstraint("CK_CommissionPayoutItems_ReleaseShape", "([ReleasedAt] IS NULL AND [ReleasedByAdminUserId] IS NULL AND [ReleaseReason] IS NULL) OR ([ReleasedAt] IS NOT NULL AND [ReleasedByAdminUserId] IS NOT NULL AND [ReleaseReason] IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_CommissionPayoutItems_SourceCommissionType", "([CommissionTypeSnapshot] = 'MerchantOrderPercentage' AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] = 'DirectRetailPercentage' AND [SourceTypeSnapshot] = 'TagOrder') OR ([CommissionTypeSnapshot] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceTypeSnapshot] = 'MerchantOrder')");
+                            t.HasCheckConstraint("CK_CommissionPayoutItems_SourceCommissionType", "([CommissionTypeSnapshot] = 'MerchantOrderPercentage' AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] = 'DirectRetailPercentage' AND [SourceTypeSnapshot] = 'TagOrder') OR ([CommissionTypeSnapshot] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [SourceTypeSnapshot] = 'ConsignmentSettlement')");
 
-                            t.HasCheckConstraint("CK_CommissionPayoutItems_SourceShape", "([SourceTypeSnapshot] = 'MerchantOrder' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'TagOrder' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL)");
+                            t.HasCheckConstraint("CK_CommissionPayoutItems_SourceShape", "([SourceTypeSnapshot] = 'MerchantOrder' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL AND [ConsignmentSettlementIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'TagOrder' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL AND [ConsignmentSettlementIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'ConsignmentSettlement' AND [ConsignmentSettlementIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL AND [TagOrderIdSnapshot] IS NULL)");
 
                             t.HasCheckConstraint("CK_CommissionPayoutItems_ValueShape", "([CommissionPercentageSnapshot] BETWEEN 0 AND 100 AND [CommissionFixedAmountSnapshot] IS NULL) OR ([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] >= 0)");
                         });
@@ -838,6 +846,10 @@ namespace MyPetLink.Api.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<string>("PolicyCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -866,9 +878,11 @@ namespace MyPetLink.Api.Migrations
 
                     b.ToTable("CommissionRules", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CommissionRules_CommissionTypeShape", "([CommissionType] = 'DirectRetailPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = 'ResellerAcquisitionBonus' AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NOT NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = 'ResellerRepeatPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0)");
+                            t.HasCheckConstraint("CK_CommissionRules_CommissionTypeShape", "([CommissionType] = 'DirectRetailPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = 'ResellerAcquisitionBonus' AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NOT NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = 'ResellerRepeatPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0) OR ([CommissionType] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] IS NULL)");
 
                             t.HasCheckConstraint("CK_CommissionRules_EffectiveRange", "[EffectiveTo] IS NULL OR [EffectiveTo] > [EffectiveFrom]");
+
+                            t.HasCheckConstraint("CK_CommissionRules_PolicyCode", "([CommissionType] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [PolicyCode] IS NOT NULL AND [PolicyCode] = 'v1.1') OR ([CommissionType] NOT IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [PolicyCode] IS NULL)");
 
                             t.HasCheckConstraint("CK_CommissionRules_QuantityRange", "([MinQuantity] IS NULL OR [MinQuantity] > 0) AND ([MaxQuantity] IS NULL OR [MaxQuantity] > 0) AND ([MinQuantity] IS NULL OR [MaxQuantity] IS NULL OR [MinQuantity] <= [MaxQuantity])");
 
@@ -959,6 +973,34 @@ namespace MyPetLink.Api.Migrations
                             IsActive = true,
                             Notes = "Default reseller repeat commission",
                             Percentage = 3m,
+                            RowVersion = new byte[0],
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b31"),
+                            CommissionType = "ConsignmentStandardPerUnit",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Currency = "MYR",
+                            EffectiveFrom = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FixedAmount = 4.50m,
+                            IsActive = true,
+                            Notes = "v1.1 consignment commission per verified sold tag at a Standard price",
+                            PolicyCode = "v1.1",
+                            RowVersion = new byte[0],
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b32"),
+                            CommissionType = "ConsignmentPromotionPerUnit",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Currency = "MYR",
+                            EffectiveFrom = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FixedAmount = 4.00m,
+                            IsActive = true,
+                            Notes = "v1.1 consignment commission per verified sold tag at a Promotion price",
+                            PolicyCode = "v1.1",
                             RowVersion = new byte[0],
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
@@ -1389,6 +1431,63 @@ namespace MyPetLink.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentCommissionRecovery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CausedBySettlementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CommissionPayoutId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("OriginCommissionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SalespersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SettlementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SettlementRevision")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnitAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CausedBySettlementId");
+
+                    b.HasIndex("CommissionPayoutId");
+
+                    b.HasIndex("OriginCommissionId");
+
+                    b.HasIndex("SalespersonId");
+
+                    b.HasIndex("SettlementId", "SettlementRevision", "OriginCommissionId", "CausedBySettlementId")
+                        .IsUnique();
+
+                    b.ToTable("ConsignmentCommissionRecoveries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentCommissionRecovery_Values", "[SettlementRevision] > 0 AND [Quantity] > 0 AND [UnitAmount] > 0 AND [Amount] > 0 AND [Amount] = [Quantity] * [UnitAmount]");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDefaultTerms", b =>
                 {
                     b.Property<int>("Id")
@@ -1505,6 +1604,95 @@ namespace MyPetLink.Api.Migrations
                     b.HasIndex("RecordedByAdminUserId");
 
                     b.ToTable("ConsignmentDefaultTermsRevisions", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDeliveryOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ContentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("DeliveredQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DeliveryOrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("IssuedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SignatoryName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SignatoryPosition")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("SignatureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SignatureImageSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset?>("SignedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("SignedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryOrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("DispatchId")
+                        .IsUnique();
+
+                    b.HasIndex("IssuedByAdminUserId");
+
+                    b.HasIndex("MerchantId");
+
+                    b.HasIndex("SignatureId");
+
+                    b.HasIndex("SignedByAdminUserId");
+
+                    b.ToTable("ConsignmentDeliveryOrders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentDeliveryOrder_Quantity", "[DeliveredQuantity] > 0");
+
+                            t.HasCheckConstraint("CK_ConsignmentDeliveryOrder_Signature", "([SignatureId] IS NULL AND [SignedByAdminUserId] IS NULL AND [SignedAt] IS NULL AND [SignatoryName] IS NULL AND [SignatoryPosition] IS NULL AND [SignatureImageSha256] IS NULL) OR ([SignatureId] IS NOT NULL AND [SignedByAdminUserId] IS NOT NULL AND [SignedAt] IS NOT NULL AND [SignatoryName] IS NOT NULL AND [SignatoryPosition] IS NOT NULL AND [SignatureImageSha256] IS NOT NULL AND [SignedByAdminUserId] = [IssuedByAdminUserId] AND [SignedAt] = [IssuedAt] AND LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryName], CHAR(9), N''), CHAR(10), N''), CHAR(13), N''), NCHAR(160), N'')) > 0 AND LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryPosition], CHAR(9), N''), CHAR(10), N''), CHAR(13), N''), NCHAR(160), N'')) > 0 AND LEN([SignatureImageSha256]) = 64 AND [SignatureImageSha256] NOT LIKE N'%[^0-9A-Fa-f]%')");
+                        });
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDiscrepancyResolution", b =>
@@ -2397,6 +2585,455 @@ namespace MyPetLink.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AttributionIssue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AttributionResolutionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("AttributionResolvedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("AttributionResolvedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AttributionSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("AttributionStatus")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("CommissionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CommissionPolicyCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("CommissionRecoveryRequired")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("EligibleSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ExpectedRemittance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("MerchantCommission")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("PeriodEndExclusive")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("PolicyAssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("PromotionQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PromotionSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ReceivedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("RefundQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<decimal>("SalesCommissionTarget")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("SalesReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SalesReportVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SalespersonCodeSnapshot")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("SalespersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SalespersonNameSnapshot")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SettlementNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("StandardQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("StandardSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgreementId");
+
+                    b.HasIndex("AttributionResolvedByAdminUserId");
+
+                    b.HasIndex("AttributionStatus")
+                        .HasFilter("[AttributionStatus] = 'NeedsResolution'");
+
+                    b.HasIndex("PolicyAssignmentId");
+
+                    b.HasIndex("SalesReportId");
+
+                    b.HasIndex("SalespersonId");
+
+                    b.HasIndex("SettlementNumber")
+                        .IsUnique();
+
+                    b.HasIndex("MerchantBranchId", "PeriodStart")
+                        .IsUnique();
+
+                    b.HasIndex("MerchantId", "PeriodStart");
+
+                    b.HasIndex("Status", "PeriodStart");
+
+                    b.ToTable("ConsignmentSettlements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentSettlement_Attribution", "([AttributionStatus] = 'NeedsResolution' AND [AttributionIssue] IS NOT NULL AND [AttributionSource] IS NULL AND [SalespersonId] IS NULL AND [CommissionPolicyCode] IS NULL) OR ([AttributionStatus] = 'Resolved' AND [AttributionSource] IS NOT NULL AND [AttributionSource] IN ('ServicingAssignment','OperatorResolution') AND ([CommissionPolicyCode] IS NULL OR [SalespersonId] IS NOT NULL))");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlement_Money", "[StandardSales] >= 0 AND [PromotionSales] >= 0 AND [RefundAmount] >= 0 AND [ReceivedAmount] >= 0 AND [SalesCommissionTarget] >= 0 AND [CommissionRecoveryRequired] >= 0 AND [EligibleSales] = [StandardSales] + [PromotionSales] - [RefundAmount] AND [ExpectedRemittance] = [EligibleSales] - [MerchantCommission]");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlement_Period", "[PeriodEndExclusive] > [PeriodStart]");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlement_Quantities", "[StandardQuantity] >= 0 AND [PromotionQuantity] >= 0 AND [RefundQuantity] >= 0 AND [Revision] > 0 AND [SalesReportVersion] > 0");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlement_Status", "([Status] = 'Settled' AND [SettledAt] IS NOT NULL) OR ([Status] IN ('AwaitingPayment','PartiallyReceived','CreditDue') AND [Status] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("CommissionRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CommissionSalespersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("CommissionUnitAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("LineType")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<decimal>("MerchantCommissionPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("PriceKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("PriceTermId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("RefundOfPeriodStart")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SkuSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("SourceReportLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommissionRuleId");
+
+                    b.HasIndex("CommissionSalespersonId");
+
+                    b.HasIndex("PriceTermId");
+
+                    b.HasIndex("SourceReportLineId");
+
+                    b.HasIndex("ProductVariantId", "LineType");
+
+                    b.HasIndex("RevisionId", "SourceReportLineId")
+                        .IsUnique();
+
+                    b.ToTable("ConsignmentSettlementLines", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentSettlementLine_Commission", "([CommissionSalespersonId] IS NULL AND [CommissionUnitAmount] IS NULL AND [CommissionRuleId] IS NULL) OR ([CommissionSalespersonId] IS NOT NULL AND [CommissionUnitAmount] IS NOT NULL AND [CommissionUnitAmount] >= 0)");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlementLine_Values", "[Quantity] > 0 AND [UnitPrice] >= 0 AND [MerchantCommissionPercentage] BETWEEN 0 AND 100 AND (([LineType] = 'Sale' AND [Amount] >= 0 AND [RefundOfPeriodStart] IS NULL) OR ([LineType] = 'Refund' AND [Amount] <= 0 AND [RefundOfPeriodStart] IS NOT NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateOnly>("ReceivedOn")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RecordedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("SettlementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("VoidedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("RecordedByAdminUserId");
+
+                    b.HasIndex("VoidedByAdminUserId");
+
+                    b.HasIndex("SettlementId", "ReceivedOn");
+
+                    b.ToTable("ConsignmentSettlementReceipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentSettlementReceipt_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlementReceipt_Reference", "[Reference] IS NOT NULL AND LEN([Reference]) >= 3");
+
+                            t.HasCheckConstraint("CK_ConsignmentSettlementReceipt_VoidShape", "([VoidedAt] IS NULL AND [VoidedByAdminUserId] IS NULL AND [VoidReason] IS NULL) OR ([VoidedAt] IS NOT NULL AND [VoidedByAdminUserId] IS NOT NULL AND [VoidReason] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CommissionPolicyCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("CommissionRecoveryRequired")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("EligibleSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ExpectedRemittance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MerchantCommission")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("PromotionQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PromotionSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("RefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("RefundQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SalesCommissionTarget")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("SalesReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SalesReportVersion")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SalespersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SettlementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("StandardQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("StandardSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByAdminUserId");
+
+                    b.HasIndex("SalesReportId");
+
+                    b.HasIndex("SettlementId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("ConsignmentSettlementRevisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsignmentSettlementRevision_Values", "[Revision] > 0 AND [SalesReportVersion] > 0 AND [StandardQuantity] >= 0 AND [PromotionQuantity] >= 0 AND [RefundQuantity] >= 0 AND [SalesCommissionTarget] >= 0 AND [CommissionRecoveryRequired] >= 0 AND [EligibleSales] = [StandardSales] + [PromotionSales] - [RefundAmount] AND [ExpectedRemittance] = [EligibleSales] - [MerchantCommission]");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSignedAgreement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3112,6 +3749,74 @@ namespace MyPetLink.Api.Migrations
                     b.HasKey("CounterKey");
 
                     b.ToTable("DocumentNumberCounters", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.DocumentSignature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("EndedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Image")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("ImageHeight")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ImageSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("ImageWidth")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SignatoryAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SignatoryName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SignatoryPosition")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndedByAdminUserId");
+
+                    b.HasIndex("SignatoryAdminUserId")
+                        .IsUnique()
+                        .HasFilter("[EndedAt] IS NULL");
+
+                    b.ToTable("DocumentSignatures", null, t =>
+                        {
+                            t.HasTrigger("TR_DocumentSignatures_History");
+
+                            t.HasCheckConstraint("CK_DocumentSignature_Image", "[ImageWidth] > 0 AND [ImageHeight] > 0 AND LEN([ImageSha256]) = 64 AND [ImageSha256] NOT LIKE N'%[^0-9A-Fa-f]%'");
+
+                            t.HasCheckConstraint("CK_DocumentSignature_Lifecycle", "([EndedAt] IS NULL AND [EndReason] IS NULL AND [EndedByAdminUserId] IS NULL AND [Image] IS NOT NULL) OR ([EndedAt] IS NOT NULL AND [EndReason] IS NOT NULL AND [EndedByAdminUserId] IS NOT NULL AND [Image] IS NULL AND CAST([EndReason] AS varbinary(32)) IN (CAST(N'Replaced' AS varbinary(32)), CAST(N'Removed' AS varbinary(32))))");
+
+                            t.HasCheckConstraint("CK_DocumentSignature_Signatory", "LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryName], CHAR(9), N''), CHAR(10), N''), CHAR(13), N''), NCHAR(160), N'')) > 0 AND LEN(REPLACE(REPLACE(REPLACE(REPLACE([SignatoryPosition], CHAR(9), N''), CHAR(10), N''), CHAR(13), N''), NCHAR(160), N'')) > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.EmailOutbox", b =>
@@ -5467,6 +6172,72 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("MerchantReceiptItems", (string)null);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.MerchantServicingAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EffectiveFrom")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("EffectiveToExclusive")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RecordedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SalespersonCodeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("SalespersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SalespersonNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MerchantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_MerchantServicingAssignments_Open")
+                        .HasFilter("[EffectiveToExclusive] IS NULL");
+
+                    b.HasIndex("RecordedByAdminUserId");
+
+                    b.HasIndex("SalespersonId");
+
+                    b.HasIndex("MerchantId", "EffectiveFrom");
+
+                    b.ToTable("MerchantServicingAssignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MerchantServicingAssignment_Range", "[EffectiveToExclusive] IS NULL OR [EffectiveToExclusive] >= [EffectiveFrom]");
+
+                            t.HasCheckConstraint("CK_MerchantServicingAssignment_Source", "[Source] IS NOT NULL AND [Source] IN ('Rollout','MerchantEdit')");
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.MomentCollaboration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7816,6 +8587,15 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(48)
                         .HasColumnType("nvarchar(48)");
 
+                    b.Property<Guid?>("ConsignmentSalesReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ConsignmentSettlementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("ConsignmentSettlementRevision")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -7827,6 +8607,9 @@ namespace MyPetLink.Api.Migrations
                     b.Property<string>("InternalNote")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("MerchantBranchId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("MerchantId")
                         .HasColumnType("uniqueidentifier");
@@ -7842,6 +8625,16 @@ namespace MyPetLink.Api.Migrations
 
                     b.Property<Guid?>("PaidByAdminUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("PayableAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PolicyCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int?>("QualifiedQuantity")
+                        .HasColumnType("int");
 
                     b.Property<string>("ReversalReason")
                         .HasMaxLength(1000)
@@ -7892,6 +8685,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("CommissionRuleId");
 
+                    b.HasIndex("ConsignmentSalesReportId");
+
                     b.HasIndex("PaidAt")
                         .HasFilter("[PaidAt] IS NOT NULL");
 
@@ -7922,11 +8717,18 @@ namespace MyPetLink.Api.Migrations
                         .IsUnique()
                         .HasFilter("[TagOrderId] IS NOT NULL AND [Status] <> 'Reversed'");
 
+                    b.HasIndex("ConsignmentSettlementId", "ConsignmentSettlementRevision", "SalespersonId", "CommissionType", "CommissionFixedAmountSnapshot")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SalesCommissions_ConsignmentRevisionGroup")
+                        .HasFilter("[ConsignmentSettlementId] IS NOT NULL");
+
                     b.ToTable("SalesCommissions", null, t =>
                         {
-                            t.HasCheckConstraint("CK_SalesCommissions_SourceCommissionType", "([CommissionType] = 'MerchantOrderPercentage' AND [SourceType] = 'MerchantOrder') OR ([CommissionType] = 'DirectRetailPercentage' AND [SourceType] = 'TagOrder') OR ([CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceType] = 'MerchantOrder')");
+                            t.HasCheckConstraint("CK_SalesCommissions_PendingSource", "[Status] <> 'Pending' OR ([SourceType] = 'ConsignmentSettlement' AND [PaidAt] IS NULL AND [PayableAt] IS NULL)");
 
-                            t.HasCheckConstraint("CK_SalesCommissions_SourceShape", "([SourceType] = 'MerchantOrder' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR ([SourceType] = 'TagOrder' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL)");
+                            t.HasCheckConstraint("CK_SalesCommissions_SourceCommissionType", "([CommissionType] = 'MerchantOrderPercentage' AND [SourceType] = 'MerchantOrder') OR ([CommissionType] = 'DirectRetailPercentage' AND [SourceType] = 'TagOrder') OR ([CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceType] = 'MerchantOrder') OR ([CommissionType] IN ('ConsignmentStandardPerUnit','ConsignmentPromotionPerUnit') AND [SourceType] = 'ConsignmentSettlement' AND [CommissionFixedAmountSnapshot] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_SalesCommissions_SourceShape", "([SourceType] = 'MerchantOrder' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL AND [ConsignmentSettlementId] IS NULL) OR ([SourceType] = 'TagOrder' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL AND [ConsignmentSettlementId] IS NULL) OR ([SourceType] = 'ConsignmentSettlement' AND [MerchantId] IS NOT NULL AND [ConsignmentSettlementId] IS NOT NULL AND [ConsignmentSettlementRevision] IS NOT NULL AND [ConsignmentSalesReportId] IS NOT NULL AND [MerchantBranchId] IS NOT NULL AND [QualifiedQuantity] IS NOT NULL AND [QualifiedQuantity] > 0 AND [PolicyCode] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL AND [TagOrderId] IS NULL)");
 
                             t.HasCheckConstraint("CK_SalesCommissions_ValueShape", "([CommissionPercentageSnapshot] IS NOT NULL AND [CommissionFixedAmountSnapshot] IS NULL) OR ([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] IS NOT NULL)");
                         });
@@ -8005,6 +8807,84 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("Salespersons", null, t =>
                         {
                             t.HasCheckConstraint("CK_Salespersons_ReferralCode", "[ReferralCode] IS NULL OR ([ReferralCode] NOT IN ('ADMIN','API','LOGIN','WWW','AUTH') AND [ReferralCode] NOT LIKE '%[^A-Z0-9]%' AND LEN([ReferralCode]) BETWEEN 3 AND 24)");
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.SalespersonPolicyAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AcceptedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AgreementReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EffectiveFrom")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("EffectiveToExclusive")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("EndedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PolicyCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("SalespersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByAdminUserId");
+
+                    b.HasIndex("EndedByAdminUserId");
+
+                    b.HasIndex("SalespersonId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("SalespersonPolicyAssignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SalespersonPolicyAssignment_Dates", "[AcceptedAt] IS NOT NULL AND [EffectiveFrom] IS NOT NULL AND [EffectiveFrom] >= [AcceptedAt] AND ([EffectiveToExclusive] IS NULL OR [EffectiveToExclusive] > [EffectiveFrom])");
+
+                            t.HasCheckConstraint("CK_SalespersonPolicyAssignment_EndShape", "([EndedAt] IS NULL AND [EndedByAdminUserId] IS NULL AND [EndReason] IS NULL) OR ([EndedAt] IS NOT NULL AND [EndedByAdminUserId] IS NOT NULL AND [EndReason] IS NOT NULL AND [EffectiveToExclusive] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_SalespersonPolicyAssignment_Policy", "[PolicyCode] IS NOT NULL AND [PolicyCode] = 'v1.1'");
+
+                            t.HasCheckConstraint("CK_SalespersonPolicyAssignment_Reference", "[AgreementReference] IS NOT NULL AND LEN([AgreementReference]) >= 3");
                         });
                 });
 
@@ -9848,6 +10728,42 @@ namespace MyPetLink.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentCommissionRecovery", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSettlement", null)
+                        .WithMany()
+                        .HasForeignKey("CausedBySettlementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.CommissionPayout", null)
+                        .WithMany()
+                        .HasForeignKey("CommissionPayoutId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.SalesCommission", "OriginCommission")
+                        .WithMany()
+                        .HasForeignKey("OriginCommissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Salesperson", null)
+                        .WithMany()
+                        .HasForeignKey("SalespersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSettlement", "Settlement")
+                        .WithMany()
+                        .HasForeignKey("SettlementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OriginCommission");
+
+                    b.Navigation("Settlement");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDefaultTerms", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
@@ -9862,6 +10778,39 @@ namespace MyPetLink.Api.Migrations
                         .WithMany()
                         .HasForeignKey("RecordedByAdminUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDeliveryOrder", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentDispatch", "Dispatch")
+                        .WithMany()
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("IssuedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.DocumentSignature", null)
+                        .WithMany()
+                        .HasForeignKey("SignatureId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("SignedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Dispatch");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentDiscrepancyResolution", b =>
@@ -10270,6 +11219,130 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("SalesReport");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlement", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", null)
+                        .WithMany()
+                        .HasForeignKey("AgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("AttributionResolvedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.MerchantBranch", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantBranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", "Merchant")
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.SalespersonPolicyAssignment", null)
+                        .WithMany()
+                        .HasForeignKey("PolicyAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReport", null)
+                        .WithMany()
+                        .HasForeignKey("SalesReportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.Salesperson", "Salesperson")
+                        .WithMany()
+                        .HasForeignKey("SalespersonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Merchant");
+
+                    b.Navigation("Salesperson");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementLine", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.CommissionRule", null)
+                        .WithMany()
+                        .HasForeignKey("CommissionRuleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.Salesperson", null)
+                        .WithMany()
+                        .HasForeignKey("CommissionSalespersonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentPriceTerm", null)
+                        .WithMany()
+                        .HasForeignKey("PriceTermId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSettlementRevision", "RevisionRecord")
+                        .WithMany("Lines")
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReportLine", null)
+                        .WithMany()
+                        .HasForeignKey("SourceReportLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RevisionRecord");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementReceipt", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSettlement", "Settlement")
+                        .WithMany("Receipts")
+                        .HasForeignKey("SettlementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("VoidedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Settlement");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementRevision", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReport", null)
+                        .WithMany()
+                        .HasForeignKey("SalesReportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSettlement", "Settlement")
+                        .WithMany("Revisions")
+                        .HasForeignKey("SettlementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Settlement");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSignedAgreement", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.ConsignmentAgreement", null)
@@ -10455,6 +11528,20 @@ namespace MyPetLink.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("UpdatedByAdminUser");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.DocumentSignature", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("EndedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("SignatoryAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.EmailOutbox", b =>
@@ -11343,6 +12430,30 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("MerchantReceipt");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.MerchantServicingAssignment", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.Merchant", "Merchant")
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.Salesperson", "Salesperson")
+                        .WithMany()
+                        .HasForeignKey("SalespersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Merchant");
+
+                    b.Navigation("Salesperson");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.MomentCollaboration", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.User", "InviteeUser")
@@ -11889,6 +13000,16 @@ namespace MyPetLink.Api.Migrations
                         .HasForeignKey("CommissionRuleId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSalesReport", null)
+                        .WithMany()
+                        .HasForeignKey("ConsignmentSalesReportId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.ConsignmentSettlement", "ConsignmentSettlement")
+                        .WithMany()
+                        .HasForeignKey("ConsignmentSettlementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MyPetLink.Api.Entities.Merchant", "Merchant")
                         .WithMany()
                         .HasForeignKey("MerchantId")
@@ -11927,6 +13048,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.Navigation("CommissionRule");
 
+                    b.Navigation("ConsignmentSettlement");
+
                     b.Navigation("Merchant");
 
                     b.Navigation("MerchantOrder");
@@ -11950,6 +13073,28 @@ namespace MyPetLink.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.SalespersonPolicyAssignment", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", null)
+                        .WithMany()
+                        .HasForeignKey("EndedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.Salesperson", "Salesperson")
+                        .WithMany()
+                        .HasForeignKey("SalespersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Salesperson");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ShippingCourierProvider", b =>
@@ -12248,6 +13393,18 @@ namespace MyPetLink.Api.Migrations
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSalesReport", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlement", b =>
+                {
+                    b.Navigation("Receipts");
+
+                    b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ConsignmentSettlementRevision", b =>
                 {
                     b.Navigation("Lines");
                 });

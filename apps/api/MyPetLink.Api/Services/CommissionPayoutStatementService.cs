@@ -56,6 +56,16 @@ public sealed class CommissionPayoutStatementService : ICommissionPayoutStatemen
                 "This payout statement cannot be generated because its historical total does not reconcile.");
         }
 
+        // Consignment commission stays Paid when a later correction or refund takes part of it away;
+        // the part to recover is its current recovery obligation, the same figure the settlement shows.
+        var consignmentRecoveries = payout.Status == CommissionPayoutStatus.Paid
+            ? await _db.ConsignmentCommissionRecoveries.AsNoTracking()
+                .Where(item => item.CommissionPayoutId == payout.Id && item.SettlementRevision == item.Settlement!.Revision)
+                .GroupBy(item => item.OriginCommissionId)
+                .Select(group => new { Commission = group.Key, Quantity = group.Sum(item => item.Quantity),
+                    Amount = group.Sum(item => item.Amount), At = group.Max(item => item.CreatedAt) })
+                .ToListAsync(cancellationToken)
+            : [];
         var recoveryItems = payout.Status == CommissionPayoutStatus.Paid
             ? items.Where(item => item.SalesCommission?.Status == SalesCommissionStatus.Reversed)
                 .Select(item => new CommissionPayoutRecoveryLine(
@@ -63,6 +73,13 @@ public sealed class CommissionPayoutStatementService : ICommissionPayoutStatemen
                     item.CommissionAmountSnapshot,
                     item.SalesCommission!.ReversedAt,
                     item.SalesCommission.ReversalReason))
+                .Concat(items.Join(consignmentRecoveries, item => item.SalesCommissionId, recovery => recovery.Commission,
+                    (item, recovery) => new CommissionPayoutRecoveryLine(
+                        item.SourceOrderNumberSnapshot,
+                        recovery.Amount,
+                        recovery.At,
+                        $"{recovery.Quantity} paid tag{(recovery.Quantity == 1 ? "" : "s")} no longer earn commission after a correction or refund",
+                        "Corrected")))
                 .ToArray()
             : [];
 
@@ -92,7 +109,8 @@ public sealed class CommissionPayoutStatementService : ICommissionPayoutStatemen
                 item.CommissionFixedAmountSnapshot,
                 item.CommissionAmountSnapshot)).ToArray(),
             recoveryItems,
-            _time.GetUtcNow());
+            _time.GetUtcNow(),
+            payout.TransferredOn);
 
         return new OrderDocumentResult(
             CommissionPayoutStatementRenderer.Render(model),
@@ -104,6 +122,8 @@ public sealed class CommissionPayoutStatementService : ICommissionPayoutStatemen
         SalesCommissionType.DirectRetailPercentage => "Direct Retail",
         SalesCommissionType.ResellerAcquisitionBonus => "Reseller Acquisition",
         SalesCommissionType.ResellerRepeatPercentage => "Reseller Repeat",
+        SalesCommissionType.ConsignmentStandardPerUnit => "Consignment (Standard price)",
+        SalesCommissionType.ConsignmentPromotionPerUnit => "Consignment (Promotion price)",
         _ => "Legacy Merchant Percentage",
     };
 
@@ -112,6 +132,8 @@ public sealed class CommissionPayoutStatementService : ICommissionPayoutStatemen
         SalesCommissionType.DirectRetailPercentage => 0,
         SalesCommissionType.ResellerAcquisitionBonus => 1,
         SalesCommissionType.ResellerRepeatPercentage => 2,
+        SalesCommissionType.ConsignmentStandardPerUnit => 4,
+        SalesCommissionType.ConsignmentPromotionPerUnit => 5,
         _ => 3,
     };
 

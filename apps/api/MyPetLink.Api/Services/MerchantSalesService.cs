@@ -152,6 +152,10 @@ public sealed class MerchantSalesService : IMerchantSalesService
         _dbContext.Merchants.Add(merchant);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        // The servicing history starts with the merchant, so its first periods are attributable.
+        if (salesperson is not null)
+            MerchantServicingHistory.Open(_dbContext, merchant.Id, salesperson, now,
+                await AdminRecordIdAsync(actorId, cancellationToken), MerchantServicingSources.MerchantEdit);
         _auditLogService.Append(actorId, ActorType.Admin, "merchant.create", "Merchant", merchant.Id,
             null, MerchantAuditSnapshot(merchant));
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -171,12 +175,46 @@ public sealed class MerchantSalesService : IMerchantSalesService
             request.AssignedSalespersonId, cancellationToken, merchant.AssignedSalespersonId);
 
         var before = MerchantAuditSnapshot(merchant);
+        var previousSalespersonId = merchant.AssignedSalespersonId;
         ApplyMerchant(merchant, request, salesperson);
-        merchant.UpdatedAt = _timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
+        merchant.UpdatedAt = now;
 
         _auditLogService.Append(actorId, ActorType.Admin, "merchant.update", "Merchant", merchant.Id,
             before, MerchantAuditSnapshot(merchant));
-        await SaveWithConcurrencyAsync(cancellationToken);
+        if (previousSalespersonId == merchant.AssignedSalespersonId)
+        {
+            await SaveWithConcurrencyAsync(cancellationToken);
+            return ToResponse(await RequireMerchantAsync(id, cancellationToken));
+        }
+
+        // A reassignment is prospective: the open servicing row closes and the new one opens at
+        // the same instant, in one transaction with the merchant change. The close is saved
+        // first because both rows share the "one open row per merchant" index key.
+        var adminId = await AdminRecordIdAsync(actorId, cancellationToken);
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            await MerchantServicingHistory.CloseOpenAsync(_dbContext, merchant.Id, now, cancellationToken);
+            await SaveWithConcurrencyAsync(cancellationToken);
+            if (salesperson is not null)
+            {
+                MerchantServicingHistory.Open(_dbContext, merchant.Id, salesperson, now, adminId,
+                    MerchantServicingSources.MerchantEdit);
+                _auditLogService.Append(actorId, ActorType.Admin, "merchant.servicing-assigned", "Merchant", merchant.Id,
+                    new { SalespersonId = previousSalespersonId }, new { SalespersonId = salesperson.Id, EffectiveFrom = now });
+            }
+            else
+            {
+                _auditLogService.Append(actorId, ActorType.Admin, "merchant.servicing-unassigned", "Merchant", merchant.Id,
+                    new { SalespersonId = previousSalespersonId }, new { SalespersonId = (Guid?)null, EffectiveFrom = now });
+            }
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        });
 
         return ToResponse(await RequireMerchantAsync(id, cancellationToken));
     }
@@ -1664,6 +1702,11 @@ public sealed class MerchantSalesService : IMerchantSalesService
 
         _dbContext.Entry(entity).Property("RowVersion").OriginalValue = expected;
     }
+
+    private async Task<Guid?> AdminRecordIdAsync(Guid? actorId, CancellationToken cancellationToken) =>
+        actorId is null ? null : await _dbContext.AdminUsers.AsNoTracking()
+            .Where(item => item.UserId == actorId.Value).Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken);
 
     private async Task SaveWithConcurrencyAsync(CancellationToken cancellationToken)
     {

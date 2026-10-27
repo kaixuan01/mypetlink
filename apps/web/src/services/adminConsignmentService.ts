@@ -36,7 +36,16 @@ export type ConsignmentDispatch = {
   reconciliation: HandoverRecord[]; reservationReused?: boolean; reviews?: ReviewEvent[];
   /** Whether any received unit counts in the partner's SKU stock. Handover forms decide per unit instead. */
   stockTracked?: boolean;
+  /** The Delivery Order issued for this delivery, if any. */
+  deliveryOrder?: DeliveryOrderSummary | null;
 };
+export type DeliveryOrderSummary = {
+  id: string; deliveryOrderNumber: string; issuedAt: string; deliveredQuantity: number; fileName: string; issuedByName: string | null;
+  /** Set only when the issuer signed Delivered By with their own signature. */
+  signatoryName?: string | null; signatoryPosition?: string | null; signedAt?: string | null;
+};
+/** Signing Delivered By with your own signature, which you must explicitly confirm. */
+export type DeliveryOrderSigning = { signatureId: string; confirmed: boolean };
 export type ReserveInput = { agreementId: string; destination: string; externalTrackerReference: string;
   merchantBranchId: string; idempotencyKey: string; lines: { productVariantId: string; quantity: number; smartTagIds?: string[] }[] };
 export type ReceiptEvidence = { recipient: string; receivedAt: string; quantity: number; damagedQuantity: number; missingQuantity: number; signedEvidenceReference: string; goodUnitIds?: string[]; damagedUnitIds?: string[]; missingUnitIds?: string[]; returnedUnitIds?: string[] };
@@ -130,7 +139,18 @@ export async function custodyAction(d: ConsignmentDispatch, action: CustodyActio
     method: "POST", body: { concurrencyToken: d.concurrencyToken, reference, unitIds, ...evidence },
   })).data);
 }
-export async function downloadConsignment(id: string, kind: "dispatch-note.pdf" | "manifest.csv") {
+/** Issues the delivery's Delivery Order once; asking again returns the same number and document. */
+export async function issueDeliveryOrder(id: string, signing?: DeliveryOrderSigning) {
+  return requireData((await apiRequest<DeliveryOrderSummary>(`${base}/dispatches/${id}/delivery-order`, { method: "POST", body: signing ?? {} })).data);
+}
+/** Downloads a watermarked preview: no number is taken and nothing is kept. */
+export async function previewDeliveryOrder(id: string, signatureId?: string) {
+  const query = signatureId ? `?signatureId=${encodeURIComponent(signatureId)}` : "";
+  const response = await apiRequestBlob(`${base}/dispatches/${id}/delivery-order/preview.pdf${query}`);
+  if (!response.blob.type.startsWith("application/pdf")) throw new Error("The preview could not be prepared.");
+  saveBlob(response.blob, response.fileName ?? "MyPetLink-Delivery-Order-preview.pdf");
+}
+export async function downloadConsignment(id: string, kind: "dispatch-note.pdf" | "delivery-order.pdf" | "manifest.csv") {
   const response = await apiRequestBlob(`${base}/dispatches/${id}/${kind}`);
   const expected = kind.endsWith("pdf") ? "application/pdf" : "text/csv";
   if (!response.blob.type.startsWith(expected)) throw new Error("The document could not be prepared.");

@@ -320,14 +320,18 @@ public enum MerchantPaymentMethod
 }
 
 /// <summary>
-/// A commission only exists once payment is confirmed, so there is no pending
-/// state before it.
+/// Wholesale and direct retail commissions only exist once payment is
+/// confirmed, so they start Payable. Consignment commission is the one
+/// exception: it accrues as Pending when a partner's sales are verified and
+/// becomes Payable only once that period's remittance is received in full.
+/// Stored as text, so Pending is appended without renumbering history.
 /// </summary>
 public enum SalesCommissionStatus
 {
     Payable,
     Paid,
-    Reversed
+    Reversed,
+    Pending
 }
 
 public enum CommissionPayoutStatus
@@ -353,7 +357,8 @@ public enum CommissionPayoutPaymentMethod
 public enum SalesCommissionSourceType
 {
     MerchantOrder,
-    TagOrder
+    TagOrder,
+    ConsignmentSettlement
 }
 
 /// <summary>
@@ -364,7 +369,11 @@ public enum SalesCommissionType
     MerchantOrderPercentage,
     DirectRetailPercentage,
     ResellerAcquisitionBonus,
-    ResellerRepeatPercentage
+    ResellerRepeatPercentage,
+    /// <summary>A fixed amount per verified sold tag at a Standard approved price.</summary>
+    ConsignmentStandardPerUnit,
+    /// <summary>A fixed amount per verified sold tag at a Promotion approved price.</summary>
+    ConsignmentPromotionPerUnit
 }
 
 /// <summary>

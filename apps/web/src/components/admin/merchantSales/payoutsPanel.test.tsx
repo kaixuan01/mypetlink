@@ -223,12 +223,15 @@ describe("Payout operations", () => {
     expect((confirm as HTMLButtonElement).disabled).toBe(true);
     expect(dialog.textContent).toMatch(/external real-world payment/i);
     fireEvent.change(within(dialog).getByLabelText("Payment reference"), { target: { value: "BANK-REAL-1" } });
+    // The bank's own transfer date is recorded separately from when the payment is entered.
+    fireEvent.change(within(dialog).getByLabelText(/Date the money was transferred/), { target: { value: "2026-09-08" } });
     fireEvent.click(confirm);
 
     await waitFor(() => expect(markCommissionPayoutPaid).toHaveBeenCalledWith("payout-1", {
       concurrencyToken: "payout-token",
       paymentMethod: "BankTransfer",
       paymentReference: "BANK-REAL-1",
+      transferredOn: "2026-09-08",
     }));
   });
 
@@ -244,5 +247,58 @@ describe("Payout operations", () => {
     expect(screen.getByText(/Paid amount remains MYR 18.00/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Mark paid" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel payout" })).toBeNull();
+  });
+});
+
+describe("Least-privilege payout viewing", () => {
+  const forbidden = () => Object.assign(new Error("You do not have permission to do that."), { status: 403, code: "forbidden" });
+
+  it("shows every authorized payout when the salesperson list is refused", async () => {
+    listSalespersons.mockRejectedValue(forbidden());
+    render(<PayoutsPanel canMarkPaid={false} canPrepare={false} onOpen={() => {}} openId={null} />);
+
+    expect(await screen.findByText("MPL-PAYOUT-260909-0001")).toBeTruthy();
+    expect(screen.getByRole("cell", { name: /Nur Aisyah/ })).toBeTruthy();
+    expect(screen.queryByText(/permission/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Prepare payout" })).toBeNull();
+    // The filter offers only salespeople already named on the payouts this operator can see.
+    const filter = screen.getByLabelText("Salesperson") as HTMLSelectElement;
+    expect([...filter.options].map((option) => option.textContent)).toEqual(["All salespersons", "Nur Aisyah"]);
+    fireEvent.change(filter, { target: { value: "rep-1" } });
+    await waitFor(() => expect(listCommissionPayouts).toHaveBeenLastCalledWith(expect.objectContaining({ salespersonId: "rep-1" }), expect.any(AbortSignal)));
+  });
+
+  it("opens payout detail without payment or cancellation controls for a viewer", async () => {
+    listSalespersons.mockRejectedValue(forbidden());
+    render(<PayoutsPanel canMarkPaid={false} canPrepare={false} onOpen={() => {}} openId="payout-1" />);
+
+    expect((await screen.findAllByText("Prepared — Not Yet Paid")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Mark paid" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel payout" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Download statement PDF" })).toBeTruthy();
+  });
+
+  it("explains that preparing needs the salesperson list instead of offering an empty choice", async () => {
+    listSalespersons.mockRejectedValue(forbidden());
+    render(<PayoutsPanel canMarkPaid={false} canPrepare onOpen={() => {}} openId={null} />);
+    await screen.findByText("MPL-PAYOUT-260909-0001");
+    fireEvent.click(screen.getByRole("button", { name: "Prepare payout" }));
+
+    expect(screen.getByText(/don’t have access to the salesperson list/)).toBeTruthy();
+    const prepareSection = screen.getByRole("heading", { name: "Prepare commission payout" }).closest("section")!;
+    expect((within(prepareSection).getByRole("button", { name: "Prepare payout" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("never announces a payment the returned record does not show as paid", async () => {
+    markCommissionPayoutPaid.mockResolvedValue(payout());
+    render(<PayoutsPanel canMarkPaid canPrepare onOpen={() => {}} openId="payout-1" />);
+    expect((await screen.findAllByText("Prepared — Not Yet Paid")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Mark paid" }));
+    const dialog = screen.getByRole("dialog", { name: "Record payout as paid?" });
+    fireEvent.change(within(dialog).getByLabelText("Payment reference"), { target: { value: "BANK-REAL-1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm real payment" }));
+
+    expect(await screen.findByText("The payment wasn’t recorded. Reload this payout before trying again.")).toBeTruthy();
+    expect(screen.queryByText(/marked paid at/)).toBeNull();
   });
 });

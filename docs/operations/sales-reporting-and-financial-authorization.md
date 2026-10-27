@@ -21,7 +21,10 @@ actually permits.
 | `payouts.manage` | Preparing a future payout, and cancelling one not yet paid |
 | `payouts.settle` | Recording a payout or an individual commission as paid |
 | `sales_commissions.reverse` | Reversing a commission |
-| `sales_commissions.rules.manage` | Changing the rates and rules that decide future commission |
+| `sales_commissions.rules.manage` | Changing the rates and rules that decide future commission, and recording or ending a salesperson's commission terms |
+| `consignment_settlements.view` | Consignment settlements and the commission each period carries |
+| `consignment_settlements.record_receipt` | Recording, and voiding by mistake, consignment partner payments |
+| `consignment_settlements.resolve` | Confirming who earns a consignment period, and recalculating a period |
 
 The built-in roles that existing administrators were migrated onto reproduce
 the previous matrix exactly: Operations holds `sales.view`; Administrator adds
