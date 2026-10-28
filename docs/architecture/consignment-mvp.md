@@ -538,7 +538,12 @@ document about an existing `ConsignmentDispatch`, never a second delivery workfl
   unsigned with every signing column empty, or signed in full, with every column present (each tested
   `IS NOT NULL`, since a comparison with NULL would otherwise pass a check constraint), signer = issuer,
   signing time = issue time, a name and position that aren't blank and a 64-character hexadecimal
-  fingerprint. The image exists only inside the frozen PDF, so replacing
+  fingerprint. The signature must also be the signer's own (27 October 2026): the composite foreign key
+  `FK_ConsignmentDeliveryOrders_DocumentSignatures_SignatureOwner` ties `(SignatureId, SignedByAdminUserId)`
+  to `DocumentSignatures (Id, SignatoryAdminUserId)` (alternate key `AK_DocumentSignatures_Id_SignatoryAdminUserId`),
+  so SQL Server refuses another administrator's signature however the row is written, and a signature's
+  owner can never change while a DO holds it. Unsigned rows have both columns NULL and are not checked.
+  The image exists only inside the frozen PDF, so replacing
   or removing the signature later never changes an issued DO. A repeated identical request returns the
   issued copy; asking to sign, unsign or re-sign an issued DO is refused (`409`). Audited as
   `consignment.delivery-order-issued` (with the signing fields) and `document-signature.applied`.

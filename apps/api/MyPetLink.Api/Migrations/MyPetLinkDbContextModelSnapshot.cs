@@ -1683,9 +1683,12 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("MerchantId");
 
-                    b.HasIndex("SignatureId");
+                    b.HasIndex("SignatureId")
+                        .HasDatabaseName("IX_ConsignmentDeliveryOrders_SignatureId");
 
                     b.HasIndex("SignedByAdminUserId");
+
+                    b.HasIndex("SignatureId", "SignedByAdminUserId");
 
                     b.ToTable("ConsignmentDeliveryOrders", null, t =>
                         {
@@ -3798,6 +3801,9 @@ namespace MyPetLink.Api.Migrations
                         .HasColumnType("nvarchar(120)");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "SignatoryAdminUserId")
+                        .HasName("AK_DocumentSignatures_Id_SignatoryAdminUserId");
 
                     b.HasIndex("EndedByAdminUserId");
 
@@ -10809,6 +10815,13 @@ namespace MyPetLink.Api.Migrations
                         .WithMany()
                         .HasForeignKey("SignedByAdminUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.DocumentSignature", null)
+                        .WithMany()
+                        .HasForeignKey("SignatureId", "SignedByAdminUserId")
+                        .HasPrincipalKey("Id", "SignatoryAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_ConsignmentDeliveryOrders_DocumentSignatures_SignatureOwner");
 
                     b.Navigation("Dispatch");
                 });

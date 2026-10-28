@@ -367,7 +367,7 @@ public sealed partial class ConsignmentRelationalTests
 
             // Before anyone saves a signature, the step rolls back cleanly and applies again.
             await migrator.MigrateAsync(DeliveryOrdersMigration);
-            Assert.Equal([DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration, SignatureOwnershipMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Empty(await Rules());
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
@@ -378,11 +378,13 @@ public sealed partial class ConsignmentRelationalTests
             var signatures = Signatures(db);
             var saved = (await signatures.SaveOwnAsync(AdminAccountId, Upload(null), default)).Signature!;
             await signatures.RemoveOwnAsync(AdminAccountId, new(saved.Id), default);
-            Assert.Contains("51062", (await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(DeliveryOrdersMigration))).ToString());
+            // The newest step, the ownership rule, refuses first (51066), so no step rolls back at all
+            // and the signature step's own guard (51062) is never left as the only protection.
+            Assert.Contains("51066", (await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(DeliveryOrdersMigration))).ToString());
             db.ChangeTracker.Clear();
-            // The later, still empty settlement step rolls back first; the signature step itself is unchanged.
-            Assert.Equal([SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(all, await Rules());
+            Assert.True(await OwnershipRuleTrusted(db));
             Assert.Equal(1, await db.DocumentSignatures.CountAsync());
         }
         finally { MigratedSchema.Value = false; }

@@ -129,6 +129,18 @@ the administrators who will sign (Super Admin already holds it). Each signer the
 signature under Configuration > My Signature. Generating a signed Delivery Order also needs
 consignment.dispatch. No configuration value or storage bucket is involved: images stay in SQL Server.
 
+Migration 20261027093031_EnforceDocumentSignatureOwnership (27 October 2026) is an additive correction
+on top of the released schema. It adds the alternate key AK_DocumentSignatures_Id_SignatoryAdminUserId,
+the index IX_ConsignmentDeliveryOrders_SignatureId_SignedByAdminUserId and the composite foreign key
+FK_ConsignmentDeliveryOrders_DocumentSignatures_SignatureOwner, so a signed Delivery Order can only
+carry its signer's own signature. Nothing is dropped, rewritten or seeded. Before adding the key it
+checks every signed Delivery Order already on file: if any carries a signature that is not its signer's
+own, it stops with THROW 51065 and changes nothing (the session's XACT_ABORT ON rolls the whole script
+back). Ownership is never guessed or reassigned: review such rows separately before retrying. The key is
+created WITH CHECK, so it validates existing rows and is trusted. Its Down step refuses (THROW 51066)
+once any signature has been saved or any Delivery Order signed, so a rollback never leaves signed
+history without the rule.
+
 Operating decisions (approved 24 October 2026):
 - The first consignment handover on 23 October 2026 keeps its paper Delivery Order MPL-DO-2026-000001
   as the original record. Do not generate a system Delivery Order for that dispatch; there is no legacy

@@ -63,6 +63,8 @@ public sealed partial class MyPetLinkDbContext
             e.Property(x => x.EndReason).HasConversion<string>().HasMaxLength(16);
             // At most one signature on file per administrator.
             e.HasIndex(x => x.SignatoryAdminUserId).IsUnique().HasFilter("[EndedAt] IS NULL");
+            // A version together with its owner, so a signed Delivery Order can require both.
+            e.HasAlternateKey(x => new { x.Id, x.SignatoryAdminUserId }).HasName("AK_DocumentSignatures_Id_SignatoryAdminUserId");
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.SignatoryAdminUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.EndedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
         });

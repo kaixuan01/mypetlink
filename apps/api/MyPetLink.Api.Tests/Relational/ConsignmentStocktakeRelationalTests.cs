@@ -449,14 +449,14 @@ public sealed partial class ConsignmentRelationalTests
             var blocked = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync("20261019010452_ProtectConsignmentContributorHistory"));
             Assert.Contains("51053", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Equal([AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration, SignatureOwnershipMigration], await db.Database.GetPendingMigrationsAsync());
             // Without the new history, the hardening rolls back and the stocktake guard still refuses (non-atomic chain).
             await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE ConsignmentStocktakes SET Status = 'Voided' WHERE Id = {counted.Id}");
             await db.Database.ExecuteSqlRawAsync("DISABLE TRIGGER TR_ConsignmentStocktakes_Closed ON ConsignmentStocktakes; UPDATE ConsignmentStocktakes SET CountedAt = NULL; ENABLE TRIGGER TR_ConsignmentStocktakes_Closed ON ConsignmentStocktakes;");
             blocked = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync("20261019010452_ProtectConsignmentContributorHistory"));
             Assert.Contains("51051", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Equal([HardeningMigration, AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([HardeningMigration, AgreementDocumentsMigration, ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration, SignatureOwnershipMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Equal(1, await db.ConsignmentStocktakes.CountAsync());
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());

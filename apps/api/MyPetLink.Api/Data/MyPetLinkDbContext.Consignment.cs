@@ -276,6 +276,14 @@ public sealed partial class MyPetLinkDbContext
             e.Property(x => x.SignatureImageSha256).HasMaxLength(64);
             e.HasOne<DocumentSignature>().WithMany().HasForeignKey(x => x.SignatureId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<AdminUser>().WithMany().HasForeignKey(x => x.SignedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+            // The signature belongs to the administrator who signed, however the row is written. An
+            // unsigned row has both columns NULL, so SQL Server doesn't check the pair.
+            e.HasOne<DocumentSignature>().WithMany().HasForeignKey(x => new { x.SignatureId, x.SignedByAdminUserId })
+                .HasPrincipalKey(s => new { s.Id, s.SignatoryAdminUserId })
+                .HasConstraintName("FK_ConsignmentDeliveryOrders_DocumentSignatures_SignatureOwner")
+                .OnDelete(DeleteBehavior.Restrict);
+            // Kept as released, although the pair's index also starts with SignatureId.
+            e.HasIndex(x => x.SignatureId).HasDatabaseName("IX_ConsignmentDeliveryOrders_SignatureId");
             // One Delivery Order per delivery, and a number never reused.
             e.HasIndex(x => x.DispatchId).IsUnique();
             e.HasIndex(x => x.DeliveryOrderNumber).IsUnique();

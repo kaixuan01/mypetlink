@@ -14965,3 +14965,59 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261027093031_EnforceDocumentSignatureOwnership'
+)
+BEGIN
+    IF EXISTS(SELECT 1 FROM ConsignmentDeliveryOrders o WITH(UPDLOCK,HOLDLOCK)
+        LEFT JOIN DocumentSignatures s WITH(UPDLOCK,HOLDLOCK) ON s.Id = o.SignatureId
+        WHERE o.SignatureId IS NOT NULL
+            AND (s.Id IS NULL OR o.SignedByAdminUserId IS NULL OR o.SignedByAdminUserId <> s.SignatoryAdminUserId))
+        THROW 51065, 'Signature ownership blocked: a signed Delivery Order carries another administrator''s signature. Review those rows; nothing was changed.', 1;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261027093031_EnforceDocumentSignatureOwnership'
+)
+BEGIN
+    ALTER TABLE [DocumentSignatures] ADD CONSTRAINT [AK_DocumentSignatures_Id_SignatoryAdminUserId] UNIQUE ([Id], [SignatoryAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261027093031_EnforceDocumentSignatureOwnership'
+)
+BEGIN
+    CREATE INDEX [IX_ConsignmentDeliveryOrders_SignatureId_SignedByAdminUserId] ON [ConsignmentDeliveryOrders] ([SignatureId], [SignedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261027093031_EnforceDocumentSignatureOwnership'
+)
+BEGIN
+    ALTER TABLE [ConsignmentDeliveryOrders] ADD CONSTRAINT [FK_ConsignmentDeliveryOrders_DocumentSignatures_SignatureOwner] FOREIGN KEY ([SignatureId], [SignedByAdminUserId]) REFERENCES [DocumentSignatures] ([Id], [SignatoryAdminUserId]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261027093031_EnforceDocumentSignatureOwnership'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261027093031_EnforceDocumentSignatureOwnership', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

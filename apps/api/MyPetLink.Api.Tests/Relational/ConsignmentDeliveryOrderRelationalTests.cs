@@ -241,7 +241,7 @@ public sealed partial class ConsignmentRelationalTests
             Assert.Contains("51060", (await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(CareCompletionIdempotencyMigration))).ToString());
             db.ChangeTracker.Clear();
             // With nothing signed, the later migrations roll back first; the Delivery Order step then stops.
-            Assert.Equal([DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration, SignatureOwnershipMigration], await db.Database.GetPendingMigrationsAsync());
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
             Assert.Single(db.ConsignmentDeliveryOrders);

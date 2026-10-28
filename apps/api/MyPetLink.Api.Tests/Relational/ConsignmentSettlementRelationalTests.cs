@@ -18,6 +18,7 @@ public sealed partial class ConsignmentRelationalTests
 {
     private const string SettlementsMigration = "20261026071019_AddConsignmentSettlementsAndCommissionPolicies";
     private const string RecoveriesMigration = "20261026144016_AddConsignmentCommissionRecoveries";
+    private const string SignatureOwnershipMigration = "20261027093031_EnforceDocumentSignatureOwnership";
     private const decimal IllustrativeUnitCost = 4.00m;
     private static readonly DateOnly RemittanceDay = new(2026, 9, 2);
     private static readonly DateTimeOffset PayoutClock = ReportClock.AddDays(5);

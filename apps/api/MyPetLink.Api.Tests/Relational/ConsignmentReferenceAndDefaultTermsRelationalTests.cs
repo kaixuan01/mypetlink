@@ -314,7 +314,7 @@ public sealed partial class ConsignmentRelationalTests
             // Migrations roll back newest first, each in its own transaction:
             // the later care migration is undone before the guard stops the
             // run, and no Consignment migration is.
-            Assert.Equal([CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration, SignatureOwnershipMigration], await db.Database.GetPendingMigrationsAsync());
         }
         finally { MigratedSchema.Value = false; }
     }

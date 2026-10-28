@@ -349,7 +349,7 @@ public sealed partial class ConsignmentRelationalTests
             var blocked = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(HardeningMigration));
             Assert.Contains("51055", blocked.ToString());
             db.ChangeTracker.Clear();
-            Assert.Equal([ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration], await db.Database.GetPendingMigrationsAsync());
+            Assert.Equal([ReferencesMigration, CareCompletionIdempotencyMigration, DeliveryOrdersMigration, DocumentSignaturesMigration, SettlementsMigration, RecoveriesMigration, SignatureOwnershipMigration], await db.Database.GetPendingMigrationsAsync());
             Assert.Single(db.ConsignmentSignedAgreements);
         }
         finally { MigratedSchema.Value = false; }
